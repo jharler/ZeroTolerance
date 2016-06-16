@@ -1,7 +1,7 @@
 /**************************************************************************************************
- ** Copyright (c) Joshua Harler
+ ** file: zt_tools.h v 0.00 (active initial development)
  **
- ** file: zt_tools.h
+ ** This library is in the public domain.  Do with it what you will.
  **
  **************************************************************************************************
    
@@ -12,6 +12,9 @@
    
     Be sure that #define ZT_TOOLS_IMPLEMENTATION is used in one cpp file before including this
     header file.
+
+	#define ZT_TOOLS_IMPLEMENTATION
+	#include "zt_tools.h"
     
     Options:
    
