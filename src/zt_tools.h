@@ -172,6 +172,14 @@
 #define zt_fjz(end) for(int j = 0; j < (end); ++j)
 #define zt_fkz(end) for(int k = 0; k < (end); ++k)
 
+#define ztMathPi		 3.14159626f
+#define ztMathPi2		 6.28319252f
+#define ztMathPi180		 0.01745331f
+#define ztMath180Pi		57.29571374f
+
+#define ztDegreesToRadians(degrees) ((degrees) * ztMathPi180)
+#define ztRadiansToDegrees(radians) ((radians) * ztMath180Pi)
+
 #if !defined(ZT_TOOLS_RETURN_ON_NULLPTR_NO_ASSERT)
 #	define ztReturnOnNull(ptr) if (ptr == nullptr) { ztAssert(false && "Null pointer encountered: " ##ptr); return; }
 #	define ztReturnValOnNull(ptr, retval) if (ptr == nullptr) { ztAssert(false && "Null pointer encountered: " ##ptr); return retval; };
@@ -183,39 +191,186 @@
 
 // types
 #if defined(ZT_COMPILER_MSVC)
-	typedef unsigned char      byte;
-	typedef signed char        int8;
-	typedef short              int16;
-	typedef int                int32;
-	typedef long long          int64;
-	typedef unsigned char      uint8;
-	typedef unsigned short     uint16;
-	typedef unsigned int       uint32;
-	typedef unsigned long long uint64;
 
-	typedef float real32;
-	typedef double real64;
+typedef unsigned char      byte;
+typedef signed char        int8;
+typedef short              int16;
+typedef int                int32;
+typedef long long          int64;
+typedef unsigned char      uint8;
+typedef unsigned short     uint16;
+typedef unsigned int       uint32;
+typedef unsigned long long uint64;
 
-	typedef uint64 pointer;
+typedef float real32;
+typedef double real64;
 
-	typedef int8	i8;
-	typedef int16	i16;
-	typedef int32	i32;
-	typedef int64	i64;
-	typedef uint8	u8;
-	typedef uint16	u16;
-	typedef uint32	u32;
-	typedef uint64	u64;
-	typedef real32	r32;
-	typedef real64	r64;
-	typedef int32	b32;
+typedef uint64 pointer;
+
+typedef int8	i8;
+typedef int16	i16;
+typedef int32	i32;
+typedef int64	i64;
+typedef uint8	u8;
+typedef uint16	u16;
+typedef uint32	u32;
+typedef uint64	u64;
+typedef real32	r32;
+typedef real64	r64;
+typedef int32	b32;
+
 #endif
 
 // structures/classes =============================================================================
 
-// functions ======================================================================================
+struct ztVec2
+{
+	union {
+		struct {
+			r32 x;
+			r32 y;
+		};
+		struct {
+			r32 u;
+			r32 v;
+		};
+
+		r32 values[2];
+	};
+
+	ztVec2(r32 _x = 0, r32 _y = 0) :x(_x), y(_y) {}
+
+	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; }
+	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; }
+	ztVec2& operator*=(r32 v) { x *= v; y *= v; }
+
+	bool operator==(const ztVec2& v) const { return ztReal32Eq(x, v.x) && ztReal32Eq(y, v.y); }
+	bool operator!=(const ztVec2& v) const { return !ztReal32Eq(x, v.x) || !ztReal32Eq(y, v.y); }
+
+	r32 length() const;
+	r32 dot(const ztVec2& v) const;
+	r32 cross(const ztVec2& v) const;
+	r32 angle(const ztVec2& v) const;
+	r32 distance(const ztVec2& v) const;
+
+	static ztVec2 fromAngle(r32 angle);
+	static ztVec2 lerp(const ztVec2& v1, const ztVec2& v2, r32 percent);
+	static ztVec2 lerpHermite(const ztVec2& v1, const ztVec2& v2, r32 percent);
+	static ztVec2 lerpSinerp(const ztVec2& v1, const ztVec2& v2, r32 percent);
+	static ztVec2 lerpCoserp(const ztVec2& v1, const ztVec2& v2, r32 percent);
+	static ztVec2 lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent);
+
+	static ztVec2 linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b);
+
+	void normalize();
+	ztVec2 getNormal() const;
+
+	void rotate(r32 angle);
+	ztVec2 getRotated(r32 angle) const;
+
+	static const ztVec2 zero;
+	static const ztVec2 one;
+
+#if defined(ZT_VEC2_EXTRAS)
+	ZT_VEC2_EXTRAS	// use this to add conversions to and from your own classes
+#endif
+};
+
+ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2);
+ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2);
+ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2);
+ztInline ztVec2 operator*(const ztVec2& v1, r32 scale);
+
+struct ztVec3
+{
+	union {
+		struct {
+			r32 x;
+			r32 y;
+			r32 z;
+		};
+
+		struct {
+			r32 r;
+			r32 g;
+			r32 b;
+		};
+
+		struct {
+			ztVec2 xy;
+			r32 z;
+		};
+
+		r32 values[3];
+	};
+
+	ztVec3(r32 _x = 0, r32 _y = 0, r32 _z = 0) :x(_x), y(_y), z(_z) {}
+	ztVec3(const ztVec2& vec2, r32 _z = 0) : x(vec2.x), y(vec2.y), z(_z) {}
+
+	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; }
+	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; }
+	ztVec3& operator*=(r32 v) { x *= v; y *= v; z *= v; }
+	ztVec3& operator*=(const ztVec3& v) { x *= v.x; y *= v.y; z *= v.z; }
+
+	bool operator==(const ztVec3& v) const { return ztReal32Eq(x, v.x) && ztReal32Eq(y, v.y) && ztReal32Eq(z, v.z); }
+	bool operator!=(const ztVec3& v) const { return !ztReal32Eq(x, v.x) || !ztReal32Eq(y, v.y) || !ztReal32Eq(z, v.z); }
+
+	r32 length() const;
+	r32 dot(const ztVec3& v) const;
+	r32 angle(const ztVec3& v) const;
+	r32 distance(const ztVec3& v) const;
+	r32 multInner(const ztVec3& v) const;
+	ztVec3 cross(const ztVec3& v) const;
+
+	static ztVec3 lerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
+	static ztVec3 lerpHermite(const ztVec3& v1, const ztVec3& v2, r32 percent);
+	static ztVec3 lerpSinerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
+	static ztVec3 lerpCoserp(const ztVec3& v1, const ztVec3& v2, r32 percent);
+	static ztVec3 lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
+
+	static ztVec2 linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b);
+
+	void normalize();
+	ztVec3 getNormal() const;
+
+	static const ztVec3 zero;
+	static const ztVec3 one;
+
+};
+
+ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2);
+ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2);
+ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2);
+ztInline ztVec3 operator*(const ztVec3& v1, r32 scale);
+
+
+// inlined functions ==============================================================================
+
+bool zt_isPow2(i32 number);
+i32 zt_nextPow2(i32 number);
+
+i32 zt_convertToi32Ceil(r32 number);
+i32 zt_convertToi32Floor(i32 number);
+
+r32 zt_lerp(r32 v1, r32 v2, r32 percent);
+r32 zt_unlerp(r32 v1, r32 v2, r32 value);
+
+r32 zt_lerpHermite(r32 v1, r32 v2, r32 percent);
+r32 zt_lerpSinerp(r32 v1, r32 v2, r32 percent);
+r32 zt_lerpCoserp(r32 v1, r32 v2, r32 percent);
+r32 zt_lerpBerp(r32 v1, r32 v2, r32 percent, r32 power = 2.5f);
+r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent);
+
+r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
+r32 zt_normalize(r32 val, r32 min, r32 max);
+r32 zt_approach(r32 var, r32 appr, r32 by);
 
 void zt_assert(bool condition, const char *condition_name, const char *file, int file_line);
+
+// they are inlined below
+// ------------------------------------------------------------------------------------------------
+
+// functions ======================================================================================
 
 enum ztLogMessageLevel_Enum
 {
@@ -240,6 +395,8 @@ void zt_logFatal(const char *message, ...);
 typedef void(*zt_logCallback_Func)(ztLogMessageLevel_Enum level, const char * message);
 void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level);
 void zt_logRemoveCallback(zt_logCallback_Func callback);
+
+// ------------------------------------------------------------------------------------------------
 
 // memory functions
 void zt_memSet(void *mem, i32 mem_len, byte value);
@@ -303,6 +460,18 @@ void* zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
 void zt_memFreeGlobal(void* data);
 
 #define zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
+
+// ------------------------------------------------------------------------------------------------
+
+// math functions
+r32 zt_sin(r32 x);
+r32 zt_cos(r32 y);
+r32 zt_acos(r32 y);
+r32 zt_atan2(r32 x, r32 y);
+r32 zt_sqrt(r32 v);
+r32 zt_pow(r32 v, r32 p);
+
+// ------------------------------------------------------------------------------------------------
 
 // string functions
 #define zt_strPosNotFound	-1
@@ -378,12 +547,423 @@ int zt_strTokenize(const char *s, int s_len, const char* tokens, ztToken* result
 // ------------------------------------------------------------------------------------------------
 
 
+ztInline bool zt_isPow2(i32 number)
+{
+	return ((number != 0) && ((number & (~number + 1)) == number));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_nextPow2(i32 number)
+{
+	i32 nval = 2;
+	while (nval < number) nval *= 2;
+	return nval;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_convertToi32Ceil(r32 number)
+{
+	return (int32)(number + (number > 0 ? 0.5f : -0.5f));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_convertToi32Floor(i32 number)
+{
+	return (int32)(number);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerp(r32 v1, r32 v2, r32 percent)
+{
+	return v1 + ((v2 - v1) * percent);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_unlerp(r32 v1, r32 v2, r32 value)
+{
+	return (v2 - v1) == 0 ? 0 : (value - v1) / (v2 - v1);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerpHermite(r32 v1, r32 v2, r32 percent)
+{
+	return zt_lerp(v1, v2, percent * percent * (3.0f - 2.0f * percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerpSinerp(r32 v1, r32 v2, r32 percent)
+{
+	return zt_lerp(v1, v2, zt_sin(percent * ztMathPi * 0.5f));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerpCoserp(r32 v1, r32 v2, r32 percent)
+{
+	return zt_lerp(v1, v2, 1.0f - zt_cos(percent * ztMathPi * 0.5f));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerpBerp(r32 v1, r32 v2, r32 percent, r32 power)
+{
+	return zt_lerp(v1, v2, zt_sin(percent * ztMathPi * (0.2f + power * percent * percent * percent)) * zt_pow(1.0f - percent, 2.2f) + percent) * (1.0f + (1.2f * (1.0f - percent)));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent)
+{
+	r32 min_ang = 0.0f;
+	r32 max_ang = 360.0f;
+	r32 half = ztAbs((max_ang - min_ang) / 2.0f); //half the distance between min and max
+
+	r32 retval;
+	r32 diff;
+
+	if ((ang2 - ang1) < -half){
+		diff = ((max_ang - ang1) + ang2) * percent;
+		retval = ang1 + diff;
+	}
+	else if ((ang2 - ang1) > half){
+		diff = -((max_ang - ang2) + ang1) * percent;
+		retval = ang1 + diff;
+	}
+	else retval = ang1 + (ang2 - ang1) * percent;
+
+	return retval;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
+{
+	return zt_lerp(v2a, v2b, zt_unlerp(v1a, v1b, val));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
+{
+	return (val - min) / (max - min);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
+{
+	if (var >= var) 
+		return ztMin(var + by, appr);
+
+	return ztMax(var - by, appr);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInline void zt_assert(bool condition, const char *condition_name, const char *file, int file_line)
 {
 	if (!condition) {
-		__asm { int 3 };
+		zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
+		ztDebugOnly(__asm { int 3 });
 	}
 }
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec2::length() const
+{
+	return zt_sqrt(x * x + y * y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec2::dot(const ztVec2& v) const
+{
+	return x * v.x + y * v.y;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec2::cross(const ztVec2& v) const
+{
+	return x * v.x + y * v.y;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec2::angle(const ztVec2& v) const
+{
+	ztRadiansToDegrees(zt_atan2(v.y - y, v.x - x));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec2::distance(const ztVec2& v) const
+{
+	return zt_sqrt((x - v.x) * (x - v.x) + (y - v.y) * (y - v.y));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::fromAngle(r32 angle)
+{
+	return ztVec2(zt_cos(angle), zt_sin(angle));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::lerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
+{
+	return ztVec2(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::lerpHermite(const ztVec2& v1, const ztVec2& v2, r32 percent)
+{
+	return ztVec2(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::lerpSinerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
+{
+	return ztVec2(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::lerpCoserp(const ztVec2& v1, const ztVec2& v2, r32 percent)
+{
+	return ztVec2(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 ztVec2::lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
+{
+	return ztVec2(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec2 linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b)
+{
+	return ztVec2(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztVec2::normalize()
+{
+	r32 len = length();
+	if (!ztReal32Eq(len, 0)) {
+		x = x / len;
+		y = y / len;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 ztVec2::getNormal() const
+{
+	r32 len = length();
+	return ztReal32Eq(len, 0) ? *this : ztVec2(x / len, y / len);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztVec2::rotate(r32 angle)
+{
+	r32 vsin = zt_sin(angle);
+	r32 vcos = zt_cos(angle);
+
+	r32 tx = x;
+	r32 ty = y;
+
+	x = vcos * tx - vsin * ty;
+	y = vsin * tx + vcos * ty;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 ztVec2::getRotated(r32 angle) const
+{
+	r32 vsin = zt_sin(angle);
+	r32 vcos = zt_cos(angle);
+
+	return ztVec2(vcos * x - vsin * y, vsin * x + vcos * y);
+}
+
+ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2)
+{
+	return ztVec2(v1.x + v2.x, v1.y + v2.y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2)
+{
+	return ztVec2(v1.x - v2.x, v1.y - v2.y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2)
+{
+	return ztVec2(v1.x * v2.x, v1.y * v2.y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 operator*(const ztVec2& v1, r32 scale)
+{
+	return ztVec2(v1.x * scale, v1.y * scale);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec3::length() const
+{
+	return zt_sqrt(x * x + y * y + z * z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec3::dot(const ztVec3& v) const
+{
+	return x * v.x + y * v.y + z * v.z;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 ztVec3::cross(const ztVec3& v) const
+{
+	return ztVec3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec3::angle(const ztVec3& v) const
+{
+	ztVec3 v1n = getNormal();
+	ztVec3 v2n = v.getNormal();
+	r32 v1len = v1n.length();
+	
+	return (ztReal32Eq(v1len, 0) || ztReal32Eq(v2n.length(), 0)) ? v1len : zt_acos(dot(v));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztVec3::distance(const ztVec3& v) const
+{
+	r32 x = x - v.x, y = y - v.y, z = z - v.z; 
+	return zt_sqrt(x * x + y * y + z * z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 ztVec3::lerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
+{
+	return ztVec3(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 ztVec3::lerpHermite(const ztVec3& v1, const ztVec3& v2, r32 percent)
+{
+	return ztVec3(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 ztVec3::lerpSinerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
+{
+	return ztVec3(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 ztVec3::lerpCoserp(const ztVec3& v1, const ztVec3& v2, r32 percent)
+{
+	return ztVec3(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 ztVec3::lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
+{
+	return ztVec3(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztVec3 linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b)
+{
+	return ztVec3(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztVec3::normalize()
+{
+	r32 len = length();
+	if (!ztReal32Eq(len, 0)) {
+		x = x / len;
+		y = y / len;
+		z = z / len;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 ztVec3::getNormal() const
+{
+	r32 len = length();
+	return ztReal32Eq(len, 0) ? *this : ztVec3(x / len, y / len);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2)
+{
+	return ztVec3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2)
+{
+	return ztVec3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2)
+{
+	return ztVec3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator*(const ztVec3& v1, r32 scale)
+{
+	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
+}
+
+// ------------------------------------------------------------------------------------------------
 
 
 // ------------------------------------------------------------------------------------------------
@@ -396,6 +976,7 @@ ztInline void zt_assert(bool condition, const char *condition_name, const char *
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <math.h>
 
 #if defined(ZT_COMPILER_MSVC)
 #	include <windows.h>
@@ -819,6 +1400,7 @@ bool zt_memPushGlobalArena(ztMemoryArena *arena)
 	}
 
 	_zt_memGlobalArenaStack[_zt_memGlobalArenaStackCount++] = arena;
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -873,6 +1455,63 @@ void zt_memFreeGlobal(void* data)
 	}
 }
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ const ztVec2 ztVec2::zero = ztVec2(0, 0);
+/*static*/ const ztVec2 ztVec2::one = ztVec2(1, 1);
+
+/*static*/ const ztVec3 ztVec3::zero = ztVec3(0, 0, 0);
+/*static*/ const ztVec3 ztVec3::one = ztVec3(1, 1, 1);
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_sin(r32 x)
+{
+	return sinf(x);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_cos(r32 y)
+{
+	return cosf(y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_acos(r32 y)
+{
+	return acosf(y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_atan2(r32 x, r32 y)
+{
+	return atan2f(x, y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_sqrt(r32 v)
+{
+	return sqrtf(v);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_pow(r32 v, r32 p)
+{
+	return powf(v, p);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 bool zt_strEquals(const char *s1, const char *s2, bool test_case)
