@@ -101,7 +101,7 @@ bool test_memory()
 	ztTest_results(memory_arena->freed_allocs == 1);
 	ztTest_results(memory_arena->latest && memory_arena->latest->length == 32);
 	ztTest_results(memory_arena->latest && memory_arena->latest->next && memory_arena->latest->next->length == 16);
-	ztTest_results(memory_arena->latest && memory_arena->latest->next && memory_arena->latest->next->next && memory_arena->latest->next->next->length == 76);
+	ztTest_results(memory_arena->latest && memory_arena->latest->next && memory_arena->latest->next->next && memory_arena->latest->next->next->length == 76 ztReleaseOnly(+16));
 
 	zt_memFree(memory_arena, temp);
 	zt_memFree(memory_arena, temp2);
@@ -277,6 +277,69 @@ bool test_strings()
 	return true;
 }
 
+// ------------------------------------------------------------------------------------------------
+
+bool test_files()
+{
+	char app_name[ztFileMaxPath];
+	zt_fileGetAppBin(app_name, ztElementsOf(app_name));
+	printf("app bin: %s\n", app_name);
+
+	ztTest_results(zt_fileExists(app_name));
+
+	char app_path[ztFileMaxPath];
+	zt_fileGetAppPath(app_path, ztElementsOf(app_path));
+	printf("app path: %s\n", app_path);
+
+	char temp_file[ztFileMaxPath];
+	zt_strPrintf(temp_file, ztElementsOf(temp_file), "%s%ctemp.txt", app_path, ztFilePathSeparator);
+	printf("temp file: %s\n", temp_file);
+
+	char temp_file_path[ztFileMaxPath];
+	char temp_file_name[128];
+	char temp_file_ext[128];
+
+	zt_fileGetFullPath(temp_file, temp_file_path, ztElementsOf(temp_file_path));
+	zt_fileGetFileName(temp_file, temp_file_name, ztElementsOf(temp_file_name));
+	zt_fileGetFileExt (temp_file, temp_file_ext , ztElementsOf(temp_file_ext));
+
+	printf("temp file path: %s\n", temp_file_path);
+
+	ztTest_results(zt_strEquals(temp_file_name, "temp.txt"));
+	ztTest_results(zt_strEquals(temp_file_ext, "txt"));
+
+	char temp_file_copy[ztFileMaxPath];
+	zt_strPrintf(temp_file_copy, ztElementsOf(temp_file_copy), "%s%ctemp_copy.txt", app_path, ztFilePathSeparator);
+	printf("temp copy file: %s\n", temp_file);
+
+	char *temp_file_data = "This is a test temp file.\n";
+	zt_fileWriteEntireFile(temp_file, temp_file_data, zt_strLen(temp_file_data) + 1);
+
+	i32 data_size = 0;
+	char *data = (char *)zt_fileReadEntireFile(temp_file, &data_size);
+
+	ztTest_results(zt_strEquals(temp_file_data, data));
+
+	zt_memFree(nullptr, data);
+
+	ztTest_results(zt_fileCopy(temp_file, temp_file_copy));
+	ztTest_results(zt_fileExists(temp_file_copy));
+	ztTest_results(zt_fileDelete(temp_file_copy));
+	ztTest_results(zt_fileRename(temp_file, temp_file_copy));
+	ztTest_results(zt_fileExists(temp_file) == false);
+	ztTest_results(zt_fileDelete(temp_file_copy));
+	ztTest_results(zt_fileExists(temp_file_copy) == false);
+
+	char user_path[ztFileMaxPath];
+	zt_fileGetUserPath(user_path, ztElementsOf(user_path), "zt_tests");
+	printf("user path: %s\n", user_path);
+
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 // functions ======================================================================================
 
 int main(char** argv, int argc)
@@ -286,6 +349,7 @@ int main(char** argv, int argc)
 	test_dataTypes();
 	test_memory();
 	test_strings();
+	test_files();
 
 	printf("\nresults: %d out of %d tests passed.\n\n", g_tests_success, g_tests_success + g_tests_failure);
 
