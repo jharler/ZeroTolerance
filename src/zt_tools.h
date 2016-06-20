@@ -469,7 +469,7 @@ void zt_logRemoveCallback(zt_logCallback_Func callback);
 // memory functions
 void zt_memSet(void *mem, i32 mem_len, byte value);
 void zt_memCpy(void *dst, i32 dst_len, const void *src, i32 src_len);
-int  zt_memCmp(const void *one, const void* two, i32 size);
+int  zt_memCmp(const void *one, const void *two, i32 size);
 
 struct ztMemoryArena
 {
@@ -505,9 +505,9 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from = nullptr);
 void zt_memFreeArena(ztMemoryArena *arena);
 
 // arena can be null and if so, standard malloc/realloc/free will be used
-void* zt_memAllocFromArena(ztMemoryArena *arena, i32 size);
-void* zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line);
-void* zt_memRealloc(ztMemoryArena *arena, void* data, i32 size);
+void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size);
+void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line);
+void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size);
 void zt_memFree(ztMemoryArena *arena, void *data);
 
 #define zt_memAlloc(arena, size) zt_memAllocFromArena(arena, size, __FILE__, __LINE__)
@@ -522,11 +522,11 @@ void zt_memPopGlobalArena(ztMemoryArena *arena);
 ztMemoryArena* zt_memGetGlobalArena();
 
 // by default, malloc and free are used when there are no overrides set
-void zt_memSetDefaultMallocFree(void* (*malloc_func)(size_t), void(*free_func)(void*));
+void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*));
 
 // be sure that the global arena stack is in the same state between calls to the following
-void* zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
-void zt_memFreeGlobal(void* data);
+void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
+void zt_memFreeGlobal(void *data);
 
 #define zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
 
@@ -563,6 +563,8 @@ r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
 r64 zt_strToReal64(const char *s, r64 def, bool* success = nullptr);
 r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success = nullptr);
 
+u32 zt_strHash(const char *s);
+
 const char *zt_strFind(const char *haystack, const char *needle);
 const char *zt_strFind(const char *haystack, const char *needle, int needle_len);
 const char *zt_strFind(const char *haystack, int haystack_len, const char *needle, int needle_len);
@@ -590,6 +592,11 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 int zt_striFindLastPos(const char *haystack, const char *needle);
 int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len);
 int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len);
+
+bool zt_strStartsWith(const char *s, const char *starts_with);
+bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
+bool zt_strEndsWith(const char *s, const char *ends_with);
+bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
 
 const char *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
 const char *zt_strJumpToNextToken(const char *s, int s_len);
@@ -622,7 +629,7 @@ struct ztToken
 // this allows for calling the function once with a null array to get the size, then allocating the required amount of memory before calling a second time
 
 int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
-int zt_strTokenize(const char *s, int s_len, const char* tokens, ztToken* results, int results_count, int32 flags = 0);
+int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
 
 int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...);
 
@@ -646,7 +653,7 @@ struct ztFile
 	ztFileOpenMethod_Enum open_method;
 	i32 size;
 
-	char* full_name; // full file name, path and file with extension
+	char *full_name; // full file name, path and file with extension
 
 #if defined(ZT_WIN32) || defined(ZT_WIN64)
 	i32 win_file_handle; // HFILE
@@ -690,7 +697,7 @@ bool zt_fileDelete(const char *file_name);
 bool zt_fileCopy(const char *orig_file, const char *new_file);
 bool zt_fileRename(const char *orig_file, const char *new_file);
 
-i32 zt_fileRead(ztFile *file, void* buffer, i32 buffer_size);
+i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size);
 ztInline bool zt_fileRead(ztFile *file, i8 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
 ztInline bool zt_fileRead(ztFile *file, i16 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
 ztInline bool zt_fileRead(ztFile *file, i32 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
@@ -702,7 +709,7 @@ ztInline bool zt_fileRead(ztFile *file, u64 *value)		{ return sizeof(*value) == 
 ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
 ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
 
-i32 zt_fileWrite(ztFile *file, void* buffer, i32 buffer_size);
+i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size);
 ztInline bool zt_fileWrite(ztFile *file, i8 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
 ztInline bool zt_fileWrite(ztFile *file, i16 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
 ztInline bool zt_fileWrite(ztFile *file, i32 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
@@ -716,7 +723,7 @@ ztInline bool zt_fileWrite(ztFile *file, r64 value)		{ return sizeof(value) == z
 
 void zt_fileFlush(ztFile *file);
 
-void* zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena = zt_memGetGlobalArena());
+void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena = zt_memGetGlobalArena());
 i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size);
 i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
 
@@ -775,7 +782,7 @@ struct ztSerial
 	ztFile file;
 	bool close_file;
 
-	void* file_data;
+	void *file_data;
 	i32 file_data_size;
 
 	char identifier[ztSerialIdentifierMaxSize];
@@ -787,46 +794,46 @@ struct ztSerial
 	i16 _checksum1, _checksum2;
 };
 
-bool zt_serialMakeWriter(ztSerial* serial, const char* file_name, const char* identifier, i32 version);
-bool zt_serialMakeWriter(ztSerial* serial, ztFile* file, const char* identifier, i32 version);
+bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *identifier, i32 version);
+bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier, i32 version);
 
 // if opening a reader fails, check the mode in the ztSerial instance.  if it's ztSerialMode_Corrupt, then the file's checksum did not match
-bool zt_serialMakeReader(ztSerial* serial, const char* file_name, const char* identifier);
-bool zt_serialMakeReader(ztSerial* serial, void* data, i32 data_size, const char* identifier);
-bool zt_serialMakeReader(ztSerial* serial, ztFile* file, const char* identifier);
+bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier);
+bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier);
+bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier);
 
-void zt_serialClose(ztSerial* serial);
+void zt_serialClose(ztSerial *serial);
 
-bool zt_serialGroupPush(ztSerial* serial);
-bool zt_serialGroupPop(ztSerial* serial);
+bool zt_serialGroupPush(ztSerial *serial);
+bool zt_serialGroupPop(ztSerial *serial);
 
-bool zt_serialWrite(ztSerial* serial, i8 value);
-bool zt_serialWrite(ztSerial* serial, i16 value);
-bool zt_serialWrite(ztSerial* serial, i32 value);
-bool zt_serialWrite(ztSerial* serial, i64 value);
-bool zt_serialWrite(ztSerial* serial, u8 value);
-bool zt_serialWrite(ztSerial* serial, u16 value);
-bool zt_serialWrite(ztSerial* serial, u32 value);
-bool zt_serialWrite(ztSerial* serial, u64 value);
-bool zt_serialWrite(ztSerial* serial, r32 value);
-bool zt_serialWrite(ztSerial* serial, r64 value);
-bool zt_serialWrite(ztSerial* serial, bool value);
-bool zt_serialWrite(ztSerial* serial, const char* value, i32 value_len);
-bool zt_serialWrite(ztSerial* serial, void* value, i32 value_len);
+bool zt_serialWrite(ztSerial *serial, i8 value);
+bool zt_serialWrite(ztSerial *serial, i16 value);
+bool zt_serialWrite(ztSerial *serial, i32 value);
+bool zt_serialWrite(ztSerial *serial, i64 value);
+bool zt_serialWrite(ztSerial *serial, u8 value);
+bool zt_serialWrite(ztSerial *serial, u16 value);
+bool zt_serialWrite(ztSerial *serial, u32 value);
+bool zt_serialWrite(ztSerial *serial, u64 value);
+bool zt_serialWrite(ztSerial *serial, r32 value);
+bool zt_serialWrite(ztSerial *serial, r64 value);
+bool zt_serialWrite(ztSerial *serial, bool value);
+bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len);
+bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len);
 
-bool zt_serialRead(ztSerial* serial, i8 *value);
-bool zt_serialRead(ztSerial* serial, i16 *value);
-bool zt_serialRead(ztSerial* serial, i32 *value);
-bool zt_serialRead(ztSerial* serial, i64 *value);
-bool zt_serialRead(ztSerial* serial, u8 *value);
-bool zt_serialRead(ztSerial* serial, u16 *value);
-bool zt_serialRead(ztSerial* serial, u32 *value);
-bool zt_serialRead(ztSerial* serial, u64 *value);
-bool zt_serialRead(ztSerial* serial, r32 *value);
-bool zt_serialRead(ztSerial* serial, r64 *value);
-bool zt_serialRead(ztSerial* serial, bool *value);
-bool zt_serialRead(ztSerial* serial, char* value, i32 value_len, i32* read_len);
-bool zt_serialRead(ztSerial* serial, void* value, i32 value_len, i32* read_len);
+bool zt_serialRead(ztSerial *serial, i8 *value);
+bool zt_serialRead(ztSerial *serial, i16 *value);
+bool zt_serialRead(ztSerial *serial, i32 *value);
+bool zt_serialRead(ztSerial *serial, i64 *value);
+bool zt_serialRead(ztSerial *serial, u8 *value);
+bool zt_serialRead(ztSerial *serial, u16 *value);
+bool zt_serialRead(ztSerial *serial, u32 *value);
+bool zt_serialRead(ztSerial *serial, u64 *value);
+bool zt_serialRead(ztSerial *serial, r32 *value);
+bool zt_serialRead(ztSerial *serial, r64 *value);
+bool zt_serialRead(ztSerial *serial, bool *value);
+bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len);
+bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -840,11 +847,27 @@ struct ztRandom
 	i32 mt_buffer[ztRandom_MTLen];
 };
 
-void zt_randomInit(ztRandom* random, i32 seed);
+void zt_randomInit(ztRandom *random, i32 seed);
 
-i32 zt_randomInt(ztRandom* random, i32 min, i32 max);
-r32 zt_randomVal(ztRandom* random); // between 0 and 1
-r32 zt_randomVal(ztRandom* random, r32 min, r32 max);
+i32 zt_randomInt(ztRandom *random, i32 min, i32 max);
+r32 zt_randomVal(ztRandom *random); // between 0 and 1
+r32 zt_randomVal(ztRandom *random, r32 min, r32 max);
+
+
+// ------------------------------------------------------------------------------------------------
+// configuration files
+
+// these are really slow
+i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size);
+bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value);
+
+
+
+// ------------------------------------------------------------------------------------------------
+// command line
+
+bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long);
+bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1478,7 +1501,7 @@ void zt_logRemoveCallback(zt_logCallback_Func callback)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memSet(void* mem, int32 mem_len, byte value)
+void zt_memSet(void *mem, int32 mem_len, byte value)
 {
 	byte* bmem = (byte*)mem;
 	zt_fiz(mem_len) {
@@ -1488,7 +1511,7 @@ void zt_memSet(void* mem, int32 mem_len, byte value)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memCpy(void* dst, int32 dst_len, void* src, int32 src_len)
+void zt_memCpy(void *dst, int32 dst_len, void *src, int32 src_len)
 {
 	int max_idx = zt_min(dst_len, src_len);
 	for (int i = 0; i < max_idx; ++i) {
@@ -1498,7 +1521,7 @@ void zt_memCpy(void* dst, int32 dst_len, void* src, int32 src_len)
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_memCmp(const void *one, const void* two, i32 size)
+int zt_memCmp(const void *one, const void *two, i32 size)
 {
 	byte *bone = (byte*)one;
 	byte *btwo = (byte*)two;
@@ -1527,7 +1550,7 @@ int zt_memCmp(const void *one, const void* two, i32 size)
 ztInternal ztMemoryArena *_zt_memGlobalArenaStack[ZT_MEM_GLOBAL_ARENA_STACK_SIZE];
 ztInternal i32 _zt_memGlobalArenaStackCount = 0;
 
-ztInternal void* (*_zt_malloc)(size_t) = malloc;
+ztInternal void *(*_zt_malloc)(size_t) = malloc;
 ztInternal void(*_zt_free)(void*) = free;
 
 
@@ -1583,7 +1606,7 @@ void zt_memFreeArena(ztMemoryArena *arena)
 
 // ------------------------------------------------------------------------------------------------
 
-void* zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
+void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
 	if (arena == nullptr) {
 		return _zt_malloc(bytes);
@@ -1666,9 +1689,9 @@ void* zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 // ------------------------------------------------------------------------------------------------
 
-void* zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line)
+void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line)
 {
-	void* result = zt_memAllocFromArena(arena, size);
+	void *result = zt_memAllocFromArena(arena, size);
 	if (result) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - sizeof(ztMemoryArena::allocation));
 		zt_debugOnly(allocation->file = file);
@@ -1680,7 +1703,7 @@ void* zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 
 // ------------------------------------------------------------------------------------------------
 
-void* zt_memRealloc(ztMemoryArena *arena, void* data, i32 size)
+void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 {
 	if (data == nullptr) {
 		return zt_memAllocFromArena(arena, size);
@@ -1704,7 +1727,7 @@ void* zt_memRealloc(ztMemoryArena *arena, void* data, i32 size)
 			return data;
 		}
 		else {
-			void* nmem = zt_memAllocFromArena(arena, size);
+			void *nmem = zt_memAllocFromArena(arena, size);
 			if (nmem == nullptr) {
 				return nmem;
 			}
@@ -1830,7 +1853,7 @@ ztMemoryArena* zt_memGetGlobalArena()
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memSetDefaultMallocFree(void* (*malloc_func)(size_t), void(*free_func)(void*))
+void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*))
 {
 	_zt_malloc = malloc_func;
 	_zt_free = free_func;
@@ -1838,7 +1861,7 @@ void zt_memSetDefaultMallocFree(void* (*malloc_func)(size_t), void(*free_func)(v
 
 // ------------------------------------------------------------------------------------------------
 
-void* zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
+void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 {
 	ztMemoryArena* arena = zt_memGetGlobalArena();
 	if (arena) {
@@ -1851,7 +1874,7 @@ void* zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memFreeGlobal(void* data)
+void zt_memFreeGlobal(void *data)
 {
 	ztMemoryArena* arena = zt_memGetGlobalArena();
 	if (arena) {
@@ -2101,7 +2124,7 @@ r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success)
 {
 	_zt_str_to_prepare_and_check;
 
-	char* end = nullptr;
+	char *end = nullptr;
 	r32 result = strtof(s, &end);
 
 	if (end == s) {
@@ -2127,7 +2150,7 @@ r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 {
 	_zt_str_to_prepare_and_check;
 
-	char* end = nullptr;
+	char *end = nullptr;
 	r64 result = strtod(s, &end);
 
 	if (end == s) {
@@ -2140,6 +2163,65 @@ r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 	}
 
 	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+u32 zt_strHash(const char *s)
+{
+	// MurmurHash2, by Austin Appleby
+	// Note - This code makes a few assumptions about how your machine behaves -
+	// 1. We can read a 4-byte value from any address without crashing
+	// 2. sizeof(int) == 4
+	// And it has a few limitations -
+	// 1. It will not work incrementally.
+	// 2. It will not produce the same results on little-endian and big-endian
+	//    machines.
+
+	// 'm' and 'r' are mixing constants generated offline.
+	// They're not really 'magic', they just happen to work well.
+	const u32 m = 0x5bd1e995;
+	const int r = 24;
+
+	u32 s_len = s == nullptr ? 0 : zt_strLen(s);
+	u32 seed = s_len + 1;
+
+	// Initialize the hash to a 'random' value
+	u32 h = seed ^ s_len;
+
+	// Mix 4 bytes at a time into the hash
+	const u8 * data = (const u8*)s;
+
+	while (s_len >= 4) {
+		u32 k = *(u32 *)data;
+
+		k *= m;
+		k ^= k >> r;
+		k *= m;
+
+		h *= m;
+		h ^= k;
+
+		data += 4;
+		s_len -= 4;
+	}
+
+	// Handle the last few bytes of the input array
+	switch (s_len)
+	{
+	case 3: h ^= data[2] << 16;
+	case 2: h ^= data[1] << 8;
+	case 1: h ^= data[0];
+		h *= m;
+	};
+
+	// Do a few final mixes of the hash to ensure the last few
+	// bytes are well-incorporated.
+	h ^= h >> 13;
+	h *= m;
+	h ^= h >> 15;
+
+	return h;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2426,6 +2508,48 @@ int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needl
 	}
 
 	return -1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strStartsWith(const char *s, const char *starts_with)
+{
+	return zt_strStartsWith(s, zt_strLen(s), starts_with, zt_strLen(starts_with));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
+{
+	if (!s || !starts_with || s_len <= 0 || sw_len <= 0 || s_len < sw_len) return false;
+
+	zt_fiz(sw_len) {
+		if (s[i] != starts_with[i])
+			return false;
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strEndsWith(const char *s, const char *ends_with)
+{
+	return zt_strEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
+{
+	if (!s || !ends_with || s_len <= 0 || ew_len <= 0 || s_len < ew_len) return false;
+
+	for (int i = s_len - ew_len, e = 0; i < s_len; ++i, ++e) {
+		if (s[i] != ends_with[e])
+			return false;
+	}
+
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2982,7 +3106,7 @@ bool zt_fileRename(const char *orig_file, const char *new_file)
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_fileRead(ztFile *file, void* buffer, i32 buffer_size)
+i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 {
 	zt_returnValOnNull(file, 0);
 	zt_returnValOnNull(buffer, 0);
@@ -3005,7 +3129,7 @@ i32 zt_fileRead(ztFile *file, void* buffer, i32 buffer_size)
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_fileWrite(ztFile *file, void* buffer, i32 buffer_size)
+i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size)
 {
 	zt_returnValOnNull(file, 0);
 	zt_returnValOnNull(buffer, 0);
@@ -3041,7 +3165,7 @@ void zt_fileFlush(ztFile *file)
 
 // ------------------------------------------------------------------------------------------------
 
-void* zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena)
+void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena)
 {
 	zt_returnValOnNull(file_name, nullptr);
 	zt_returnValOnNull(file_size, nullptr);
@@ -3051,7 +3175,7 @@ void* zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *ar
 		return nullptr;
 	}
 
-	void* data = zt_memAllocFromArena(arena, file.size);
+	void *data = zt_memAllocFromArena(arena, file.size);
 	if (data == nullptr) {
 		return nullptr;
 	}
@@ -3150,7 +3274,7 @@ ztInternal const int _zt_mod_adler = 65521;
 
 static int byte_idx = 0;
 
-ztInternal ztInline void _zt_serialAddToChecksum(ztSerial* serial, byte data)
+ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, byte data)
 {
 	serial->_checksum1 = (serial->_checksum1 + data) % _zt_mod_adler;
 	serial->_checksum2 = (serial->_checksum2 + serial->_checksum1) % _zt_mod_adler;
@@ -3158,7 +3282,7 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial* serial, byte data)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline void _zt_serialAddToChecksum(ztSerial* serial, void* data, i32 data_len)
+ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i32 data_len)
 {
 	zt_fiz(data_len) {
 		serial->_checksum1 = (serial->_checksum1 + ((byte*)data)[i]) % _zt_mod_adler;
@@ -3168,7 +3292,7 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial* serial, void* data, i
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline bool _zt_validateChecksum(ztSerial* serial)
+ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 {
 	bool is_valid = false;
 
@@ -3217,7 +3341,7 @@ ztInternal ztInline bool _zt_validateChecksum(ztSerial* serial)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline bool _zt_writeByte(ztSerial* serial, byte b)
+ztInternal ztInline bool _zt_writeByte(ztSerial *serial, byte b)
 {
 	if (serial->mode != ztSerialMode_Writing) {
 		return false;
@@ -3230,7 +3354,7 @@ ztInternal ztInline bool _zt_writeByte(ztSerial* serial, byte b)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline bool _zt_writeData(ztSerial* serial, ztSerialEntryType_Enum entry_type, void *data, int data_size)
+ztInternal ztInline bool _zt_writeData(ztSerial *serial, ztSerialEntryType_Enum entry_type, void *data, int data_size)
 {
 	if (serial->mode != ztSerialMode_Writing) {
 		return false;
@@ -3258,7 +3382,7 @@ ztInternal ztInline bool _zt_writeData(ztSerial* serial, ztSerialEntryType_Enum 
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline i32 _zt_readData(ztSerial* serial, void* data, i32 data_size)
+ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size)
 {
 	if (serial->file_data) {
 		if (serial->file_data_size < data_size)
@@ -3288,7 +3412,7 @@ ztInternal ztInline bool _zt_readByte(ztSerial *serial, byte *byte)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline bool _zt_readData(ztSerial* serial, ztSerialEntryType_Enum expected_type, void *data, int data_size)
+ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum expected_type, void *data, int data_size)
 {
 	if (serial->mode != ztSerialMode_Reading) {
 		return false;
@@ -3331,7 +3455,7 @@ ztInternal ztInline bool _zt_readData(ztSerial* serial, ztSerialEntryType_Enum e
 
 // ------------------------------------------------------------------------------------------------
 
-bool _zt_serialMakeWriterDoHeader(ztSerial* serial, const char* identifier, i32 version)
+bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 version)
 {
 	serial->mode = ztSerialMode_Writing;
 	serial->_checksum1 = 1;
@@ -3360,7 +3484,7 @@ bool _zt_serialMakeWriterDoHeader(ztSerial* serial, const char* identifier, i32 
 
 // ------------------------------------------------------------------------------------------------
 
-bool _zt_serialMakeReaderDoHeader(ztSerial* serial, const char* identifier)
+bool _zt_serialMakeReaderDoHeader(ztSerial *serial, const char *identifier)
 {
 	if (!_zt_validateChecksum(serial)) {
 		serial->mode = ztSerialMode_Corrupt;
@@ -3402,7 +3526,7 @@ on_error:
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeWriter(ztSerial* serial, const char* file_name, const char* identifier, i32 version)
+bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *identifier, i32 version)
 {
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file_name, false);
@@ -3420,7 +3544,7 @@ bool zt_serialMakeWriter(ztSerial* serial, const char* file_name, const char* id
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeWriter(ztSerial* serial, ztFile* file, const char* identifier, i32 version)
+bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier, i32 version)
 {
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file, false);
@@ -3439,7 +3563,7 @@ bool zt_serialMakeWriter(ztSerial* serial, ztFile* file, const char* identifier,
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeReader(ztSerial* serial, const char* file_name, const char* identifier)
+bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier)
 {
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file_name, false);
@@ -3457,7 +3581,7 @@ bool zt_serialMakeReader(ztSerial* serial, const char* file_name, const char* id
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeReader(ztSerial* serial, void* data, i32 data_size, const char* identifier)
+bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier)
 {
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(data, false);
@@ -3474,7 +3598,7 @@ bool zt_serialMakeReader(ztSerial* serial, void* data, i32 data_size, const char
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeReader(ztSerial* serial, ztFile* file, const char* identifier)
+bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 {
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file, false);
@@ -3493,7 +3617,7 @@ bool zt_serialMakeReader(ztSerial* serial, ztFile* file, const char* identifier)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_serialClose(ztSerial* serial)
+void zt_serialClose(ztSerial *serial)
 {
 	zt_returnOnNull(serial);
 
@@ -3518,7 +3642,7 @@ void zt_serialClose(ztSerial* serial)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialGroupPush(ztSerial* serial)
+bool zt_serialGroupPush(ztSerial *serial)
 {
 	if (serial->mode == ztSerialMode_Writing) {
 		if (!_zt_writeByte(serial, ztSerialEntryType_GroupBeg))
@@ -3571,7 +3695,7 @@ bool zt_serialGroupPush(ztSerial* serial)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialGroupPop(ztSerial* serial)
+bool zt_serialGroupPop(ztSerial *serial)
 {
 	if (serial->mode == ztSerialMode_Writing) {
 		if (!_zt_writeByte(serial, ztSerialEntryType_GroupEnd))
@@ -3636,20 +3760,20 @@ bool zt_serialGroupPop(ztSerial* serial)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialWrite(ztSerial* serial, i8 value) { return _zt_writeData(serial, ztSerialEntryType_i8, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, i16 value) { return _zt_writeData(serial, ztSerialEntryType_i16, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, i32 value) { return _zt_writeData(serial, ztSerialEntryType_i32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, i64 value) { return _zt_writeData(serial, ztSerialEntryType_i64, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, u8 value) { return _zt_writeData(serial, ztSerialEntryType_u8, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, u16 value) { return _zt_writeData(serial, ztSerialEntryType_u16, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, u32 value) { return _zt_writeData(serial, ztSerialEntryType_u32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, u64 value) { return _zt_writeData(serial, ztSerialEntryType_u64, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, r32 value) { return _zt_writeData(serial, ztSerialEntryType_r32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial* serial, bool value) { i8 v = (value ? 1 : 0);  return _zt_writeData(serial, ztSerialEntryType_i8, &v, 1); }
+bool zt_serialWrite(ztSerial *serial, i8 value) { return _zt_writeData(serial, ztSerialEntryType_i8, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i16 value) { return _zt_writeData(serial, ztSerialEntryType_i16, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i32 value) { return _zt_writeData(serial, ztSerialEntryType_i32, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i64 value) { return _zt_writeData(serial, ztSerialEntryType_i64, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u8 value) { return _zt_writeData(serial, ztSerialEntryType_u8, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u16 value) { return _zt_writeData(serial, ztSerialEntryType_u16, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u32 value) { return _zt_writeData(serial, ztSerialEntryType_u32, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u64 value) { return _zt_writeData(serial, ztSerialEntryType_u64, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, r32 value) { return _zt_writeData(serial, ztSerialEntryType_r32, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, bool value) { i8 v = (value ? 1 : 0);  return _zt_writeData(serial, ztSerialEntryType_i8, &v, 1); }
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialWrite(ztSerial* serial, const char* value, i32 value_len)
+bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 {
 	if (!_zt_writeByte(serial, ztSerialEntryType_String))
 		return false;
@@ -3672,7 +3796,7 @@ bool zt_serialWrite(ztSerial* serial, const char* value, i32 value_len)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialWrite(ztSerial* serial, void* value, i32 value_len)
+bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 {
 	if (!_zt_writeByte(serial, ztSerialEntryType_Binary))
 		return false;
@@ -3696,21 +3820,21 @@ bool zt_serialWrite(ztSerial* serial, void* value, i32 value_len)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialRead(ztSerial* serial, i8 *value) { return _zt_readData(serial, ztSerialEntryType_i8, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, i16 *value) { return _zt_readData(serial, ztSerialEntryType_i16, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, i32 *value) { return _zt_readData(serial, ztSerialEntryType_i32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, i64 *value) { return _zt_readData(serial, ztSerialEntryType_i64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, u8 *value) { return _zt_readData(serial, ztSerialEntryType_u8, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, u16 *value) { return _zt_readData(serial, ztSerialEntryType_u16, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, u32 *value) { return _zt_readData(serial, ztSerialEntryType_u32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, u64 *value) { return _zt_readData(serial, ztSerialEntryType_u64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial* serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, sizeof(ival))) { *value = ival == 1; return true; } return false; }
+bool zt_serialRead(ztSerial *serial, i8 *value) { return _zt_readData(serial, ztSerialEntryType_i8, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i16 *value) { return _zt_readData(serial, ztSerialEntryType_i16, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i32 *value) { return _zt_readData(serial, ztSerialEntryType_i32, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i64 *value) { return _zt_readData(serial, ztSerialEntryType_i64, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u8 *value) { return _zt_readData(serial, ztSerialEntryType_u8, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u16 *value) { return _zt_readData(serial, ztSerialEntryType_u16, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u32 *value) { return _zt_readData(serial, ztSerialEntryType_u32, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u64 *value) { return _zt_readData(serial, ztSerialEntryType_u64, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, sizeof(ival))) { *value = ival == 1; return true; } return false; }
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialRead(ztSerial* serial, char* value, i32 value_len, i32* read_len)
+bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 {
 	if (serial->next_entry != ztSerialEntryType_String) {
 		if (serial->next_entry == ztSerialEntryType_GroupEnd || serial->next_entry == ztSerialEntryType_GroupBeg) {
@@ -3756,7 +3880,7 @@ bool zt_serialRead(ztSerial* serial, char* value, i32 value_len, i32* read_len)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialRead(ztSerial* serial, void* value, i32 value_len, i32* read_len)
+bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 {
 	if (serial->next_entry != ztSerialEntryType_Binary) {
 		if (serial->next_entry == ztSerialEntryType_GroupEnd || serial->next_entry == ztSerialEntryType_GroupBeg) {
@@ -3814,7 +3938,7 @@ bool zt_serialRead(ztSerial* serial, void* value, i32 value_len, i32* read_len)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_randomInit(ztRandom* random, i32 seed)
+void zt_randomInit(ztRandom *random, i32 seed)
 {
 	srand(seed);
 	for (int i = 0; i < ztRandom_MTLen; ++i) {
@@ -3825,7 +3949,7 @@ void zt_randomInit(ztRandom* random, i32 seed)
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_randomInt(ztRandom* random, i32 min, i32 max)
+i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 {
 	i32 *b = random->mt_buffer;
 	i32 idx = random->mt_idx;
@@ -3856,16 +3980,85 @@ i32 zt_randomInt(ztRandom* random, i32 min, i32 max)
 
 // ------------------------------------------------------------------------------------------------
 
-r32 zt_randomVal(ztRandom* random)
+r32 zt_randomVal(ztRandom *random)
 {
 	return zt_randomInt(random, 0, 10001) / 10000.f;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-r32 zt_randomVal(ztRandom* random, r32 min, r32 max)
+r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 {
 	return zt_randomVal(random) * (max - min) + min;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size)
+{
+#if defined(ZT_WIN32) || defined(ZT_WIN64)
+	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
+#else
+#	error "zt_iniFileGetValue needs an implementation for this platform"
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value)
+{
+#if defined(ZT_WIN32) || defined(ZT_WIN64)
+	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
+#else
+#	error "zt_iniFileSetValue needs an implementation for this platform"
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long)
+{
+	zt_fiz(argc) {
+		if (zt_strStartsWith(argv[i], "--") && zt_strStartsWith(argv[i] + 2, arg_long)) {
+			return true;
+		}
+		else if (zt_strStartsWith(argv[i], "-") && zt_strStartsWith(argv[i] + 1, arg_short)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size)
+{
+	zt_fiz(argc) {
+		int data_pos = -1;
+		if (zt_strStartsWith(argv[i], "--") && zt_strStartsWith(argv[i] + 2, arg_long)) {
+			data_pos = 2 + zt_strLen(arg_long);
+		}
+		else if ((zt_strStartsWith(argv[i], "-") || zt_strStartsWith(argv[i], "/")) && zt_strStartsWith(argv[i] + 1, arg_short)) {
+			data_pos = 1 + zt_strLen(arg_short);
+		}
+
+		if (data_pos != -1) {
+			int argv_len = zt_strLen(argv[i]);
+			if (data_pos + 1 < argv_len) {
+				if (argv[i][data_pos] == '=') {
+					data_pos += 1;
+				}
+				if (data_pos + 1 < argv_len) {
+					zt_strCpy(buffer, buffer_size, argv[i] + data_pos, argv_len - data_pos);
+					return true;
+				}
+			}
+			return false; // no data to be had
+		}
+	}
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------

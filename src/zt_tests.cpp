@@ -69,6 +69,20 @@ bool test_dataTypes()
 	zt_testResults(sizeof(r64) == 8);
 	zt_testResults(sizeof(b32) == 4);
 
+	{
+		ztVec3 vec3_array[128]; r32 r32_array[128 * 3]; r32_array[0]++;
+		zt_testResults(sizeof(vec3_array) == sizeof(r32_array));
+	}
+	{
+		ztVec2 vec2_array[128]; r32 r32_array[128 * 2]; r32_array[0]++;
+		zt_testResults(sizeof(vec2_array) == sizeof(r32_array));
+	}
+	{
+		ztVec4 vec4_array[128]; r32 r32_array[128 * 4]; r32_array[0]++;
+		zt_testResults(sizeof(vec4_array) == sizeof(r32_array));
+	}
+
+
 	return true;
 }
 
@@ -129,6 +143,12 @@ bool test_strings()
 	zt_testResults(zt_strEquals(nullptr, "Test String", true) == false);
 	zt_testResults(zt_strEquals(nullptr, nullptr, true) == true);
 	zt_testResults(zt_strEquals(nullptr, nullptr, false) == true);
+	zt_testResults(zt_strStartsWith("Test String", "Test "));
+	zt_testResults(zt_strStartsWith("Test String", "test ") == false);
+	zt_testResults(zt_strStartsWith("Test String", "Test String"));
+	zt_testResults(zt_strEndsWith("Test String", " String"));
+	zt_testResults(zt_strEndsWith("Test String", " string") == false);
+	zt_testResults(zt_strEndsWith("Test String", "Test String"));
 
 	zt_testResults(zt_strLen("test string") == 11);
 	zt_testResults(zt_strLen(nullptr) == 0);
@@ -273,6 +293,29 @@ bool test_strings()
 	zt_testResults(tokens[1].beg == 11 && tokens[1].len ==  8);
 	zt_testResults(tokens[2].beg == 22 && tokens[2].len == 10);
 	zt_testResults(tokens[3].beg == 36 && tokens[3].len == 11);
+
+
+	//--test -t -fFLAG --flag=TEST "remaining arguments"
+	const char* argv[] = {
+		"--test",
+		"-b",
+		"-rFLAG",
+		"--flag=TEST",
+		"remaining arguments"
+	};
+
+	zt_testResults(zt_cmdHasArg(argv, zt_elementsOf(argv), "t", "test"));
+	zt_testResults(zt_cmdHasArg(argv, zt_elementsOf(argv), "b", "best"));
+	zt_testResults(zt_cmdHasArg(argv, zt_elementsOf(argv), "m", "missing") == false);
+	zt_testResults(zt_cmdHasArg(argv, zt_elementsOf(argv), "f", "flag"));
+	zt_testResults(zt_cmdHasArg(argv, zt_elementsOf(argv), "r", "rest"));
+
+	char cmd_val[128];
+	zt_testResults(zt_cmdGetArg(argv, zt_elementsOf(argv), "r", "rest", cmd_val, zt_elementsOf(cmd_val)));
+	zt_testResults(zt_strEquals(cmd_val, "FLAG"));
+	zt_testResults(zt_cmdGetArg(argv, zt_elementsOf(argv), "f", "flag", cmd_val, zt_elementsOf(cmd_val)));
+	zt_testResults(zt_strEquals(cmd_val, "TEST"));
+	zt_testResults(zt_cmdGetArg(argv, zt_elementsOf(argv), "m", "missing", cmd_val, zt_elementsOf(cmd_val)) == false);
 
 	return true;
 }
@@ -427,6 +470,16 @@ bool test_files()
 		zt_serialClose(&serial);
 	}
 
+	char ini_file[ztFileMaxPath] = { 0 };
+	zt_strPrintf(ini_file, ztFileMaxPath, "%s%cinifile.ini", app_path, ztFilePathSeparator);
+	char* test_value = "value";
+	char test_value_buffer[128];
+
+	zt_testResults(zt_iniFileSetValue(ini_file, "general", "test-key", test_value));
+	zt_testResults(zt_iniFileGetValue(ini_file, "general", "test-key", "invalid", test_value_buffer, sizeof(test_value_buffer)) == zt_strLen(test_value));
+	zt_testResults(zt_strEquals(test_value, test_value_buffer));
+	
+
 	return true;
 }
 
@@ -462,7 +515,7 @@ bool test_random()
 
 // functions ======================================================================================
 
-int main(char** argv, int argc)
+int main(int argc, char** argv)
 {
 	printf("running zt library unit tests\n");
 
