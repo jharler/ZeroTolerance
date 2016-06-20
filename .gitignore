@@ -14,6 +14,7 @@ cloc*
 vs/[Dd]ebug/
 vs/[Rr]elease/
 vs/ZeroTolerance/
+vs/Game Test
 
 
 # Visual C++ cache files

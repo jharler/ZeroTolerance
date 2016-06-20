@@ -1,7 +1,7 @@
 /**************************************************************************************************
  ** file: zt_tools.h v 0.00 (active initial development)
  **
- ** This library is in the public domain.  Do with it what you will.  No warantee implied.
+ ** This library is in the public domain.  Do with it what you will.  No waranty implied.
  **
  ** There is no guarantee that this code works as intended.  Use it at your own risk.
  **
@@ -75,6 +75,7 @@
 #	elif defined(_WIN64)
 #		define ZT_WIN64
 #	endif
+#	define ZT_WINDOWS
 
 #	define ztReal32Max		3.402823466e+38F
 #	define ztReal32Min		1.175494351e-38F
@@ -417,7 +418,7 @@ bool zt_isPow2(i32 number);
 i32 zt_nextPow2(i32 number);
 
 i32 zt_convertToi32Ceil(r32 number);
-i32 zt_convertToi32Floor(i32 number);
+i32 zt_convertToi32Floor(r32 number);
 
 r32 zt_lerp(r32 v1, r32 v2, r32 percent);
 r32 zt_unlerp(r32 v1, r32 v2, r32 value);
@@ -518,7 +519,7 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 // note it's possible to push a null arena onto the stack to cause these systems to use malloc/free (or whatever default you set)
 
 bool zt_memPushGlobalArena(ztMemoryArena *arena); // returns false if the stack is full, so check this
-void zt_memPopGlobalArena(ztMemoryArena *arena);
+void zt_memPopGlobalArena();
 ztMemoryArena* zt_memGetGlobalArena();
 
 // by default, malloc and free are used when there are no overrides set
@@ -529,6 +530,14 @@ void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
 void zt_memFreeGlobal(void *data);
 
 #define zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
+
+#define zt_malloc_struct(type)				(type *)zt_memAllocGlobalFull(sizeof(type), __FILE__, __LINE__)
+#define zt_malloc_struct_array(type, size)	(type *)zt_memAllocGlobalFull(sizeof(type) * (size), __FILE__, __LINE__)
+
+#define zt_malloc_struct_arena(type, arena)				(type *)zt_memAllocFromArena(arena, sizeof(type), __FILE__, __LINE__)
+#define zt_malloc_struct_array_arena(type, size, arena)	(type *)zt_memAllocFromArena(arena, sizeof(type) * (size), __FILE__, __LINE__)
+
+#define zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), memory)
 
 // ------------------------------------------------------------------------------------------------
 
@@ -544,6 +553,8 @@ r32 zt_pow(r32 v, r32 p);
 
 // string functions
 #define ztStrPosNotFound	-1
+
+#define zt_strMakePrintf(varname, varsize, format, ...)	char varname[varsize] = {0}; zt_strPrintf(varname, varsize, format, __VA_ARGS__);
 
 bool zt_strEquals(const char *s1, const char *s2, bool test_case = true);
 int zt_strLen(const char *s1);
@@ -633,6 +644,8 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 
 int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...);
 
+int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes);
+int zt_strNumberToString(char *buffer, int buffer_size, i64 number);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -655,7 +668,7 @@ struct ztFile
 
 	char *full_name; // full file name, path and file with extension
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	i32 win_file_handle; // HFILE
 	i32 win_read_pos;
 #else
@@ -667,7 +680,7 @@ struct ztFile
 
 #define ztFileMaxPath	1024 * 4	// handy constant for path sizes on the stack
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 #define ztFilePathSeparator	'\\'
 #else
 #define ztFilePathSeparator '/'
@@ -691,6 +704,7 @@ i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size);		//
 i32 zt_fileGetAppBin(char *buffer, int buffer_size);
 i32 zt_fileGetAppPath(char *buffer, int buffer_size);
 i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name);
+i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
 
 bool zt_fileExists(const char *file_name);
 bool zt_fileDelete(const char *file_name);
@@ -859,6 +873,8 @@ r32 zt_randomVal(ztRandom *random, r32 min, r32 max);
 
 // these are really slow
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size);
+i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, i32 dflt);
+r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, r32 dflt);
 bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value);
 
 
@@ -898,7 +914,7 @@ ztInline i32 zt_convertToi32Ceil(r32 number)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInline i32 zt_convertToi32Floor(i32 number)
+ztInline i32 zt_convertToi32Floor(r32 number)
 {
 	return (int32)(number);
 }
@@ -1370,6 +1386,28 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 
 // ------------------------------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------------------------------
+// time
+
+r32 zt_getTime(); // seconds since app started
+void zt_sleep(r32 seconds);
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1684,7 +1722,6 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 	zt_logMemory("memory (%s): allocated %d + %d bytes at location 0x%llx", chunk_name, allocation->length, sizeof(ztMemoryArena::allocation), (long long unsigned int)next);
 	return (void*)allocation->start;
-
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1794,6 +1831,8 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
+	zt_returnOnNull(arena);
+
 	if (arena->peak_used < 1024) {
 		zt_logMessage(log_level, "memory (%s): Peak used: %.2f b", name, arena->peak_used / 1.0f);
 	}
@@ -1835,7 +1874,7 @@ bool zt_memPushGlobalArena(ztMemoryArena *arena)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memPopGlobalArena(ztMemoryArena *arena)
+void zt_memPopGlobalArena()
 {
 	zt_assert(_zt_memGlobalArenaStackCount > 0);
 	_zt_memGlobalArenaStackCount -= 1;
@@ -1848,7 +1887,7 @@ ztMemoryArena* zt_memGetGlobalArena()
 	if (_zt_memGlobalArenaStackCount == 0) {
 		return nullptr;
 	}
-	return _zt_memGlobalArenaStack[_zt_memGlobalArenaStackCount];
+	return _zt_memGlobalArenaStack[_zt_memGlobalArenaStackCount - 1];
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2780,13 +2819,83 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 
 int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf_s(buffer, buffer_size, buffer_size, format, arg_ptr);
 #else
 #	error "zt_strPrintf needs an implementation for this platform"
 #endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes)
+{
+	if (bytes < 1024) {
+		return zt_strPrintf(buffer, buffer_size, "%d b", bytes);
+	}
+	else if (bytes < 1024 * 1024) {
+		return zt_strPrintf(buffer, buffer_size, "%.2f kb", bytes / 1024.f);
+	}
+	else if (bytes < 1024 * 1024 * 1024) {
+		return zt_strPrintf(buffer, buffer_size, "%.2f mb", bytes / (1024.f * 1024.f));
+	}
+
+	return zt_strPrintf(buffer, buffer_size, "%.2f gb", bytes / (1024.f * 1024.f * 1024.f));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
+{
+	if (buffer_size < 64) return 0;
+
+	char* buffer_pos = buffer;
+
+	int64 abs_number = abs(number);
+
+	struct local
+	{
+		static void process(i64* number, char** buffer, bool* first, int64 div)
+		{
+			if (*number > div) {
+				int64 num = *number / div;
+				if (*first) {
+					sprintf_s(*buffer, 5, "%d,", num);
+					*first = false;
+				}
+				else {
+					sprintf_s(*buffer, 5, "%03d,", num);
+				}
+
+				++(*buffer);
+				++(*buffer);
+				if (num > 9) ++(*buffer);
+				if (num > 99) ++ (*buffer);
+				*number -= num * div;
+			}
+		}
+	};
+
+	if (number < 0) {
+		*buffer_pos = '-';
+		++buffer_pos;
+		number *= -1;
+	}
+	bool first = true;
+	local::process(&number, &buffer_pos, &first, 1000000000000000000);
+	local::process(&number, &buffer_pos, &first, 1000000000000000);
+	local::process(&number, &buffer_pos, &first, 1000000000000);
+	local::process(&number, &buffer_pos, &first, 1000000000);
+	local::process(&number, &buffer_pos, &first, 1000000);
+	local::process(&number, &buffer_pos, &first, 1000);
+
+	if (first) {
+		return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%d", number);
+	}
+
+	return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03d", number);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2800,7 +2909,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 	zt_memSet(file, sizeof(ztFile), 0);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = 0;
 
@@ -2844,7 +2953,7 @@ void zt_fileClose(ztFile *file)
 {
 	zt_returnOnNull(file);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	switch (file->open_method)
 	{
 		case ztFileOpenMethod_ReadOnly:
@@ -2865,7 +2974,7 @@ i32 zt_fileGetReadPos(ztFile *file)
 {
 	zt_returnValOnNull(file, 0);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	return file->win_read_pos;
 #endif
 }
@@ -2881,7 +2990,7 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 		return false;
 	}
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	if (INVALID_SET_FILE_POINTER == SetFilePointer((HANDLE)file->win_file_handle, pos, NULL, FILE_BEGIN)) {
 		zt_logCritical("zt_fileSetReadPos: SetFilePointer call failed (error %d)", GetLastError());
 		return false;
@@ -2927,7 +3036,7 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 
 	i32 pos_last_path = ztStrPosNotFound;
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
 	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
@@ -2951,7 +3060,7 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 
 	i32 pos_last_path = ztStrPosNotFound;
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
 	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
@@ -2992,7 +3101,7 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 {
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	i32 len = GetModuleFileNameA(NULL, buffer, buffer_size);
 	if (ERROR_INSUFFICIENT_BUFFER == GetLastError()) {
 		zt_logCritical("zt_fileGetAppBin: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
@@ -3008,7 +3117,7 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 {
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	i32 len = GetModuleFileNameA(NULL, buffer, buffer_size);
 	if (ERROR_INSUFFICIENT_BUFFER == GetLastError()) {
 		zt_logCritical("zt_fileGetAppPath: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
@@ -3030,7 +3139,7 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 {
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	char temp[ztFileMaxPath] = { 0 };
 	SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, temp);
 
@@ -3048,9 +3157,20 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 
 // ------------------------------------------------------------------------------------------------
 
+i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
+{
+	zt_returnValOnNull(buffer, 0);
+
+#if defined(ZT_WINDOWS)
+	return GetCurrentDirectoryA(buffer_size, buffer);
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_fileExists(const char *file_name)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 
 	HFILE hfile = OpenFile(file_name, &ofs, OF_READ);
@@ -3066,7 +3186,7 @@ bool zt_fileExists(const char *file_name)
 
 bool zt_fileDelete(const char *file_name)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	if (DeleteFileA(file_name) == FALSE) {
 		zt_logCritical("zt_fileDelete: unable to delete file '%s' (error: %d)", file_name, GetLastError());
 		return false;
@@ -3080,7 +3200,7 @@ bool zt_fileDelete(const char *file_name)
 
 bool zt_fileCopy(const char *orig_file, const char *new_file)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	if (CopyFileA(orig_file, new_file, TRUE) == FALSE) {
 		zt_logCritical("zt_fileCopy: unable to copy file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
 		return false;
@@ -3094,7 +3214,7 @@ bool zt_fileCopy(const char *orig_file, const char *new_file)
 
 bool zt_fileRename(const char *orig_file, const char *new_file)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	if (MoveFileA(orig_file, new_file) == FALSE) {
 		zt_logCritical("zt_fileRename: unable to rename file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
 		return false;
@@ -3115,7 +3235,7 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 		return 0;
 	}
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	DWORD bytes_read = 0;
 	if (FALSE == ReadFile((HANDLE)file->win_file_handle, (LPVOID)buffer, buffer_size, &bytes_read, nullptr)) {
 		zt_logCritical("zt_fileRead: failure reading file: '%s'  (error: %d)", file->full_name, GetLastError());
@@ -3138,7 +3258,7 @@ i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size)
 		return 0;
 	}
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	DWORD bytes_written = 0;
 	if (FALSE == WriteFile((HANDLE)file->win_file_handle, (LPVOID)buffer, buffer_size, &bytes_written, nullptr)) {
 		zt_logCritical("zt_fileWrite: failure reading file: '%s'  (error: %d)", file->full_name, GetLastError());
@@ -3158,7 +3278,7 @@ void zt_fileFlush(ztFile *file)
 {
 	zt_returnOnNull(file);
 
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	FlushFileBuffers((HANDLE)file->win_file_handle);
 #endif
 }
@@ -3998,7 +4118,7 @@ r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
 #else
 #	error "zt_iniFileGetValue needs an implementation for this platform"
@@ -4007,9 +4127,44 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 
 // ------------------------------------------------------------------------------------------------
 
+i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, i32 dflt)
+{
+	char value_buffer[128] = { 0 };
+	char dflt_buffer[128] = { 0 };
+	zt_strPrintf(dflt_buffer, sizeof(dflt_buffer), "%d", dflt);
+	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, sizeof(value_buffer));
+	if (len <= 0) {
+		return dflt;
+	}
+
+	bool success = false;
+	i32 result = zt_strToInt(value_buffer, dflt, &success);
+	if (!success) {
+		result = zt_strToIntHex(value_buffer, dflt);
+	}
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, r32 dflt)
+{
+	char value_buffer[128] = { 0 };
+	char dflt_buffer[128] = { 0 };
+	zt_strPrintf(dflt_buffer, sizeof(dflt_buffer), "%f", dflt);
+	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, sizeof(value_buffer));
+	if (len <= 0) {
+		return dflt;
+	}
+
+	return zt_strToReal32(value_buffer, dflt);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value)
 {
-#if defined(ZT_WIN32) || defined(ZT_WIN64)
+#if defined(ZT_WINDOWS)
 	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
 #else
 #	error "zt_iniFileSetValue needs an implementation for this platform"
@@ -4059,6 +4214,43 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 		}
 	}
 	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_getTime()
+{
+	struct local_init
+	{
+		local_init(LARGE_INTEGER *large_integer, r64 *seconds_per_count, LARGE_INTEGER *start_time)
+		{
+			QueryPerformanceFrequency(large_integer);
+			*seconds_per_count = 1.0 / large_integer->QuadPart;
+
+			QueryPerformanceFrequency(start_time);
+		}
+	};
+
+	static LARGE_INTEGER large_integer;
+	static r64 seconds_per_count;
+	static LARGE_INTEGER start_time;
+	static local_init local(&large_integer, &seconds_per_count, &start_time);
+
+	LARGE_INTEGER current;
+	QueryPerformanceCounter(&current);
+
+	return ((r32)(((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sleep(r32 seconds)
+{
+#if defined(ZT_WINDOWS)
+	Sleep(zt_convertToi32Floor(seconds * 1000.f));
+#else
+#error zt_sleep needs an implementation for this platform
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
