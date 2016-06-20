@@ -1,7 +1,9 @@
 /**************************************************************************************************
  ** file: zt_tools.h v 0.00 (active initial development)
  **
- ** This library is in the public domain.  Do with it what you will.
+ ** This library is in the public domain.  Do with it what you will.  No warantee implied.
+ **
+ ** There is no guarantee that this code works as intended.  Use it at your own risk.
  **
  **************************************************************************************************
    
@@ -28,22 +30,6 @@
 
 	Implimentation Options: (only used with ZT_TOOLS_IMPLIMENTATION #include)
 
-    ZT_TOOLS_PROVIDE_APP_LOOP
-		- Provides an app loop that consists of an initialization function, a loop function and a
-		  cleanup function.  You must provide the following functions, using the #defines to 
-		  identify them in the file that defines ZT_TOOLS_IMPLEMENTATION:
-
-		  b32 zt_appInit();
-		  #define ZT_TOOLS_APP_INIT	zt_appInit
-
-		  b32 zt_appLoop(r32 dt);
-		  #define ZT_TOOLS_APP_LOOP	zt_appLoop
-
-		  void zt_appCleanup();
-		  #define ZT_TOOLS_APP_CLEANUP	zt_appCleanup
-
-		  The init and cleanup functions are optional.
-    
 	ZT_MAX_LOG_CALLBACKS
 		- Indicates the maximum number of logging callback functions can exist.
 
@@ -842,6 +828,23 @@ bool zt_serialRead(ztSerial* serial, bool *value);
 bool zt_serialRead(ztSerial* serial, char* value, i32 value_len, i32* read_len);
 bool zt_serialRead(ztSerial* serial, void* value, i32 value_len, i32* read_len);
 
+
+// ------------------------------------------------------------------------------------------------
+// random numbers
+
+#define ztRandom_MTLen	624
+
+struct ztRandom
+{
+	i32 mt_idx;
+	i32 mt_buffer[ztRandom_MTLen];
+};
+
+void zt_randomInit(ztRandom* random, i32 seed);
+
+i32 zt_randomInt(ztRandom* random, i32 min, i32 max);
+r32 zt_randomVal(ztRandom* random); // between 0 and 1
+r32 zt_randomVal(ztRandom* random, r32 min, r32 max);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -3796,37 +3799,77 @@ bool zt_serialRead(ztSerial* serial, void* value, i32 value_len, i32* read_len)
 }
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
+// this was adapted from: http://en.literateprograms.org/Mersenne_twister_(C)
 
-#if defined(ZT_TOOLS_PROVIDE_APP_LOOP)
- // ZT_TOOLS_APP_INIT
- // ZT_TOOLS_APP_LOOP
- // ZT_TOOLS_APP_CLEANUP
+#define ztRandom_MT_IA           397
+#define ztRandom_MT_IB           (ztRandom_MTLen - ztRandom_MT_IA)
+#define ztRandom_UpperMask       0x80000000
+#define ztRandom_LowerMask       0x7fffffff
+#define ztRandom_MatrixA         0x9908b0df
+#define ztRandom_Twist(b,i,j)    ((b)[i] & ztRandom_UpperMask) | ((b)[j] & ztRandom_LowerMask)
+#define ztRandom_Magic(s)        (((s)&1) * ztRandom_MatrixA)
 
-#if defined(ZT_PLATFORM_WIN32_CONSOLE) || defined(ZT_PLATFORM_WIN64_CONSOLE)
-	int main( char **argv, int argc )
+// ------------------------------------------------------------------------------------------------
+
+void zt_randomInit(ztRandom* random, i32 seed)
+{
+	srand(seed);
+	for (int i = 0; i < ztRandom_MTLen; ++i) {
+		random->mt_buffer[i] = rand();
+	}
+	random->mt_idx = 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_randomInt(ztRandom* random, i32 min, i32 max)
+{
+	i32 *b = random->mt_buffer;
+	i32 idx = random->mt_idx;
+	i32 s;
+	i32 i;
+
+	if (idx == ztRandom_MTLen * sizeof(i32))
 	{
-		#if defined(ZT_TOOLS_APP_INIT)
-			if(!ZT_TOOLS_APP_INIT())
-				return 1;
-		#endif
-
-		while(ZT_TOOLS_APP_LOOP(0.0f)) {
+		idx = 0;
+		i = 0;
+		for (; i < ztRandom_MT_IB; i++) {
+			s = ztRandom_Twist(b, i, i + 1);
+			b[i] = b[i + ztRandom_MT_IA] ^ (s >> 1) ^ ztRandom_Magic(s);
+		}
+		for (; i < ztRandom_MTLen - 1; i++) {
+			s = ztRandom_Twist(b, i, i + 1);
+			b[i] = b[i - ztRandom_MT_IB] ^ (s >> 1) ^ ztRandom_Magic(s);
 		}
 
-		#if defined(ZT_TOOLS_APP_CLEANUP)
-			ZT_TOOLS_APP_CLEANUP();
-		#endif
-
-		return 0;
+		s = ztRandom_Twist(b, ztRandom_MTLen - 1, 0);
+		b[ztRandom_MTLen - 1] = b[ztRandom_MT_IA - 1] ^ (s >> 1) ^ ztRandom_Magic(s);
 	}
-#else
+	random->mt_idx = idx + sizeof(unsigned long);
+	i32 rv = *(unsigned long *)((unsigned char *)b + idx);
 
-#endif // CONSOLE
+	return (zt_abs(rv) % (min - max)) + min;
+}
 
-#endif // ZT_TOOLS_PROVIDE_APP_LOOP
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_randomVal(ztRandom* random)
+{
+	return zt_randomInt(random, 0, 10001) / 10000.f;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_randomVal(ztRandom* random, r32 min, r32 max)
+{
+	return zt_randomVal(random) * (max - min) + min;
+}
+
+// ------------------------------------------------------------------------------------------------
 
 #endif // ZT_TOOLS_IMPLEMENTATION
-
 
 #endif // include guard

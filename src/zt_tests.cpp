@@ -432,6 +432,34 @@ bool test_files()
 
 // ------------------------------------------------------------------------------------------------
 
+bool test_random()
+{
+	ztRandom random;
+	zt_randomInit(&random, 123456);
+
+	i32 ivalue = zt_randomInt(&random, 0, 999);
+	zt_testResults(ivalue == 986);
+
+	r32 rvalue = zt_randomVal(&random);
+	zt_testResults(zt_real32Eq(0.281600f, rvalue));
+
+	for (int i = 0; i < 10000; ++i) {
+		ivalue = zt_randomInt(&random, 0, 999);
+		if (!(ivalue >= 0 && ivalue < 999))
+			zt_testResults(ivalue >= 0 && ivalue < 999);
+	}
+
+	for (int i = 0; i < 10000; ++i) {
+		rvalue = zt_randomVal(&random);
+		if (!(rvalue >= 0.00000f && rvalue <= 1.000000f))
+			zt_testResults(rvalue >= 0.00000f && rvalue <= 1.000000f);
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 // functions ======================================================================================
 
 int main(char** argv, int argc)
@@ -442,6 +470,7 @@ int main(char** argv, int argc)
 	test_memory();
 	test_strings();
 	test_files();
+	test_random();
 
 	printf("\nresults: %d out of %d tests passed.\n\n", g_tests_success, g_tests_success + g_tests_failure);
 
