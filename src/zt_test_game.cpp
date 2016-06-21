@@ -54,8 +54,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_OpenGL;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -90,6 +90,8 @@ void game_cleanup()
 
 bool game_loop(r32 dt)
 {
+	ztInputKeys* input = zt_inputKeysAccessState();
+	
 	// color cycle the background
 	{
 		const ztVec4 colors[] = {
@@ -140,13 +142,10 @@ bool game_loop(r32 dt)
 	}
 
 	// test changing windows mode
-	if(false) { // need ALT+F4 or ESCAPE exit
+	{
 		static bool fullscreen = false;
-		static r32 fs_time = 0;
-		fs_time += dt;
 
-		if(fs_time > 5) {
-			fs_time -= 5;
+		if (input[ztInputKeys_F].justPressed() && input[ztInputKeys_Control].pressed()) {
 			if(!fullscreen) {
 				zt_rendererRequestFullscreen();
 			}
@@ -172,7 +171,7 @@ bool game_loop(r32 dt)
 		}
 	}
 
-	return true;
+	return !input[ztInputKeys_Escape].justPressed();
 }
 
 // ------------------------------------------------------------------------------------------------
