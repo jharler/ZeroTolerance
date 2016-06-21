@@ -52,10 +52,16 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	zt_strMakePrintf(ini_file, ztFileMaxPath, "%s%csettings.cfg", details->user_path, ztFilePathSeparator);
 	settings->memory = zt_iniFileGetValue(ini_file, "general", "app_memory", (i32)zt_megabytes(64));
 
-	settings->native_w = settings->screen_w = 1920;
-	settings->native_h = settings->screen_h = 1080;
-	//settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
+	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
+	settings->renderer = ztRenderer_OpenGL;
+	//settings->renderer = ztRenderer_DirectX;
+
+	char cfg_renderer[128] = { 0 };
+	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
+	if(zt_striCmp(cfg_renderer, "opengl") == 0) settings->renderer = ztRenderer_OpenGL;
+	if(zt_striCmp(cfg_renderer, "directx") == 0) settings->renderer = ztRenderer_DirectX;
+
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
 
 	return true;
@@ -108,14 +114,46 @@ bool game_loop(r32 dt)
 		zt_rendererClear(color);
 	}
 
-	// test changing renderers
 	{
+#if 0
+		zt_rlPushShader(g_game->renderList, g_game->shader_test); {
+			zt_rlPushTexture(g_game->renderList, g_game->texture_test); {
+				zt_rlPushQuad(-1, -1, 1, 1, ztVec4::one);
+			}
+			zt_rlPopTexture(g_game->renderList);
+		}
+		zt_rlPopShader(g_game->renderList);
+
+		zt_rlFlush(g_game->renderList);
+#endif
+	}
+
+	// test changing renderers
+	if(false) {
 		static r32 swap_time = 0;
 		swap_time += dt;
 
 		if (swap_time > 10) {
 			swap_time -= 10;
 			zt_rendererRequestChange(g_game->settings->renderer == ztRenderer_OpenGL ? ztRenderer_DirectX : ztRenderer_OpenGL);
+		}
+	}
+
+	// test changing windows mode
+	if(false) { // need ALT+F4 or ESCAPE exit
+		static bool fullscreen = false;
+		static r32 fs_time = 0;
+		fs_time += dt;
+
+		if(fs_time > 5) {
+			fs_time -= 5;
+			if(!fullscreen) {
+				zt_rendererRequestFullscreen();
+			}
+			else {
+				zt_rendererRequestWindowed();
+			}
+			fullscreen = !fullscreen;
 		}
 	}
 

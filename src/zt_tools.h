@@ -75,6 +75,10 @@
 #	elif defined(_WIN64)
 #		define ZT_WIN64
 #	endif
+#	if defined(_UNICODE)
+#		define ZT_UNICODE
+#	endif
+
 #	define ZT_WINDOWS
 
 #	define ztReal32Max		3.402823466e+38F
@@ -147,7 +151,7 @@
 
 #define zt_max(val1, val2) ( (val1) > (val2) ? (val1) : (val2) )
 #define zt_min(val1, val2) ( (val1) < (val2) ? (val1) : (val2) )
-#define zt_clamp(val, min, max) ( val_min(max, (val_max(min, val))) )
+#define zt_clamp(val, min, max) ( zt_min(max, (zt_max(min, val))) )
 #define zt_abs(val) ( (val) < 0 ? -(val) : (val) )
 #define zt_swap(val1, val2) {auto temp = val1; val1 = val2; val2 = temp;}
 
@@ -649,6 +653,8 @@ int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...);
 
 int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes);
 int zt_strNumberToString(char *buffer, int buffer_size, i64 number);
+
+int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2899,6 +2905,25 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 	}
 
 	return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03d", number);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
+{
+#if defined(ZT_WINDOWS)
+	if (!s || s_len < 0 || !buffer || buffer_size <= 0)
+		return 0;
+
+	int len = MultiByteToWideChar(CP_ACP, 0, s, s_len, (LPWSTR)buffer, buffer_size);
+	len = zt_clamp(len, 0, buffer_size - 1);
+
+	buffer[len] = 0;
+
+	return len; 
+#else
+#error zt_strConvertToUTF16 needs an implementation for this platform.
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -122,7 +122,7 @@ enum ztRenderer_Enum
 enum ztRendererFlags_Enum
 {
 	ztRendererFlags_Windowed        = (1<<0),
-	ztRendererFlags_FullScreen      = (1<<1),
+	ztRendererFlags_Fullscreen      = (1<<1),
 	ztRendererFlags_Vsync           = (1<<2),
 	ztRendererFlags_RotationAllowed = (1<<3), // mobile
 	ztRendererFlags_VertOrientation = (1<<4), // mobile
@@ -188,6 +188,12 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
 
+
+#define ztInvalidID -1
+
+typedef i32 ztShaderID;
+
+ztShaderID zt_rendererMakeShader(const char *ztshader_file);
 
 #if defined(ZT_OPENGL)
 
@@ -380,6 +386,9 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails* win_details, i32 renderer_fla
 ztInternal bool _zt_dxFreeContext(ztWindowDetails* win_details);
 ztInternal ztInline void _zt_dxSwapBuffers(ztWindowDetails* win_details);
 
+bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_details);
+bool _zt_winCleanupWindow(ztWindowDetails* win_details, ztGameSettings* settings);
+
 // ------------------------------------------------------------------------------------------------
 
 bool zt_rendererSupported(ztRenderer_Enum renderer)
@@ -487,6 +496,9 @@ void zt_rendererClear(ztVec4 clr)
 
 void zt_rendererRequestChange(ztRenderer_Enum renderer)
 {
+	if(_zt_rendererRequestsCount >= zt_elementsOf(_zt_rendererRequests))
+		return;
+
 	auto* request = &_zt_rendererRequests[_zt_rendererRequestsCount++];
 	request->type = ztRendererRequest_Change;
 	request->change_to = renderer;
@@ -496,12 +508,38 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer)
 
 void zt_rendererRequestWindowed()
 {
+	if(!zt_bitIsSet(_zt_windowsSettings[0].renderer_flags, ztRendererFlags_Fullscreen))
+		return;
+
+	if(_zt_rendererRequestsCount >= zt_elementsOf(_zt_rendererRequests))
+		return;
+
+	auto* request = &_zt_rendererRequests[_zt_rendererRequestsCount++];
+	request->type = ztRendererRequest_Windowed;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_rendererRequestFullscreen()
 {
+	if (zt_bitIsSet(_zt_windowsSettings[0].renderer_flags, ztRendererFlags_Fullscreen))
+		return;
+
+	if(_zt_windowsSettingsCount > 1)
+		return; // cannot go into fullscreen if there are multiple windows opened
+
+	if(_zt_rendererRequestsCount >= zt_elementsOf(_zt_rendererRequests))
+		return;
+
+	auto* request = &_zt_rendererRequests[_zt_rendererRequestsCount++];
+	request->type = ztRendererRequest_Fullscreen;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShaderID zt_rendererMakeShader(const char *ztshader_file)
+{
+	return -1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -549,9 +587,47 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_Windowed: {
+				zt_fiz(_zt_windowsSettingsCount) {
+					_zt_rendererFreeContext(&_zt_windowsDetails[i]);
+					_zt_winCleanupWindow(&_zt_windowsDetails[i], &_zt_windowsSettings[i]);
+				}
+
+				zt_fiz(_zt_windowsSettingsCount) {
+					zt_bitRemove(_zt_windowsSettings[i].renderer_flags, ztRendererFlags_Fullscreen);
+					_zt_windowsSettings[i].renderer_flags |= ztRendererFlags_Windowed;
+
+					if(!_zt_winCreateWindow(&_zt_windowsSettings[i], &_zt_windowsDetails[i])) {
+						zt_logCritical("Failed to switch to windowed mode");
+						return false;
+					}
+
+					if(!_zt_rendererMakeContext(&_zt_windowsDetails[i], _zt_windowsSettings[i].renderer_flags)) {
+						zt_logCritical("Failed to switch to windowed mode");
+						return false;
+					}
+				}
 			} break;
 
 			case ztRendererRequest_Fullscreen: {
+				zt_fiz(_zt_windowsSettingsCount) {
+					_zt_rendererFreeContext(&_zt_windowsDetails[i]);
+					_zt_winCleanupWindow(&_zt_windowsDetails[i], &_zt_windowsSettings[i]);
+				}
+
+				zt_fiz(_zt_windowsSettingsCount) {
+					zt_bitRemove(_zt_windowsSettings[i].renderer_flags, ztRendererFlags_Windowed);
+					_zt_windowsSettings[i].renderer_flags |= ztRendererFlags_Fullscreen;
+
+					if(!_zt_winCreateWindow(&_zt_windowsSettings[i], &_zt_windowsDetails[i])) {
+						zt_logCritical("Failed to switch to fullscreen mode");
+						return false;
+					}
+
+					if(!_zt_rendererMakeContext(&_zt_windowsDetails[i], _zt_windowsSettings[i].renderer_flags)) {
+						zt_logCritical("Failed to switch to fullscreen mode");
+						return false;
+					}
+				}
 			} break;
 		}
 	}
@@ -725,8 +801,26 @@ ztInternal bool _zt_glMakeContext(ztWindowDetails* win_details, i32 renderer_fla
 	glEnable(GL_CULL_FACE); // NOTE(josh): should this be here?
 
 	// this turns off wait for vsync:
-	if( !zt_bitIsSet(renderer_flags, ztRendererFlags_Vsync) ) {
+	if (!zt_bitIsSet(renderer_flags, ztRendererFlags_Vsync)) {
 		zt_glCallAndReturnValOnError(wglSwapIntervalEXT(0), false);
+	}
+
+	if(zt_bitIsSet(renderer_flags, ztRendererFlags_Fullscreen)) {
+		//GetWindowRect(win_details->handle, &win_details->windowed_screen_area);
+
+		LONG dwExStyle = GetWindowLong(win_details->handle, GWL_EXSTYLE);
+		LONG dwStyle = GetWindowLong(win_details->handle, GWL_STYLE);
+
+		dwExStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+		dwStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
+
+		SetWindowLong(win_details->handle, GWL_EXSTYLE, dwExStyle);
+		SetWindowLong(win_details->handle, GWL_STYLE, dwStyle);
+
+		int screen_x = GetSystemMetrics(SM_CXSCREEN);
+		int screen_y = GetSystemMetrics(SM_CYSCREEN);
+
+		SetWindowPos(win_details->handle, 0, 0, 0, screen_x, screen_y, SWP_NOZORDER | SWP_FRAMECHANGED);
 	}
 
 	zt_logDebug("OpenGL: setting viewport");
@@ -938,17 +1032,28 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 // ------------------------------------------------------------------------------------------------
 
+
 bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_details)
 {
 	WNDCLASS wndcls = {};
 	wndcls.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	wndcls.lpfnWndProc = _zt_winCallback;
 	wndcls.hInstance = _zt_hinstance;
+#if defined(ZT_UNICODE)
+	u16 wc_game_name[1024] = { 0 };
+	zt_strConvertToUTF16(ZT_GAME_NAME, zt_strLen(ZT_GAME_NAME), wc_game_name, zt_elementsOf(wc_game_name));
+	wndcls.lpszClassName = (LPCWSTR)wc_game_name;
+#else
 	wndcls.lpszClassName = ZT_GAME_NAME;
+#endif
 
-	if (!RegisterClass(&wndcls)) {
-		zt_logCritical("win: failed to create window class");
-		return false;
+	static bool first_call = true;
+	if(first_call) {
+		if(!RegisterClass(&wndcls)) {
+			zt_logCritical("win: failed to create window class");
+			return false;
+		}
+		first_call = false;
 	}
 
 	DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
@@ -965,8 +1070,11 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
 	int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
 
+#if defined(ZT_UNICODE)
+	window_details->handle = CreateWindow(wndcls.lpszClassName, (LPCWSTR)wc_game_name, style, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, wndcls.hInstance, 0);
+#else
 	window_details->handle = CreateWindow(wndcls.lpszClassName, ZT_GAME_NAME, style, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, wndcls.hInstance, 0);
-
+#endif
 	if (window_details->handle == NULL) {
 		zt_logCritical("win: failed to create window");
 		return false;
