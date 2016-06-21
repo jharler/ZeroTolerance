@@ -7,12 +7,6 @@
  **
  ** implementation notes:
  ** 
- ** Unit tests for the ZeroTolerance single header file libraries.
- **
- ** These tests aren't comprehensive and are probably terrible.  Essentially, I'll use the library
- ** and add tests for edge cases that I run into so at least I won't re-introduce the same bugs once
- ** they've been fixed.
- ** 
  **************************************************************************************************/
 
 // headers ========================================================================================
@@ -58,6 +52,12 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	zt_strMakePrintf(ini_file, ztFileMaxPath, "%s%csettings.cfg", details->user_path, ztFilePathSeparator);
 	settings->memory = zt_iniFileGetValue(ini_file, "general", "app_memory", (i32)zt_megabytes(64));
 
+	settings->native_w = settings->screen_w = 1920;
+	settings->native_h = settings->screen_h = 1080;
+	//settings->renderer = ztRenderer_OpenGL;
+	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer_flags |= ztRendererFlags_Vsync;
+
 	return true;
 }
 
@@ -84,7 +84,55 @@ void game_cleanup()
 
 bool game_loop(r32 dt)
 {
-	zt_sleep(.01f);
+	// color cycle the background
+	{
+		const ztVec4 colors[] = {
+			ztVec4(1, 0, 0, 1),
+			ztVec4(0, 1, 0, 1),
+			ztVec4(0, 0, 1, 1),
+			ztVec4(1, 1, 0, 1),
+			ztVec4(1, 0, 1, 1),
+			ztVec4(0, 1, 1, 1),
+		};
+
+		static i32 color_idx = 0;
+		static r32 color_time = 0;
+
+		color_time += dt;
+		if (color_time > 1) {
+			color_time -= 1;
+			color_idx += 1;
+		}
+
+		ztVec4 color = ztVec4::lerp(colors[color_idx % zt_elementsOf(colors)], colors[(color_idx + 1) % zt_elementsOf(colors)], color_time);
+		zt_rendererClear(color);
+	}
+
+	// test changing renderers
+	{
+		static r32 swap_time = 0;
+		swap_time += dt;
+
+		if (swap_time > 10) {
+			swap_time -= 10;
+			zt_rendererRequestChange(g_game->settings->renderer == ztRenderer_OpenGL ? ztRenderer_DirectX : ztRenderer_OpenGL);
+		}
+	}
+
+	// calculate frame time
+	{
+		static r32 dt_accum = 0;
+		static int frame = 0;
+
+		dt_accum += dt;
+		frame += 1;
+		if (dt_accum > 1) {
+			// show frame time in microseconds.  to hit 60 fps, each frame must take less than 16,666 microseconds (or 16.666 ms)
+			zt_logDebug("average frame rate: %.6f us/f (%.2f fps)", (dt_accum / frame) * 1000.f, 1.f / (dt_accum / frame));
+			dt_accum = 0;
+			frame = 0;
+		}
+	}
 
 	return true;
 }

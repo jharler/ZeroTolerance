@@ -225,7 +225,8 @@ struct ztVec2
 		r32 values[2];
 	};
 
-	ztVec2(r32 _x = 0, r32 _y = 0) :x(_x), y(_y) {}
+	ztVec2() {}
+	ztVec2(r32 _x, r32 _y) :x(_x), y(_y) {}
 
 	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; }
 	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; }
@@ -293,7 +294,8 @@ struct ztVec3
 		r32 values[3];
 	};
 
-	ztVec3(r32 _x = 0, r32 _y = 0, r32 _z = 0) :x(_x), y(_y), z(_z) {}
+	ztVec3() {}
+	ztVec3(r32 _x, r32 _y, r32 _z) :x(_x), y(_y), z(_z) {}
 	ztVec3(const ztVec2& vec2, r32 _z = 0) : x(vec2.x), y(vec2.y), z(_z) {}
 
 	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; }
@@ -372,7 +374,8 @@ struct ztVec4
 		r32 values[4];
 	};
 
-	ztVec4(r32 _x = 0, r32 _y = 0, r32 _z = 0, r32 _w = 0) :x(_x), y(_y), z(_z), w(_w) {}
+	ztVec4() {}
+	ztVec4(r32 _x, r32 _y, r32 _z, r32 _w) :x(_x), y(_y), z(_z), w(_w) {}
 	ztVec4(const ztVec2& vec2a, const ztVec2& vec2b) : x(vec2a.x), y(vec2a.y), z(vec2b.x), w(vec2b.y) {}
 	ztVec4(const ztVec3& vec3, r32 _w) : x(vec3.x), y(vec3.y), z(vec3.z), w(_w) {}
 
@@ -1276,7 +1279,7 @@ ztInline void ztVec3::normalize()
 ztInline ztVec3 ztVec3::getNormal() const
 {
 	r32 len = length();
-	return zt_real32Eq(len, 0) ? *this : ztVec3(x / len, y / len);
+	return zt_real32Eq(len, 0) ? *this : ztVec3(x / len, y / len, z / len);
 }
 
 // ------------------------------------------------------------------------------------------------
