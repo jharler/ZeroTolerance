@@ -14,6 +14,7 @@
 #define ZT_TOOLS_IMPLEMENTATION
 #define ZT_GAME_IMPLEMENTATION
 
+//#define ZT_MEM_ARENA_LOG_DETAILS
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
 #define ZT_GAME_LOCAL_ONLY
 #define ZT_GAME_FUNC_SETTINGS	game_settings
@@ -33,6 +34,10 @@ struct ztGame
 {
 	ztGameDetails *details;
 	ztGameSettings *settings;
+
+
+	ztMemoryArena* asset_arena;
+	ztAssetManager asset_mgr;
 };
 
 
@@ -42,6 +47,11 @@ ztGame *g_game = nullptr;
 
 
 // private functions ==============================================================================
+
+ztInternal void _game_assetModified(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
+{
+	zt_logDebug("Asset modified: %s", asset_mgr->asset_name[asset_id]);
+}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -64,6 +74,14 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
 
+
+	char test[1024 * 128];
+	zt_getDirectorySubs(details->app_path, test, sizeof(test), true);
+	zt_logDebug("directories:\n%s", test);
+
+	zt_getDirectoryFiles(details->app_path, test, sizeof(test), true);
+	zt_logDebug("files:\n%s", test);
+
 	return true;
 }
 
@@ -71,11 +89,31 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 {
-	g_game = zt_malloc_struct(ztGame);
+	g_game = zt_mallocStruct(ztGame);
 	*g_game = {};
 	g_game->details = game_details;
 	g_game->settings = game_settings;
 
+	g_game->asset_arena = zt_memMakeArena(zt_megabytes(32), zt_memGetGlobalArena());
+	zt_strMakePrintf(data_path, ztFileMaxPath, "%s%crun%cdata", game_details->user_path, ztFilePathSeparator, ztFilePathSeparator);
+
+	if (!zt_assetManagerLoadDirectory(&g_game->asset_mgr, data_path, g_game->asset_arena)) {
+		zt_logCritical("Unable to load game assets");
+		return false;
+	}
+
+	char* assets[] = {
+		"textures/debug.png",
+		"textures/white.png",
+		"shaders/shader_test.zts",
+	};
+
+	zt_fiz(zt_elementsOf(assets)) {
+		ztAssetID asset_id = zt_assetLoad(&g_game->asset_mgr, assets[i]);
+		if (asset_id != ztInvalidID) {
+			zt_assetAddReloadCallback(&g_game->asset_mgr, asset_id, _game_assetModified, g_game);
+		}
+	}
 	return true;
 }
 
@@ -83,6 +121,9 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 void game_cleanup()
 {
+	zt_assetManagerFree(&g_game->asset_mgr);
+	zt_memDumpArena(g_game->asset_arena, "asset memory");
+	zt_memFreeArena(g_game->asset_arena);
 	zt_free(g_game);
 }
 
@@ -118,6 +159,20 @@ bool game_loop(r32 dt)
 
 	{
 #if 0
+		ztAssetManager asset_mgr;
+		zt_assetManagerLoadDirectory(&asset_mgr, data_dir);
+		zt_assetManagerLoadPackedFile(&asset_mgr, pack_file);
+
+		ztAssetID asset_id = zt_assetLoadFromFile(&asset_mgr, file_name);
+		ztAssetID asset_id2 = zt_assetLoadFromData(&asset_mgr, data, data_size);
+
+		i32 bin_size = zt_assetSize(&asset_mgr, asset_id);
+		void* bin_data = zt_memAlloc(bin_size);
+		if(!zt_assetLoad(&asset_mgr, asset_id, bin_data, bin_size))
+			return false;
+
+		zt
+
 		zt_rlPushShader(g_game->renderList, g_game->shader_test); {
 			zt_rlPushTexture(g_game->renderList, g_game->texture_test); {
 				zt_rlPushQuad(-1, -1, 1, 1, ztVec4::one);
@@ -167,6 +222,7 @@ bool game_loop(r32 dt)
 		}
 	}
 
+	zt_assetManagerCheckForChanges(&g_game->asset_mgr);
 	return !input[ztInputKeys_Escape].justPressed();
 }
 
