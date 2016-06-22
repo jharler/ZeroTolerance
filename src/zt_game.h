@@ -88,14 +88,11 @@
 #ifndef __zt_game_h_included__
 #define __zt_game_h_included__
 
-// headers ========================================================================================
-
 #include "zt_tools.h"
 
 
-// forward declarations ===========================================================================
-
-// types/enums/defines ============================================================================
+// ------------------------------------------------------------------------------------------------
+// renderer defines
 
 #if !defined(ZT_NO_OPENGL)
 #	if defined(ZT_WINDOWS)
@@ -110,7 +107,11 @@
 #	endif
 #endif
 
-// structures/classes =============================================================================
+#define ztInvalidID -1
+
+
+// ------------------------------------------------------------------------------------------------
+// renderer enumerations
 
 enum ztRenderer_Enum
 {
@@ -142,7 +143,12 @@ enum ztRendererScreenChangeBehavior_Enum
 	ztRendererScreenChangeBehavior_ScaleToAspect,
 };
 
+
 // ------------------------------------------------------------------------------------------------
+// game settings
+//
+// these are set by the game in the ZT_GAME_FUNC_SETTINGS function, instructing the engine how to 
+// configure everything
 
 struct ztGameSettings
 {
@@ -157,7 +163,12 @@ struct ztGameSettings
 	ztRendererScreenChangeBehavior_Enum renderer_screen_change_behavior;
 };
 
+
 // ------------------------------------------------------------------------------------------------
+// game details
+//
+// these are set by the engine, providing useful information to the game
+//
 
 struct ztGameDetails
 {
@@ -168,7 +179,9 @@ struct ztGameDetails
 	char** argv;
 };
 
+
 // ------------------------------------------------------------------------------------------------
+// keyboard input
 
 #define _zt_inputKey(inputkey)	__zt_inputKey(inputkey)
 
@@ -223,6 +236,8 @@ struct ztGameDetails
 
 #define __zt_inputKey(key)	key
 
+// ------------------------------------------------------------------------------------------------
+
 enum ztInputKeys_Enum
 {
 	_zt_input_keysDef
@@ -230,7 +245,11 @@ enum ztInputKeys_Enum
 	ztInputKeys_MAX,
 };
 
+// ------------------------------------------------------------------------------------------------
+
 #undef _zt_inputKey
+
+// ------------------------------------------------------------------------------------------------
 
 enum ztInputKeyFlags_Enum
 {
@@ -239,6 +258,8 @@ enum ztInputKeyFlags_Enum
 	ztInputKeyFlags_JustReleased = (1<<2),
 	ztInputKeyFlags_StateKey     = (1<<3),
 };
+
+// ------------------------------------------------------------------------------------------------
 
 struct ztInputKeys
 {
@@ -257,21 +278,129 @@ struct ztInputKeys
 	bool stateKey()     { return zt_bitIsSet(flags, ztInputKeyFlags_StateKey); }
 };
 
+// ------------------------------------------------------------------------------------------------
+
 #define ztInputKeyMaxStrokes	16
+
+// ------------------------------------------------------------------------------------------------
 
 bool zt_inputThisFrame();
 ztInputKeys* zt_inputKeysAccessState(); // not thread safe
 void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
 void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes]);
 
+
+// ------------------------------------------------------------------------------------------------
+// Asset Manager
+//
+// Using an asset manager is preferable over straight file access because it gives a lot of
+// flexibility on how assets are managed.  Using this system allows for seamless use of straight
+// files during development and a single packed file for releases.  The system can even be expanded
+// to downloading resources from a network source.  It allows for resources to automatically
+// reload themselves easily when needed or when the source changes (hot reloading of files).
+//
+
+enum ztAssetManagerSource_Enum
+{
+	ztAssetManagerSource_Unknown,
+
+	ztAssetManagerSource_Directory,
+	ztAssetManagerSource_PackedFile,
+
+	ztAssetManagerSource_MAX,
+};
+
 // ------------------------------------------------------------------------------------------------
 
-// inlined functions ==============================================================================
+enum ztAssetManagerType_Enum
+{
+	ztAssetManagerType_Unknown,
 
-// they are inlined below
+	ztAssetManagerType_ImagePNG,
+	ztAssetManagerType_ImageJPG,
+	ztAssetManagerType_AudioWAV,
+
+	ztAssetManagerType_Shader,
+
+	ztAssetManagerType_MAX,
+};
+
 // ------------------------------------------------------------------------------------------------
 
-// functions ======================================================================================
+struct ztAssetManager;
+
+typedef i32 ztAssetID; // this is an index into the asset arrays
+typedef void(*zt_assetManagerAssetUpdated_Func)(ztAssetManager*, ztAssetID, void*);
+
+#define ztAssetManagerMaxAssets	1024
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztAssetManager
+{
+	ztAssetManagerSource_Enum source;
+
+	const char *asset_name[ztAssetManagerMaxAssets];
+	i32 asset_name_hash[ztAssetManagerMaxAssets];
+	i32 asset_size[ztAssetManagerMaxAssets];
+	ztAssetManagerType_Enum asset_type[ztAssetManagerMaxAssets];
+	void *asset_data[ztAssetManagerMaxAssets];
+
+	union {
+		struct {
+			i64 asset_modified[ztAssetManagerMaxAssets];
+			zt_assetManagerAssetUpdated_Func asset_callbacks[ztAssetManagerMaxAssets];
+			void *asset_callback_user_data[ztAssetManagerMaxAssets];
+			ztAssetID asset_callback_ids[ztAssetManagerMaxAssets];
+			i32 asset_callbacks_count;
+			i32 asset_modified_check_last_idx; // used internally
+		};
+
+		const char *asset_file[ztAssetManagerMaxAssets];
+	};
+
+	i32 asset_count;
+
+	union {
+		ztSerial packed;
+
+		struct {
+			char *directory;
+			int directory_len;
+			ztDirectoryMonitor directory_mon;
+		};
+	};
+
+	ztMemoryArena *arena;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+// takes the given directory and places all files in all directories (recursively) into the given packed file
+bool zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr);
+
+bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena = nullptr);
+bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena = nullptr);
+void zt_assetManagerFree(ztAssetManager *asset_mgr);
+
+bool zt_assetExists(ztAssetManager *asset_mgr, const char *asset);
+bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash);
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset);
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash);
+i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id);
+bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size);
+
+bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id);
+
+// if reading from a directory, the passed function will be called whenever the file changes
+void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, zt_assetManagerAssetUpdated_Func function, void *user_data);
+void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data);
+
+void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
+
+
+// ------------------------------------------------------------------------------------------------
+// renderer functions
 
 bool zt_rendererSupported(ztRenderer_Enum renderer);
 int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count);
@@ -287,18 +416,21 @@ void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
 
 
-#define ztInvalidID -1
+// ------------------------------------------------------------------------------------------------
+// shaders
 
 typedef i32 ztShaderID;
 
 ztShaderID zt_rendererMakeShader(const char *ztshader_file);
 
+
+// ------------------------------------------------------------------------------------------------
+// OpenGL specifics
+
 #if defined(ZT_OPENGL)
 
 // constants we need
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
-
-
 
 // function prototypes we need
 #define ZTGL_WINAPI	__stdcall
@@ -319,6 +451,7 @@ i32 zt_glClearErrors();
 #define zt_glCallAndReportOnErrorFast(function) function;
 #endif
 
+// ------------------------------------------------------------------------------------------------
 
 struct ztOpenGL
 {
@@ -330,8 +463,11 @@ extern ztOpenGL zt_gl;
 
 #define wglSwapIntervalEXT zt_gl.wglSwapIntervalEXT
 
-
 #endif // ZT_OPENGL
+
+
+// ------------------------------------------------------------------------------------------------
+// DirectX specifics
 
 #if defined(ZT_DIRECTX)
 
@@ -355,8 +491,25 @@ i32 zt_dxClearErrors();
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 #if defined(ZT_GAME_IMPLEMENTATION)
 
+// check for valid setup
 #if !defined(ZT_GAME_FUNC_SETTINGS)
 #	error "You must define ZT_GAME_FUNC_SETTINGS"
 #endif
@@ -370,6 +523,7 @@ i32 zt_dxClearErrors();
 #	error "You must define ZT_GAME_FUNC_LOOP"
 #endif
 
+// configure renderers
 #if defined(ZT_OPENGL)
 #define zt_openGLSupport(code) code
 #define zt_noOpenGLSupport(code)
@@ -386,6 +540,322 @@ i32 zt_dxClearErrors();
 #define zt_noDirectxSupport(code) code
 #endif
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena)
+{
+	return false; // not yet implemented
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena)
+{
+	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
+
+	int buffer_size = 1024 * 128;
+	char *buffer = zt_mallocStructArrayArena(char, buffer_size, arena);
+
+	i32 len = zt_getDirectoryFiles(directory, buffer, buffer_size, true);
+	if (len == 0) {
+		zt_logDebug("Asset Manager: No assets found in directory: %s", directory);
+		zt_free(buffer);
+		return false;
+	}
+
+	if (ztFilePathSeparator == '\\') {
+		zt_fiz(len) {
+			if (buffer[i] == '\\') {
+				buffer[i] = '/';
+			}
+		}
+	}
+
+	int tokens_count = zt_strTokenize(buffer, "\n", nullptr, 0);
+	if (tokens_count <= 0) {
+		zt_logDebug("Asset Manager: Unable to parse directory list: %s", buffer);
+		zt_free(buffer);
+		return false;
+	}
+
+	ztToken* tokens = zt_mallocStructArrayArena(ztToken, tokens_count, arena);
+	tokens_count = zt_strTokenize(buffer, "\n", tokens, tokens_count);
+
+	int dir_len = zt_strLen(directory) + 1;
+
+	asset_mgr->source = ztAssetManagerSource_Directory;
+	asset_mgr->directory = buffer;
+	asset_mgr->directory_len = dir_len;
+	asset_mgr->arena = arena;
+	asset_mgr->asset_callbacks_count = 0;
+	asset_mgr->asset_modified_check_last_idx = 0;
+
+	if (tokens_count > ztAssetManagerMaxAssets) {
+		zt_assert(false && "Too many assets in directory");
+		tokens_count = ztAssetManagerMaxAssets;
+	}
+
+	zt_fiz(tokens_count) {
+		char* token = buffer + tokens[i].beg + dir_len;
+		buffer[tokens[i].beg + tokens[i].len] = 0; // replace the \n with null
+
+		asset_mgr->asset_name[i] = token;
+		asset_mgr->asset_name_hash[i] = zt_strHash(token);
+		asset_mgr->asset_size[i] = zt_fileSize(token - dir_len);
+		asset_mgr->asset_modified[i] = 0;
+
+		if (zt_striEndsWith(token, ".png")) asset_mgr->asset_type[i] = ztAssetManagerType_ImagePNG;
+		else if (zt_striEndsWith(token, ".jpg")) asset_mgr->asset_type[i] = ztAssetManagerType_ImageJPG;
+		else if (zt_striEndsWith(token, ".wav")) asset_mgr->asset_type[i] = ztAssetManagerType_AudioWAV;
+		else if (zt_striEndsWith(token, ".zts")) asset_mgr->asset_type[i] = ztAssetManagerType_Shader;
+		else asset_mgr->asset_type[i] = ztAssetManagerType_Unknown;
+
+		asset_mgr->asset_data[i] = nullptr;
+		asset_mgr->asset_callbacks[i] = nullptr;
+	}
+	asset_mgr->asset_count = tokens_count;
+
+	zt_directoryMonitor(&asset_mgr->directory_mon, directory, true, ztDirectoryMonitorFlags_Modify);
+
+	zt_freeArena(tokens, arena);
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena)
+{
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_assetManagerFree(ztAssetManager *asset_mgr)
+{
+	if (asset_mgr == nullptr) {
+		return;
+	}
+	zt_fiz(asset_mgr->asset_count) {
+		if(asset_mgr->asset_data[i]) {
+			zt_freeArena(asset_mgr->asset_data[i], asset_mgr->arena);
+		}
+	}
+	zt_freeArena(asset_mgr->directory, asset_mgr->arena);
+	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetExists(ztAssetManager *asset_mgr, const char *asset)
+{
+	return zt_assetExists(asset_mgr, zt_strHash(asset));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash)
+{
+	zt_returnValOnNull(asset_mgr, false);
+
+	zt_fiz(asset_mgr->asset_count) {
+		if (asset_mgr->asset_name_hash[i] == asset_hash) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
+{
+	return zt_assetLoad(asset_mgr, zt_strHash(asset));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash)
+{
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+
+	zt_fiz(asset_mgr->asset_count) {
+		if (asset_mgr->asset_name_hash[i] == asset_hash) {
+			return i;
+		}
+	}
+
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	zt_returnValOnNull(asset_mgr, 0);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+	return asset_mgr->asset_size[asset_id];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size)
+{
+	zt_returnValOnNull(asset_mgr, false);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	switch(asset_mgr->source)
+	{
+		case ztAssetManagerSource_Directory: {
+			if (asset_mgr->asset_data[asset_id] == nullptr) {
+				i32 size = 0;
+				asset_mgr->asset_data[asset_id] = zt_readEntireFile(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &size, asset_mgr->arena);
+
+				if(size != asset_mgr->asset_size[asset_id]) {
+					asset_mgr->asset_size[asset_id] = size;
+				}
+			}
+
+			if(data_size < asset_mgr->asset_size[asset_id]) {
+				return false;
+			}
+
+			zt_memCpy(data, data_size, asset_mgr->asset_data[asset_id], asset_mgr->asset_size[asset_id]);
+
+			return true;
+		} break;
+
+		case ztAssetManagerSource_PackedFile: {
+		} break;
+
+		default: {
+			return false;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	zt_returnValOnNull(asset_mgr, false);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	zt_fiz(asset_mgr->asset_count) {
+		if(asset_mgr->asset_data[i]) {
+			zt_freeArena(asset_mgr->asset_data[i], asset_mgr->arena);
+			asset_mgr->asset_data[i] = nullptr;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, zt_assetManagerAssetUpdated_Func function, void *user_data)
+{
+	zt_returnOnNull(asset_mgr);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+	
+	if(asset_mgr->source != ztAssetManagerSource_Directory) {
+		return;
+	}
+
+	if(asset_mgr->asset_callbacks_count >= zt_elementsOf(asset_mgr->asset_callbacks)) {
+		zt_assert(false && "Asset callback overflow");
+		return;
+	}
+
+	int idx = asset_mgr->asset_callbacks_count++;
+	asset_mgr->asset_callbacks[idx] = function;
+	asset_mgr->asset_callback_ids[idx] = asset_id;
+	asset_mgr->asset_callback_user_data[idx] = user_data;
+	
+	zt_fileModified(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &asset_mgr->asset_modified[asset_id]);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
+{
+	zt_returnOnNull(asset_mgr);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	if(asset_mgr->source != ztAssetManagerSource_Directory) {
+		return;
+	}
+
+	zt_fiz(asset_mgr->asset_callbacks_count) {
+		if (asset_mgr->asset_callback_ids[i] == asset_id && asset_mgr->asset_callback_user_data[i] == user_data) {
+			for (int j = i; j < asset_mgr->asset_callbacks_count - 1; ++j) {
+				asset_mgr->asset_callbacks[j] = asset_mgr->asset_callbacks[j+1];
+				asset_mgr->asset_callback_user_data[j] = asset_mgr->asset_callback_user_data[j+1];
+				asset_mgr->asset_callback_ids[j] = asset_mgr->asset_callback_ids[j+1];
+			}
+			asset_mgr->asset_callbacks_count -= 1;
+
+			int count = 0;
+			zt_fjz(asset_mgr->asset_callbacks_count) {
+				if (asset_mgr->asset_callback_ids[j] == asset_id) {
+					count += 1;
+					break;
+				}
+			}
+			if (count == 0) {
+				asset_mgr->asset_modified[asset_id] = 0; // so it doesn't get checked anymore
+			}
+			return;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
+{
+	zt_returnOnNull(asset_mgr);
+
+	if(asset_mgr->source != ztAssetManagerSource_Directory || asset_mgr->asset_callbacks_count == 0 || asset_mgr->asset_count == 0) {
+		return;
+	}
+
+	if(!zt_directoryMonitorHasChanged(&asset_mgr->directory_mon)) {
+		return;
+	}
+
+	zt_fiz(asset_mgr->asset_count) {
+		if(asset_mgr->asset_modified[i] != 0) {
+			i64 modified = 0;
+			if(zt_fileModified(asset_mgr->asset_name[i] - asset_mgr->directory_len, &modified)) {
+				const i64 min_difference = 20000; // not sure why, but occassionally was seeing multiple rapid changes to a file when saving one time, so make sure we don't reload the same file twice in short order
+				if(asset_mgr->asset_modified[i] != modified && modified - asset_mgr->asset_modified[i] > min_difference) {
+					zt_fjz(asset_mgr->asset_callbacks_count) {
+						if(asset_mgr->asset_callback_ids[j] == i) {
+							if(asset_mgr->asset_callbacks[j]) {
+								asset_mgr->asset_callbacks[j](asset_mgr, i, asset_mgr->asset_callback_user_data[j]);
+							}
+						}
+					}
+				}
+				asset_mgr->asset_modified[i] = modified;
+			}
+		}
+	}
+
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// Windows implementation
 
 #if defined(ZT_WINDOWS)
 
@@ -1332,11 +1802,17 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, i32 renderer_fla
 ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 {
 #if defined(ZT_DIRECTX)
-	win_details->dx_swapchain->Release();
-	win_details->dx_backbuffer->Release();
-	win_details->dx_device->Release();
-	win_details->dx_context->Release();
+	if(win_details->dx_swapchain != nullptr) {
+		win_details->dx_swapchain->Release();
+		win_details->dx_backbuffer->Release();
+		win_details->dx_device->Release();
+		win_details->dx_context->Release();
 
+		win_details->dx_swapchain = nullptr;
+		win_details->dx_backbuffer = nullptr;
+		win_details->dx_device = nullptr;
+		win_details->dx_context = nullptr;
+	}
 	return true;
 #else
 	return false;
@@ -1413,7 +1889,6 @@ ztInternal ztInline bool _zt_callFuncLoop(r32 dt)
 LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l_param);
 
 // ------------------------------------------------------------------------------------------------
-
 
 bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_details)
 {
@@ -1573,8 +2048,6 @@ int main(int argc, char** argv)
 	r32 time_last = zt_getTime();
 
 	do {
-		_zt_win_processMessages();
-
 		r32 time_this = zt_getTime();
 		dt = time_this - time_last;
 		time_last = time_this;
@@ -1593,6 +2066,7 @@ int main(int argc, char** argv)
 		}
 
 		_zt_inputClearState();
+		_zt_win_processMessages();
 
 	} while (!_zt_quit_requested);
 
