@@ -131,12 +131,8 @@ bool game_loop(r32 dt)
 	}
 
 	// test changing renderers
-	if(false) {
-		static r32 swap_time = 0;
-		swap_time += dt;
-
-		if (swap_time > 10) {
-			swap_time -= 10;
+	{
+		if (input[ztInputKeys_R].justPressed() && input[ztInputKeys_Control].pressed()) {
 			zt_rendererRequestChange(g_game->settings->renderer == ztRenderer_OpenGL ? ztRenderer_DirectX : ztRenderer_OpenGL);
 		}
 	}

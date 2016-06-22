@@ -13,8 +13,10 @@ cloc*
 # Build results
 vs/[Dd]ebug/
 vs/[Rr]elease/
-vs/ZeroTolerance/
-vs/Game Test
+vs/ZeroTolerance/[Dd]ebug/
+vs/ZeroTolerance/[Rr]elease/
+vs/Game Test/[Dd]ebug
+vs/Game Test/[Rf]elease
 
 
 # Visual C++ cache files
@@ -23,6 +25,11 @@ vs/Game Test
 *.opensdf
 *.sdf
 *.cachefile
+
+*.tlog
+*.log
+*.pdb
+
 
 # =========================
 # Operating System Files
