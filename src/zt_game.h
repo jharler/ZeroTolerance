@@ -97,7 +97,6 @@
 #if !defined(ZT_NO_OPENGL)
 #	if defined(ZT_WINDOWS)
 #		define ZT_OPENGL
-#		include <gl/GLU.h>
 #	endif
 #endif
 
@@ -421,70 +420,9 @@ void zt_rendererRequestFullscreen();
 
 typedef i32 ztShaderID;
 
-ztShaderID zt_rendererMakeShader(const char *ztshader_file);
+ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_rendererFreeShader(ztShaderID shader_id);
 
-
-// ------------------------------------------------------------------------------------------------
-// OpenGL specifics
-
-#if defined(ZT_OPENGL)
-
-// constants we need
-#define GL_SHADING_LANGUAGE_VERSION 0x8B8C
-
-// function prototypes we need
-#define ZTGL_WINAPI	__stdcall
-#define ZTGL_BOOL int
-
-typedef ZTGL_BOOL (ZTGL_WINAPI *ztgl_wglSwapIntervalEXT_Func) (int interval);
-
-bool zt_glCheckAndReportError(const char *function);
-i32 zt_glClearErrors();
-
-#define zt_glCallAndReturnOnError(function) function; if(zt_glCheckAndReportError(#function)) return;
-#define zt_glCallAndReturnValOnError(function, retval) function; if(zt_glCheckAndReportError(#function)) return retval;
-#define zt_glCallAndReportOnError(function) function; zt_glCheckAndReportError(#function);
-
-#if defined(ZT_OPENGL_DIAGNOSE)
-#define zt_glCallAndReportOnErrorFast(function) function; zt_glCheckAndReportError(#function);
-#else
-#define zt_glCallAndReportOnErrorFast(function) function;
-#endif
-
-// ------------------------------------------------------------------------------------------------
-
-struct ztOpenGL
-{
-	bool initialized = false;
-	ztgl_wglSwapIntervalEXT_Func wglSwapIntervalEXT;
-};
-
-extern ztOpenGL zt_gl;
-
-#define wglSwapIntervalEXT zt_gl.wglSwapIntervalEXT
-
-#endif // ZT_OPENGL
-
-
-// ------------------------------------------------------------------------------------------------
-// DirectX specifics
-
-#if defined(ZT_DIRECTX)
-
-bool zt_dxCheckAndReportError(const char *function, i32 hr);
-i32 zt_dxClearErrors();
-
-#define zt_dxCallAndReturnOnError(function) if(zt_dxCheckAndReportError(#function, (function))) return;
-#define zt_dxCallAndReturnValOnError(function, retval) if(zt_dxCheckAndReportError(#function, (function))) return retval;
-#define zt_dxCallAndReportOnError(function) zt_dxCheckAndReportError(#function, (function));
-
-#if defined(ZT_OPENGL_DIAGNOSE)
-#define zt_dxCallAndReportOnErrorFast(function) zt_dxCheckAndReportError(#function, (function));
-#else
-#define zt_dxCallAndReportOnErrorFast(function) function;
-#endif
-
-#endif
 
 
 // ------------------------------------------------------------------------------------------------
@@ -864,16 +802,138 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 
 #if defined(ZT_OPENGL)
 #pragma comment(lib, "opengl32.lib")
+#include <gl/GLU.h>
 #include <Wingdi.h>
 
+// ------------------------------------------------------------------------------------------------
+// OpenGL specifics
+
+typedef char GLchar;
+
+#define GL_SHADING_LANGUAGE_VERSION 0x8B8C
+#define GL_FRAGMENT_SHADER 0x8B30
+#define GL_VERTEX_SHADER 0x8B31
+#define GL_GEOMETRY_SHADER 0x8DD9
+#define GL_COMPILE_STATUS 0x8B81
+#define GL_INFO_LOG_LENGTH 0x8B84
+#define GL_LINK_STATUS 0x8B82
+
+// function prototypes we need
+#define ZTGL_WINAPI	__stdcall
+#define ZTGL_BOOL int
+
+typedef ZTGL_BOOL (ZTGL_WINAPI *ztgl_wglSwapIntervalEXT_Func) (int interval);
+typedef GLuint	  (ZTGL_WINAPI *ztgl_glCreateShader_Func) (GLenum type);
+typedef void      (ZTGL_WINAPI *ztgl_glShaderSource_Func) (GLuint shader, GLsizei count, const GLchar *const* string, const GLint* length);
+typedef void      (ZTGL_WINAPI *ztgl_glCompileShader_Func) (GLuint shader);
+typedef void      (ZTGL_WINAPI *ztgl_glGetShaderiv_Func) (GLuint shader, GLenum pname, GLint* param);
+typedef void      (ZTGL_WINAPI *ztgl_glGetShaderInfoLog_Func) (GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef void      (ZTGL_WINAPI *ztgl_glDeleteShader_Func) (GLuint shader);
+typedef GLuint    (ZTGL_WINAPI *ztgl_glCreateProgram_Func) (void);
+typedef void      (ZTGL_WINAPI *ztgl_glAttachShader_Func) (GLuint program, GLuint shader);
+typedef void      (ZTGL_WINAPI *ztgl_glLinkProgram_Func) (GLuint program);
+typedef void      (ZTGL_WINAPI *ztgl_glGetProgramiv_Func) (GLuint program, GLenum pname, GLint* param);
+typedef void      (ZTGL_WINAPI *ztgl_glGetProgramInfoLog_Func) (GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef void      (ZTGL_WINAPI *ztgl_glDeleteProgram_Func) (GLuint program);
+typedef void      (ZTGL_WINAPI *ztgl_glDetachShader_Func) (GLuint program, GLuint shader);
+
+struct ztOpenGL
+{
+	bool initialized = false;
+	ztgl_wglSwapIntervalEXT_Func    wglSwapIntervalEXT;
+	ztgl_glCreateShader_Func        glCreateShader;
+	ztgl_glShaderSource_Func        glShaderSource;
+	ztgl_glCompileShader_Func       glCompileShader;
+	ztgl_glGetShaderiv_Func         glGetShaderiv;
+	ztgl_glGetShaderInfoLog_Func    glGetShaderInfoLog;
+	ztgl_glDeleteShader_Func        glDeleteShader;
+	ztgl_glCreateProgram_Func       glCreateProgram;
+	ztgl_glAttachShader_Func        glAttachShader;
+	ztgl_glLinkProgram_Func         glLinkProgram;
+	ztgl_glGetProgramiv_Func        glGetProgramiv;
+	ztgl_glGetProgramInfoLog_Func   glGetProgramInfoLog;
+	ztgl_glDeleteProgram_Func       glDeleteProgram;
+	ztgl_glDetachShader_Func        glDetachShader;
+};
+
 ztOpenGL zt_gl = {};
+
+ztInternal void _zt_glLoadFunctions()
+{
+#define zt_loadFunc(func)	\
+	zt_logDebug("OpenGL: loading function " #func); zt_gl.##func = (ztgl_##func##_Func)wglGetProcAddress((LPCSTR)((const GLubyte*)#func));
+
+	zt_loadFunc(wglSwapIntervalEXT);
+	zt_loadFunc(glCreateShader);
+	zt_loadFunc(glShaderSource);
+	zt_loadFunc(glCompileShader);
+	zt_loadFunc(glGetShaderiv);
+	zt_loadFunc(glGetShaderInfoLog);
+	zt_loadFunc(glDeleteShader);
+	zt_loadFunc(glCreateProgram);
+	zt_loadFunc(glAttachShader);
+	zt_loadFunc(glLinkProgram);
+	zt_loadFunc(glGetProgramiv);
+	zt_loadFunc(glGetProgramInfoLog);
+	zt_loadFunc(glDeleteProgram);
+	zt_loadFunc(glDetachShader);
+
+#undef zt_loadFunc
+}
+
+#define wglSwapIntervalEXT    zt_gl.wglSwapIntervalEXT
+#define glCreateShader        zt_gl.glCreateShader
+#define glShaderSource        zt_gl.glShaderSource
+#define glCompileShader       zt_gl.glCompileShader
+#define glGetShaderiv         zt_gl.glGetShaderiv
+#define glGetShaderInfoLog    zt_gl.glGetShaderInfoLog
+#define glDeleteShader        zt_gl.glDeleteShader
+#define glCreateProgram		  zt_gl.glCreateProgram
+#define glAttachShader        zt_gl.glAttachShader
+#define glLinkProgram         zt_gl.glLinkProgram
+#define glGetProgramiv        zt_gl.glGetProgramiv
+#define glGetProgramInfoLog   zt_gl.glGetProgramInfoLog
+#define glDeleteProgram       zt_gl.glDeleteProgram
+#define glDetachShader        zt_gl.glDetachShader
+
+
+bool zt_glCheckAndReportError(const char *function);
+i32 zt_glClearErrors();
+
+#define zt_glCallAndReturnOnError(function) function; if(zt_glCheckAndReportError(#function)) return;
+#define zt_glCallAndReturnValOnError(function, retval) function; if(zt_glCheckAndReportError(#function)) return retval;
+#define zt_glCallAndReportOnError(function) function; zt_glCheckAndReportError(#function);
+
+#if defined(ZT_OPENGL_DIAGNOSE)
+#define zt_glCallAndReportOnErrorFast(function) function; zt_glCheckAndReportError(#function);
+#else
+#define zt_glCallAndReportOnErrorFast(function) function;
+#endif
 
 #endif
 
 #if defined(ZT_DIRECTX)
 #pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 
 #include <d3d11.h>
+#include <d3dcompiler.h>
+
+// ------------------------------------------------------------------------------------------------
+// DirectX specifics
+
+bool zt_dxCheckAndReportError(const char *function, i32 hr);
+i32 zt_dxClearErrors();
+
+#define zt_dxCallAndReturnOnError(function) if(zt_dxCheckAndReportError(#function, (function))) return;
+#define zt_dxCallAndReturnValOnError(function, retval) if(zt_dxCheckAndReportError(#function, (function))) return retval;
+#define zt_dxCallAndReportOnError(function) zt_dxCheckAndReportError(#function, (function));
+
+#if defined(ZT_OPENGL_DIAGNOSE)
+#define zt_dxCallAndReportOnErrorFast(function) zt_dxCheckAndReportError(#function, (function));
+#else
+#define zt_dxCallAndReportOnErrorFast(function) function;
+#endif
 
 #endif
 
@@ -1334,9 +1394,391 @@ void zt_rendererRequestFullscreen()
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID zt_rendererMakeShader(const char *ztshader_file)
+enum ztShaderVariable_Enum
 {
-	return -1;
+	ztShaderVariable_Invalid,
+
+	ztShaderVariable_Float,
+	ztShaderVariable_Int,
+	ztShaderVariable_Vec2,
+	ztShaderVariable_Vec3,
+	ztShaderVariable_Vec4,
+	ztShaderVariable_Mat3,
+	ztShaderVariable_Mat4,
+	ztShaderVariable_Tex,
+
+	ztShaderVariable_MAX,
+};
+
+#define ztShaderMaxVariables	64
+#define ztShaderMaxShaders		128
+
+struct ztShader
+{
+#if defined(ZT_OPENGL)
+	GLuint gl_program_id, gl_vert_id, gl_geo_id, gl_frag_id;
+#endif
+
+#if defined(ZT_DIRECTX)
+	ID3DBlob *dx_vert, *dx_frag;
+#endif
+
+	ztRenderer_Enum renderer;
+	ztAssetManager *asset_mgr;
+	ztAssetID asset_id;
+
+	struct variable
+	{
+		ztShaderVariable_Enum type;
+
+		union {
+			r32 val_float;
+			i32 val_int;
+			r32 val_vec2[2];
+			r32 val_vec3[3];
+			r32 val_vec4[4];
+			r32 val_mat3[9];
+			r32 val_mat4[16];
+			i32 val_tex;
+		};
+	};
+
+	variable variables[ztShaderMaxVariables];
+	int variable_count;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztShader _zt_shaders[ztShaderMaxShaders];
+ztInternal i32 _zt_shaders_count = 0;
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_id)
+{
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	if(asset_mgr->asset_type[asset_id] != ztAssetManagerType_Shader && asset_mgr->asset_type[asset_id] != ztAssetManagerType_Unknown) {
+		return ztInvalidID;
+	}
+
+	ztShaderID shader_id = ztInvalidID;
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if(size <= 0) {
+		return ztInvalidID;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if(!data) {
+		return ztInvalidID;
+	}
+
+	const char *error = nullptr;
+
+	if(!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	const int max_idx = 16;
+	i32 gl_vert_beg[max_idx]; i32 gl_vert_len[max_idx]; i32 gl_vert_cnt = 0;
+	i32 gl_geom_beg[max_idx]; i32 gl_geom_len[max_idx]; i32 gl_geom_cnt = 0;
+	i32 gl_frag_beg[max_idx]; i32 gl_frag_len[max_idx]; i32 gl_frag_cnt = 0;
+	i32 dx_hlsl_beg[max_idx]; i32 dx_hlsl_len[max_idx]; i32 dx_hlsl_cnt = 0;
+
+	const char* glsl_vs = "glsl_vs";
+	const int glsl_vs_len = zt_strLen(glsl_vs);
+	const char* glsl_gs = "glsl_gs";
+	const int glsl_gs_len = zt_strLen(glsl_gs);
+	const char* glsl_fs = "glsl_fs";
+	const int glsl_fs_len = zt_strLen(glsl_fs);
+	const char* hlsl = "hlsl";
+	const int hlsl_len = zt_strLen(hlsl);
+
+	i32 pos_beg = zt_strFindPos(data, "<<[", 0);
+	while(pos_beg != ztStrPosNotFound) {
+		int pos_end = zt_strFindPos(data, "]>>", pos_beg);
+		if(pos_end == ztStrPosNotFound) {
+			error = "Invalid format.";
+			goto on_error;
+		}
+		pos_beg += 3;
+
+		i32 *arr_beg = nullptr, *arr_len = nullptr, *arr_cnt = nullptr;
+
+			 if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_vs, glsl_vs_len)) { arr_beg = gl_vert_beg; arr_len = gl_vert_len; arr_cnt = &gl_vert_cnt; }
+		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_gs, glsl_gs_len)) { arr_beg = gl_geom_beg; arr_len = gl_geom_len; arr_cnt = &gl_geom_cnt; }
+		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_fs, glsl_fs_len)) { arr_beg = gl_frag_beg; arr_len = gl_frag_len; arr_cnt = &gl_frag_cnt; }
+		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, hlsl,    hlsl_len   )) { arr_beg = dx_hlsl_beg; arr_len = dx_hlsl_len; arr_cnt = &dx_hlsl_cnt; }
+
+		if(arr_beg && arr_len && arr_cnt) {
+			int sh_beg = zt_strFindPos(data, "<<[", pos_end + 3);
+			int sh_end = zt_strFindPos(data, "]>>", sh_beg);
+			if(sh_beg == ztStrPosNotFound || sh_end == ztStrPosNotFound) {
+				error = "Error in format.";
+				goto on_error;
+			}
+			sh_beg += 3;
+			int idx = (*arr_cnt)++;
+			arr_beg[idx] = sh_beg;
+			arr_len[idx] = sh_end - sh_beg;
+			pos_end += arr_len[idx];
+		}
+		else {
+			char temp[1024] = {0};
+			zt_strCpy(temp, sizeof(temp), data + pos_beg, pos_end - pos_beg);
+			zt_logVerbose("Unknown shader group encountered: %s", temp);
+		}
+
+		pos_beg = zt_strFindPos(data, "<<[", pos_end);
+	}
+
+	ztGameSettings *game_settings = &_zt_windows_settings[0];
+	if(game_settings->renderer == ztRenderer_OpenGL) {
+#if defined(ZT_OPENGL)
+		if(gl_vert_cnt == 0) { error = "No vertex shader found"; goto on_error; }
+		if(gl_frag_cnt == 0) { error = "No fragment shader found"; goto on_error; }
+
+		struct OpenGL
+		{
+			static GLuint load_shader(GLenum type, const char *src)
+			{
+				GLuint shader = glCreateShader(type);
+				zt_glCallAndReturnValOnError("glCreateShader", 0);
+
+				if (shader) {
+					zt_glCallAndReturnValOnError(glShaderSource(shader, 1, &src, NULL), 0);
+					zt_glCallAndReturnValOnError(glCompileShader(shader), 0);
+
+					GLint compiled = 0;
+					zt_glCallAndReturnValOnError(glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled), 0);
+					if( !compiled ) {
+						GLint info_len = 0;
+						zt_glCallAndReturnValOnError(glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_len), 0);
+						if( info_len ) {
+							char *buff = zt_mallocStructArray(char, info_len);
+							if( buff ) {
+								glGetShaderInfoLog(shader, info_len, NULL, buff);
+								zt_logCritical("Could not compile shader: %d\nReason: %s", type, buff);
+								zt_free(buff);
+							}
+							zt_glCallAndReturnValOnError(glDeleteShader(shader), 0);
+							shader = 0;
+						}
+					}
+				}
+				return shader;
+			}
+
+			static GLuint load_program(GLuint vert, GLuint frag, GLuint geom)
+			{
+				GLuint program = glCreateProgram();
+				if (zt_glCheckAndReportError("glCreateProgram")) {
+					return 0;
+				}
+
+				if( program ) {
+					zt_glCallAndReturnValOnError(glAttachShader(program, vert), 0);
+					zt_glCallAndReturnValOnError(glAttachShader(program, frag), 0);
+
+					if (geom != 0) {
+						zt_glCallAndReturnValOnError(glAttachShader(program, geom), 0);
+					}
+					zt_glCallAndReturnValOnError(glLinkProgram(program), 0);
+
+					GLint link_status = GL_FALSE;
+					glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+					if( link_status != GL_TRUE ) {
+						GLint buff_len = 0;
+						glGetProgramiv(program, GL_INFO_LOG_LENGTH, &buff_len);
+						if( buff_len ) {
+							char *buff = zt_mallocStructArray(char, buff_len);
+							if( buff ) {
+								glGetProgramInfoLog(program, buff_len, NULL, buff);
+								zt_logCritical("glLinkProgram failed.  Reason: %s", buff);
+								zt_free(buff);
+							}
+						}
+						zt_glCallAndReturnValOnError(glDeleteProgram(program), 0);
+						program = 0;
+					}
+				}
+
+				return program;
+			}
+		};
+
+		GLuint vert = 0;
+		zt_fiz(gl_vert_cnt) {
+			char *vert_src = data + gl_vert_beg[i]; 
+			vert_src[gl_vert_len[i]] = 0;
+			if(vert = OpenGL::load_shader(GL_VERTEX_SHADER, vert_src))
+				break;
+		}
+		if(vert == 0) { error = "Unable to compile vertex shader."; goto on_error; }
+
+		GLuint frag = 0;
+		zt_fiz(gl_frag_cnt) {
+			char *frag_src = data + gl_frag_beg[i]; 
+			frag_src[gl_frag_len[i]] = 0;
+			if(frag = OpenGL::load_shader(GL_FRAGMENT_SHADER, frag_src))
+				break;
+		}
+		if(frag == 0) { error = "Unable to compile fragment shader."; goto on_error; }
+
+		GLuint geom = 0;
+		zt_fiz(gl_geom_cnt) {
+			char *geom_src = data + gl_geom_beg[i]; 
+			geom_src[gl_geom_len[i]] = 0;
+			if(frag = OpenGL::load_shader(GL_GEOMETRY_SHADER, geom_src))
+				break;
+		}
+		if(gl_geom_cnt && geom == 0) { error = "Unable to compile geometry shader."; goto on_error; }
+
+		GLuint program = OpenGL::load_program(vert, frag, geom);
+		if(program == 0) { error = "Unable to compile and link shader program."; goto on_error; }
+
+		zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
+		shader_id = _zt_shaders_count++;
+		ztShader* shader = &_zt_shaders[shader_id];
+		shader->renderer = ztRenderer_OpenGL;
+		shader->gl_vert_id = vert;
+		shader->gl_frag_id = frag;
+		shader->gl_geo_id = geom;
+		shader->gl_program_id = program;
+		shader->asset_mgr = asset_mgr;
+		shader->asset_id = asset_id;
+		shader->variable_count = 0;
+#else
+		error = "OpenGL has been disabled in the library.";
+		goto on_error;
+#endif
+	}
+	else if(game_settings->renderer == ztRenderer_DirectX) {
+#if defined(ZT_DIRECTX)
+		if(dx_hlsl_cnt == 0 ) { error = "No hlsl shader found"; goto on_error; }
+
+		ID3DBlob *blob_code = nullptr;
+		ID3DBlob *vert, *frag;
+
+		zt_fiz(dx_hlsl_cnt) {
+			char *src = data + dx_hlsl_beg[i]; 
+			src[dx_hlsl_len[i]] = 0;
+
+			int label_pos = zt_strFindLastPos(data, "<<[", size - (src - data));
+			char *header = data + label_pos;
+			int label_end = zt_strFindPos(header, "]>>", 0);
+			header[label_end] = 0;
+
+			char vert_entry[128];
+			char frag_entry[128];
+
+			ztToken header_tokens[4];
+			int header_tokens_count = zt_strTokenize(header, " ,", header_tokens, zt_elementsOf(header_tokens), ztStrTokenizeFlags_TrimWhitespace);
+			if(header_tokens_count == 3) { // 0 - hlsl, 1 - vert entry, 2 - frag entry
+				zt_strCpy(vert_entry, sizeof(vert_entry), header + header_tokens[1].beg, header_tokens[1].len);
+				zt_strCpy(frag_entry, sizeof(frag_entry), header + header_tokens[2].beg, header_tokens[2].len);
+			}
+
+			// D3DCOMPILE_PACK_MATRIX_ROW_MAJOR
+			// D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR
+
+			struct DirectX
+			{
+				static bool load_shader(const char *src, const char *entry, ID3DBlob **shader)
+				{
+					ID3DBlob *blob_error = nullptr;
+					i32 hr = D3DCompile(src, zt_strLen(src), NULL, NULL, NULL, entry, "vs_5_0", 0, 0, shader, &blob_error);
+					if(blob_error != nullptr) {
+						char *b_error = (char*)blob_error->GetBufferPointer();
+						int b_error_len = blob_error->GetBufferSize();
+
+						char error_buffer[512];
+						zt_strCpy(error_buffer, sizeof(error_buffer), b_error, b_error_len);
+						zt_logCritical("DirectX compile failure: %s", error_buffer);
+						return false;
+					}
+
+					return true;
+				}
+			};
+
+			if(!DirectX::load_shader(src, vert_entry, &vert)) { error = "Unable to compile vertex shader."; goto on_error; }
+			if(!DirectX::load_shader(src, frag_entry, &frag)) { error = "Unable to compile pixel shader."; goto on_error; }
+
+			break;
+		}
+
+		zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
+		shader_id = _zt_shaders_count++;
+		ztShader* shader = &_zt_shaders[shader_id];
+		shader->renderer = ztRenderer_DirectX;
+		shader->dx_vert = vert;
+		shader->dx_frag = frag;
+		shader->asset_mgr = asset_mgr;
+		shader->asset_id = asset_id;
+		shader->variable_count = 0;
+
+
+#else
+		error = "DirectX has been disabled in the library.";
+		goto on_error;
+#endif
+	}
+
+	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
+
+	zt_free(data);
+	return shader_id;
+
+on_error:
+	zt_logCritical("Unable to load shader (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_free(data);
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rendererFreeShader(ztShaderID shader_id)
+{
+	zt_assert(shader_id >= 0 && shader_id < _zt_shaders_count);
+
+	ztShader* shader = &_zt_shaders[shader_id];
+	zt_assetRemoveReloadCallback(shader->asset_mgr, shader->asset_id, (void*)shader_id);
+
+	if(shader->renderer == ztRenderer_OpenGL) {
+#if defined(ZT_OPENGL)
+		if(shader->gl_geo_id != 0) {
+			zt_glCallAndReportOnError(glDeleteShader(shader->gl_geo_id));
+			zt_glCallAndReportOnError(glDetachShader(shader->gl_program_id, shader->gl_geo_id));
+		}
+		if(shader->gl_vert_id != 0) {
+			zt_glCallAndReportOnError(glDeleteShader(shader->gl_vert_id));
+			zt_glCallAndReportOnError(glDetachShader(shader->gl_program_id, shader->gl_vert_id));
+		}
+		if(shader->gl_frag_id != 0) {
+			zt_glCallAndReportOnError(glDeleteShader(shader->gl_frag_id));
+			zt_glCallAndReportOnError(glDetachShader(shader->gl_program_id, shader->gl_frag_id));
+		}
+
+		zt_glCallAndReportOnError(glDeleteProgram(shader->gl_program_id));
+
+		zt_memSet(shader, sizeof(ztShader), 0);
+#endif
+	}
+	else if(shader->renderer == ztRenderer_DirectX) {
+#if defined(ZT_DIRECTX)
+#endif
+	}
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1445,16 +1887,7 @@ ztInternal bool _zt_glSetup()
 
 	zt_memSet(&zt_gl, sizeof(zt_gl), 0);
 
-#define zt_loadFunc(func)	\
-	zt_logDebug("OpenGL: loading function " #func); zt_gl.##func = (ztgl_##func##_Func)wglGetProcAddress((LPCSTR)((const GLubyte*)#func));
-
-#	pragma push_macro("wglSwapIntervalEXT")
-#	undef wglSwapIntervalEXT
-	zt_loadFunc(wglSwapIntervalEXT);
-#	pragma pop_macro("wglSwapIntervalEXT")
-
-
-#undef zt_loadFunc
+	_zt_glLoadFunctions();
 
 	zt_logInfo("OpenGL: version: %s", glGetString(GL_VERSION));
 	zt_logInfo("OpenGL: vendor: %s", glGetString(GL_VENDOR));

@@ -589,30 +589,30 @@ u32 zt_strHash(const char *s);
 const char *zt_strFind(const char *haystack, const char *needle);
 const char *zt_strFind(const char *haystack, const char *needle, int needle_len);
 const char *zt_strFind(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_strFindPos(const char *haystack, const char *needle);
-int zt_strFindPos(const char *haystack, const char *needle, int needle_len);
-int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len);
+int zt_strFindPos(const char *haystack, const char *needle, int start_pos);
+int zt_strFindPos(const char *haystack, const char *needle, int needle_len, int start_pos);
+int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos);
 
 const char *zt_strFindLast(const char *haystack, const char *needle);
 const char *zt_strFindLast(const char *haystack, const char *needle, int needle_len);
 const char *zt_strFindLast(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_strFindLastPos(const char *haystack, const char *needle);
-int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len);
-int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len);
+int zt_strFindLastPos(const char *haystack, const char *needle, int offset);
+int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len, int offset);
+int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset);
 
 const char *zt_striFind(const char *haystack, const char *needle);
 const char *zt_striFind(const char *haystack, const char *needle, int needle_len);
 const char *zt_striFind(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_striFindPos(const char *haystack, const char *needle);
-int zt_striFindPos(const char *haystack, const char *needle, int needle_len);
-int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len);
+int zt_striFindPos(const char *haystack, const char *needle, int start_pos);
+int zt_striFindPos(const char *haystack, const char *needle, int needle_len, int start_pos);
+int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos);
 
 const char *zt_striFindLast(const char *haystack, const char *needle);
 const char *zt_striFindLast(const char *haystack, const char *needle, int needle_len);
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_striFindLastPos(const char *haystack, const char *needle);
-int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len);
-int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len);
+int zt_striFindLastPos(const char *haystack, const char *needle, int offset);
+int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len, int offset);
+int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset);
 
 bool zt_strStartsWith(const char *s, const char *starts_with);
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
@@ -2373,29 +2373,29 @@ const char *zt_strFind(const char *haystack, int haystack_len, const char *needl
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindPos(const char *haystack, const char *needle)
+int zt_strFindPos(const char *haystack, const char *needle, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_strFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_strFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindPos(const char *haystack, const char *needle, int needle_len)
+int zt_strFindPos(const char *haystack, const char *needle, int needle_len, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
-	return zt_strFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_strFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len)
+int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos)
 {
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || start_pos < 0) return -1;
 
-	zt_fiz((haystack_len - needle_len) + 1) {
+	for (int i = start_pos; i < (haystack_len - needle_len) + 1; ++i) {
 		zt_fjz(needle_len) {
 			if (haystack[i + j] != needle[j]) goto no_match;
 		}
@@ -2443,29 +2443,29 @@ const char *zt_strFindLast(const char *haystack, int haystack_len, const char *n
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindLastPos(const char *haystack, const char *needle)
+int zt_strFindLastPos(const char *haystack, const char *needle, int offset)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len);
+	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len, offset);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len)
+int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len, int offset)
 {
 	int haystack_len = zt_strLen(haystack);
-	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len);
+	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len, offset);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len)
+int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset)
 {
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || offset < 0) return -1;
 
-	for (i32 i = (haystack_len - needle_len); i >= 0; --i) {
+	for (i32 i = (haystack_len - needle_len) - offset; i >= 0; --i) {
 			zt_fjz(needle_len) {
 			if (haystack[i + j] != needle[j]) goto no_match;
 		}
@@ -2515,29 +2515,29 @@ const char *zt_striFind(const char *haystack, int haystack_len, const char *need
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindPos(const char *haystack, const char *needle)
+int zt_striFindPos(const char *haystack, const char *needle, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindPos(const char *haystack, const char *needle, int needle_len)
+int zt_striFindPos(const char *haystack, const char *needle, int needle_len, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len)
+int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos)
 {
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || start_pos < 0) return -1;
 
-	zt_fiz((haystack_len - needle_len) + 1) {
+	for (int i = start_pos; i < (haystack_len - needle_len) + 1; ++i) {
 		zt_fjz(needle_len) {
 			if (_zt_to_upper(haystack[i + j]) != _zt_to_upper(needle[j])) goto no_match;
 		}
@@ -2585,29 +2585,29 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, const char *needle)
+int zt_striFindLastPos(const char *haystack, const char *needle, int offset)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, offset);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len)
+int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len, int offset)
 {
 	int haystack_len = zt_strLen(haystack);
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, offset);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len)
+int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset)
 {
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || offset < 0) return -1;
 
-	for (i32 i = (haystack_len - needle_len); i >= 0; --i) {
+	for (i32 i = (haystack_len - needle_len) - offset; i >= 0; --i) {
 		zt_fjz(needle_len) {
 			if (_zt_to_upper(haystack[i + j]) != _zt_to_upper(needle[j])) goto no_match;
 		}
@@ -3167,8 +3167,8 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 	i32 pos_last_path = ztStrPosNotFound;
 
 #if defined(ZT_WINDOWS)
-	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
-	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
+	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/", 0);
+	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\", 0);
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
 #endif
 
@@ -3191,8 +3191,8 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 	i32 pos_last_path = ztStrPosNotFound;
 
 #if defined(ZT_WINDOWS)
-	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
-	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
+	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/", 0);
+	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\", 0);
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
 #endif
 
@@ -3214,7 +3214,7 @@ i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 		return 0;
 	}
 
-	i32 pos = zt_strFindLastPos(file_name, ".");
+	i32 pos = zt_strFindLastPos(file_name, ".", 0);
 	if (pos == ztStrPosNotFound) {
 		return 0;
 	}
@@ -3253,7 +3253,7 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 		zt_logCritical("zt_fileGetAppPath: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
 	}
 
-	int pos = zt_strFindLastPos(buffer, "\\");
+	int pos = zt_strFindLastPos(buffer, "\\", 0);
 	if (pos != ztStrPosNotFound) {
 		buffer[pos] = 0;
 		len = pos;

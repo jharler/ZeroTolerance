@@ -1,9 +1,7 @@
-/* 
-	zt shader file
-*/
+Anything outside of < < [ ] > > will be ignored
 
-glsl_vs[0] =
-"
+<<[glsl_vs]>>
+<<[
 	#version 330 core
 	layout (location = 0) in vec3 position;
 	layout (location = 1) in vec4 color;
@@ -32,10 +30,10 @@ glsl_vs[0] =
 		vs_out.color = color;
 		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);
 	}
-"
+]>>
 
-glsl_fs[0] =
-"
+<<[glsl_fs]>>
+<<[
 	#version 330 core
 	out vec4 frag_color;
 
@@ -100,10 +98,11 @@ glsl_fs[0] =
 	//	frag_color = texture(tex_diffuse, fs_in.tex_coord) * vec4(result, 1);
 
 	};
-"
+]>>
 
-hlsl[0] =
-"
+<<[hlsl, VertexShaderFunction, PixelShaderFunction]>>
+
+<<[
 	float4x4 model;
 	float4x4 projection;
 	float4x4 view;
@@ -126,7 +125,7 @@ hlsl[0] =
 		VertexShaderOutput output;
 
 		float4 model_position = mul(input.position, model);
-		float4 view_position = mul(world_position, view);
+		float4 view_position = mul(model_position, view);
 		output.position = mul(view_position, projection);
 
 		return output;
@@ -145,4 +144,4 @@ hlsl[0] =
 			PixelShader = compile ps_2_0 PixelShaderFunction();
 		}
 	}
-"
+]>>

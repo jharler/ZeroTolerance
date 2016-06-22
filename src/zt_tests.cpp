@@ -211,14 +211,14 @@ bool test_strings()
 	zt_testResults(zt_striFind(haystack_one, needle_6) == haystack_one + 36);
 	zt_testResults(zt_striFind(haystack_one, needle_x) == nullptr);
 
-	zt_testResults(zt_strFindPos(haystack_one, needle_1) == 0);
-	zt_testResults(zt_strFindPos(haystack_one, needle_2) == 16);
-	zt_testResults(zt_strFindPos(haystack_one, needle_3) == 36);
-	zt_testResults(zt_strFindPos(haystack_one, needle_x) == -1);
-	zt_testResults(zt_striFindPos(haystack_one, needle_4) == 0);
-	zt_testResults(zt_striFindPos(haystack_one, needle_5) == 16);
-	zt_testResults(zt_striFindPos(haystack_one, needle_6) == 36);
-	zt_testResults(zt_striFindPos(haystack_one, needle_x) == -1);
+	zt_testResults(zt_strFindPos(haystack_one, needle_1, 0) == 0);
+	zt_testResults(zt_strFindPos(haystack_one, needle_2, 0) == 16);
+	zt_testResults(zt_strFindPos(haystack_one, needle_3, 0) == 36);
+	zt_testResults(zt_strFindPos(haystack_one, needle_x, 0) == -1);
+	zt_testResults(zt_striFindPos(haystack_one, needle_4, 0) == 0);
+	zt_testResults(zt_striFindPos(haystack_one, needle_5, 0) == 16);
+	zt_testResults(zt_striFindPos(haystack_one, needle_6, 0) == 36);
+	zt_testResults(zt_striFindPos(haystack_one, needle_x, 0) == -1);
 
 	const char *token_search = "one, two, three, four";
 	const char *token_2 = token_search + 3, *token_3 = token_search + 4, *token_4 = token_search + 8, *token_5 = token_search + 9, *token_6 = token_search + 15, *token_7 = token_search + 16, *token_8 = nullptr;

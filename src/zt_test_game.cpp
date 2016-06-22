@@ -38,6 +38,8 @@ struct ztGame
 
 	ztMemoryArena* asset_arena;
 	ztAssetManager asset_mgr;
+
+	ztShaderID shader_id;
 };
 
 
@@ -47,11 +49,6 @@ ztGame *g_game = nullptr;
 
 
 // private functions ==============================================================================
-
-ztInternal void _game_assetModified(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
-{
-	zt_logDebug("Asset modified: %s", asset_mgr->asset_name[asset_id]);
-}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -102,18 +99,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	char* assets[] = {
-		"textures/debug.png",
-		"textures/white.png",
-		"shaders/shader_test.zts",
-	};
-
-	zt_fiz(zt_elementsOf(assets)) {
-		ztAssetID asset_id = zt_assetLoad(&g_game->asset_mgr, assets[i]);
-		if (asset_id != ztInvalidID) {
-			zt_assetAddReloadCallback(&g_game->asset_mgr, asset_id, _game_assetModified, g_game);
-		}
+	g_game->shader_id = zt_rendererMakeShader(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "shaders/shader_test.zts"));
+	if (g_game->shader_id == ztInvalidID) {
+		zt_logCritical("Unable to load game shader");
+		return false;
 	}
+
 	return true;
 }
 
@@ -121,6 +112,8 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 void game_cleanup()
 {
+	zt_rendererFreeShader(g_game->shader_id);
+
 	zt_assetManagerFree(&g_game->asset_mgr);
 	zt_memDumpArena(g_game->asset_arena, "asset memory");
 	zt_memFreeArena(g_game->asset_arena);
