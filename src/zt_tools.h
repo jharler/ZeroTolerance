@@ -544,7 +544,7 @@ void zt_memFreeGlobal(void *data);
 #define zt_malloc_struct_arena(type, arena)				(type *)zt_memAllocFromArena(arena, sizeof(type), __FILE__, __LINE__)
 #define zt_malloc_struct_array_arena(type, size, arena)	(type *)zt_memAllocFromArena(arena, sizeof(type) * (size), __FILE__, __LINE__)
 
-#define zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), memory)
+#define zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), (void*)memory)
 
 // ------------------------------------------------------------------------------------------------
 
@@ -691,8 +691,10 @@ struct ztFile
 
 #if defined(ZT_WINDOWS)
 #define ztFilePathSeparator	'\\'
+#define ztFilePathSeparatorStr	"\\"
 #else
 #define ztFilePathSeparator '/'
+#define ztFilePathSeparatorStr	"/"
 #endif
 
 bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena = zt_memGetGlobalArena());
@@ -749,6 +751,9 @@ void zt_fileFlush(ztFile *file);
 void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena = zt_memGetGlobalArena());
 i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size);
 i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
+
+i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
+i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
 
 // ------------------------------------------------------------------------------------------------
 
@@ -3388,6 +3393,133 @@ i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemor
 	zt_fileClose(&file);
 
 	return bytes_written;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive)
+{
+#if defined(ZT_WINDOWS)
+	i32 buffer_used = 0;
+
+	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
+	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
+	int dir_len = zt_strLen(directory);
+
+	if (!end_sep) {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c*", directory, ztFilePathSeparator);
+		dir_len += 1;
+	}
+	else {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s*", directory);
+	}
+
+	WIN32_FIND_DATAA file_data;
+	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
+	while(hfile != INVALID_HANDLE_VALUE) {
+		if (zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			i32 len = zt_strLen(file_data.cFileName);
+			if (dir_len + len + buffer_used >= buffer_size) {
+				break;
+			}
+			if (!(len == 1 && file_data.cFileName[0] == '.' || len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.')) {
+				int buff_before = buffer_used;
+				if (!end_sep) {
+					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+				else {
+					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+				buffer[buffer_used++] = '\n';
+
+				if (recursive) {
+					char* dir_buffer = (char *)zt_memAllocGlobal(ztFileMaxPath);
+					zt_strCpy(dir_buffer, ztFileMaxPath, buffer + buff_before, (buffer_used - 1) - buff_before);
+
+					int used = zt_getDirectorySubs(dir_buffer, buffer + buffer_used, buffer_size - buffer_used, true);
+					if (used != 0) {
+						buffer_used += used;
+						buffer[buffer_used] = '\n';
+					}
+
+					zt_free(dir_buffer);
+				}
+			}
+		}
+		if (!FindNextFileA(hfile, &file_data)) break;
+	}
+
+	zt_free(dir_full);
+
+	buffer[buffer_used] = 0;
+	return buffer_used;
+#else
+#error zt_getDirectorySubs needs an implementation for this platform
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive)
+{
+#if defined(ZT_WINDOWS)
+	i32 buffer_used = 0;
+
+	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
+	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
+	int dir_len = zt_strLen(directory);
+
+	if (!end_sep) {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c*", directory, ztFilePathSeparator);
+		dir_len += 1;
+	}
+	else {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s*", directory);
+	}
+
+	WIN32_FIND_DATAA file_data;
+	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
+	while (hfile != INVALID_HANDLE_VALUE) {
+		if (recursive && zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			i32 len = zt_strLen(file_data.cFileName);
+			if (!(len == 1 && file_data.cFileName[0] == '.' || len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.')) {
+				char* dir_buffer = (char *)zt_memAllocGlobal(ztFileMaxPath);
+				if (!end_sep) {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+				else {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+
+				int used = zt_getDirectoryFiles(dir_buffer, buffer + buffer_used, buffer_size - buffer_used, true);
+				if (used != 0) {
+					buffer_used += used;
+					buffer[buffer_used] = '\n';
+				}
+
+				zt_free(dir_buffer);
+			}
+		}
+		else {
+			int buff_before = buffer_used;
+			if (!end_sep) {
+				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
+			}
+			else {
+				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+			}
+			buffer[buffer_used++] = '\n';
+		}
+		if (!FindNextFileA(hfile, &file_data)) break;
+	}
+
+	zt_free(dir_full);
+
+	buffer[buffer_used] = 0;
+	return buffer_used;
+#else
+#error zt_getDirectoryFiles needs an implementation for this platform
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
