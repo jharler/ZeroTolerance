@@ -2013,11 +2013,13 @@ int zt_strLen(const char *s1)
 
 // ------------------------------------------------------------------------------------------------
 
+#define _zt_strCmpIsEmpty(s) ((s) == nullptr || *(s) == 0)
+
 int zt_strCmp(const char *s1, const char *s2)
 {
-	if (!s1 || !s2) {
-		if (!s1 && s2) return -1;
-		if (s1 && !s2) return 1;
+	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
+		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
+		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
 		return 0;
 	}
 
@@ -2031,9 +2033,9 @@ int zt_strCmp(const char *s1, const char *s2)
 
 int zt_striCmp(const char *s1, const char *s2)
 {
-	if (!s1 || !s2) {
-		if (!s1 && s2) return -1;
-		if (s1 && !s2) return 1;
+	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
+		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
+		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
 		return 0;
 	}
 
@@ -2051,6 +2053,8 @@ int zt_striCmp(const char *s1, const char *s2)
 
 	return 0;
 }
+
+#undef _zt_strCmpIsEmpty
 
 // ------------------------------------------------------------------------------------------------
 
