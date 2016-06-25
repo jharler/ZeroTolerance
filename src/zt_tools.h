@@ -421,6 +421,115 @@ typedef ztVec4 ztColor;
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztMat4_Enum
+{
+	ztMat4_Col0Row0 = 0, 
+	ztMat4_Col0Row1 = 1,
+	ztMat4_Col0Row2 = 2,
+	ztMat4_Col0Row3 = 3,
+	ztMat4_Col1Row0 = 4,
+	ztMat4_Col1Row1 = 5,
+	ztMat4_Col1Row2 = 6,
+	ztMat4_Col1Row3 = 7,
+	ztMat4_Col2Row0 = 8,
+	ztMat4_Col2Row1 = 9,
+	ztMat4_Col2Row2 = 10,
+	ztMat4_Col2Row3 = 11,
+	ztMat4_Col3Row0 = 12,
+	ztMat4_Col3Row1 = 13,
+	ztMat4_Col3Row2 = 14,
+	ztMat4_Col3Row3 = 15,
+
+	ztMat4_Row0Col0 = 0,
+	ztMat4_Row1Col0 = 1,
+	ztMat4_Row2Col0 = 2,
+	ztMat4_Row3Col0 = 3,
+	ztMat4_Row0Col1 = 4,
+	ztMat4_Row1Col1 = 5,
+	ztMat4_Row2Col1 = 6,
+	ztMat4_Row3Col1 = 7,
+	ztMat4_Row0Col2 = 8,
+	ztMat4_Row1Col2 = 9,
+	ztMat4_Row2Col2 = 10,
+	ztMat4_Row3Col2 = 11,
+	ztMat4_Row0Col3 = 12,
+	ztMat4_Row1Col3 = 13,
+	ztMat4_Row2Col3 = 14,
+	ztMat4_Row3Col3 = 15,
+};
+
+struct ztMat4
+{
+	union {
+		r32 values[16];
+
+		struct {
+			ztVec4 cols[4];
+		};
+	};
+
+	ztMat4() {}
+	ztMat4(r32 v[16]) { zt_fiz(16) values[i] = v[i]; }
+	ztMat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { values[0] = c0r0; values[1] = c0r1; values[2] = c0r2; values[3] = c0r3; values[4] = c1r0; values[5] = c1r1; values[6] = c1r2; values[7] = c1r3; values[8] = c2r0; values[9] = c2r1; values[10] = c2r2; values[11] = c2r3; values[12] = c3r0; values[13] = c3r1; values[14] = c3r2; values[15] = c3r3; }
+	ztMat4(const ztMat4& copy) { zt_fiz(16) values[i] = copy.values[i]; }
+
+	void translate(const ztVec3& position)                   { values[ztMat4_Col3Row0] = position.x; values[ztMat4_Col3Row1] = position.y; values[ztMat4_Col3Row2] = position.z; }
+	void translate(r32 x, r32 y, r32 z)                      { values[ztMat4_Col3Row0] = x; values[ztMat4_Col3Row1] = y; values[ztMat4_Col3Row2] = z; }
+	ztMat4 getTranslate(const ztVec3& position) const        { ztMat4 copy(*this); copy.translate(position); return copy; }
+	ztMat4 getTranslate(r32 x, r32 y, r32 z) const           { ztMat4 copy(*this); copy.translate(x, y, z); return copy; }
+
+	void scale(const ztVec3& scale)                          { values[ztMat4_Col0Row0] = scale.x; values[ztMat4_Col1Row1] = scale.y; values[ztMat4_Col2Row2] = scale.z; }
+	void scale(r32 x, r32 y, r32 z)                          { values[ztMat4_Col0Row0] = x; values[ztMat4_Col1Row1] = y; values[ztMat4_Col2Row2] = z; }
+	ztMat4 getScale(const ztVec3& scale) const               { ztMat4 copy(*this); copy.scale(scale); return copy; }
+	ztMat4 getScale(r32 x, r32 y, r32 z) const               { ztMat4 copy(*this); copy.scale(x, y, z); return copy; }
+
+	void rotateEuler(const ztVec3& euler);
+	void rotateEuler(r32 x, r32 y, r32 z);
+	ztMat4 getRotateEuler(const ztVec3& euler) const;
+	ztMat4 getRotateEuler(r32 x, r32 y, r32 z) const;
+
+	void multiply(const ztMat4& mat);
+	ztMat4 getMultiply(const ztMat4& mat) const;
+	ztVec3 getMultiply(const ztVec3& vec) const;
+
+	void transpose();
+	ztMat4 getTranspose() const;
+
+	void inverse();
+	ztMat4 getInverse() const;
+
+	void lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = ztVec3(0, 1, 0));
+	ztMat4 getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = ztVec3(0, 1, 0)) const;
+
+	void extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale); // does not work well with scaled matrices
+
+	ztMat4& operator*=(const ztMat4& mat4);
+	ztMat4& operator*=(const ztVec3& vec3);
+
+	r32 operator[](int idx) const { return values[idx]; }
+	r32& operator[](int idx) { return values[idx]; }
+
+	bool operator==(const ztMat4& m) const { zt_fiz(16) if (!zt_real32Eq(values[i], m.values[i])) return false; return true; }
+	bool operator!=(const ztMat4& m) const { return !(*this == m); }
+
+	static ztMat4 makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z);
+	static ztMat4 makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z);
+
+	static const ztMat4 zero;
+	static const ztMat4 identity;
+
+#if defined(ZT_MAT4_EXTRAS)
+	ZT_MAT4_EXTRAS	// use this to add conversions to and from your own classes
+#endif
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
+ztVec3 operator*(const ztMat4& m, const ztVec3& v);
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_isPow2(i32 number);
 i32 zt_nextPow2(i32 number);
 
@@ -1458,7 +1567,6 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
 
-
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2001,6 +2109,12 @@ void zt_memFreeGlobal(void *data)
 /*static*/ const ztVec3 ztVec3::zero = ztVec3(0, 0, 0);
 /*static*/ const ztVec3 ztVec3::one = ztVec3(1, 1, 1);
 
+/*static*/ const ztVec4 ztVec4::zero = ztVec4(0, 0, 0, 0);
+/*static*/ const ztVec4 ztVec4::one = ztVec4(1, 1, 1, 1);
+
+/*static*/ const ztMat4 ztMat4::zero = ztMat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+/*static*/ const ztMat4 ztMat4::identity = ztMat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
 // ------------------------------------------------------------------------------------------------
 
 r32 zt_sin(r32 x)
@@ -2043,6 +2157,314 @@ r32 zt_pow(r32 v, r32 p)
 	return powf(v, p);
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::rotateEuler(const ztVec3& euler)
+{
+	rotateEuler(euler.x, euler.y, euler.z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
+{
+	x = zt_degreesToRadians(x);
+	y = zt_degreesToRadians(y);
+	z = zt_degreesToRadians(z);
+
+	ztMat4 rot_x(
+		1, 0, 0, 0,
+		0, cosf(x), -sinf(x), 0,
+		0, sinf(x), cosf(x), 0,
+		0, 0, 0, 1
+		);
+
+	ztMat4 rot_y(
+		cosf(y), 0, sinf(y), 0,
+		0, 1, 0, 0,
+		-sinf(y), 0, cosf(y), 0,
+		0, 0, 0, 1
+		);
+
+	ztMat4 rot_z(
+		cosf(z), -sinf(z), 0, 0,
+		sinf(z), cosf(z), 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+		);
+
+	ztMat4 mult_xyz = (rot_z * rot_y) * rot_x;
+	multiply(mult_xyz);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getRotateEuler(const ztVec3& euler) const
+{
+	ztMat4 copy(*this);
+	copy.rotateEuler(euler);
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getRotateEuler(r32 x, r32 y, r32 z) const
+{
+	ztMat4 copy(*this);
+	copy.rotateEuler(x, y, z);
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::multiply(const ztMat4& m2)
+{
+	ztMat4 m1(*this);
+
+	values[ztMat4_Col0Row0] = (m1.values[ztMat4_Col0Row0] * m2.values[ztMat4_Col0Row0]) + (m1.values[ztMat4_Col1Row0] * m2.values[ztMat4_Col0Row1]) + (m1.values[ztMat4_Col2Row0] * m2.values[ztMat4_Col0Row2]) + (m1.values[ztMat4_Col3Row0] * m2.values[ztMat4_Col0Row3]);
+	values[ztMat4_Col0Row1] = (m1.values[ztMat4_Col0Row1] * m2.values[ztMat4_Col0Row0]) + (m1.values[ztMat4_Col1Row1] * m2.values[ztMat4_Col0Row1]) + (m1.values[ztMat4_Col2Row1] * m2.values[ztMat4_Col0Row2]) + (m1.values[ztMat4_Col3Row1] * m2.values[ztMat4_Col0Row3]);
+	values[ztMat4_Col0Row2] = (m1.values[ztMat4_Col0Row2] * m2.values[ztMat4_Col0Row0]) + (m1.values[ztMat4_Col1Row2] * m2.values[ztMat4_Col0Row1]) + (m1.values[ztMat4_Col2Row2] * m2.values[ztMat4_Col0Row2]) + (m1.values[ztMat4_Col3Row2] * m2.values[ztMat4_Col0Row3]);
+	values[ztMat4_Col0Row3] = (m1.values[ztMat4_Col0Row3] * m2.values[ztMat4_Col0Row0]) + (m1.values[ztMat4_Col1Row3] * m2.values[ztMat4_Col0Row1]) + (m1.values[ztMat4_Col2Row3] * m2.values[ztMat4_Col0Row2]) + (m1.values[ztMat4_Col3Row3] * m2.values[ztMat4_Col0Row3]);
+
+	values[ztMat4_Col1Row0] = (m1.values[ztMat4_Col0Row0] * m2.values[ztMat4_Col1Row0]) + (m1.values[ztMat4_Col1Row0] * m2.values[ztMat4_Col1Row1]) + (m1.values[ztMat4_Col2Row0] * m2.values[ztMat4_Col1Row2]) + (m1.values[ztMat4_Col3Row0] * m2.values[ztMat4_Col1Row3]);
+	values[ztMat4_Col1Row1] = (m1.values[ztMat4_Col0Row1] * m2.values[ztMat4_Col1Row0]) + (m1.values[ztMat4_Col1Row1] * m2.values[ztMat4_Col1Row1]) + (m1.values[ztMat4_Col2Row1] * m2.values[ztMat4_Col1Row2]) + (m1.values[ztMat4_Col3Row1] * m2.values[ztMat4_Col1Row3]);
+	values[ztMat4_Col1Row2] = (m1.values[ztMat4_Col0Row2] * m2.values[ztMat4_Col1Row0]) + (m1.values[ztMat4_Col1Row2] * m2.values[ztMat4_Col1Row1]) + (m1.values[ztMat4_Col2Row2] * m2.values[ztMat4_Col1Row2]) + (m1.values[ztMat4_Col3Row2] * m2.values[ztMat4_Col1Row3]);
+	values[ztMat4_Col1Row3] = (m1.values[ztMat4_Col0Row3] * m2.values[ztMat4_Col1Row0]) + (m1.values[ztMat4_Col1Row3] * m2.values[ztMat4_Col1Row1]) + (m1.values[ztMat4_Col2Row3] * m2.values[ztMat4_Col1Row2]) + (m1.values[ztMat4_Col3Row3] * m2.values[ztMat4_Col1Row3]);
+
+	values[ztMat4_Col2Row0] = (m1.values[ztMat4_Col0Row0] * m2.values[ztMat4_Col2Row0]) + (m1.values[ztMat4_Col1Row0] * m2.values[ztMat4_Col2Row1]) + (m1.values[ztMat4_Col2Row0] * m2.values[ztMat4_Col2Row2]) + (m1.values[ztMat4_Col3Row0] * m2.values[ztMat4_Col2Row3]);
+	values[ztMat4_Col2Row1] = (m1.values[ztMat4_Col0Row1] * m2.values[ztMat4_Col2Row0]) + (m1.values[ztMat4_Col1Row1] * m2.values[ztMat4_Col2Row1]) + (m1.values[ztMat4_Col2Row1] * m2.values[ztMat4_Col2Row2]) + (m1.values[ztMat4_Col3Row1] * m2.values[ztMat4_Col2Row3]);
+	values[ztMat4_Col2Row2] = (m1.values[ztMat4_Col0Row2] * m2.values[ztMat4_Col2Row0]) + (m1.values[ztMat4_Col1Row2] * m2.values[ztMat4_Col2Row1]) + (m1.values[ztMat4_Col2Row2] * m2.values[ztMat4_Col2Row2]) + (m1.values[ztMat4_Col3Row2] * m2.values[ztMat4_Col2Row3]);
+	values[ztMat4_Col2Row3] = (m1.values[ztMat4_Col0Row3] * m2.values[ztMat4_Col2Row0]) + (m1.values[ztMat4_Col1Row3] * m2.values[ztMat4_Col2Row1]) + (m1.values[ztMat4_Col2Row3] * m2.values[ztMat4_Col2Row2]) + (m1.values[ztMat4_Col3Row3] * m2.values[ztMat4_Col2Row3]);
+
+	values[ztMat4_Col3Row0] = (m1.values[ztMat4_Col0Row0] * m2.values[ztMat4_Col3Row0]) + (m1.values[ztMat4_Col1Row0] * m2.values[ztMat4_Col3Row1]) + (m1.values[ztMat4_Col2Row0] * m2.values[ztMat4_Col3Row2]) + (m1.values[ztMat4_Col3Row0] * m2.values[ztMat4_Col3Row3]);
+	values[ztMat4_Col3Row1] = (m1.values[ztMat4_Col0Row1] * m2.values[ztMat4_Col3Row0]) + (m1.values[ztMat4_Col1Row1] * m2.values[ztMat4_Col3Row1]) + (m1.values[ztMat4_Col2Row1] * m2.values[ztMat4_Col3Row2]) + (m1.values[ztMat4_Col3Row1] * m2.values[ztMat4_Col3Row3]);
+	values[ztMat4_Col3Row2] = (m1.values[ztMat4_Col0Row2] * m2.values[ztMat4_Col3Row0]) + (m1.values[ztMat4_Col1Row2] * m2.values[ztMat4_Col3Row1]) + (m1.values[ztMat4_Col2Row2] * m2.values[ztMat4_Col3Row2]) + (m1.values[ztMat4_Col3Row2] * m2.values[ztMat4_Col3Row3]);
+	values[ztMat4_Col3Row3] = (m1.values[ztMat4_Col0Row3] * m2.values[ztMat4_Col3Row0]) + (m1.values[ztMat4_Col1Row3] * m2.values[ztMat4_Col3Row1]) + (m1.values[ztMat4_Col2Row3] * m2.values[ztMat4_Col3Row2]) + (m1.values[ztMat4_Col3Row3] * m2.values[ztMat4_Col3Row3]);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
+{
+	ztMat4 copy(*this);
+	copy.multiply(mat);
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec3 ztMat4::getMultiply(const ztVec3& v) const
+{
+	return ztVec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
+		(v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
+		(v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::transpose()
+{
+	ztMat4 m(*this);
+	values[0] = m.values[ 0]; values[4] = m.values[ 1]; values[ 8] = m.values[ 2]; values[12] = m.values[ 3];
+	values[1] = m.values[ 4]; values[5] = m.values[ 5]; values[ 9] = m.values[ 6]; values[13] = m.values[ 7];
+	values[2] = m.values[ 8]; values[6] = m.values[ 9]; values[10] = m.values[10]; values[14] = m.values[11];
+	values[3] = m.values[12]; values[7] = m.values[13]; values[11] = m.values[14]; values[15] = m.values[15];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getTranspose() const
+{
+	ztMat4 copy(*this);
+	copy.transpose();
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::inverse()
+{
+	ztMat4 m(*this);
+
+	values[ztMat4_Col0Row0] = m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2];
+	values[ztMat4_Col1Row0] = -m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2];
+	values[ztMat4_Col2Row0] = m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row1];
+	values[ztMat4_Col3Row0] = -m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row1];
+
+	values[ztMat4_Col0Row1] = -m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row2];
+	values[ztMat4_Col1Row1] = m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row2];
+	values[ztMat4_Col2Row1] = -m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row1];
+	values[ztMat4_Col3Row1] = m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row1];
+
+	values[ztMat4_Col0Row2] = m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row2];
+	values[ztMat4_Col1Row2] = -m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row3] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row2];
+	values[ztMat4_Col2Row2] = m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col3Row3] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row1];
+	values[ztMat4_Col3Row2] = -m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row2] + m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row1] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row2] + m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row1];
+
+	values[ztMat4_Col0Row3] = -m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2] + m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row3] + m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row2];
+	values[ztMat4_Col1Row3] = m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row2] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row3] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row2];
+	values[ztMat4_Col2Row3] = -m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] + m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row1] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row1] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row3] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row1];
+	values[ztMat4_Col3Row3] = m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row1] - m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row2] + m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row1] + m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row2] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row1];
+
+	r32 det = m.values[ztMat4_Col0Row0] * values[ztMat4_Col0Row0] +
+		m.values[ztMat4_Col0Row1] * values[ztMat4_Col1Row0] +
+		m.values[ztMat4_Col0Row2] * values[ztMat4_Col2Row0] +
+		m.values[ztMat4_Col0Row3] * values[ztMat4_Col3Row0];
+
+	if (zt_real32Eq(det, 0.f)) {
+		*this = zero;
+		return;
+	}
+
+	det = 1.f / det;
+	zt_fiz(16)
+		values[i] = values[i] * det;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getInverse() const
+{
+	ztMat4 copy(*this);
+	copy.inverse();
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
+{
+	ztVec3 d = target_pos - eye_pos;
+	ztVec3 f = d.getNormal();
+	ztVec3 s = f.cross(up_vec).getNormal();
+	ztVec3 u = s.cross(f);
+
+	r32 dot_s = 0;
+	r32 dot_u = 0;
+	r32 dot_f = 0;
+
+	ztMat4 l = identity;
+
+	l.values[0] = s.x; l.values[4] = s.y; l.values[8] = s.z; l.values[12] = 0;
+	l.values[1] = u.x; l.values[5] = u.y; l.values[9] = u.z; l.values[13] = 0;
+	l.values[2] = -f.x; l.values[6] = -f.y; l.values[10] = -f.z; l.values[14] = 0;
+	l.values[3] = 0; l.values[7] = 0; l.values[11] = 0; l.values[15] = 1;
+
+	ztMat4 p = identity.getTranslate(-eye_pos.x, -eye_pos.y, -eye_pos.z);
+	*this = identity * p;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec) const
+{
+	ztMat4 copy(*this);
+	copy.lookAt(eye_pos, target_pos, up_vec);
+	return copy;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) // does not work well with scaled matrices
+{
+	ztMat4 m(*this);
+
+	position->x = m.values[ztMat4_Col3Row0];
+	position->y = m.values[ztMat4_Col3Row1];
+	position->z = m.values[ztMat4_Col3Row2];
+
+	// pitch = y, yaw = x, roll = z
+
+	m.transpose();
+
+	rotation->x = atan2f(-m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]);
+	r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) + powf(m.values[ztMat4_Row0Col1], 2));
+	rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
+	r32 sin_x_angle = sinf(rotation->x);
+	r32 cos_x_angle = cosf(rotation->x);
+	rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] + sin_x_angle * m.values[ztMat4_Row2Col0], cos_x_angle * m.values[ztMat4_Row1Col1] + sin_x_angle * m.values[ztMat4_Row2Col1]);
+
+	m.transpose();
+
+	rotation->x = zt_radiansToDegrees(rotation->x);
+	rotation->y = zt_radiansToDegrees(rotation->y);
+	rotation->z = zt_radiansToDegrees(rotation->z);
+
+	scale->x = ztVec3(m.values[ztMat4_Row0Col0], m.values[ztMat4_Row1Col0], m.values[ztMat4_Row2Col0]).length();
+	scale->y = ztVec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
+	scale->z = ztVec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4& ztMat4::operator*=(const ztMat4& mat4)
+{
+	multiply(mat4);
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
+{
+	r32 m[16] = {
+		2.f / (right - left),
+		0,
+		0,
+		0,
+
+		0,
+		2.f / (top - bottom),
+		0,
+		0,
+
+		0,
+		0,
+		-2.f / (far_z - near_z),
+		0,
+
+		-(right + left) / (right - left),
+		-(top + bottom) / (top - bottom),
+		-(far_z + near_z) / (far_z - near_z),
+		1.0f
+	};
+
+	return ztMat4(m);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztMat4 ztMat4::makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z)
+{
+	const r32 k = 1.0f / tanf(angle_of_view / 2.0f);
+	const r32 c = (near_z + far_z) / (far_z - near_z);
+
+	r32 m[16];
+
+	m[0] = k * height / width; m[4] = 0; m[8] = 0;  m[12] = 0;
+	m[1] = 0;                  m[5] = k; m[9] = 0;  m[13] = 0;
+	m[2] = 0;                  m[6] = 0; m[10] = -c;  m[14] = -((2 * near_z * far_z) / (far_z - near_z));
+	m[3] = 0;                  m[7] = 0; m[11] = -1;  m[15] = 0;
+
+	return ztMat4(m);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2)
+{
+	return m1.getMultiply(m2);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v)
+{
+	return m.getMultiply(v);
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
