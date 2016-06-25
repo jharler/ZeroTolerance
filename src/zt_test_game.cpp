@@ -15,6 +15,8 @@
 #define ZT_GAME_IMPLEMENTATION
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
+#define ZT_OPENGL_DIAGNOSE
+
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
 #define ZT_GAME_LOCAL_ONLY
 #define ZT_GAME_FUNC_SETTINGS	game_settings
@@ -39,7 +41,11 @@ struct ztGame
 	ztMemoryArena* asset_arena;
 	ztAssetManager asset_mgr;
 
+	ztCamera camera;
+
 	ztShaderID shader_id;
+
+	ztDrawList draw_list;
 };
 
 
@@ -61,8 +67,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	//settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_OpenGL;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -70,14 +76,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	if(zt_striCmp(cfg_renderer, "directx") == 0) settings->renderer = ztRenderer_DirectX;
 
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
-
-
-	char test[1024 * 128];
-	zt_getDirectorySubs(details->app_path, test, sizeof(test), true);
-	zt_logDebug("directories:\n%s", test);
-
-	zt_getDirectoryFiles(details->app_path, test, sizeof(test), true);
-	zt_logDebug("files:\n%s", test);
+	settings->renderer_flags = ztRendererFlags_Windowed;
 
 	return true;
 }
@@ -105,6 +104,14 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
+	if (!zt_drawListMake(&g_game->draw_list, 1024)) {
+		zt_logCritical("Unable to initialize draw list");
+		return false;
+	}
+
+	//zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
+	zt_cameraMakeOrtho(&g_game->camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 64.f, 0.1f, 100.f);
+
 	return true;
 }
 
@@ -112,6 +119,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 void game_cleanup()
 {
+	zt_drawListFree(&g_game->draw_list);
 	zt_rendererFreeShader(g_game->shader_id);
 
 	zt_assetManagerFree(&g_game->asset_mgr);
@@ -147,7 +155,24 @@ bool game_loop(r32 dt)
 		}
 
 		ztVec4 color = ztVec4::lerp(colors[color_idx % zt_elementsOf(colors)], colors[(color_idx + 1) % zt_elementsOf(colors)], color_time);
-		zt_rendererClear(color);
+
+		//zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
+		zt_drawListPushColor(&g_game->draw_list, color);
+		{
+			zt_drawListAddPoint(&g_game->draw_list, ztVec3(0, 0, 0));
+			zt_drawListAddPoint(&g_game->draw_list, ztVec3(-1, -1, 0));
+			zt_drawListAddPoint(&g_game->draw_list, ztVec3(1, -1, 0));
+
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(-5, -5, 0), ztVec3(-1, 3, 0));
+		}
+		zt_drawListPopColor(&g_game->draw_list);
+		//zt_drawListPopShader(&g_game->draw_list);
+
+		//zt_rendererClear(color);
+
+		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, .15f, .15f, .5f), 0);
+
+
 	}
 
 	{

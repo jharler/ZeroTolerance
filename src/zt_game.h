@@ -399,6 +399,207 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
 
 
 // ------------------------------------------------------------------------------------------------
+// shaders
+
+typedef i32 ztShaderID;
+
+ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_rendererFreeShader(ztShaderID shader_id);
+
+
+// ------------------------------------------------------------------------------------------------
+// shaders
+
+typedef i32 ztTextureID;
+
+ztTextureID zt_rendererMakeTexture(ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_rendererFreeTexture(ztShaderID shader_id);
+
+
+// ------------------------------------------------------------------------------------------------
+// transform
+
+struct ztTransform
+{
+	ztVec3 position;
+	ztVec3 rotation;
+	ztVec3 scale;
+};
+
+
+// ------------------------------------------------------------------------------------------------
+// camera
+
+enum ztCameraType_Enum
+{
+	ztCameraType_Invalid,
+	ztCameraType_Orthographic,
+	ztCameraType_Perspective,
+
+	ztCameraType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztCamera
+{
+	ztCameraType_Enum type;
+
+	ztVec3 position;
+
+	i32 width, height;
+
+	ztMat4 mat_view, mat_proj;
+
+	union {
+		struct { // orthographic only
+			i32 native_w, native_h;
+			r32 pixels_per_unit;
+			r32 zoom;
+		};
+
+		struct { // perspective only
+			ztVec3 rotation;
+			ztVec3 direction;
+		};
+	};
+
+};
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 pixels_per_unit, r32 near_z, r32 far_z);
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z);
+
+void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
+void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
+
+// it is sometimes useful to set the camera matrices when the position/rotation is not known (such as with vr hmds)
+void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& view);
+
+
+
+// ------------------------------------------------------------------------------------------------
+// rendering
+
+enum ztDrawCommandType_Enum
+{
+	ztDrawCommandType_Invalid, 
+
+	ztDrawCommandType_Point,
+	ztDrawCommandType_Line,
+	ztDrawCommandType_Triangle,
+	ztDrawCommandType_Mesh,
+
+	ztDrawCommandType_ChangeShader,
+	ztDrawCommandType_ChangeColor,
+	ztDrawCommandType_ChangeTexture,
+	ztDrawCommandType_ChangeClipping,
+	ztDrawCommandType_ChangeFlags,
+
+	ztDrawCommandType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztDrawCommand
+{
+	ztDrawCommandType_Enum type;
+
+	union {
+		struct {
+			ztVec3 point;
+		};
+
+		struct {
+			ztVec3 line[2];
+		};
+
+		struct {
+			ztVec3 tri_pos[3];
+			ztVec2 tri_uv[3];
+			ztVec3 tri_norm[3];
+		};
+
+		//struct mesh {
+		//	ztMeshID mesh_id;
+		//};
+
+		struct {
+			ztShaderID shader;
+		};
+
+		struct {
+			ztColor color;
+		};
+
+		struct {
+			ztTextureID texture;
+		};
+
+		struct {
+			ztVec2 clip_center;
+			ztVec2 clip_size;
+		};
+
+		struct {
+			i32 flags;
+		};
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztDrawListFlags_Enum
+{
+	ztDrawListFlags_NoReset = (1 << 0),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztDrawList
+{
+	ztDrawCommand *commands;
+	i32 commands_size;
+	i32 commands_count;
+
+	i32 flags;
+
+	ztMemoryArena *arena;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags = 0, ztMemoryArena *arena = zt_memGetGlobalArena());
+void zt_drawListFree(ztDrawList *draw_list);
+
+bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2]);
+bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3]);
+bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4]);
+bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], ztTextureID tex_id, const ztVec2 uvs[3], const ztVec3 normals[3]);
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], ztTextureID tex_id, const ztVec2 uvs[3], const ztVec3 normals[3]);
+
+bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
+bool zt_drawListPopShader(ztDrawList *draw_list);
+bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color);
+bool zt_drawListPopColor(ztDrawList *draw_list);
+bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size); // window coords
+bool zt_drawListPopClipRegion(ztDrawList *draw_list);
+bool zt_drawListPushDrawFlags(ztDrawList *draw_list, i32 flags);
+bool zt_drawListPopDrawFlags(ztDrawList *draw_list);
+
+enum ztRenderDrawListFlags_Enum
+{
+	ztRenderDrawListFlags_NoClear = (1<<0),
+};
+
+void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags);
+void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags);
+
+
+// ------------------------------------------------------------------------------------------------
 // renderer functions
 
 bool zt_rendererSupported(ztRenderer_Enum renderer);
@@ -414,14 +615,6 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
 
-
-// ------------------------------------------------------------------------------------------------
-// shaders
-
-typedef i32 ztShaderID;
-
-ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id);
-void zt_rendererFreeShader(ztShaderID shader_id);
 
 
 
@@ -836,6 +1029,8 @@ typedef void      (ZTGL_WINAPI *ztgl_glGetProgramiv_Func) (GLuint program, GLenu
 typedef void      (ZTGL_WINAPI *ztgl_glGetProgramInfoLog_Func) (GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
 typedef void      (ZTGL_WINAPI *ztgl_glDeleteProgram_Func) (GLuint program);
 typedef void      (ZTGL_WINAPI *ztgl_glDetachShader_Func) (GLuint program, GLuint shader);
+typedef void      (ZTGL_WINAPI *ztgl_glUseProgram_Func) (GLuint program);
+typedef void      (ZTGL_WINAPI *ztgl_glBlendFuncSeparate_Func) (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha);
 
 struct ztOpenGL
 {
@@ -854,6 +1049,8 @@ struct ztOpenGL
 	ztgl_glGetProgramInfoLog_Func   glGetProgramInfoLog;
 	ztgl_glDeleteProgram_Func       glDeleteProgram;
 	ztgl_glDetachShader_Func        glDetachShader;
+	ztgl_glUseProgram_Func          glUseProgram;
+	ztgl_glBlendFuncSeparate_Func   glBlendFuncSeparate;
 };
 
 ztOpenGL zt_gl = {};
@@ -877,6 +1074,8 @@ ztInternal void _zt_glLoadFunctions()
 	zt_loadFunc(glGetProgramInfoLog);
 	zt_loadFunc(glDeleteProgram);
 	zt_loadFunc(glDetachShader);
+	zt_loadFunc(glUseProgram);
+	zt_loadFunc(glBlendFuncSeparate);
 
 #undef zt_loadFunc
 }
@@ -895,6 +1094,8 @@ ztInternal void _zt_glLoadFunctions()
 #define glGetProgramInfoLog   zt_gl.glGetProgramInfoLog
 #define glDeleteProgram       zt_gl.glDeleteProgram
 #define glDetachShader        zt_gl.glDetachShader
+#define glUseProgram          zt_gl.glUseProgram
+#define glBlendFuncSeparate   zt_gl.glBlendFuncSeparate
 
 
 bool zt_glCheckAndReportError(const char *function);
@@ -984,6 +1185,61 @@ struct ztRendererRequest
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztShaderVariable_Enum
+{
+	ztShaderVariable_Invalid,
+
+	ztShaderVariable_Float,
+	ztShaderVariable_Int,
+	ztShaderVariable_Vec2,
+	ztShaderVariable_Vec3,
+	ztShaderVariable_Vec4,
+	ztShaderVariable_Mat3,
+	ztShaderVariable_Mat4,
+	ztShaderVariable_Tex,
+
+	ztShaderVariable_MAX,
+};
+
+#define ztShaderMaxVariables	64
+#define ztShaderMaxShaders		128
+
+struct ztShader
+{
+#if defined(ZT_OPENGL)
+	GLuint gl_program_id, gl_vert_id, gl_geo_id, gl_frag_id;
+#endif
+
+#if defined(ZT_DIRECTX)
+	ID3DBlob *dx_vert, *dx_frag;
+#endif
+
+	ztRenderer_Enum renderer;
+	ztAssetManager *asset_mgr;
+	ztAssetID asset_id;
+
+	struct variable
+	{
+		ztShaderVariable_Enum type;
+
+		union {
+			r32 val_float;
+			i32 val_int;
+			r32 val_vec2[2];
+			r32 val_vec3[3];
+			r32 val_vec4[4];
+			r32 val_mat3[9];
+			r32 val_mat4[16];
+			i32 val_tex;
+		};
+	};
+
+	variable variables[ztShaderMaxVariables];
+	int variable_count;
+};
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal HINSTANCE _zt_hinstance = NULL;
 ztInternal bool _zt_quit_requested = false;
 
@@ -995,6 +1251,11 @@ i32 _zt_windows_settings_count = 0;
 #define ztMaxRendererRequests	8
 ztRendererRequest _zt_renderer_requests[ztMaxRendererRequests];
 i32 _zt_renderer_requests_count = 0;
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztShader _zt_shaders[ztShaderMaxShaders];
+ztInternal i32 _zt_shaders_count = 0;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1298,6 +1559,336 @@ bool zt_rendererVersionSupported(ztRenderer_Enum renderer, int v_major, int v_mi
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemoryArena *arena)
+{
+	zt_returnValOnNull(draw_list, false);
+
+	draw_list->commands = zt_mallocStructArrayArena(ztDrawCommand, max_commands, arena);
+	if(!draw_list->commands) {
+		return false;
+	}
+
+	draw_list->commands_size = max_commands;
+	draw_list->commands_count = 0;
+	draw_list->flags = flags;
+	draw_list->arena = arena;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListFree(ztDrawList *draw_list)
+{
+	if(draw_list == nullptr) {
+		return;
+	}
+
+	if(draw_list->commands) {
+		zt_freeArena(draw_list->commands, draw_list->arena);
+	}
+
+	zt_memSet(draw_list, sizeof(ztDrawList), 0);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+#define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if(draw_list->commands_count >= draw_list->commands_size) return false;
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = & draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_Point;
+	command->point = p;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = & draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_Line;
+	command->line[0] = p1;
+	command->line[1] = p2;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = & draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_Line;
+	command->line[0] = p[0];
+	command->line[1] = p[1];
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = & draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_ChangeShader;
+	command->shader = shader;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPopShader(ztDrawList *draw_list)
+{
+	_zt_drawListCheck(draw_list);
+
+	int shader_count = 0;
+	for( int i = draw_list->commands_count - 1; i >= 0; --i) {
+		if(draw_list->commands[i].type == ztDrawCommandType_ChangeShader && ++shader_count == 2) {
+			auto* command = &draw_list->commands[draw_list->commands_count++];
+			command->type = ztDrawCommandType_ChangeShader;
+			command->shader = draw_list->commands[i].shader;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = & draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_ChangeColor;
+	command->color = color;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPopColor(ztDrawList *draw_list)
+{
+	_zt_drawListCheck(draw_list);
+
+	int color_count = 0;
+	for( int i = draw_list->commands_count - 1; i >= 0; --i) {
+		if(draw_list->commands[i].type == ztDrawCommandType_ChangeColor && ++color_count == 2) {
+			auto* command = &draw_list->commands[draw_list->commands_count++];
+			command->type = ztDrawCommandType_ChangeColor;
+			command->color = draw_list->commands[i].color;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+#undef 	_zt_drawListCheck
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztRenderDrawFlags_Enum
+{
+	ztRenderDrawFlags_NoClear = (1<<0),
+	ztRenderDrawFlags_Wireframe = (1<<1),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags)
+{
+	zt_returnOnNull(draw_list);
+
+	ztDrawList *draw_lists_arr[1] = {draw_list};
+	zt_renderDrawLists(camera, draw_lists_arr, 1, clear, flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags)
+{
+	zt_returnOnNull(camera);
+	zt_returnOnNull(draw_lists);
+
+	if(draw_lists_count == 0) {
+		return;
+	}
+
+	if(!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+		zt_rendererClear(clear);
+	}
+
+	ztShaderID active_shader = ztInvalidID;
+	ztColor active_color = ztColor::one;
+
+	ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
+
+	if(_zt_windows_settings[0].renderer == ztRenderer_OpenGL) {
+
+		struct OpenGL
+		{
+			static void cleanupLastCommand(ztDrawCommandType_Enum last_command)
+			{
+				switch(last_command)
+				{
+					case ztDrawCommandType_Point: {
+						zt_glCallAndReportOnErrorFast(glEnd());
+					} break;
+
+					case ztDrawCommandType_Line: {
+						zt_glCallAndReportOnErrorFast(glEnd());
+					} break;
+				}
+			}
+		};
+
+		r32 unit_scale = 64.f / (zt_min(camera->width, camera->height) / 2.f); // TODO(josh): instead of hardcoding 64 pixels per unit, this needs to be configurable
+
+		zt_glCallAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+
+		zt_fiz(draw_lists_count) {
+			ztDrawList *draw_list = draw_lists[i];
+			if(draw_list == nullptr) continue;
+
+			zt_fjz(draw_list->commands_count) {
+				ztDrawCommand *command = &draw_list->commands[j];
+
+				if(command->type != last_command) {
+					OpenGL::cleanupLastCommand(last_command);
+				}
+
+				switch(command->type)
+				{
+					case ztDrawCommandType_Point: {
+						if(last_command != ztDrawCommandType_Point) {
+							if (active_shader != ztInvalidID) {
+								zt_assert(false && "OpenGL cannot draw primatives with an active shader");
+							}
+							zt_glCallAndReportOnErrorFast(glLoadIdentity());
+							zt_glCallAndReportOnErrorFast(glLineWidth(1));
+							glBegin(GL_POINTS);
+						}
+						glVertex3f(command->point.x * unit_scale, command->point.y * unit_scale, command->point.z * unit_scale);
+					} break;
+
+					case ztDrawCommandType_Line: {
+						if(last_command != ztDrawCommandType_Line) {
+							if (active_shader != ztInvalidID) {
+								zt_assert(false && "OpenGL cannot draw primatives with an active shader");
+							}
+							zt_glCallAndReportOnErrorFast(glLoadIdentity());
+							zt_glCallAndReportOnErrorFast(glLineWidth(1));
+							glBegin(GL_LINES);
+						}
+						glVertex3f(command->line[0].x * unit_scale, command->line[0].y * unit_scale, command->line[0].z * unit_scale);
+						glVertex3f(command->line[1].x * unit_scale, command->line[1].y * unit_scale, command->line[1].z * unit_scale);
+					} break;
+
+					case ztDrawCommandType_Triangle: {
+					} break;
+
+					case ztDrawCommandType_Mesh: {
+					} break;
+
+					case ztDrawCommandType_ChangeShader: {
+						zt_assert(command->shader >= 0 && command->shader < _zt_shaders_count);
+						zt_glCallAndReportOnErrorFast(glUseProgram(_zt_shaders[command->shader].gl_program_id));
+						active_shader = command->shader;
+					} break;
+
+					case ztDrawCommandType_ChangeColor: {
+						active_color = command->color;
+						if(active_shader == ztInvalidID) {
+							zt_glCallAndReportOnErrorFast(glColor4f(command->color.r, command->color.g, command->color.b, command->color.a));
+						}
+					} break;
+
+					case ztDrawCommandType_ChangeTexture: {
+					} break;
+
+					case ztDrawCommandType_ChangeClipping: {
+					} break;
+
+					case ztDrawCommandType_ChangeFlags: {
+					} break;
+				}
+
+				last_command = command->type;
+			}
+
+			if(!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
+				draw_list->commands_count = 0;
+			}
+		}
+
+		OpenGL::cleanupLastCommand(last_command);
+
+		if(active_shader != ztInvalidID) {
+			zt_glCallAndReportOnErrorFast(glUseProgram(0));
+		}
+	}
+	else if(_zt_windows_settings[0].renderer == ztRenderer_DirectX) {
+	}
+	else {
+		zt_assert(false && "Invalid renderer");
+	}
+
+	// need to support the following:
+
+	// points	(position, color)
+	// lines	(position, color)
+	// empty triangles	(positions, color) - made by lines
+	// empty quads		(positions, color) - made by lines
+	// filled triangles (positions, color, uvs, normals)
+	// filled quads		(positions, color, uvs, normals) - made by triangles
+
+	// meshes
+	// models
+	// scenes (lights, collection of models)
+
+	// hierarchy of transforms
+
+	// shader
+	// vertices
+	// uvs (if textured)
+	// normals (if textured)
+	// color
+
+	// needs to support wireframe mode (flags)
+
+	// needs to be able to toggle culling, blending modes, depth tests (these should be pushed/popped)
+
+	// needs to sort by shaders, then by textures, then by colors ..
+
+	// triangles should be grouped together into one vertex/uv/normal array and sent in one draw call
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor)
 {
 	if (renderer == ztRenderer_OpenGL) {
@@ -1391,66 +1982,6 @@ void zt_rendererRequestFullscreen()
 	auto* request = &_zt_renderer_requests[_zt_renderer_requests_count++];
 	request->type = ztRendererRequest_Fullscreen;
 }
-
-// ------------------------------------------------------------------------------------------------
-
-enum ztShaderVariable_Enum
-{
-	ztShaderVariable_Invalid,
-
-	ztShaderVariable_Float,
-	ztShaderVariable_Int,
-	ztShaderVariable_Vec2,
-	ztShaderVariable_Vec3,
-	ztShaderVariable_Vec4,
-	ztShaderVariable_Mat3,
-	ztShaderVariable_Mat4,
-	ztShaderVariable_Tex,
-
-	ztShaderVariable_MAX,
-};
-
-#define ztShaderMaxVariables	64
-#define ztShaderMaxShaders		128
-
-struct ztShader
-{
-#if defined(ZT_OPENGL)
-	GLuint gl_program_id, gl_vert_id, gl_geo_id, gl_frag_id;
-#endif
-
-#if defined(ZT_DIRECTX)
-	ID3DBlob *dx_vert, *dx_frag;
-#endif
-
-	ztRenderer_Enum renderer;
-	ztAssetManager *asset_mgr;
-	ztAssetID asset_id;
-
-	struct variable
-	{
-		ztShaderVariable_Enum type;
-
-		union {
-			r32 val_float;
-			i32 val_int;
-			r32 val_vec2[2];
-			r32 val_vec3[3];
-			r32 val_vec4[4];
-			r32 val_mat3[9];
-			r32 val_mat4[16];
-			i32 val_tex;
-		};
-	};
-
-	variable variables[ztShaderMaxVariables];
-	int variable_count;
-};
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal ztShader _zt_shaders[ztShaderMaxShaders];
-ztInternal i32 _zt_shaders_count = 0;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1776,9 +2307,128 @@ void zt_rendererFreeShader(ztShaderID shader_id)
 	}
 	else if(shader->renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
+		if (shader->dx_vert) {
+			shader->dx_vert->Release();
+			shader->dx_vert = nullptr;
+		}
+		if (shader->dx_frag) {
+			shader->dx_frag->Release();
+			shader->dx_frag = nullptr;
+		}
 #endif
 	}
 
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 pixels_per_unit, r32 near_z, r32 far_z)
+{
+	zt_returnOnNull(camera);
+
+	camera->type = ztCameraType_Orthographic;
+	camera->width = width;
+	camera->height = height;
+	camera->native_w = native_w;
+	camera->native_h = native_h;
+	camera->zoom = 1;
+	camera->pixels_per_unit = pixels_per_unit;
+	camera->position = ztVec3::zero;
+
+	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
+	r32 aspect_h = native_w > native_h ? 1.f : native_h / (r32)native_w;
+
+	camera->mat_proj = ztMat4::makeOrthoProjection(-aspect_w, aspect_w, aspect_h, -aspect_h, near_z, far_z);
+	camera->mat_view = ztMat4::identity;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z)
+{
+	zt_returnOnNull(camera);
+
+	camera->width = width;
+	camera->height = height;
+	camera->type = ztCameraType_Perspective;
+	camera->position = ztVec3::zero;
+	camera->rotation = ztVec3::zero;
+	camera->direction = ztVec3::zero;
+
+	camera->mat_proj = ztMat4::makePerspectiveProjection(fov, (r32)width, (r32)height, near_z, far_z);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraRecalcMatrices(ztCamera *camera)
+{
+	zt_returnOnNull(camera);
+
+	if(camera->type == ztCameraType_Orthographic) {
+		r32 units_scale = camera->pixels_per_unit / (zt_min(camera->native_w, camera->native_h) / 2.f) * camera->zoom;
+		camera->mat_view = ztMat4::identity.getTranslate(camera->position * units_scale);
+	}
+	else if(camera->type == ztCameraType_Perspective) {
+		ztVec3 lookat = ztVec3::zero;
+		if(camera->rotation != ztVec3::zero) {
+			real32 rad_pitch = zt_degreesToRadians(camera->rotation.y);
+			real32 rad_yaw   = zt_degreesToRadians(camera->rotation.x);
+			real32 cos_pitch = cosf(rad_pitch);
+			real32 cos_yaw   = cosf(rad_yaw);
+
+			lookat.x = cos_pitch * cos_yaw + camera->position.x;
+			lookat.y = sinf(rad_pitch) + camera->position.y;
+			lookat.z = cos_pitch * sin(rad_yaw) + camera->position.z;
+		}
+
+		camera->mat_view = ztMat4::identity.getLookAt(camera->position, lookat);
+		
+		ztMat4 mat_final = camera->mat_proj * camera->mat_view;
+		camera->direction = ztVec3(mat_final.values[2], mat_final.values[6], mat_final.values[10]).getNormal();
+	}
+	else {
+		zt_assert(false && "Invalid camera type");
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat)
+{
+	zt_returnOnNull(camera);
+	zt_returnOnNull(final_mat);
+
+	if(camera->type == ztCameraType_Orthographic) {
+		ztMat4 temp = camera->mat_proj * camera->mat_view;
+		ztMat4 zoom = ztMat4(camera->zoom, 0, 0, 0, 0, camera->zoom, 0, 0, 0, 0, camera->zoom, 0, 0, 0, 0, camera->zoom);
+
+		*final_mat = temp * zoom;
+	}
+	else if(camera->type == ztCameraType_Perspective) {
+		*final_mat = camera->mat_proj * camera->mat_view;
+	}
+	else {
+		zt_assert(false && "Invalid camera type");
+	}
+
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& view)
+{
+	zt_returnOnNull(camera);
+
+	camera->mat_proj = proj;
+	camera->mat_view = view;
+
+	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
+	camera->direction = ztVec3(mat_final.values[2], mat_final.values[6], mat_final.values[10]).getNormal();
+
+	mat_final.inverse();
+
+	camera->position = ztVec3(mat_final.values[12], mat_final.values[13], mat_final.values[14]);
+	// TODO(josh):  camera rotation?
 }
 
 // ------------------------------------------------------------------------------------------------
