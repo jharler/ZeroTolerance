@@ -125,6 +125,7 @@
 
 #define zt_assert(cond)	zt_assert_raw(cond, #cond, __FILE__, __LINE__)
 #define zt_elementsOf(native_array)	((int)(sizeof(native_array) / sizeof((native_array)[0])))
+#define zt_sizeof(type) ((i32)sizeof(type))
 
 #if _DEBUG
 #define zt_debugOnly(code)	code
@@ -161,6 +162,9 @@
 #define zt_fiz(end) for(int i = 0; i < (end); ++i)
 #define zt_fjz(end) for(int j = 0; j < (end); ++j)
 #define zt_fkz(end) for(int k = 0; k < (end); ++k)
+#define zt_fizr(beg) for(int i = beg; i >= 0; --i)
+#define zt_fjzr(beg) for(int j = beg; j >= 0; --j)
+#define zt_fkzr(beg) for(int k = beg; k >= 0; --k)
 
 #define ztMathPi		 3.14159626f
 #define ztMathPi2		 6.28319252f
@@ -658,11 +662,11 @@ void zt_memFreeGlobal(void *data);
 
 #define zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
 
-#define zt_mallocStruct(type)				(type *)zt_memAllocGlobalFull(sizeof(type), __FILE__, __LINE__)
-#define zt_mallocStructArray(type, size)	(type *)zt_memAllocGlobalFull(sizeof(type) * (size), __FILE__, __LINE__)
+#define zt_mallocStruct(type)				(type *)zt_memAllocGlobalFull(zt_sizeof(type), __FILE__, __LINE__)
+#define zt_mallocStructArray(type, size)	(type *)zt_memAllocGlobalFull(zt_sizeof(type) * (size), __FILE__, __LINE__)
 
-#define zt_mallocStructArena(type, arena)				(type *)zt_memAllocFromArena(arena, sizeof(type), __FILE__, __LINE__)
-#define zt_mallocStructArrayArena(type, size, arena)	(type *)zt_memAllocFromArena(arena, sizeof(type) * (size), __FILE__, __LINE__)
+#define zt_mallocStructArena(type, arena)				(type *)zt_memAllocFromArena(arena, zt_sizeof(type), __FILE__, __LINE__)
+#define zt_mallocStructArrayArena(type, size, arena)	(type *)zt_memAllocFromArena(arena, zt_sizeof(type) * (size), __FILE__, __LINE__)
 
 #define zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), (void*)memory)
 #define zt_freeArena(memory, arena) zt_memFree(arena, (void*)memory)
@@ -705,9 +709,8 @@ int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, in
 const char *zt_strFindLast(const char *haystack, const char *needle);
 const char *zt_strFindLast(const char *haystack, const char *needle, int needle_len);
 const char *zt_strFindLast(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_strFindLastPos(const char *haystack, const char *needle, int offset);
-int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len, int offset);
-int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset);
+int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
+int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos = -1);
 
 const char *zt_striFind(const char *haystack, const char *needle);
 const char *zt_striFind(const char *haystack, const char *needle, int needle_len);
@@ -719,9 +722,8 @@ int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, i
 const char *zt_striFindLast(const char *haystack, const char *needle);
 const char *zt_striFindLast(const char *haystack, const char *needle, int needle_len);
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle, int needle_len);
-int zt_striFindLastPos(const char *haystack, const char *needle, int offset);
-int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len, int offset);
-int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset);
+int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
+int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos = -1);
 
 bool zt_strStartsWith(const char *s, const char *starts_with);
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
@@ -848,28 +850,28 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 bool zt_fileModified(const char *file_name, i64* date_time);
 
 i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size);
-ztInline bool zt_fileRead(ztFile *file, i8 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i16 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i32 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i64 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u8 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u16 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u32 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u64 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return sizeof(*value) == zt_fileRead(file, value, sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, i8 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, i16 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, i32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, i64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, u8 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, u16 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, u32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, u64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
 
 i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size);
-ztInline bool zt_fileWrite(ztFile *file, i8 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i16 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i32 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i64 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u8 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u16 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u32 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u64 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r32 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r64 value)		{ return sizeof(value) == zt_fileWrite(file, &value, sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i8 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i16 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u8 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u16 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, r32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, r64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
 
 void zt_fileFlush(ztFile *file);
 
@@ -1771,17 +1773,17 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 	ztMemoryArena *arena = nullptr;
 	if (from == nullptr) {
 #if defined(ZT_COMPILER_MSVC)
-		arena = (ztMemoryArena*)VirtualAlloc(0, total_size + sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		arena = (ztMemoryArena*)VirtualAlloc(0, total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #else
 		arena = malloc(total_size + sizeof(ztMemoryArena));
 #endif
 	}
 	else {
-		arena = (ztMemoryArena*)zt_memAlloc(from, total_size + sizeof(ztMemoryArena));
+		arena = (ztMemoryArena*)zt_memAlloc(from, total_size + zt_sizeof(ztMemoryArena));
 	}
 
 	if (arena) {
-		arena->memory = (byte*)(arena) + sizeof(ztMemoryArena);
+		arena->memory = (byte*)(arena) + zt_sizeof(ztMemoryArena);
 		arena->total_size = total_size;
 		arena->current_used = 0;
 		arena->peak_used = 0;
@@ -1808,7 +1810,7 @@ void zt_memFreeArena(ztMemoryArena *arena)
 	}
 	else {
 #if defined(ZT_COMPILER_MSVC)
-		VirtualFree(arena, arena->total_size + sizeof(ztMemoryArena), MEM_DECOMMIT | MEM_RELEASE);
+		VirtualFree(arena, arena->total_size + zt_sizeof(ztMemoryArena), MEM_DECOMMIT | MEM_RELEASE);
 #else
 		free(arena);
 #endif
@@ -1832,14 +1834,14 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		auto *alloc = arena->latest;
 		while (alloc) {
 			if (alloc->freed == 1 && bytes <= alloc->length) {
-				i32 remaining = alloc->length - (sizeof(ztMemoryArena::allocation) + bytes);
-				if (remaining > sizeof(ztMemoryArena::allocation)) {
+				i32 remaining = alloc->length - (zt_sizeof(ztMemoryArena::allocation) + bytes);
+				if (remaining > zt_sizeof(ztMemoryArena::allocation)) {
 					ztMemoryArena::allocation *allocation = (ztMemoryArena::allocation *)((byte *)alloc->start + bytes);
 					allocation->magic[0] = 'M';
 					allocation->magic[1] = 'R';
 					allocation->magic[2] = 'E';
-					allocation->length = remaining - sizeof(ztMemoryArena::allocation);
-					allocation->start = (byte *)allocation + sizeof(ztMemoryArena::allocation);
+					allocation->length = remaining - zt_sizeof(ztMemoryArena::allocation);
+					allocation->start = (byte *)allocation + zt_sizeof(ztMemoryArena::allocation);
 					allocation->freed = 1;
 					allocation->alloc_idx = arena->alloc_cnt++;
 					allocation->arena = arena;
@@ -1851,8 +1853,9 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 					alloc->length = bytes;
 				}
 
-				arena->current_used += sizeof(ztMemoryArena::allocation) + bytes;
+				arena->current_used += zt_sizeof(ztMemoryArena::allocation) + bytes;
 				arena->peak_used = zt_max(arena->peak_used, arena->current_used);
+				arena->alloc_cnt++;
 
 				alloc->freed = 0;
 				return alloc->start;
@@ -1862,9 +1865,9 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	}
 
 	byte* next = arena->latest ? (byte*)arena->latest->start + arena->latest->length : arena->memory;
-	zt_assert((next - arena->memory) + (i32)sizeof(ztMemoryArena::allocation) + bytes <= arena->total_size);
+	zt_assert((next - arena->memory) + zt_sizeof(ztMemoryArena::allocation) + bytes <= arena->total_size);
 
-	if ((next - arena->memory) + (i32)sizeof(ztMemoryArena::allocation) + bytes > arena->total_size) {
+	if ((next - arena->memory) + zt_sizeof(ztMemoryArena::allocation) + bytes > arena->total_size) {
 		zt_logCritical("zt_memAllocFromArena: Attempted to allocate more memory than available");
 		return nullptr;
 	}
@@ -1876,7 +1879,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	allocation->length = bytes;
 	allocation->freed = 0;
 	allocation->next = arena->latest;
-	allocation->start = (next + sizeof(ztMemoryArena::allocation));
+	allocation->start = (next + zt_sizeof(ztMemoryArena::allocation));
 	allocation->alloc_idx = arena->alloc_cnt++;
 	allocation->arena = arena;
 
@@ -1885,7 +1888,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 	arena->latest = allocation;
 
-	arena->current_used += allocation->length + sizeof(ztMemoryArena::allocation);
+	arena->current_used += allocation->length + zt_sizeof(ztMemoryArena::allocation);
 	arena->peak_used = zt_max(arena->peak_used, arena->current_used);
 
 	zt_debugOnly(zt_memSet(allocation->start, allocation->length, 0));
@@ -1894,7 +1897,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	ztReleaseOnly(zt_memSet(allocation->start, allocation->length, 0));
 #endif
 
-	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx", (long long unsigned int)arena, allocation->length, sizeof(ztMemoryArena::allocation), (long long unsigned int)next);
+	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next);
 	return (void*)allocation->start;
 }
 
@@ -1904,7 +1907,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 {
 	void *result = zt_memAllocFromArena(arena, size);
 	if (result) {
-		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - sizeof(ztMemoryArena::allocation));
+		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
 		zt_debugOnly(allocation->file = file);
 		zt_debugOnly(allocation->file_line = file_line);
 		zt_debugOnly(zt_logMemory("memory (%llx): %d bytes of memory at location 0x%llx (file: %s) (line: %d)", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation, file, file_line));
@@ -1921,7 +1924,7 @@ void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 		return zt_memAllocFromArena(arena, size);
 	}
 
-	ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)data) - sizeof(ztMemoryArena::allocation));
+	ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)data) - zt_sizeof(ztMemoryArena::allocation));
 	zt_assert(allocation->magic[0] == 'M' && allocation->magic[1] == 'R' && allocation->magic[2] == 'E');
 	zt_logMemory("memory (%llx): reallocating %d bytes of memory at location 0x%llx", (long long unsigned int)arena, size, (long long unsigned int)allocation);
 
@@ -1963,7 +1966,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 		return;
 	}
 
-	ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)data) - sizeof(ztMemoryArena::allocation));
+	ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)data) - zt_sizeof(ztMemoryArena::allocation));
 	zt_assert(allocation->magic[0] == 'M' && allocation->magic[1] == 'R' && allocation->magic[2] == 'E');
 	zt_logMemory("memory (%llx): freeing %d bytes of memory at location 0x%llx", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation);
 	
@@ -1971,7 +1974,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 	zt_assert(allocation >= (ztMemoryArena::allocation*)arena->memory && allocation <= (ztMemoryArena::allocation*)(arena->memory + arena->total_size));
 
 	zt_debugOnly(zt_memSet((void*)allocation->start, 1, allocation->length));
-	arena->current_used -= allocation->length + sizeof(ztMemoryArena::allocation);
+	arena->current_used -= allocation->length + zt_sizeof(ztMemoryArena::allocation);
 
 	allocation->freed = 1;
 
@@ -1990,7 +1993,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 			auto* next = allocation->next;
 			while (next) {
 				if (next->freed == 1) {
-					allocation->length += next->length + sizeof(ztMemoryArena::allocation);
+					allocation->length += next->length + zt_sizeof(ztMemoryArena::allocation);
 					allocation->next = next->next;
 					arena->freed_allocs -= 1;
 				}
@@ -2008,18 +2011,13 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 {
 	zt_returnOnNull(arena);
 
-	if (arena->peak_used < 1024) {
-		zt_logMessage(log_level, "memory (%s): Peak used: %.2f b", name, arena->peak_used / 1.0f);
-	}
-	else if (arena->peak_used < 1024 * 1024) {
-		zt_logMessage(log_level, "memory (%s): Peak used: %.2f kb", name, arena->peak_used / 1024.0f);
-	}
-	else if (arena->peak_used < 1024 * 1024 * 1024) {
-		zt_logMessage(log_level, "memory (%s): Peak used: %.2f mb", name, arena->peak_used / (1024.0f * 1024.0f));
-	}
-	else {
-		zt_logMessage(log_level, "memory (%s): Peak used: %.2f gb", name, arena->peak_used / (1024.0f * 1024.0f * 1024.0f));
-	}
+	char avail[32] = { 0 };
+	zt_strBytesToString(avail, zt_sizeof(avail), arena->total_size);
+
+	char peak[32] = { 0 };
+	zt_strBytesToString(peak, zt_sizeof(peak), arena->peak_used);
+
+	zt_logMessage(log_level, "memory (%s): Total: %s; Peak used: %s", name, avail, peak);
 
 	ztMemoryArena::allocation* alloc = arena->latest;
 	while (alloc != nullptr) {
@@ -2411,27 +2409,11 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 /*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
 {
 	r32 m[16] = {
-		2.f / (right - left),
-		0,
-		0,
-		0,
-
-		0,
-		2.f / (top - bottom),
-		0,
-		0,
-
-		0,
-		0,
-		-2.f / (far_z - near_z),
-		0,
-
-		-(right + left) / (right - left),
-		-(top + bottom) / (top - bottom),
-		-(far_z + near_z) / (far_z - near_z),
-		1.0f
+		2.f / (right - left), 0,                    0,                       -(right + left) / (right - left),
+		0,                    2.f / (top - bottom), 0,                       -(top + bottom) / (top - bottom),
+		0,                    0,                    -2.f / (far_z - near_z), -(far_z + near_z) / (far_z - near_z),
+		0,                    0,                    0,                       1.f
 	};
-
 	return ztMat4(m);
 }
 
@@ -2865,30 +2847,29 @@ const char *zt_strFindLast(const char *haystack, int haystack_len, const char *n
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindLastPos(const char *haystack, const char *needle, int offset)
+int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len, offset);
+	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strFindLastPos(const char *haystack, const char *needle, int needle_len, int offset)
+int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos)
 {
-	int haystack_len = zt_strLen(haystack);
-	return zt_strFindLastPos(haystack, haystack_len, needle, needle_len, offset);
-}
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
 
-// ------------------------------------------------------------------------------------------------
+	if (start_pos < 0) {
+		start_pos = haystack_len - needle_len;
+	}
+	else if (start_pos > haystack_len - needle_len) {
+		start_pos = haystack_len - needle_len;
+	}
 
-int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset)
-{
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || offset < 0) return -1;
-
-	for (i32 i = (haystack_len - needle_len) - offset; i >= 0; --i) {
-			zt_fjz(needle_len) {
+	for (i32 i = start_pos; i >= 0; --i) {
+		zt_fjz(needle_len) {
 			if (haystack[i + j] != needle[j]) goto no_match;
 		}
 		return i;
@@ -2982,14 +2963,6 @@ const char *zt_striFindLast(const char *haystack, const char *needle)
 
 // ------------------------------------------------------------------------------------------------
 
-const char *zt_striFindLast(const char *haystack, const char *needle, int needle_len)
-{
-	int haystack_len = zt_strLen(haystack);
-	return zt_striFindLast(haystack, haystack_len, needle, needle_len);
-}
-
-// ------------------------------------------------------------------------------------------------
-
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle, int needle_len)
 {
 	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return nullptr;
@@ -3007,29 +2980,36 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, const char *needle, int offset)
+int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
 	int needle_len = zt_strLen(needle);
 
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len, offset);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len, int offset)
+int zt_striFindLastPos(const char *haystack, const char *needle, int needle_len, int start_pos)
 {
 	int haystack_len = zt_strLen(haystack);
-	return zt_striFindPos(haystack, haystack_len, needle, needle_len, offset);
+	return zt_striFindPos(haystack, haystack_len, needle, needle_len, start_pos);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int offset)
+int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int needle_len, int start_pos)
 {
-	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle || offset < 0) return -1;
+	if (haystack_len == 0 || needle_len == 0 || !haystack || !needle) return -1;
 
-	for (i32 i = (haystack_len - needle_len) - offset; i >= 0; --i) {
+	if (start_pos < 0) {
+		start_pos = haystack_len - needle_len;
+	}
+	else if (start_pos > haystack_len - needle_len) {
+		start_pos = haystack_len - needle_len;
+	}
+
+	for (i32 i = start_pos; i >= 0; --i) {
 		zt_fjz(needle_len) {
 			if (_zt_to_upper(haystack[i + j]) != _zt_to_upper(needle[j])) goto no_match;
 		}
@@ -3459,7 +3439,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(file_name, false);
 
-	zt_memSet(file, sizeof(ztFile), 0);
+	zt_memSet(file, zt_sizeof(ztFile), 0);
 
 #if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
@@ -3486,7 +3466,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 		CloseHandle((HANDLE)hfile);
 		return false;
 	}
-	zt_strCpy(file->full_name, path_len, ofs.szPathName);
+	zt_strCpy(file->full_name, path_len, ofs.szPathName, path_len);
 	file->arena = arena;
 
 	file->open_method = file_open_method;
@@ -3516,7 +3496,7 @@ void zt_fileClose(ztFile *file)
 	}
 
 	zt_memFree(file->arena, file->full_name);
-	zt_memSet(file, sizeof(ztFile), 0);
+	zt_memSet(file, zt_sizeof(ztFile), 0);
 #endif
 }
 
@@ -3589,8 +3569,8 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 	i32 pos_last_path = ztStrPosNotFound;
 
 #if defined(ZT_WINDOWS)
-	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/", 0);
-	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\", 0);
+	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
+	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
 #endif
 
@@ -3613,8 +3593,8 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 	i32 pos_last_path = ztStrPosNotFound;
 
 #if defined(ZT_WINDOWS)
-	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/", 0);
-	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\", 0);
+	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
+	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
 #endif
 
@@ -3636,7 +3616,7 @@ i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 		return 0;
 	}
 
-	i32 pos = zt_strFindLastPos(file_name, ".", 0);
+	i32 pos = zt_strFindLastPos(file_name, ".");
 	if (pos == ztStrPosNotFound) {
 		return 0;
 	}
@@ -3675,7 +3655,7 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 		zt_logCritical("zt_fileGetAppPath: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
 	}
 
-	int pos = zt_strFindLastPos(buffer, "\\", 0);
+	int pos = zt_strFindLastPos(buffer, "\\");
 	if (pos != ztStrPosNotFound) {
 		buffer[pos] = 0;
 		len = pos;
@@ -4126,7 +4106,7 @@ bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, boo
 	zt_returnValOnNull(directory, false);
 
 #if defined(ZT_WINDOWS)
-	zt_memSet(dir_mon, sizeof(ztDirectoryMonitor), 0);
+	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 
 	dir_mon->io = (i32)CreateIoCompletionPort((HANDLE)INVALID_HANDLE_VALUE, NULL, 0, 1);
 	if (dir_mon->io == NULL) {
@@ -4164,7 +4144,7 @@ on_error:
 	CancelIo((HANDLE)dir_mon->file);
 	CloseHandle((HANDLE)dir_mon->file);
 	CloseHandle((HANDLE)dir_mon->io);
-	zt_memSet(dir_mon, sizeof(ztDirectoryMonitor), 0);
+	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	return false;
 #endif
 }
@@ -4180,7 +4160,7 @@ void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 		CancelIo((HANDLE)dir_mon->file);
 		CloseHandle((HANDLE)dir_mon->file);
 		CloseHandle((HANDLE)dir_mon->io);
-		zt_memSet(dir_mon, sizeof(ztDirectoryMonitor), 0);
+		zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	}
 #endif
 }
@@ -4444,20 +4424,20 @@ bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 
 	zt_strCpy(serial->identifier, zt_elementsOf(serial->identifier), identifier);
 	serial->version = version;
 
-	if (zt_fileWrite(&serial->file, _zt_serial_header, sizeof(_zt_serial_header)) != sizeof(_zt_serial_header))
+	if (zt_fileWrite(&serial->file, _zt_serial_header, zt_sizeof(_zt_serial_header)) != zt_sizeof(_zt_serial_header))
 		return false;
 
-	_zt_serialAddToChecksum(serial, _zt_serial_header, sizeof(_zt_serial_header));
+	_zt_serialAddToChecksum(serial, _zt_serial_header, zt_sizeof(_zt_serial_header));
 
-	if (zt_fileWrite(&serial->file, serial->identifier, sizeof(serial->identifier)) != sizeof(serial->identifier))
+	if (zt_fileWrite(&serial->file, serial->identifier, zt_sizeof(serial->identifier)) != zt_sizeof(serial->identifier))
 		return false;
 
-	_zt_serialAddToChecksum(serial, serial->identifier, sizeof(serial->identifier));
+	_zt_serialAddToChecksum(serial, serial->identifier, zt_sizeof(serial->identifier));
 
 	if (!zt_fileWrite(&serial->file, version))
 		return false;
 
-	_zt_serialAddToChecksum(serial, &version, sizeof(version));
+	_zt_serialAddToChecksum(serial, &version, zt_sizeof(version));
 
 	return true;
 }
@@ -4475,19 +4455,19 @@ bool _zt_serialMakeReaderDoHeader(ztSerial *serial, const char *identifier)
 
 	i32 header[zt_elementsOf(_zt_serial_header)] = { 0 };
 
-	if (_zt_readData(serial, header, sizeof(header)) != sizeof(header))
+	if (_zt_readData(serial, header, zt_sizeof(header)) != zt_sizeof(header))
 		goto on_error;
 
-	if (zt_memCmp(header, _zt_serial_header, sizeof(header)) != 0)
+	if (zt_memCmp(header, _zt_serial_header, zt_sizeof(header)) != 0)
 		goto on_error;
 
-	if (_zt_readData(serial, serial->identifier, sizeof(serial->identifier)) != sizeof(serial->identifier))
+	if (_zt_readData(serial, serial->identifier, zt_sizeof(serial->identifier)) != zt_sizeof(serial->identifier))
 		goto on_error;
 
 	if (!zt_strEquals(serial->identifier, identifier))
 		goto on_error;
 
-	if (_zt_readData(serial, &serial->version, sizeof(serial->version)) != sizeof(serial->version))
+	if (_zt_readData(serial, &serial->version, zt_sizeof(serial->version)) != zt_sizeof(serial->version))
 		goto on_error;
 
 	byte next_entry = ztSerialEntryType_Unknown;
@@ -4511,7 +4491,7 @@ bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *id
 	zt_returnValOnNull(file_name, false);
 	zt_returnValOnNull(identifier, false);
 
-	zt_memSet(serial, sizeof(ztSerial), 0);
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	if (!zt_fileOpen(&serial->file, file_name, ztFileOpenMethod_WriteOver))
 		return false;
@@ -4529,7 +4509,7 @@ bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier,
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(identifier, false);
 
-	zt_memSet(serial, sizeof(ztSerial), 0);
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	if (file->open_method != ztFileOpenMethod_WriteOver || file->open_method != ztFileOpenMethod_WriteAppend)
 		return false;
@@ -4548,7 +4528,7 @@ bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *id
 	zt_returnValOnNull(file_name, false);
 	zt_returnValOnNull(identifier, false);
 
-	zt_memSet(serial, sizeof(ztSerial), 0);
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	if (!zt_fileOpen(&serial->file, file_name, ztFileOpenMethod_ReadOnly))
 		return false;
@@ -4566,7 +4546,7 @@ bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char
 	zt_returnValOnNull(data, false);
 	zt_returnValOnNull(identifier, false);
 
-	zt_memSet(serial, sizeof(ztSerial), 0);
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	serial->close_file = false;
 	serial->file_data = data;
@@ -4583,7 +4563,7 @@ bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(identifier, false);
 
-	zt_memSet(serial, sizeof(ztSerial), 0);
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	if (file->open_method != ztFileOpenMethod_ReadOnly)
 		return false;
@@ -4601,7 +4581,7 @@ void zt_serialClose(ztSerial *serial)
 	zt_returnOnNull(serial);
 
 	if (serial->mode != ztSerialMode_Reading && serial->mode != ztSerialMode_Writing) {
-		zt_memSet(&serial, sizeof(serial), 0);
+		zt_memSet(&serial, zt_sizeof(serial), 0);
 		return;
 	}
 
@@ -4616,7 +4596,7 @@ void zt_serialClose(ztSerial *serial)
 		zt_fileClose(&serial->file);
 	}
 
-	zt_memSet(&serial, sizeof(serial), 0);
+	zt_memSet(&serial, zt_sizeof(serial), 0);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4705,8 +4685,8 @@ bool zt_serialGroupPop(ztSerial *serial)
 				case ztSerialEntryType_u64:    { u64 value; if(!zt_serialRead(serial, &value)) return false; break; }
 				case ztSerialEntryType_r32:    { r32 value; if(!zt_serialRead(serial, &value)) return false; break; }
 				case ztSerialEntryType_r64:    { r64 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_String: { char value[1]; if (!zt_serialRead(serial, value, sizeof(value), nullptr)) return false; break; }
-				case ztSerialEntryType_Binary: { char value[1]; if (!zt_serialRead(serial, (void*)value, sizeof(value), nullptr)) return false; break; }
+				case ztSerialEntryType_String: { char value[1]; if (!zt_serialRead(serial, value, zt_sizeof(value), nullptr)) return false; break; }
+				case ztSerialEntryType_Binary: { char value[1]; if (!zt_serialRead(serial, (void*)value, zt_sizeof(value), nullptr)) return false; break; }
 
 				case ztSerialEntryType_GroupBeg: {
 					group_level += 1;
@@ -4739,16 +4719,16 @@ bool zt_serialGroupPop(ztSerial *serial)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialWrite(ztSerial *serial, i8 value) { return _zt_writeData(serial, ztSerialEntryType_i8, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, i16 value) { return _zt_writeData(serial, ztSerialEntryType_i16, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, i32 value) { return _zt_writeData(serial, ztSerialEntryType_i32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, i64 value) { return _zt_writeData(serial, ztSerialEntryType_i64, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, u8 value) { return _zt_writeData(serial, ztSerialEntryType_u8, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, u16 value) { return _zt_writeData(serial, ztSerialEntryType_u16, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, u32 value) { return _zt_writeData(serial, ztSerialEntryType_u32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, u64 value) { return _zt_writeData(serial, ztSerialEntryType_u64, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, r32 value) { return _zt_writeData(serial, ztSerialEntryType_r32, &value, sizeof(value)); }
-bool zt_serialWrite(ztSerial *serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i8 value) { return _zt_writeData(serial, ztSerialEntryType_i8, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i16 value) { return _zt_writeData(serial, ztSerialEntryType_i16, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i32 value) { return _zt_writeData(serial, ztSerialEntryType_i32, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, i64 value) { return _zt_writeData(serial, ztSerialEntryType_i64, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u8 value) { return _zt_writeData(serial, ztSerialEntryType_u8, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u16 value) { return _zt_writeData(serial, ztSerialEntryType_u16, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u32 value) { return _zt_writeData(serial, ztSerialEntryType_u32, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, u64 value) { return _zt_writeData(serial, ztSerialEntryType_u64, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, r32 value) { return _zt_writeData(serial, ztSerialEntryType_r32, &value, zt_sizeof(value)); }
+bool zt_serialWrite(ztSerial *serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, zt_sizeof(value)); }
 bool zt_serialWrite(ztSerial *serial, bool value) { i8 v = (value ? 1 : 0);  return _zt_writeData(serial, ztSerialEntryType_i8, &v, 1); }
 
 // ------------------------------------------------------------------------------------------------
@@ -4758,10 +4738,10 @@ bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 	if (!_zt_writeByte(serial, ztSerialEntryType_String))
 		return false;
 
-	if (zt_fileWrite(&serial->file, &value_len, sizeof(value_len)) != sizeof(value_len))
+	if (zt_fileWrite(&serial->file, &value_len, zt_sizeof(value_len)) != zt_sizeof(value_len))
 		return false;
 
-	_zt_serialAddToChecksum(serial, &value_len, sizeof(value_len));
+	_zt_serialAddToChecksum(serial, &value_len, zt_sizeof(value_len));
 
 	zt_fiz(value_len) {
 		if (!_zt_writeByte(serial, value[i]))
@@ -4781,10 +4761,10 @@ bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 	if (!_zt_writeByte(serial, ztSerialEntryType_Binary))
 		return false;
 
-	if (zt_fileWrite(&serial->file, &value_len, sizeof(value_len)) != sizeof(value_len))
+	if (zt_fileWrite(&serial->file, &value_len, zt_sizeof(value_len)) != zt_sizeof(value_len))
 		return false;
 
-	_zt_serialAddToChecksum(serial, &value_len, sizeof(value_len));
+	_zt_serialAddToChecksum(serial, &value_len, zt_sizeof(value_len));
 
 	byte* bvalue = (byte*)value;
 	zt_fiz(value_len) {
@@ -4800,17 +4780,17 @@ bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_serialRead(ztSerial *serial, i8 *value) { return _zt_readData(serial, ztSerialEntryType_i8, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, i16 *value) { return _zt_readData(serial, ztSerialEntryType_i16, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, i32 *value) { return _zt_readData(serial, ztSerialEntryType_i32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, i64 *value) { return _zt_readData(serial, ztSerialEntryType_i64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, u8 *value) { return _zt_readData(serial, ztSerialEntryType_u8, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, u16 *value) { return _zt_readData(serial, ztSerialEntryType_u16, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, u32 *value) { return _zt_readData(serial, ztSerialEntryType_u32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, u64 *value) { return _zt_readData(serial, ztSerialEntryType_u64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, sizeof(*value)); }
-bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, sizeof(ival))) { *value = ival == 1; return true; } return false; }
+bool zt_serialRead(ztSerial *serial, i8 *value) { return _zt_readData(serial, ztSerialEntryType_i8, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i16 *value) { return _zt_readData(serial, ztSerialEntryType_i16, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i32 *value) { return _zt_readData(serial, ztSerialEntryType_i32, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, i64 *value) { return _zt_readData(serial, ztSerialEntryType_i64, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u8 *value) { return _zt_readData(serial, ztSerialEntryType_u8, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u16 *value) { return _zt_readData(serial, ztSerialEntryType_u16, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u32 *value) { return _zt_readData(serial, ztSerialEntryType_u32, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, u64 *value) { return _zt_readData(serial, ztSerialEntryType_u64, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, zt_sizeof(*value)); }
+bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, zt_sizeof(ival))) { *value = ival == 1; return true; } return false; }
 
 // ------------------------------------------------------------------------------------------------
 
@@ -4824,7 +4804,7 @@ bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 	}
 
 	i32 stored_len = 0;
-	if (_zt_readData(serial, &stored_len, sizeof(stored_len)) != sizeof(stored_len))
+	if (_zt_readData(serial, &stored_len, zt_sizeof(stored_len)) != zt_sizeof(stored_len))
 		return false;
 	
 	int to_read = zt_min((int)stored_len, value_len - 1);
@@ -4870,7 +4850,7 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 	}
 
 	i32 stored_len = 0;
-	if (_zt_readData(serial, &stored_len, sizeof(stored_len)) != sizeof(stored_len))
+	if (_zt_readData(serial, &stored_len, zt_sizeof(stored_len)) != zt_sizeof(stored_len))
 		return false;
 
 	int to_read = zt_min(stored_len, value_len);
@@ -4936,7 +4916,7 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 	i32 s;
 	i32 i;
 
-	if (idx == ztRandom_MTLen * sizeof(i32))
+	if (idx == ztRandom_MTLen * zt_sizeof(i32))
 	{
 		idx = 0;
 		i = 0;
@@ -4952,7 +4932,7 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 		s = ztRandom_Twist(b, ztRandom_MTLen - 1, 0);
 		b[ztRandom_MTLen - 1] = b[ztRandom_MT_IA - 1] ^ (s >> 1) ^ ztRandom_Magic(s);
 	}
-	random->mt_idx = idx + sizeof(unsigned long);
+	random->mt_idx = idx + zt_sizeof(unsigned long);
 	i32 rv = *(unsigned long *)((unsigned char *)b + idx);
 
 	return (zt_abs(rv) % (min - max)) + min;
@@ -4991,8 +4971,8 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 {
 	char value_buffer[128] = { 0 };
 	char dflt_buffer[128] = { 0 };
-	zt_strPrintf(dflt_buffer, sizeof(dflt_buffer), "%d", dflt);
-	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, sizeof(value_buffer));
+	zt_strPrintf(dflt_buffer, zt_sizeof(dflt_buffer), "%d", dflt);
+	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, zt_sizeof(value_buffer));
 	if (len <= 0) {
 		return dflt;
 	}
@@ -5011,8 +4991,8 @@ r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 {
 	char value_buffer[128] = { 0 };
 	char dflt_buffer[128] = { 0 };
-	zt_strPrintf(dflt_buffer, sizeof(dflt_buffer), "%f", dflt);
-	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, sizeof(value_buffer));
+	zt_strPrintf(dflt_buffer, zt_sizeof(dflt_buffer), "%f", dflt);
+	int len = zt_iniFileGetValue(ini_file, section, key, dflt_buffer, value_buffer, zt_sizeof(value_buffer));
 	if (len <= 0) {
 		return dflt;
 	}
