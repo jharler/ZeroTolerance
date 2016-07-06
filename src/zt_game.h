@@ -1037,13 +1037,31 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 	zt_fiz(asset_mgr->asset_count) {
 		if (asset_mgr->asset_modified[i] != 0) {
 			i64 modified = 0;
-			if (zt_fileModified(asset_mgr->asset_name[i] - asset_mgr->directory_len, &modified)) {
+			i32 size = zt_fileSize(asset_mgr->asset_name[i] - asset_mgr->directory_len);
+
+			if (size > 0 && zt_fileModified(asset_mgr->asset_name[i] - asset_mgr->directory_len, &modified)) {
 				const i64 min_difference = 20000; // not sure why, but occassionally was seeing multiple rapid changes to a file when saving one time, so make sure we don't reload the same file twice in short order
 				if (asset_mgr->asset_modified[i] != modified && modified - asset_mgr->asset_modified[i] > min_difference) {
-					zt_fjz(asset_mgr->asset_callbacks_count) {
-						if (asset_mgr->asset_callback_ids[j] == i) {
-							if (asset_mgr->asset_callbacks[j]) {
-								asset_mgr->asset_callbacks[j](asset_mgr, i, asset_mgr->asset_callback_user_data[j]);
+					if (asset_mgr->asset_data[i]) {
+						zt_freeArena(asset_mgr->asset_data[i], asset_mgr->arena);
+						asset_mgr->asset_data[i] = nullptr;
+					}
+					asset_mgr->asset_size[i] = size;
+
+					// copy the callback data in case something changes within a function call
+					int asset_callbacks_count = asset_mgr->asset_callbacks_count;
+					void *asset_callback_user_data[ztAssetManagerMaxAssets];
+					ztAssetID asset_callback_ids[ztAssetManagerMaxAssets];
+					zt_assetManagerAssetUpdated_Func asset_callbacks[ztAssetManagerMaxAssets];
+
+					zt_memCpy(asset_callback_user_data, zt_sizeof(asset_callback_user_data), asset_mgr->asset_callback_user_data, zt_sizeof(asset_mgr->asset_callback_user_data));
+					zt_memCpy(asset_callback_ids, zt_sizeof(asset_callback_ids), asset_mgr->asset_callback_ids, zt_sizeof(asset_mgr->asset_callback_ids));
+					zt_memCpy(asset_callbacks, zt_sizeof(asset_callbacks), asset_mgr->asset_callbacks, zt_sizeof(asset_mgr->asset_callbacks));
+
+					zt_fjz(asset_callbacks_count) {
+						if (asset_callback_ids[j] == i) {
+							if (asset_callbacks[j]) {
+								asset_callbacks[j](asset_mgr, i, asset_callback_user_data[j]);
 							}
 						}
 					}
@@ -1367,6 +1385,7 @@ struct ztShader
 	i32 dx_cbuffers_count;
 #endif
 
+	char name[64];
 	ztRenderer_Enum renderer;
 	ztShaderLoadType_Enum load_type;
 
@@ -2351,7 +2370,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							if(_zt_shaders[active_shader].variable_count) {
 								zt_fiz(_zt_shaders[active_shader].dx_cbuffers_count) {
 									i32 cbuffer_idx = i;
-									D3D11_MAPPED_SUBRESOURCE ms;
+									///D3D11_MAPPED_SUBRESOURCE ms;
 									//zt_dxCallAndReportOnErrorFast(_zt_windows_details[0].dx_context->Map(_zt_shaders[active_shader].dx_cbuffers[cbuffer_idx], NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
 
 									byte cbuffer_data[1024 * 4];
@@ -2665,13 +2684,57 @@ void zt_rendererRequestFullscreen()
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_id)
+ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
+
+// ---------
+
+ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
+	zt_logDebug("shader reload: asset_id: %d", asset_id);
+	ztShaderID shader_id = (ztShaderID)user_data;
+	zt_assert(shader_id >= 0 && shader_id < _zt_shaders_count);
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if(size <= 0) {
+		zt_logCritical("shader reload: unable to determine asset size");
+		return;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if(!data) {
+		zt_logCritical("shader reload: unable to allocate memory for asset data");
+		return;
+	}
+
+	const char *error = nullptr;
+
+	if(!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	ztShaderID result_shader_id = _zt_rendererMakeShaderBase(asset_mgr->asset_name[asset_id], data, size, shader_id);
+	if(result_shader_id == ztInvalidID) {
+		goto on_error;
+	}
+
+	_zt_shaders[shader_id].load_type = ztShaderLoadType_Asset;
+	_zt_shaders[shader_id].asset_mgr = asset_mgr;
+	_zt_shaders[shader_id].asset_id = asset_id;
+
+	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
+
+	zt_free(data);
+	return;
+
+on_error:
+	zt_logCritical("Unable to reload shader (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_free(data);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32 data_len)
+ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace = ztInvalidID)
 {
 	ztShaderID shader_id = ztInvalidID;
 
@@ -2843,8 +2906,14 @@ ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32
 		GLuint program = OpenGL::load_program(vert, frag, geom);
 		if (program == 0) { error = "Unable to compile and link shader program."; goto on_error; }
 
-		zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
-		shader_id = _zt_shaders_count++;
+		if(replace != ztInvalidID) {
+			zt_rendererFreeShader(replace);
+			shader_id = replace;
+		}
+		else {
+			zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
+			shader_id = _zt_shaders_count++;
+		}
 		ztShader* shader = &_zt_shaders[shader_id];
 		shader->renderer = ztRenderer_OpenGL;
 		shader->gl_vert_id = vert;
@@ -2920,8 +2989,15 @@ ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32
 			}
 		}
 
-		zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
-		shader_id = _zt_shaders_count++;
+		if(replace != ztInvalidID) {
+			zt_rendererFreeShader(replace);
+			shader_id = replace;
+		}
+		else {
+			zt_assert(_zt_shaders_count < zt_elementsOf(_zt_shaders));
+			shader_id = _zt_shaders_count++;
+		}
+
 		ztShader* shader = &_zt_shaders[shader_id];
 		shader->renderer = ztRenderer_DirectX;
 		shader->variable_count = 0;
@@ -4146,11 +4222,16 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 
 	zt_logInfo("DirectX: Creating swap chain");
 		// create a device, device context and swap chain using the information in the scd struct
+	i32 flags = 0;
+#if defined(_DEBUG) && defined(ZT_DIRECTX_DEBUGGING)
+	flags = D3D11_CREATE_DEVICE_DEBUG;
+#endif
+
 	zt_dxCallAndReturnValOnError(D3D11CreateDeviceAndSwapChain(
 		NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
 		NULL,
-		zt_debugOnly(D3D11_CREATE_DEVICE_DEBUG) zt_releaseOnly(0),
+		flags,
 		NULL,
 		0,
 		D3D11_SDK_VERSION,

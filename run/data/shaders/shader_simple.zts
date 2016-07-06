@@ -43,6 +43,7 @@ Anything outside of < < [ ] > > will be ignored
 	void main()
 	{
 		vec4 clr = texture(tex_diffuse, fs_in.tex_coord);
+		//clr *= vec4(1,0,0,1);
 		frag_color = clr;
 	};
 ]>>
