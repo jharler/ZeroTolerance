@@ -2356,15 +2356,14 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	r32 dot_u = 0;
 	r32 dot_f = 0;
 
-	ztMat4 l = identity;
-
-	l.values[0] = s.x; l.values[4] = s.y; l.values[8] = s.z; l.values[12] = 0;
-	l.values[1] = u.x; l.values[5] = u.y; l.values[9] = u.z; l.values[13] = 0;
+	ztMat4 l;
+	l.values[0] =  s.x; l.values[4] =  s.y; l.values[ 8] =  s.z; l.values[12] = 0;
+	l.values[1] =  u.x; l.values[5] =  u.y; l.values[ 9] =  u.z; l.values[13] = 0;
 	l.values[2] = -f.x; l.values[6] = -f.y; l.values[10] = -f.z; l.values[14] = 0;
-	l.values[3] = 0; l.values[7] = 0; l.values[11] = 0; l.values[15] = 1;
+	l.values[3] =    0; l.values[7] =    0; l.values[11] =    0; l.values[15] = 1;
 
 	ztMat4 p = identity.getTranslate(-eye_pos.x, -eye_pos.y, -eye_pos.z);
-	*this = identity * p;
+	*this = l * p;
 }
 
 // ------------------------------------------------------------------------------------------------
