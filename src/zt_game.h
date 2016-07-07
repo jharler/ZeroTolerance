@@ -295,6 +295,78 @@ ztInputKeys* zt_inputKeysAccessState(); // not thread safe
 void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
 void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes]);
 
+// ------------------------------------------------------------------------------------------------
+
+enum ztInputMouseCursor_Enum
+{
+	ztInputMouseCursor_None,
+	ztInputMouseCursor_Arrow,
+	ztInputMouseCursor_ResizeNS,
+	ztInputMouseCursor_ResizeEW,
+	ztInputMouseCursor_ResizeNWSE,
+	ztInputMouseCursor_ResizeSWNE,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztInputMouseFlags_Enum
+{
+	ztInputMouseFlags_Pressed      = (1<<0),
+	ztInputMouseFlags_JustPressed  = (1<<1),
+	ztInputMouseFlags_JustReleased = (1<<2),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztInputMouse
+{
+	i32 screen_x;
+	i32 screen_y;
+
+	i32 delta_x;
+	i32 delta_y;
+
+	union {
+		i32 button_states[3];
+
+		struct {
+			i32 button_state_left;
+			i32 button_state_right;
+			i32 button_state_middle;
+		};
+	};
+
+	i32 wheel_delta;
+
+	bool over_window;
+	ztInputMouseCursor_Enum cursor;
+
+	bool pressed(int button)      { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_Pressed); }
+	bool justPressed(int button)  { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_JustPressed); }
+	bool justReleased(int button) { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_JustReleased); }
+
+	bool leftPressed()      { return pressed(0); }
+	bool leftJustPressed()  { return justPressed(0); }
+	bool leftJustReleased() { return justReleased(0); }
+
+	bool rightPressed()      { return pressed(1); }
+	bool rightJustPressed()  { return justPressed(1); }
+	bool rightJustReleased() { return justReleased(1); }
+
+	bool middlePressed()      { return pressed(2); }
+	bool middleJustPressed()  { return justPressed(2); }
+	bool middleJustReleased() { return justReleased(2); }
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztInputMouse* zt_inputMouseAccessState(); // not thread safe
+void zt_inputMouseCopyState(ztInputMouse *input_mouse);
+
+void zt_inputMouseLook(bool mouse_look);
+bool zt_inputMouseIsLook();
+
+void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor);
 
 // ------------------------------------------------------------------------------------------------
 // Asset Manager
@@ -532,6 +604,7 @@ void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
 // it is sometimes useful to set the camera matrices when the position/rotation is not known (such as with vr hmds)
 void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& view);
 
+void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1084,6 +1157,7 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 
 // headers (strive to avoid including anything if possible)
 #include <windows.h>
+#include <windowsx.h>
 
 #if defined(ZT_OPENGL)
 #pragma comment(lib, "opengl32.lib")
@@ -1721,6 +1795,10 @@ ztInternal ztInputKeys _zt_input_keys[ztInputKeys_MAX] = {
 	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, VK_OEM_CLEAR),
 };
 
+ztInternal ztInputMouse _zt_input_mouse;
+ztInternal bool _zt_input_mouse_look = false;
+ztInternal i32 _zt_input_mouse_captures = 0;
+
 // ------------------------------------------------------------------------------------------------
 
 bool zt_inputThisFrame()
@@ -1753,10 +1831,77 @@ void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes])
 
 // ------------------------------------------------------------------------------------------------
 
-void _zt_inputClearState()
+ztInputMouse* zt_inputMouseAccessState()
+{
+	return &_zt_input_mouse;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_inputMouseCopyState(ztInputMouse *input_mouse)
+{
+	zt_memCpy(input_mouse, zt_sizeof(ztInputMouse), &_zt_input_mouse, zt_sizeof(ztInputMouse));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_inputMouseLook(bool mouse_look)
+{
+	_zt_input_mouse_look = mouse_look;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_inputMouseIsLook()
+{
+	return _zt_input_mouse_look;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
+{
+	switch (cursor)
+	{
+	case ztInputMouseCursor_None:		SetCursor(NULL); break;
+	case ztInputMouseCursor_Arrow:		SetCursor(LoadCursor(NULL, IDC_ARROW)); break;
+	case ztInputMouseCursor_ResizeNS:	SetCursor(LoadCursor(NULL, IDC_SIZENS)); break;
+	case ztInputMouseCursor_ResizeEW:	SetCursor(LoadCursor(NULL, IDC_SIZEWE)); break;
+	case ztInputMouseCursor_ResizeNWSE:	SetCursor(LoadCursor(NULL, IDC_SIZENWSE)); break;
+	case ztInputMouseCursor_ResizeSWNE:	SetCursor(LoadCursor(NULL, IDC_SIZENESW)); break;
+	}
+
+	_zt_input_mouse.cursor = cursor;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_inputClearState( bool lost_focus )
 {
 	zt_fiz(ztInputKeys_MAX) {
 		zt_bitRemove(_zt_input_keys[i].flags, ztInputKeyFlags_JustPressed);
+		zt_bitRemove(_zt_input_keys[i].flags, ztInputKeyFlags_JustReleased);
+	}
+
+	zt_fiz(zt_elementsOf(_zt_input_mouse.button_states)) {
+		zt_bitRemove(_zt_input_mouse.button_states[i], ztInputMouseFlags_JustPressed);
+		zt_bitRemove(_zt_input_mouse.button_states[i], ztInputMouseFlags_JustReleased);
+	}
+
+	_zt_input_mouse.delta_x = _zt_input_mouse.delta_y = 0;
+
+	if (lost_focus) {
+		zt_fiz(ztInputKeys_MAX) {
+			if (zt_bitIsSet(_zt_input_keys[i].flags, ztInputKeyFlags_Pressed)) {
+				_zt_input_keys[i].flags = ztInputKeyFlags_JustReleased;
+			}
+		}
+
+		zt_fiz(zt_elementsOf(_zt_input_mouse.button_states)) {
+			if (zt_bitIsSet(_zt_input_mouse.button_states[i], ztInputMouseFlags_Pressed)) {
+				_zt_input_mouse.button_states[i] = ztInputMouseFlags_JustReleased;
+			}
+		}
 	}
 }
 
@@ -3795,6 +3940,68 @@ void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& vi
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
+{
+	zt_returnOnNull(camera);
+
+	bool cam_moved = false;
+
+	ztVec2 mouse_pos = ztVec2((r32)input_mouse->delta_x, (r32)input_mouse->delta_y); // mouse position is a delta of mouse movement since last frame, not a true x/y coordinate
+	if (mouse_pos != ztVec2::zero) {
+		cam_moved = true;
+
+		r32 mouse_sensitivity = 0.05f;
+		ztVec2 delta = mouse_pos * mouse_sensitivity;
+
+		camera->rotation.x += delta.x;
+		if (camera->rotation.x < 0) camera->rotation.x += 360;
+		if (camera->rotation.x > 360) camera->rotation.x -= 360;
+
+		camera->rotation.y = zt_clamp(camera->rotation.y - delta.y, -89, 89);
+	}
+
+	r32 movement_speed = 1.5f * (input_keys[ztInputKeys_Shift].pressed() ? .05f : 1) * (input_keys[ztInputKeys_Control].pressed() ? 3 : 1);
+
+	static ztVec3 camera_velocity = ztVec3::zero;
+
+	ztVec3 movement_velocity = camera_velocity;
+
+	bool moved_x = false, moved_z = false;
+	if (input_keys[ztInputKeys_W].pressed()) { movement_velocity.z = zt_approach(movement_velocity.z, -1, 2 * dt); moved_z = true; }
+	if (input_keys[ztInputKeys_S].pressed()) { movement_velocity.z = zt_approach(movement_velocity.z, +1, 2 * dt); moved_z = true; }
+	if (input_keys[ztInputKeys_A].pressed()) { movement_velocity.x = zt_approach(movement_velocity.x, -1, 2 * dt); moved_x = true; }
+	if (input_keys[ztInputKeys_D].pressed()) { movement_velocity.x = zt_approach(movement_velocity.x, +1, 2 * dt); moved_x = true; }
+
+	if (!moved_z && movement_velocity.z != 0) { movement_velocity.z = zt_approach(movement_velocity.z, 0, 4.75f * dt); }
+	if (!moved_x && movement_velocity.x != 0) { movement_velocity.x = zt_approach(movement_velocity.x, 0, 4.75f * dt); }
+
+	camera_velocity = movement_velocity;
+
+	if (movement_velocity != ztVec3::zero) {
+		cam_moved = true;
+		if (movement_velocity.z != 0) {
+			r32 z_move = -1 * movement_velocity.z * movement_speed * dt;
+			camera->position.x += camera->direction.x * z_move;
+			camera->position.y += camera->direction.y * z_move;
+			camera->position.z += camera->direction.z * z_move;
+		}
+		if (movement_velocity.x != 0) {
+			ztVec3 side = ztVec3(0, 1, 0).cross(camera->direction);
+			r32 x_move = -1 * movement_velocity.x * movement_speed * dt;
+
+			camera->position.x += side.x * x_move;
+			camera->position.y += side.y * x_move;
+			camera->position.z += side.z * x_move;
+		}
+	}
+
+	if (cam_moved) {
+		zt_cameraRecalcMatrices(camera);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal bool _zt_rendererRequestProcess()
 {
 	int count = _zt_renderer_requests_count;
@@ -4574,8 +4781,12 @@ int main(int argc, char** argv)
 	zt_fileGetUserPath(user_path, sizeof(user_path), ZT_GAME_NAME);
 #endif
 
-	for (int i = 0; i < ztInputKeys_MAX; ++i) {
-		_zt_input_keys_mapping[_zt_input_keys[i].platform_mapping] = _zt_input_keys[i].code;
+	{ // init input
+		for (int i = 0; i < ztInputKeys_MAX; ++i) {
+			_zt_input_keys_mapping[_zt_input_keys[i].platform_mapping] = _zt_input_keys[i].code;
+		}
+		zt_memSet(&_zt_input_mouse, zt_sizeof(ztInputMouse), 0);
+		_zt_input_mouse.cursor = ztInputMouseCursor_Arrow;
 	}
 
 	ztGameDetails game_details = {};
@@ -4606,6 +4817,14 @@ int main(int argc, char** argv)
 	ztWindowDetails *win_details = &_zt_windows_details[0];
 	if (!_zt_winCreateWindow(game_settings, win_details))
 		return 1;
+
+	{ // more input init
+		POINT cursor_pos;
+		GetCursorPos(&cursor_pos);
+
+		_zt_input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
+		_zt_input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
+	}
 
 	if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
 		zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
@@ -4639,7 +4858,37 @@ int main(int argc, char** argv)
 	r32 dt = 0;
 	r32 time_last = zt_getTime();
 
+	bool mouse_look = _zt_input_mouse_look;
+	POINT mouse_prev_frame = { 0, 0 };
+	if (mouse_look) {
+		SetCursorPos(0, 0);
+	}
+
 	do {
+		if (_zt_input_mouse_look) {
+			POINT mouse_this_frame;
+			GetCursorPos(&mouse_this_frame);
+
+			if (GetFocus() == win_details->handle) {
+				_zt_input_mouse.screen_x = 0;
+				_zt_input_mouse.screen_y = 0;
+
+				if (_zt_input_mouse_look == mouse_look) {
+					_zt_input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
+					_zt_input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
+				}
+
+				mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2);
+				mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2);
+
+				SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
+			}
+			else {
+				_zt_input_mouse.screen_x = 0;
+				_zt_input_mouse.screen_y = 0;
+			}
+		}
+
 		r32 time_this = zt_getTime();
 		dt = time_this - time_last;
 		time_last = time_this;
@@ -4663,7 +4912,7 @@ int main(int argc, char** argv)
 			}
 		}
 
-		_zt_inputClearState();
+		_zt_inputClearState(false);
 		_zt_win_processMessages();
 
 	} while (!_zt_quit_requested);
@@ -4798,12 +5047,56 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		case WM_MBUTTONUP:
 		case WM_MOUSEWHEEL:
 		case WM_MOUSEMOVE: {
-			MSG smsg;
-			smsg.message = msg;
-			smsg.hwnd = handle;
-			smsg.lParam = l_param;
-			smsg.wParam = w_param;
-			//win32_process_input_mouse(smsg);
+			struct local
+			{
+				ztInternal void button_pressed(ztWindowDetails *win_details, i32& input_state, bool is_down, bool was_down)
+				{
+					if (is_down) input_state |= ztInputMouseFlags_Pressed;
+					if (is_down && !was_down) input_state |= ztInputMouseFlags_JustPressed;
+					if (!is_down && was_down) input_state |= ztInputMouseFlags_JustReleased;
+
+					if (is_down) {
+						if (_zt_input_mouse_captures == 0) {
+							SetCapture(win_details->handle); // required so that events continue to be sent during dragging
+						}
+						_zt_input_mouse_captures += 1;
+					}
+					else {
+						if (--_zt_input_mouse_captures == 0) {
+							ReleaseCapture();
+						}
+					}
+				}
+			};
+
+			_zt_input_this_frame = true;
+
+			switch (msg)
+			{
+				case WM_MOUSEMOVE: {
+					int x = GET_X_LPARAM(l_param);// - window_details->window_rect.left;
+					int y = GET_Y_LPARAM(l_param);// - window_details->window_rect.top;
+
+					_zt_input_mouse.delta_x = x - _zt_input_mouse.screen_x;
+					_zt_input_mouse.delta_y = y - _zt_input_mouse.screen_y;
+
+					_zt_input_mouse.screen_x = x;
+					_zt_input_mouse.screen_y = y;
+				} break;
+
+				case WM_LBUTTONDOWN: local::button_pressed(window_details, _zt_input_mouse.button_state_left, true, false); break;
+				case WM_LBUTTONUP: local::button_pressed(window_details, _zt_input_mouse.button_state_left, false, true); break;
+
+				case WM_RBUTTONDOWN: local::button_pressed(window_details, _zt_input_mouse.button_state_right, true, false); break;
+				case WM_RBUTTONUP: local::button_pressed(window_details, _zt_input_mouse.button_state_right, false, true); break;
+
+				case WM_MBUTTONDOWN: local::button_pressed(window_details, _zt_input_mouse.button_state_middle, true, false); break;
+				case WM_MBUTTONUP: local::button_pressed(window_details, _zt_input_mouse.button_state_middle, false, true); break;
+
+				case WM_MOUSEWHEEL: {
+					_zt_input_mouse.wheel_delta = GET_WHEEL_DELTA_WPARAM(w_param) / 120;
+				} break;
+			}
 		} break;
 
 		case WM_DESTROY:
@@ -4820,6 +5113,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		case WM_SIZE: {
 			if (window_details) {
 				GetClientRect(window_details->handle, &window_details->client_rect);
+				GetWindowRect(window_details->handle, &window_details->window_rect);
 
 				int screen_w = window_details->client_rect.right - window_details->client_rect.left;
 				int screen_h = window_details->client_rect.bottom - window_details->client_rect.top;
@@ -4934,10 +5228,10 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 						r32 h_pct = c_height / (r32)game_settings->native_h;
 
 						if(w_pct > h_pct) {
-							height = game_settings->native_h * w_pct;
+							height = (int)(game_settings->native_h * w_pct);
 						}
 						else {
-							width = game_settings->native_w * h_pct;
+							width = (int)(game_settings->native_w * h_pct);
 						}
 
 						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT)
@@ -4964,26 +5258,23 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_SETCURSOR: {
 			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_HideCursor) && GetFocus() == handle) {
-				//if (g_globals->sys_mouse_relative || LOWORD(l_param) == HTCLIENT) {
-				if (LOWORD(l_param) == HTCLIENT) {
+				if (_zt_input_mouse_look || LOWORD(l_param) == HTCLIENT) {
 					SetCursor(NULL);
-					//g_globals->input->mouse.over_window = true;
+					_zt_input_mouse.over_window = true;
 				}
 				else {
-					//g_globals->input->mouse.over_window = false;
+					_zt_input_mouse.over_window = false;
 					SetCursor(LoadCursor(NULL, IDC_ARROW));
 				}
 			}
 			else {
-				//g_globals->input->mouse.over_window = false;
-				//win32_set_cursor();
-				SetCursor(LoadCursor(NULL, IDC_ARROW));
+				_zt_input_mouse.over_window = false;
+				zt_inputMouseSetCursor(_zt_input_mouse.cursor);
 			}
 		} break;
 
 		case WM_KILLFOCUS: {
-			// we need to clear input
-			//input_clear_state(g_globals->input, true);
+			//_zt_inputClearState(true);
 		} break;
 
 		default: {

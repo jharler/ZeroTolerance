@@ -79,9 +79,11 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	if(zt_striCmp(cfg_renderer, "directx") == 0) settings->renderer = ztRenderer_DirectX;
 
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
-	//settings->renderer_flags = ztRendererFlags_Windowed;
+	settings->renderer_flags = ztRendererFlags_Windowed;
 
 	settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_ScaleToVert;
+
+	zt_inputMouseLook(true);
 
 	return true;
 }
@@ -132,7 +134,7 @@ void game_screenChange(ztGameSettings *game_settings)
 	//zt_cameraMakeOrtho(&g_game->camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 64, 0.1f, 100.f);
 
 	g_game->camera.position = ztVec3(0, 0, 1);
-	//g_game->camera.rotation = ztVec3(270, 0, 0);
+	g_game->camera.rotation = ztVec3(270, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->camera);
 }
 
@@ -153,7 +155,16 @@ void game_cleanup()
 
 bool game_loop(r32 dt)
 {
-	ztInputKeys* input = zt_inputKeysAccessState();
+	ztInputKeys *input = zt_inputKeysAccessState();
+	ztInputMouse *mouse = zt_inputMouseAccessState();
+
+	if (input[ztInputKeys_Space].justPressed()) {
+		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
+	}
+
+	if (zt_inputMouseIsLook()) {
+		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
+	}
 	
 	// color cycle the background
 	{
@@ -214,18 +225,6 @@ bool game_loop(r32 dt)
 		//zt_drawListPopShader(&g_game->draw_list);
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, .15f, .15f, .5f), 0);
-	}
-
-	{
-		static r32 rot = 0;
-		rot += (360 * dt);
-
-		//g_game->camera.rotation.y += (360 * dt);
-		if (g_game->camera.rotation.y > 360.f) {
-			g_game->camera.rotation.y -= 360.f;
-		}
-
-		zt_cameraRecalcMatrices(&g_game->camera);
 	}
 
 	{
