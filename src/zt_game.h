@@ -1536,7 +1536,7 @@ ztInternal bool _zt_dxToggleFullscreen(ztWindowDetails *win_details, ztGameSetti
 
 bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_details);
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
-
+void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details);
 // ------------------------------------------------------------------------------------------------
 
 #define _zt_setKeyData(code, name, display, shift_display, mapping) {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping}
@@ -4502,6 +4502,8 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	GetClientRect(window_details->handle, &window_details->client_rect);
 	GetWindowRect(window_details->handle, &window_details->window_rect);
 
+	_zt_winUpdateTitle(game_settings, window_details);
+
 	return true;
 }
 
@@ -4523,6 +4525,23 @@ bool _zt_winCleanupWindow(ztWindowDetails* win_details, ztGameSettings* settings
 	DestroyWindow(win_details->handle);
 	
 	return context_result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details)
+{
+	const char* renderer;
+	switch(game_settings->renderer)
+	{
+	case ztRenderer_OpenGL: renderer = "OpenGL"; break;
+	case ztRenderer_DirectX: renderer = "DirectX"; break;
+	default: renderer = "Unknown Renderer"; break;
+	}
+
+	zt_debugOnly(zt_strMakePrintf(title, 1024, "%s [Renderer: %s] [Resolution: %d x %d]", ZT_GAME_NAME, renderer, game_settings->screen_w, game_settings->screen_h));
+	zt_releaseOnly(zt_strMakePrintf(title, 1024, "%s", ZT_GAME_NAME));
+	SetWindowTextA(window_details->handle, title);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4865,6 +4884,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 				_zt_rendererSetViewport(window_details, game_settings, true);
 				_zt_callFuncScreenChange(game_settings);
+				_zt_winUpdateTitle(game_settings, window_details);
 
 				if (native_w_reset != 0 && native_h_reset != 0) {
 					game_settings->native_w = native_w_reset;
@@ -4883,26 +4903,42 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 				int width = size.right - size.left;
 				int height = size.bottom - size.top;
 
+				RECT client_size;
+				GetClientRect(window_details->handle, &client_size);
+
+				int c_width = (client_size.right - client_size.left);
+				int c_height = (client_size.bottom - client_size.top);
+
+				int w_diff = width - c_width;
+				int h_diff = height - c_height;
+
+				//zt_logDebug("window w/h: %d/%d; client w/h: %d/%d; diff w/h: %d/%d", width, height, c_width, c_height, w_diff, h_diff);
+
 				switch (w_param)
 				{
 					case WMSZ_LEFT:
 					case WMSZ_RIGHT: {
-						size.bottom = zt_convertToi32Floor(width * aspect_ratio) + size.top;
+						size.bottom = zt_convertToi32Floor(c_width * aspect_ratio + h_diff) + size.top;
 					} break;
 
 					case WMSZ_TOP:
 					case WMSZ_BOTTOM: {
-						size.right = zt_convertToi32Floor(height * (1 / aspect_ratio)) + size.left;
+						size.right = zt_convertToi32Floor(c_height * (1 / aspect_ratio) + w_diff) + size.left;
 					} break;
 
 					case WMSZ_TOPRIGHT:
 					case WMSZ_TOPLEFT:
 					case WMSZ_BOTTOMRIGHT:
 					case WMSZ_BOTTOMLEFT: {
-						if (height / (real32)width > aspect_ratio)
-							width = zt_convertToi32Floor(height / aspect_ratio);
-						else
-							height = zt_convertToi32Floor(width * aspect_ratio);
+						r32 w_pct = c_width / (r32)game_settings->native_w;
+						r32 h_pct = c_height / (r32)game_settings->native_h;
+
+						if(w_pct > h_pct) {
+							height = game_settings->native_h * w_pct;
+						}
+						else {
+							width = game_settings->native_w * h_pct;
+						}
 
 						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT)
 							size.top = size.bottom - height;

@@ -70,8 +70,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	//settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_OpenGL;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
