@@ -2690,7 +2690,7 @@ ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32
 
 ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
-	zt_logDebug("shader reload: asset_id: %d", asset_id);
+	zt_logDebug("shader reload: asset_id: %d (%s)", asset_id, asset_mgr->asset_name[asset_id]);
 	ztShaderID shader_id = (ztShaderID)user_data;
 	zt_assert(shader_id >= 0 && shader_id < _zt_shaders_count);
 
@@ -4176,15 +4176,29 @@ ztInternal bool _zt_dxSetViewport(ztWindowDetails* win_details, ztGameSettings *
 
 	viewport.TopLeftX = 0;//-(r32)game_settings->screen_w;
 	viewport.TopLeftY = 0;//-(r32)game_settings->screen_h;
-	viewport.Width = (r32)game_settings->screen_w;
-	viewport.Height = (r32)game_settings->screen_h;
 	viewport.MinDepth = 0;
 	viewport.MaxDepth = 1;
+
+	if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
+		viewport.Width = (r32)game_settings->native_w;
+		viewport.Height = (r32)game_settings->native_h;
+	}
+	else {
+		viewport.Width = (r32)game_settings->screen_w;
+		viewport.Height = (r32)game_settings->screen_h;
+	}
+
+	//zt_logDebug("_zt_dxSetViewport() %.2f x %.2f", viewport.Width, viewport.Height);
 
 	win_details->screen_w = game_settings->screen_w;
 	win_details->screen_h = game_settings->screen_h;
 
 	win_details->dx_context->RSSetViewports(1, &viewport);
+
+	if(force) {
+		// this crashes.  i think i need to re-create the swapchain and everything when this happens
+		//zt_dxCallAndReturnValOnError(win_details->dx_swapchain->ResizeBuffers(0, (UINT)viewport.Width, (UINT)viewport.Height, DXGI_FORMAT_UNKNOWN, 0), false);
+	}
 
 	return true;
 #else
@@ -4273,7 +4287,7 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 	zt_logInfo("DirectX: Setting context back buffer");
 	win_details->dx_context->OMSetRenderTargets(1, &win_details->dx_backbuffer, win_details->dx_depth_stencil_view);
 
-	if (!_zt_dxSetViewport(win_details, game_settings, true)) {
+	if (!_zt_dxSetViewport(win_details, game_settings, false)) {
 		return false;
 	}
 
@@ -4376,7 +4390,8 @@ ztInternal ztInline void _zt_dxSwapBuffers(ztWindowDetails* win_details)
 ztInternal bool _zt_dxToggleFullscreen(ztWindowDetails* win_details, ztGameSettings *game_settings, bool fullscreen)
 {
 #if defined(ZT_DIRECTX)
-	win_details->dx_swapchain->SetFullscreenState(fullscreen ? TRUE : FALSE, NULL);
+	zt_dxCallAndReturnValOnError(win_details->dx_swapchain->SetFullscreenState(fullscreen ? TRUE : FALSE, NULL), false);
+	return _zt_dxSetViewport(win_details, game_settings, true);
 #else
 	return false;
 #endif
@@ -4398,7 +4413,7 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 		_zt_rendererSetViewport      = _zt_dxSetViewport;
 		_zt_rendererMakeContext      = _zt_dxMakeContext;
 		_zt_rendererFreeContext      = _zt_dxFreeContext;
-		_zt_rendererToggleFullscreen = _zt_glToggleFullscreen;
+		_zt_rendererToggleFullscreen = _zt_dxToggleFullscreen;
 	}
 	else {
 		return false;
@@ -4622,6 +4637,11 @@ int main(int argc, char** argv)
 		if (_zt_renderer_requests_count) {
 			if (!_zt_rendererRequestProcess())
 				break;
+			else {
+				zt_fiz(_zt_windows_settings_count) {
+					_zt_callFuncScreenChange(&_zt_windows_settings[i]);
+				}
+			}
 		}
 
 		_zt_inputClearState();

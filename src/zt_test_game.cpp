@@ -70,8 +70,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_OpenGL;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -79,7 +79,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	if(zt_striCmp(cfg_renderer, "directx") == 0) settings->renderer = ztRenderer_DirectX;
 
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
-	settings->renderer_flags = ztRendererFlags_Windowed;
+	//settings->renderer_flags = ztRendererFlags_Windowed;
 
 	settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_ScaleToVert;
 
@@ -126,10 +126,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 void game_screenChange(ztGameSettings *game_settings)
 {
-	//zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
-	zt_cameraMakeOrtho(&g_game->camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 64, 0.1f, 100.f);
+	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
 
-	g_game->camera.position = ztVec3(0, 0, 0);
+	zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
+	//zt_cameraMakeOrtho(&g_game->camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 64, 0.1f, 100.f);
+
+	g_game->camera.position = ztVec3(0, 0, 1);
 	//g_game->camera.rotation = ztVec3(270, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->camera);
 }

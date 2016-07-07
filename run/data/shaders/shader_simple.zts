@@ -43,7 +43,8 @@ Anything outside of < < [ ] > > will be ignored
 	void main()
 	{
 		vec4 clr = texture(tex_diffuse, fs_in.tex_coord);
-		//clr *= vec4(1,0,0,1);
+		//clr *= vec4(0,1,0,1);
+		//clr = vec4(0,1,1,1);
 		frag_color = clr;
 	};
 ]>>
@@ -68,7 +69,6 @@ Anything outside of < < [ ] > > will be ignored
 	{
 		float4 position : SV_POSITION;
 		float2 tex_coord : TEXCOORD0;
-		float4 mat_tests : COLOR;
 	};
 
 
@@ -79,19 +79,7 @@ Anything outside of < < [ ] > > will be ignored
 		output.position = mul(position4, model);
 		output.position = mul(output.position, view);
 		output.position = mul(output.position, projection);
-		output.position.w = 1.0;
 		
-		output.mat_tests = float4(1,1,1,1);
-//		output.position = float4(input.position.x, input.position.y, input.position.z, 1);
-//		
-//		output.mat_tests = mul(output.position, projection);
-//		output.mat_tests = float4(projection._m00, projection._m01, projection._m02, 1);
-//		output.mat_tests = float4(abs(projection._m00) + abs(projection._m01) + abs(projection._m02) + abs(projection._m03) + 
-//								  abs(projection._m10) + abs(projection._m11) + abs(projection._m12) + abs(projection._m13) + 
-//								  abs(projection._m20) + abs(projection._m21) + abs(projection._m22) + abs(projection._m23) + 
-//								  abs(projection._m30) + abs(projection._m31) + abs(projection._m32) + abs(projection._m33), 0, 0, 1);
-//		//output.position = mul(output.position, projection);
-				
 		output.tex_coord = input.tex_coord;
 		
 		return output;
@@ -107,16 +95,13 @@ Anything outside of < < [ ] > > will be ignored
 	{
 		float4 position : SV_POSITION;
 		float2 tex_coord : TEXCOORD0;
-		float4 mat_tests : COLOR;
 	};
 
 
 	float4 fragmentShader(FragmentInputType input) : SV_TARGET
 	{
 		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord);
-		//color = float4(0,1,0,1);
-		//color = input.mat_tests;
-		color.a = 1;
+		//color *= float4(1,0,0,1);
 		return color;
 	}
 ]>>
