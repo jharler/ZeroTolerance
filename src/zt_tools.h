@@ -1192,7 +1192,7 @@ ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
 
 ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 {
-	if (var >= var) 
+	if (appr >= var) 
 		return zt_min(var + by, appr);
 
 	return zt_max(var - by, appr);
