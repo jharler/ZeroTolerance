@@ -161,35 +161,11 @@ bool game_loop(r32 dt)
 	if (input[ztInputKeys_Space].justPressed()) {
 		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
 	}
-
-	if (zt_inputMouseIsLook()) {
+	else if (zt_inputMouseIsLook()) {
 		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
 	}
-	
-	// color cycle the background
+
 	{
-		const ztVec4 colors[] = {
-			ztVec4(1, 0, 0, 1),
-			ztVec4(0, 1, 0, 1),
-			ztVec4(0, 0, 1, 1),
-			ztVec4(1, 1, 0, 1),
-			ztVec4(1, 0, 1, 1),
-			ztVec4(0, 1, 1, 1),
-		};
-
-		static i32 color_idx = 0;
-		static r32 color_time = 0;
-
-		color_time += dt;
-		if (color_time > 1) {
-			color_time -= 1;
-			color_idx += 1;
-		}
-
-		ztVec4 color = ztVec4::lerp(colors[color_idx % zt_elementsOf(colors)], colors[(color_idx + 1) % zt_elementsOf(colors)], color_time);
-
-		//zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-		zt_drawListPushColor(&g_game->draw_list, color);
 		{
 #if 0
 			zt_drawListAddPoint(&g_game->draw_list, ztVec3(0, 0, 0));
@@ -221,38 +197,8 @@ bool game_loop(r32 dt)
 			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
 		}
-		zt_drawListPopColor(&g_game->draw_list);
-		//zt_drawListPopShader(&g_game->draw_list);
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, .15f, .15f, .5f), 0);
-	}
-
-	{
-#if 0
-		ztAssetManager asset_mgr;
-		zt_assetManagerLoadDirectory(&asset_mgr, data_dir);
-		zt_assetManagerLoadPackedFile(&asset_mgr, pack_file);
-
-		ztAssetID asset_id = zt_assetLoadFromFile(&asset_mgr, file_name);
-		ztAssetID asset_id2 = zt_assetLoadFromData(&asset_mgr, data, data_size);
-
-		i32 bin_size = zt_assetSize(&asset_mgr, asset_id);
-		void* bin_data = zt_memAlloc(bin_size);
-		if(!zt_assetLoad(&asset_mgr, asset_id, bin_data, bin_size))
-			return false;
-
-		zt
-
-		zt_rlPushShader(g_game->renderList, g_game->shader_test); {
-			zt_rlPushTexture(g_game->renderList, g_game->texture_test); {
-				zt_rlPushQuad(-1, -1, 1, 1, ztVec4::one);
-			}
-			zt_rlPopTexture(g_game->renderList);
-		}
-		zt_rlPopShader(g_game->renderList);
-
-		zt_rlFlush(g_game->renderList);
-#endif
 	}
 
 	// test changing renderers

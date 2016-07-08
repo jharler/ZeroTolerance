@@ -4865,6 +4865,12 @@ int main(int argc, char** argv)
 	}
 
 	do {
+		if (mouse_look != _zt_input_mouse_look) {
+			mouse_look = _zt_input_mouse_look;
+			if (mouse_look) {
+				GetCursorPos(&mouse_prev_frame);
+			}
+		}
 		if (_zt_input_mouse_look) {
 			POINT mouse_this_frame;
 			GetCursorPos(&mouse_this_frame);
@@ -4873,10 +4879,8 @@ int main(int argc, char** argv)
 				_zt_input_mouse.screen_x = 0;
 				_zt_input_mouse.screen_y = 0;
 
-				if (_zt_input_mouse_look == mouse_look) {
-					_zt_input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
-					_zt_input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
-				}
+				_zt_input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
+				_zt_input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
 
 				mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2);
 				mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2);
@@ -4886,6 +4890,8 @@ int main(int argc, char** argv)
 			else {
 				_zt_input_mouse.screen_x = 0;
 				_zt_input_mouse.screen_y = 0;
+				_zt_input_mouse.delta_x  = 0;
+				_zt_input_mouse.delta_y  = 0;
 			}
 		}
 
