@@ -4307,7 +4307,12 @@ ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset
 ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
 	if (charset == nullptr || charset_size == 0) {
-		charset = zt_fontGetCharsetStandard(&charset_size);
+		if (charset) {
+			charset_size = zt_strLen(charset);
+		}
+		else {
+			charset = zt_fontGetCharsetStandard(&charset_size);
+		}
 	}
 
 	i32 size = 0;
@@ -4381,7 +4386,8 @@ ztInternal int _zt_fontGetRowCount(const char *text, int text_len)
 {
 	int rows = 1;
 	zt_fiz(text_len) {
-		if (text[i] == '\n') {
+		i32 codepoint = zt_strCodepoint(text, i);
+		if (codepoint == '\n') {
 			rows += 1;
 		}
 	}
@@ -4397,7 +4403,8 @@ ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int 
 	*start_char = 0;
 	*length = 0;
 	zt_fiz(text_len) {
-		if (text[i] == '\n') {
+		i32 codepoint = zt_strCodepoint(text, i);
+		if (codepoint == '\n') {
 			current_row += 1;
 			if (current_row > row) {
 				return;
@@ -4424,9 +4431,10 @@ ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, in
 	}
 
 	zt_fiz(text_len) {
+		i32 codepoint = zt_strCodepoint(text, i);
 		glyphs_idx[i] = -1;
 		zt_fjz(font->glyph_count) {
-			if (font->glyph_code_point[j] == text[i]) {
+			if (font->glyph_code_point[j] == codepoint) {
 				glyphs_idx[i] = j;
 				break;
 			}
@@ -4457,9 +4465,10 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 	int current_row = 0;
 
 	zt_fiz(text_len) {
+		i32 codepoint = zt_strCodepoint(text, i);
 		int glyph_idx = glyphs_idx[i];
 		if (glyph_idx < 0) {
-			if (text[i] == '\n') {
+			if (codepoint == '\n') {
 				if (current_row == row) {
 					*width = row_width;
 					*height = row_height;
@@ -4470,11 +4479,11 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 				row_height = row_width = 0;
 				current_row += 1;
 			}
-			else if (text[i] == ' ') {
+			else if (codepoint == ' ') {
 				total_width += font->space_width;
 				row_width += font->space_width;
 			}
-			else if (text[i] == '\t') {
+			else if (codepoint == '\t') {
 				total_width += font->space_width * 4; // TODO(josh): fix this
 			}
 			continue;
@@ -4558,7 +4567,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	if (zt_bitIsSet(anchor_flags, ztAnchor_Left)) { position.x += total_width / 2.f; }
 	else if (zt_bitIsSet(anchor_flags, ztAnchor_Right)) { position.x -= total_width / 2.f; }
 	if (zt_bitIsSet(anchor_flags, ztAnchor_Top)) { position.y -= total_height / 2.f; }
-	else if (zt_bitIsSet(anchor_flags, ztAnchor_Bottom)) { position.y += total_height / 2.f; }
+	else if (zt_bitIsSet(anchor_flags, ztAnchor_Bottom)) { position.y += total_height / 1.f; }
 
 	r32 start_pos_y = (position.y + (true_total_height / 2)); // initially start out at the top left corner.  each row needs to subtract its height to get the proper start pos
 
@@ -16132,7 +16141,7 @@ STBTT_DEF int stbtt_FindMatchingFont(const unsigned char *font_collection, const
 
 ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
-	i32 tex_size = 2048; // TODO(josh): make this dynamic based off charset
+	i32 tex_size = 1024; // TODO(josh): make this dynamic based off charset
 
 	stbtt_fontinfo f;
 	if (!stbtt_InitFont(&f, (const byte *)data, 0))
@@ -16141,7 +16150,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	byte *pixel_data = zt_mallocStructArray(byte, tex_size * tex_size);
 	zt_memSet(pixel_data, 0, tex_size * tex_size); // background of 0 around pixels
 
-	int padding = 1;
+	int padding = 0;
 	int spacing = 2;
 	int x, y, bottom_y;
 	x = y = bottom_y = spacing;
@@ -16167,7 +16176,8 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	i32 space_idx = -1;
 	zt_fiz(charset_size) {
 		int advance, lsb, x0, y0, x1, y1, gw, gh;
-		int g = stbtt_FindGlyphIndex(&f, charset[i]);
+		i32 code_point = zt_strCodepoint(charset, i);
+		int g = stbtt_FindGlyphIndex(&f, code_point);
 		stbtt_GetGlyphHMetrics(&f, g, &advance, &lsb);
 		stbtt_GetGlyphBitmapBox(&f, g, scale, scale, &x0, &y0, &x1, &y1);
 		gw = x1 - x0;
@@ -16181,7 +16191,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		zt_assert(y + gh < tex_size);
 		stbtt_MakeGlyphBitmap(&f, pixel_data + x + y*tex_size, gw, gh, tex_size, scale, scale, g);
 
-		font->glyph_code_point[i] = charset[i];
+		font->glyph_code_point[i] = code_point;
 		font->glyphs[i].tex_uv.x = (x - padding) / (r32)tex_size;
 		font->glyphs[i].tex_uv.y = (y - padding) / (r32)tex_size;
 		font->glyphs[i].tex_uv.z = (x + gw + padding * 2) / (r32)tex_size;
@@ -16200,7 +16210,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		if (y + gh + spacing > bottom_y)
 			bottom_y = y + gh + spacing;
 
-		if (charset[i] == ' ')
+		if (code_point == ' ')
 			space_idx = i;
 	}
 

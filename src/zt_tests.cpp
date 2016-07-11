@@ -211,6 +211,15 @@ bool test_strings()
 	zt_testResults(zt_striFind(haystack_one, needle_6) == haystack_one + 36);
 	zt_testResults(zt_striFind(haystack_one, needle_x) == nullptr);
 
+	zt_testResults(zt_strFindLast(haystack_one, needle_1) == haystack_one);
+	zt_testResults(zt_strFindLast(haystack_one, needle_2) == haystack_one + 16);
+	zt_testResults(zt_strFindLast(haystack_one, needle_3) == haystack_one + 36);
+	zt_testResults(zt_strFindLast(haystack_one, needle_x) == nullptr);
+	zt_testResults(zt_striFindLast(haystack_one, needle_4) == haystack_one);
+	zt_testResults(zt_striFindLast(haystack_one, needle_5) == haystack_one + 16);
+	zt_testResults(zt_striFindLast(haystack_one, needle_6) == haystack_one + 36);
+	zt_testResults(zt_striFindLast(haystack_one, needle_x) == nullptr);
+
 	zt_testResults(zt_strFindPos(haystack_one, needle_1, 0) == 0);
 	zt_testResults(zt_strFindPos(haystack_one, needle_2, 0) == 16);
 	zt_testResults(zt_strFindPos(haystack_one, needle_3, 0) == 36);
@@ -219,6 +228,15 @@ bool test_strings()
 	zt_testResults(zt_striFindPos(haystack_one, needle_5, 0) == 16);
 	zt_testResults(zt_striFindPos(haystack_one, needle_6, 0) == 36);
 	zt_testResults(zt_striFindPos(haystack_one, needle_x, 0) == -1);
+
+	zt_testResults(zt_strFindLastPos(haystack_one, needle_1, -1) == 0);
+	zt_testResults(zt_strFindLastPos(haystack_one, needle_2, -1) == 16);
+	zt_testResults(zt_strFindLastPos(haystack_one, needle_3, -1) == 36);
+	zt_testResults(zt_strFindLastPos(haystack_one, needle_x, -1) == -1);
+	zt_testResults(zt_striFindLastPos(haystack_one, needle_4, -1) == 0);
+	zt_testResults(zt_striFindLastPos(haystack_one, needle_5, -1) == 16);
+	zt_testResults(zt_striFindLastPos(haystack_one, needle_6, -1) == 36);
+	zt_testResults(zt_striFindLastPos(haystack_one, needle_x, -1) == -1);
 
 	const char *token_search = "one, two, three, four";
 	const char *token_2 = token_search + 3, *token_3 = token_search + 4, *token_4 = token_search + 8, *token_5 = token_search + 9, *token_6 = token_search + 15, *token_7 = token_search + 16, *token_8 = nullptr;
