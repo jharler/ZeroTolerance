@@ -43,10 +43,11 @@ struct ztGame
 	ztMemoryArena* asset_arena;
 	ztAssetManager asset_mgr;
 
-	ztCamera camera;
+	ztCamera camera, gui_camera;
 
 	ztShaderID shader_id;
 	ztTextureID tex_id_crate;
+	ztFontID font_id;
 
 	ztDrawList draw_list;
 };
@@ -84,6 +85,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_ScaleToVert;
 
 	zt_inputMouseLook(true);
+	zt_inputMouseSetCursor(ztInputMouseCursor_None);
 
 	return true;
 }
@@ -121,6 +123,11 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
+	g_game->font_id = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\courbd.ttf", 20);
+	if (g_game->font_id == ztInvalidID) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -131,16 +138,21 @@ void game_screenChange(ztGameSettings *game_settings)
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
 
 	zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
-	//zt_cameraMakeOrtho(&g_game->camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 64, 0.1f, 100.f);
+	zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f);
 
 	g_game->camera.position = ztVec3(0, 0, 1);
 	g_game->camera.rotation = ztVec3(270, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->camera);
+
+	g_game->gui_camera.position = ztVec3(0, 0, 0);
+	g_game->gui_camera.rotation = ztVec3(270, 0, 0);
+	zt_cameraRecalcMatrices(&g_game->gui_camera);
 }
 
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
+	zt_fontFree(g_game->font_id);
 	zt_rendererFreeTexture(g_game->tex_id_crate);
 	zt_drawListFree(&g_game->draw_list);
 	zt_rendererFreeShader(g_game->shader_id);
@@ -160,6 +172,12 @@ bool game_loop(r32 dt)
 
 	if (input[ztInputKeys_Space].justPressed()) {
 		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
+		if (zt_inputMouseIsLook()) {
+			zt_inputMouseSetCursor(ztInputMouseCursor_None);
+		}
+		else {
+			zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
+		}
 	}
 	else if (zt_inputMouseIsLook()) {
 		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
@@ -167,38 +185,41 @@ bool game_loop(r32 dt)
 
 	{
 		{
-#if 0
-			zt_drawListAddPoint(&g_game->draw_list, ztVec3(0, 0, 0));
-			zt_drawListAddPoint(&g_game->draw_list, ztVec3(-1, -1, 0));
-			zt_drawListAddPoint(&g_game->draw_list, ztVec3(1, -1, 0));
-
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(-14.5f, -8, 0), ztVec3(14.5f, -8, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(14.5f, 8, 0), ztVec3(14.5f, -8, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(14.5f, 8, 0), ztVec3(-14.5f, 8, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(-14.5f, -8, 0), ztVec3(-14.5f, 8, 0));
-
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(-4, 4, 0), ztVec3(4, 4, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(4, 4, 0), ztVec3(4, -4, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(4, -4, 0), ztVec3(-4, -4, 0));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(-4, -4, 0), ztVec3(-4, 4, 0));
-#endif
-
-			//zt_drawListPushShader(&g_game->draw_list, zt_rendererGetDefaultShader(ztShaderDefault_Solid));
 			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
 			zt_drawListPushTexture(&g_game->draw_list, g_game->tex_id_crate);
 			{
-//				static ztVec3 pos[3] = { ztVec3(-.5f, -.5f, 0), ztVec3(.5f, -.5f, 0), ztVec3(0, .5f, 0) };
-				static ztVec3 pos[3] = { ztVec3(.0f, .5f, 0), ztVec3(.5f, -.5f, 0), ztVec3(-.5f, -.5f, 0) };
+				static ztVec3 pos[3] = { ztVec3(.0f, .5f, 0), ztVec3(-.5f, -.5f, 0), ztVec3(.5f, -.5f, 0) };
 				static ztVec2 uvs[3] = { ztVec2(0, 0), ztVec2(1, 1), ztVec2(.5f, 0) };
 				static ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
 				zt_drawListAddFilledTriangle(&g_game->draw_list, pos, uvs, nml);
+			}
+
+			{
+				static ztVec3 pos[4] = { ztVec3(-2, 1, -2), ztVec3(-2, -1, -2), ztVec3(0, -1, -1), ztVec3(0, 1, -1) };
+				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
+				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
 			}
 			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
 		}
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, .15f, .15f, .5f), 0);
+
+
+		// display frame time
+		{
+			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
+			zt_strMakePrintf(fps, 128, "%.4f us/f\n(%.0f fps)", dt * 1000.f, 1.f / dt);
+
+			ztVec2 pos = zt_cameraOrthoGetMaxExtent(&g_game->gui_camera);
+			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, fps, pos, ztAlign_Right, ztAnchor_Right|ztAnchor_Top);
+			zt_drawListPopShader(&g_game->draw_list);
+		}
+
+		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
 	}
 
 	// test changing renderers
@@ -223,20 +244,6 @@ bool game_loop(r32 dt)
 		}
 	}
 
-	// calculate frame time
-	{
-		static r32 dt_accum = 0;
-		static int frame = 0;
-
-		dt_accum += dt;
-		frame += 1;
-		if (dt_accum > 1) {
-			// show frame time in microseconds.  to hit 60 fps, each frame must take less than 16,666 microseconds (or 16.666 ms)
-			zt_logDebug("average frame rate: %.6f us/f (%.2f fps)", (dt_accum / frame) * 1000.f, 1.f / (dt_accum / frame));
-			dt_accum = 0;
-			frame = 0;
-		}
-	}
 
 	zt_assetManagerCheckForChanges(&g_game->asset_mgr);
 	return !input[ztInputKeys_Escape].justPressed();
