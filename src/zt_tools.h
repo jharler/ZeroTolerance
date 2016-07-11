@@ -1821,6 +1821,39 @@ void zt_memFreeArena(ztMemoryArena *arena)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_memValidateArena(ztMemoryArena *arena)
+{
+#if _DEBUG
+	{
+		int freed = 0;
+		auto *alloc = arena->latest;
+		while (alloc) {
+			if (alloc->freed) {
+				freed += 1;
+			}
+			alloc = alloc->next;
+		}
+
+		zt_assert(freed == arena->freed_allocs);
+	}
+	{
+		int active = 0;
+		auto *alloc = arena->latest;
+		while (alloc) {
+			if (alloc->freed == 0) {
+				active += 1;
+			}
+			alloc = alloc->next;
+		}
+
+		zt_assert(active == arena->alloc_cnt - arena->free_cnt);
+	}
+	
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
 	if (arena == nullptr) {
@@ -1831,27 +1864,29 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		bytes += 4 - (bytes % 4);	// align the memory to 4 byte chunks
 	}
 
+	zt_memValidateArena(arena);
+
 	if (arena->freed_allocs > 0) { // use pre-allocated memory if it exists before going to the end of the buffer
 		auto *alloc = arena->latest;
 		while (alloc) {
 			if (alloc->freed == 1 && bytes <= alloc->length) {
 				i32 remaining = alloc->length - (zt_sizeof(ztMemoryArena::allocation) + bytes);
 				if (remaining > zt_sizeof(ztMemoryArena::allocation)) {
-					ztMemoryArena::allocation *allocation = (ztMemoryArena::allocation *)((byte *)alloc->start + bytes);
-					allocation->magic[0] = 'M';
-					allocation->magic[1] = 'R';
-					allocation->magic[2] = 'E';
+					ztMemoryArena::allocation *allocation = alloc;
 					allocation->length = remaining - zt_sizeof(ztMemoryArena::allocation);
-					allocation->start = (byte *)allocation + zt_sizeof(ztMemoryArena::allocation);
-					allocation->freed = 1;
-					allocation->alloc_idx = alloc->alloc_idx;
-					allocation->arena = arena;
-					allocation->next = alloc->next;
 					zt_debugOnly(allocation->file = nullptr);
 					zt_debugOnly(allocation->file_line = 0);
 
-					alloc->next = allocation;
+					alloc = (ztMemoryArena::allocation *)((byte *)allocation->start + allocation->length);
+					alloc->magic[0] = 'M';
+					alloc->magic[1] = 'R';
+					alloc->magic[2] = 'E';
+					alloc->arena = arena;
+					alloc->start = (byte *)alloc + zt_sizeof(ztMemoryArena::allocation);
 					alloc->length = bytes;
+
+					alloc->next = allocation->next;
+					allocation->next = alloc;
 				}
 				else {
 					arena->freed_allocs -= 1; // only change this count when we are using the entire previous allocation
@@ -1870,6 +1905,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 				alloc->freed = 0;
 
 				zt_logMemory("memory (%llx): allocated (reuse) %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, alloc->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)alloc, arena->alloc_cnt);
+				zt_memValidateArena(arena);
 				return (void*)alloc->start;
 			}
 			alloc = alloc->next;
@@ -1910,6 +1946,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 #endif
 
 	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next, arena->alloc_cnt);
+	zt_memValidateArena(arena);
 	return (void*)allocation->start;
 }
 
@@ -2016,6 +2053,8 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 		}
 		allocation = allocation->next;
 	}
+
+	zt_memValidateArena(arena);
 }
 
 // ------------------------------------------------------------------------------------------------
