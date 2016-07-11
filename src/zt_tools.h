@@ -1069,7 +1069,7 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 // ------------------------------------------------------------------------------------------------
 // time
 
-r32 zt_getTime(); // seconds since app started
+r64 zt_getTime(); // seconds since app started
 void zt_sleep(r32 seconds);
 
 
@@ -5073,7 +5073,7 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-r32 zt_getTime()
+r64 zt_getTime()
 {
 	struct local_init
 	{
@@ -5094,7 +5094,7 @@ r32 zt_getTime()
 	LARGE_INTEGER current;
 	QueryPerformanceCounter(&current);
 
-	return ((r32)(((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count));
+	return (((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count);
 }
 
 // ------------------------------------------------------------------------------------------------
