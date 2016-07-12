@@ -494,6 +494,7 @@ void zt_assetManagerFree(ztAssetManager *asset_mgr);
 
 bool zt_assetExists(ztAssetManager *asset_mgr, const char *asset);
 bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash);
+bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash);
 i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id);
@@ -767,6 +768,7 @@ enum ztRenderDrawListFlags_Enum
 {
 	ztRenderDrawListFlags_NoClear = (1<<0),
 	ztRenderDrawListFlags_Wireframe = (1<<1),
+	ztRenderDrawListFlags_NoDepthTest = (1<<2),
 };
 
 void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags);
@@ -1006,6 +1008,44 @@ bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash)
 	}
 
 	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash)
+{
+	zt_returnValOnNull(asset_mgr, false);
+	zt_returnValOnNull(file_name, false);
+
+	if (asset_mgr->source == ztAssetManagerSource_Directory) {
+		const char *asset_name = nullptr;
+
+		if (!zt_strStartsWith(file_name, asset_mgr->directory)) {
+			asset_name = file_name;
+		}
+		else {
+			asset_name = zt_strMoveForward(file_name, zt_strLen(asset_mgr->directory + 1));
+		}
+
+		if (!asset_name) {
+			return false;
+		}
+
+		i32 hash = zt_strHash(asset_name);
+		zt_fiz(asset_mgr->asset_count) {
+			if (asset_mgr->asset_name_hash[i] == hash) {
+				if (asset_hash) {
+					*asset_hash = hash;
+				}
+				return true;
+			}
+		}
+
+		return false;
+	}
+	else {
+		return false;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1506,7 +1546,9 @@ struct ztWindowDetails
 	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_ccw);
 	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_cw);
 	zt_directxSupport(ID3D11DepthStencilView* dx_depth_stencil_view);
-	zt_directxSupport(ID3D11Texture2D* dx_depth_stencil_buffer);
+	zt_directxSupport(ID3D11Texture2D *dx_depth_stencil_buffer);
+	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_enabled);
+	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_disabled);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2550,8 +2592,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			}
 		};
 
-		zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
-		zt_glCallAndReportOnErrorFast(glDepthFunc(GL_LESS));
+		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+			zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+			zt_glCallAndReportOnErrorFast(glDepthFunc(GL_LESS));
+		}
+		else {
+			zt_glCallAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
+		}
+		
 		zt_glCallAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
 
 		zt_fiz(draw_lists_count) {
@@ -2764,6 +2812,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 			}
 		};
+
+		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled, 1);
+		}
+		else {
+			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_disabled, 1);
+		}
 
 		zt_fiz(draw_lists_count) {
 			ztDrawList *draw_list = draw_lists[i];
@@ -4272,7 +4327,7 @@ const char *zt_fontGetCharsetStandard(i32 *size)
 {
 	zt_returnValOnNull(size, nullptr);
 
-	char *charset = " !\"#$%&'()*+'-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+	char *charset = " !\"#$%&'()*+'-.,/0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 	*size = zt_strLen(charset);
 	return charset;
 }
@@ -4339,6 +4394,252 @@ ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, 
 
 ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id)
 {
+	void *data = nullptr;
+	i32 size = 0;
+
+	ztAssetManagerType_Enum verify[] = { ztAssetManagerType_Font };
+	if (!_zt_assetLoadData(asset_mgr, asset_id, verify, zt_elementsOf(verify), &data, &size)) {
+		return ztInvalidID;
+	}
+	ztFontID font_id = ztInvalidID;
+	const char *error = nullptr;
+
+	ztToken lines_tok[2048];
+	int lines = zt_strTokenize((char*)data, "\r\n", lines_tok, zt_elementsOf(lines_tok), 0);
+	if (lines < 4) {
+		error = "bitmap font file has an invalid header";
+		goto on_error;
+	}
+	if (lines > zt_elementsOf(lines_tok)) {
+		error = "font glyph count exceeds maximum supported";
+		goto on_error;
+	}
+
+	font_id = zt->fonts_count++;
+	ztFont *font = &zt->fonts[font_id];
+
+	zt_memSet(font, zt_sizeof(ztFont), 0);
+
+	font->arena = asset_mgr->arena;
+	font->texture = texture_override_asset_id;
+
+
+	struct local
+	{
+		static int32 getIntAfterEquals(char* str, int len)
+		{
+			int idx = 0;
+			while (str[idx]) {
+				if (str[idx] != '=') {
+					idx++;
+				}
+				else {
+					idx++;
+					int str_len = len - idx;
+					char buffer[128] = { 0 };
+					zt_strCpy(buffer, zt_elementsOf(buffer), &str[idx], str_len);
+
+					i32 result = zt_strToInt(buffer, 0);
+					return result;
+				}
+			}
+			return 0;
+		}
+	};
+
+	char line_buff[1024];
+
+	int chars = 0;
+	int chars_line = 0;
+	int base = 0;
+
+	zt_fiz(lines) {
+		if (lines_tok[i].len >= zt_elementsOf(line_buff)) {
+			continue;
+		}
+
+		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
+		line_buff[lines_tok[i].len] = 0;
+
+		if (zt_strStartsWith(line_buff, "info face")) {
+		}
+
+		if (zt_strStartsWith(line_buff, "char id")) {
+			if (chars_line == 0) {
+				chars_line = i;
+				break;
+			}
+		}
+		else {
+			ztToken toks[32];
+			int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes | ztStrTokenizeFlags_KeepQuotes);
+			if (toks_cnt > zt_elementsOf(toks)) {
+				continue;
+			}
+
+			zt_fjz(toks_cnt) {
+				char* start = line_buff + toks[j].beg;
+				if (zt_strStartsWith(start, "face=")) {
+					int find_beg = 5;
+					int find_end = -1;
+					if (start[find_beg] == '\"') {
+						find_beg += 1;
+						find_end = zt_strFindPos(start, "\"", find_beg);
+					}
+					else {
+						find_end = zt_strFindPos(start, " ", find_beg);
+					}
+
+					if (find_end != ztStrPosNotFound) {
+						zt_strCpy(font->name, zt_elementsOf(font->name), start + find_beg, find_end - find_beg);
+					}
+				}
+				else if (zt_strStartsWith(start, "size=")) {
+					font->size_pixels = local::getIntAfterEquals(start, toks[j].len);
+				}
+				else if (zt_strStartsWith(start, "lineHeight=")) {
+					font->line_height = local::getIntAfterEquals(start, toks[j].len) / (r32)zt->win_game_settings[0].pixels_per_unit;
+				}
+				else if (zt_strStartsWith(start, "base=")) {
+					base = local::getIntAfterEquals(start, toks[j].len);
+				}
+				else if (zt_strStartsWith(start, "count=") && zt_strStartsWith(line_buff, "chars count")) {
+					chars = local::getIntAfterEquals(start, toks[j].len);
+				}
+				else if (zt_strStartsWith(start, "pages=")) {
+					int pages = local::getIntAfterEquals(start, toks[j].len);
+					if (pages != 1) {
+						error = "bitmap fonts with more than one page are not supported";
+						goto on_error;
+					}
+				}
+				else if (zt_strStartsWith(start, "file=")) {
+					if (font->texture == ztInvalidID) {
+						char tex_file[ztFileMaxPath];
+						if (zt_strStartsWith(start, "file=\"")) {
+							zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 6, toks[j].len - 7);
+						}
+						else {
+							zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 5, toks[j].len - 5);
+						}
+
+						char bmp_dir[ztFileMaxPath] = "";
+						int pos_sep = zt_strFindLastPos(asset_mgr->asset_name[asset_id], "/");
+						if (pos_sep != ztStrPosNotFound) {
+							zt_strCpy(bmp_dir, zt_elementsOf(bmp_dir), asset_mgr->asset_name[asset_id], pos_sep);
+						}
+						
+						char tex_file_full[ztFileMaxPath];
+						zt_strPrintf(tex_file_full, zt_elementsOf(tex_file_full), "%s/%s", bmp_dir, tex_file);
+						i32 tex_asset_hash = 0;
+						if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
+							font->texture = zt_rendererMakeTexture(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), ztTextureFlags_DontFlip);
+						}
+						else if(zt_fileExists(tex_file_full)) {
+							// TODO(josh): should this support loading non-asset files?
+							zt_assert(false);
+						}
+						else {
+							zt_assert(false);
+						}
+
+						if (font->texture == ztInvalidID) {
+							error = "unable to load bitmap font texture";
+							goto on_error;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	font->glyph_count = chars;
+	font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
+	font->glyphs = zt_mallocStructArrayArena(ztFont::ztGlyph, chars, font->arena);
+
+	r32 tex_w = (r32)zt->textures[font->texture].width;
+	r32 tex_h = (r32)zt->textures[font->texture].height;
+
+	int glyph_idx = 0;
+	i32 x_adv_ttl = 0;
+	r32 base_offset = base == 0 ? 0 : base / (r32)zt->win_game_settings[0].pixels_per_unit;
+
+	for (int i = chars_line; i < lines; ++i) {
+		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
+		line_buff[lines_tok[i].len] = 0;
+
+		if (!zt_strStartsWith(line_buff, "char id")) {
+			continue;
+		}
+
+		ztToken toks[32];
+		int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes);
+		if (toks_cnt > zt_elementsOf(toks)) {
+			continue;
+		}
+
+		if (glyph_idx >= chars)
+			break;
+
+		int* codepoint = &font->glyph_code_point[glyph_idx];
+		ztFont::ztGlyph *glyph = &font->glyphs[glyph_idx];
+		glyph_idx += 1;
+		*codepoint = -1;
+
+		zt_fjz(toks_cnt) {
+			char* start = line_buff + toks[j].beg;
+			int val = local::getIntAfterEquals(start, toks[j].len);
+
+			if (zt_strStartsWith(start, "id=")) {
+				*codepoint = val;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "x=")) {
+				glyph->tex_uv.x = val / tex_w;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "y=")) {
+				glyph->tex_uv.y = val / tex_h;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "width=")) {
+				glyph->tex_uv.z = val / tex_w;
+				glyph->size.x = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "height=")) {
+				glyph->tex_uv.w = val / tex_h;
+				glyph->size.y = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "xoffset=")) {
+				glyph->offset.x = (val / 1.f) / zt->win_game_settings[0].pixels_per_unit;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "yoffset=")) {
+				glyph->offset.y = ((val / 1.f) / zt->win_game_settings[0].pixels_per_unit) - base_offset;
+			}
+			else if (*codepoint != -1 && zt_strStartsWith(start, "xadvance=")) {
+				glyph->x_adv = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+				x_adv_ttl += val;
+			}
+		}
+
+		if (*codepoint != -1) {
+			glyph->tex_uv.z += glyph->tex_uv.x;
+			glyph->tex_uv.w += glyph->tex_uv.y;
+		}
+	}
+
+	font->line_spacing = ((r32)font->size_pixels * .1f) / zt->win_game_settings[0].pixels_per_unit;
+	font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt->win_game_settings[0].pixels_per_unit;
+
+	zt_free(data);
+	return font_id;
+
+on_error:
+	if (error) {
+		zt_logCritical("Unable to load bitmap font from asset '%s' (error: %s)", asset_mgr->asset_name[asset_id], error);
+	}
+	if (font_id != ztInvalidID) {
+		zt_fontFree(font_id);
+	}
+
+	zt_free(data);
 	return ztInvalidID;
 }
 
@@ -5151,6 +5452,29 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 	zt_logInfo("DirectX: Setting context back buffer");
 	win_details->dx_context->OMSetRenderTargets(1, &win_details->dx_backbuffer, win_details->dx_depth_stencil_view);
 
+	D3D11_DEPTH_STENCIL_DESC dssdesc;
+	dssdesc.DepthEnable = true;
+	dssdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dssdesc.DepthFunc = D3D11_COMPARISON_LESS;
+	dssdesc.StencilEnable = true;
+	dssdesc.StencilReadMask = 0xFF;
+	dssdesc.StencilWriteMask = 0xFF;
+	dssdesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	dssdesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	dssdesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dssdesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	dssdesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	dssdesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+	dssdesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dssdesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilState(&dssdesc, &win_details->dx_stencil_state_enabled), false);
+
+	dssdesc.DepthEnable = true;
+	dssdesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	//dssdesc.StencilEnable = false;
+	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilState(&dssdesc, &win_details->dx_stencil_state_disabled), false);
+
 	if (!_zt_dxSetViewport(win_details, game_settings, false)) {
 		return false;
 	}
@@ -5222,6 +5546,8 @@ ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 		win_details->dx_tri_verts_buffer->Release();
 		win_details->dx_depth_stencil_view->Release();
 		win_details->dx_depth_stencil_buffer->Release();
+		win_details->dx_stencil_state_enabled->Release();
+		win_details->dx_stencil_state_disabled->Release();
 
 		win_details->dx_swapchain = nullptr;
 		win_details->dx_backbuffer = nullptr;
@@ -5233,6 +5559,8 @@ ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 		win_details->dx_tri_verts_buffer = nullptr;
 		win_details->dx_depth_stencil_view = nullptr;
 		win_details->dx_depth_stencil_buffer = nullptr;
+		win_details->dx_stencil_state_enabled = nullptr;
+		win_details->dx_stencil_state_disabled = nullptr;
 	}
 	return true;
 #else

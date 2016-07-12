@@ -16,7 +16,7 @@
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DIAGNOSE
-//#define ZT_DIRECTX_DEBUGGING
+#define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
 #define ZT_GAME_LOCAL_ONLY
@@ -50,6 +50,7 @@ struct ztGame
 	ztFontID font_id;
 	ztFontID font_id_uni;
 	ztFontID font_id_uni2;
+	ztFontID font_id_bmp;
 
 	ztDrawList draw_list;
 };
@@ -133,7 +134,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->font_id_uni = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\DengXian.ttf", 60, "ゼロ容認 零容忍");
 	g_game->font_id_uni2 = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\arialbd.ttf", 60, "عدم التسامح");
-
+	g_game->font_id_bmp = zt_fontMakeFromBmpFontAsset(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "fonts/bmp_font.fnt"));
 	return true;
 }
 
@@ -158,6 +159,7 @@ void game_screenChange(ztGameSettings *game_settings)
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
+	zt_fontFree(g_game->font_id_bmp);
 	zt_fontFree(g_game->font_id_uni2);
 	zt_fontFree(g_game->font_id_uni);
 	zt_fontFree(g_game->font_id);
@@ -220,7 +222,11 @@ bool game_loop(r32 dt)
 		// display frame time
 		{
 			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-			zt_strMakePrintf(fps, 128, "%.4f us/f\n(%.0f fps)", dt * 1000.f, 1.f / dt);
+			zt_strMakePrintf(fps, 128, "%.4f us/f \n(%.0f fps) \ncamera: %.2f, %.2f, %.2f \n%.2f, %.2f, %.2f \n%.2f, %.2f, %.2f \nmouse: %d, %d ", dt * 1000.f, 1.f / dt, 
+				g_game->camera.position.x, g_game->camera.position.y, g_game->camera.position.z,
+				g_game->camera.rotation.x, g_game->camera.rotation.y, g_game->camera.rotation.z,
+				g_game->camera.direction.x, g_game->camera.direction.y, g_game->camera.direction.z,
+				mouse->screen_x, mouse->screen_y);
 
 			ztVec2 pos = zt_cameraOrthoGetMaxExtent(&g_game->gui_camera);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, fps, pos, ztAlign_Right, ztAnchor_Right|ztAnchor_Top);
@@ -228,10 +234,12 @@ bool game_loop(r32 dt)
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, "This is a test string.", ztVec2(-pos.x, pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Top);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni, "ゼロ容認 零容忍", ztVec2(-pos.x, -pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Bottom);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni2, "عدم التسامح", ztVec2(pos.x, -pos.y), ztAlign_Right, ztAnchor_Right | ztAnchor_Bottom);
+			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, pos.y), ztAlign_Center, ztAnchor_Top);
+			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, -pos.y), ztAlign_Center, ztAnchor_Bottom);
 			zt_drawListPopShader(&g_game->draw_list);
 		}
 
-		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
+		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 	}
 
 	// test changing renderers
