@@ -53,6 +53,10 @@ struct ztGame
 	ztFontID font_id_bmp;
 
 	ztDrawList draw_list;
+
+	ztGuiManagerID gui_manager;
+	ztTextureID gui_tex;
+	bool button_live_value;
 };
 
 
@@ -74,8 +78,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_OpenGL;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -135,6 +139,37 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->font_id_uni = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\DengXian.ttf", 60, "ゼロ容認 零容忍");
 	g_game->font_id_uni2 = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\arialbd.ttf", 60, "عدم التسامح");
 	g_game->font_id_bmp = zt_fontMakeFromBmpFontAsset(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "fonts/bmp_font.fnt"));
+
+	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
+
+
+	g_game->gui_tex = zt_rendererMakeTexture(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/gui.png"));
+	if (g_game->gui_tex == ztInvalidID) {
+		return false;
+	}
+
+	zt_fiz(2){
+		ztGuiItemID window = zt_guiMakeWindow("Test Window");
+		zt_guiItemSetSize(window, ztVec2(10, 7));
+		zt_guiItemSetPosition(window, ztVec2(5.f + i, 0.f + i));
+
+		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
+		ztGuiItemID text_id = zt_guiMakeText(window, text);
+		zt_guiItemSetPosition(text_id, ztVec2(-2, 2));
+
+		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
+		zt_guiItemSetPosition(button_id, ztVec2(-2, -2));
+
+		struct local
+		{
+			static void on_pressed(ztGuiItemID item_id)
+			{
+				zt_logDebug("button pressed: %d", item_id);
+			}
+		};
+		zt_guiButtonSetCallback(button_id, local::on_pressed);
+		
+	}
 	return true;
 }
 
@@ -143,7 +178,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 void game_screenChange(ztGameSettings *game_settings)
 {
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
-
+	
 	zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
 	zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f);
 
@@ -152,13 +187,14 @@ void game_screenChange(ztGameSettings *game_settings)
 	zt_cameraRecalcMatrices(&g_game->camera);
 
 	g_game->gui_camera.position = ztVec3(0, 0, 0);
-	g_game->gui_camera.rotation = ztVec3(270, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->gui_camera);
 }
 
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
+	zt_guiManagerFree(g_game->gui_manager);
+
 	zt_fontFree(g_game->font_id_bmp);
 	zt_fontFree(g_game->font_id_uni2);
 	zt_fontFree(g_game->font_id_uni);
@@ -180,6 +216,9 @@ bool game_loop(r32 dt)
 	ztInputKeys *input = zt_inputKeysAccessState();
 	ztInputMouse *mouse = zt_inputMouseAccessState();
 
+	ztInputKeys_Enum input_keystrokes[16];
+	zt_inputGetKeyStrokes(input_keystrokes);
+
 	if (input[ztInputKeys_Space].justPressed()) {
 		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
 		if (zt_inputMouseIsLook()) {
@@ -191,6 +230,16 @@ bool game_loop(r32 dt)
 	}
 	else if (zt_inputMouseIsLook()) {
 		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
+	}
+	else {
+		if (!zt_guiManagerHandleInput(g_game->gui_manager, dt, input, input_keystrokes, mouse)) {
+		}
+	}
+
+	static bool button_value = false;
+	if (button_value != g_game->button_live_value) {
+		button_value = g_game->button_live_value;
+		zt_logDebug("button_live_value changed");
 	}
 
 	{
@@ -236,8 +285,16 @@ bool game_loop(r32 dt)
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni2, "عدم التسامح", ztVec2(pos.x, -pos.y), ztAlign_Right, ztAnchor_Right | ztAnchor_Bottom);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, pos.y), ztAlign_Center, ztAnchor_Top);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, -pos.y), ztAlign_Center, ztAnchor_Bottom);
+
+
 			zt_drawListPopShader(&g_game->draw_list);
 		}
+
+		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
+
+		zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
+		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list);
+		zt_drawListPopShader(&g_game->draw_list);
 
 		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 	}
