@@ -219,6 +219,22 @@ typedef int32	b32;
 // ------------------------------------------------------------------------------------------------
 // math
 
+struct ztPoint2
+{
+	union {
+		struct {
+			i32 x;
+			i32 y;
+		};
+		i32 values[2];
+	};
+
+	ztPoint2() {}
+	ztPoint2(i32 _x, i32 _y) :x(_x), y(_y) {}
+};
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztVec2
 {
 	union {
@@ -237,9 +253,9 @@ struct ztVec2
 	ztVec2() {}
 	ztVec2(r32 _x, r32 _y) :x(_x), y(_y) {}
 
-	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; }
-	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; }
-	ztVec2& operator*=(r32 v) { x *= v; y *= v; }
+	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; return *this;}
+	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; return *this;}
+	ztVec2& operator*=(r32 v) { x *= v; y *= v; return *this; }
 
 	bool operator==(const ztVec2& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y); }
 	bool operator!=(const ztVec2& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y); }
@@ -305,12 +321,12 @@ struct ztVec3
 
 	ztVec3() {}
 	ztVec3(r32 _x, r32 _y, r32 _z) :x(_x), y(_y), z(_z) {}
-	ztVec3(const ztVec2& vec2, r32 _z = 0) : x(vec2.x), y(vec2.y), z(_z) {}
+	ztVec3(const ztVec2& vec2, r32 _z) : x(vec2.x), y(vec2.y), z(_z) {}
 
-	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; }
-	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; }
-	ztVec3& operator*=(r32 v) { x *= v; y *= v; z *= v; }
-	ztVec3& operator*=(const ztVec3& v) { x *= v.x; y *= v.y; z *= v.z; }
+	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; return *this; }
+	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
+	ztVec3& operator*=(r32 v) { x *= v; y *= v; z *= v; return *this; }
+	ztVec3& operator*=(const ztVec3& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
 
 	bool operator==(const ztVec3& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z); }
 	bool operator!=(const ztVec3& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y) || !zt_real32Eq(z, v.z); }
@@ -367,7 +383,7 @@ struct ztVec4
 
 		struct {
 			ztVec2 xy;
-			r32 zw;
+			ztVec2 zw;
 		};
 
 		struct {
@@ -388,10 +404,10 @@ struct ztVec4
 	ztVec4(const ztVec2& vec2a, const ztVec2& vec2b) : x(vec2a.x), y(vec2a.y), z(vec2b.x), w(vec2b.y) {}
 	ztVec4(const ztVec3& vec3, r32 _w) : x(vec3.x), y(vec3.y), z(vec3.z), w(_w) {}
 
-	ztVec4& operator+=(const ztVec4& v) { x += v.x; y += v.y; z += v.z; w += v.w; }
-	ztVec4& operator-=(const ztVec4& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; }
-	ztVec4& operator*=(r32 v) { x *= v; y *= v; z *= v; w *= v; }
-	ztVec4& operator*=(const ztVec4& v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; }
+	ztVec4& operator+=(const ztVec4& v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this;}
+	ztVec4& operator-=(const ztVec4& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this;}
+	ztVec4& operator*=(r32 v) { x *= v; y *= v; z *= v; w *= v; return *this; }
+	ztVec4& operator*=(const ztVec4& v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
 
 	bool operator==(const ztVec4& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z) && zt_real32Eq(w, v.w); }
 	bool operator!=(const ztVec4& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y) || !zt_real32Eq(z, v.z) || !zt_real32Eq(w, v.w); }
@@ -775,6 +791,21 @@ int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes);
 int zt_strNumberToString(char *buffer, int buffer_size, i64 number);
 
 int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size);
+
+// ------------------------------------------------------------------------------------------------
+
+// ztString is used to represent a string where the length of the string is inserted in memory right before the character pointer.
+// ztStrings can be passed into all string functions, using zt_stringSize() to get the length of the string
+
+typedef char* ztString;
+
+ztString zt_stringMake(int size, ztMemoryArena *arena = nullptr);
+ztString zt_stringResize(ztString string, int size, ztMemoryArena *arena = nullptr);
+ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena = nullptr);
+ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena = nullptr);
+void zt_stringFree(ztString string, ztMemoryArena *arena = nullptr);
+int zt_stringSize(ztString string);
+
 
 // ------------------------------------------------------------------------------------------------
 // file operations
@@ -1825,6 +1856,18 @@ void zt_memValidateArena(ztMemoryArena *arena)
 {
 #if _DEBUG
 	{
+		// the list of allocations need to be in ascending memory location order, test for that
+		auto *prev = arena->latest;
+		if (prev) {
+			auto *alloc = prev->next;
+			while (alloc) {
+				zt_assert(alloc < prev);
+				prev = alloc;
+				alloc = alloc->next;
+			}
+		}
+	}
+	{
 		int freed = 0;
 		auto *alloc = arena->latest;
 		while (alloc) {
@@ -1867,26 +1910,39 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	zt_memValidateArena(arena);
 
 	if (arena->freed_allocs > 0) { // use pre-allocated memory if it exists before going to the end of the buffer
-		auto *alloc = arena->latest;
+		ztMemoryArena::allocation *alloc = arena->latest;
+		ztMemoryArena::allocation *prev = nullptr;
 		while (alloc) {
 			if (alloc->freed == 1 && bytes <= alloc->length) {
 				i32 remaining = alloc->length - (zt_sizeof(ztMemoryArena::allocation) + bytes);
 				if (remaining > zt_sizeof(ztMemoryArena::allocation)) {
-					ztMemoryArena::allocation *allocation = alloc;
-					allocation->length = remaining - zt_sizeof(ztMemoryArena::allocation);
-					zt_debugOnly(allocation->file = nullptr);
-					zt_debugOnly(allocation->file_line = 0);
+					ztMemoryArena::allocation *original = alloc;
+					original->length = remaining - zt_sizeof(ztMemoryArena::allocation);
+					zt_debugOnly(original->file = nullptr);
+					zt_debugOnly(original->file_line = 0);
 
-					alloc = (ztMemoryArena::allocation *)((byte *)allocation->start + allocation->length);
-					alloc->magic[0] = 'M';
-					alloc->magic[1] = 'R';
-					alloc->magic[2] = 'E';
-					alloc->arena = arena;
-					alloc->start = (byte *)alloc + zt_sizeof(ztMemoryArena::allocation);
-					alloc->length = bytes;
+					ztMemoryArena::allocation *inserted = (ztMemoryArena::allocation *)((byte *)original->start + original->length);
+					inserted->magic[0] = 'M';
+					inserted->magic[1] = 'R';
+					inserted->magic[2] = 'E';
+					inserted->arena = arena;
+					inserted->start = (byte *)inserted + zt_sizeof(ztMemoryArena::allocation);
+					inserted->length = bytes;
 
-					alloc->next = allocation->next;
-					allocation->next = alloc;
+					zt_debugOnly(inserted->file = nullptr);
+					zt_debugOnly(inserted->file_line = 0);
+
+					inserted->next = original;
+					//allocation->next = alloc;
+
+					if (prev) {
+						prev->next = inserted;
+					}
+					else if (arena->latest == original) {
+						arena->latest = inserted;
+					}
+
+					alloc = inserted;
 				}
 				else {
 					arena->freed_allocs -= 1; // only change this count when we are using the entire previous allocation
@@ -1908,6 +1964,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 				zt_memValidateArena(arena);
 				return (void*)alloc->start;
 			}
+			prev = alloc;
 			alloc = alloc->next;
 		}
 	}
@@ -2038,19 +2095,27 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 
 	// consolidate any sequential allocations that might exist
 	allocation = arena->latest;
+	ztMemoryArena::allocation *prev = nullptr;
 	while (allocation) {
 		if (allocation->freed == 1) {
 			auto* next = allocation->next;
 			while (next) {
 				if (next->freed == 1) {
-					allocation->length += next->length + zt_sizeof(ztMemoryArena::allocation);
-					allocation->next = next->next;
+					next->length += allocation->length + zt_sizeof(ztMemoryArena::allocation);
+					if (prev) {
+						prev->next = next;
+					}
+					else if (arena->latest == allocation) {
+						arena->latest = next;
+					}
+					allocation = next;
 					arena->freed_allocs -= 1;
 				}
 				else break;
 				next = next->next;
 			}
 		}
+		prev = allocation;
 		allocation = allocation->next;
 	}
 
@@ -3673,6 +3738,88 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 #else
 #error zt_strConvertToUTF16 needs an implementation for this platform.
 #endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMake(int size, ztMemoryArena *arena)
+{
+	if (size < 60) {
+		size = 60;
+	}
+
+	size += zt_sizeof(i32);
+
+	void *data = zt_memAlloc(arena, size);
+	*((i32*)data) = size - zt_sizeof(i32);
+
+	return (char*)data + zt_sizeof(i32);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
+{
+	int size = zt_strSize(str);
+	if (size == 0) {
+		return nullptr;
+	}
+
+	ztString result = zt_stringMake(size, arena);
+	zt_strCpy(result, size, str);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena)
+{
+	int size = zt_strSize(str);
+	if (size == 0) {
+		return nullptr;
+	}
+
+	ztString result = zt_stringResize(string, size, arena);
+	zt_strCpy(result, size, str);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
+{
+	if (string == nullptr) {
+		return zt_stringMake(nsize, arena);
+	}
+
+	i32 size = *((i32*)(string - zt_sizeof(i32)));
+	if (size >= nsize) {
+		return string;
+	}
+
+	zt_stringFree(string);
+	return zt_stringMake(nsize, arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_stringFree(ztString string, ztMemoryArena *arena)
+{
+	if (string) {
+		void *data = (string - zt_sizeof(i32));
+		zt_freeArena(data, arena);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_stringSize(ztString string)
+{
+	if (string == nullptr) {
+		return 0;
+	}
+
+	return *((i32*)(string - zt_sizeof(i32)));
 }
 
 // ------------------------------------------------------------------------------------------------
