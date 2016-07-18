@@ -160,6 +160,14 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
 		zt_guiItemSetPosition(button_id, ztVec2(-2, -2));
 
+		ztGuiItemID tbutton_id = zt_guiMakeToggleButton(window, "Toggle Button", 0);
+		zt_guiItemSetPosition(tbutton_id, ztVec2(1, -2));
+
+		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", 0), ztVec2(0, 0));
+		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(0, .55f));
+		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", 0), ztVec2(2, 0));
+		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(2, .55f));
+
 		struct local
 		{
 			static void on_pressed(ztGuiItemID item_id)
@@ -168,8 +176,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 			}
 		};
 		zt_guiButtonSetCallback(button_id, local::on_pressed);
-		
+		zt_guiButtonSetCallback(tbutton_id, local::on_pressed);
+
 	}
+
 	return true;
 }
 
