@@ -57,6 +57,7 @@ struct ztGame
 	ztGuiManagerID gui_manager;
 	ztTextureID gui_tex;
 	bool button_live_value;
+	r32 slider_live_value;
 };
 
 
@@ -78,8 +79,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
-	//settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_OpenGL;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -167,6 +168,11 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(0, .55f));
 		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", 0), ztVec2(2, 0));
 		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(2, .55f));
+
+		g_game->slider_live_value = 0;
+		ztGuiItemID slider_id = zt_guiMakeSlider(window, ztGuiItemOrient_Horz, &g_game->slider_live_value);
+		zt_guiItemSetPosition(slider_id, ztVec2(0, -.55f));
+		zt_guiItemSetSize(slider_id, ztVec2(10, -1));
 
 		struct local
 		{

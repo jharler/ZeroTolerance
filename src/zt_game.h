@@ -911,6 +911,11 @@ struct ztGuiTheme
 	ztGuiThemeSprite sprite_radio_highlight;
 	ztGuiThemeSprite sprite_radio_pressed;
 	ztGuiThemeSprite sprite_radio_check;
+	ztGuiThemeSprite sprite_slider_handle;
+	ztGuiThemeSprite sprite_slider_handle_highlight;
+	ztGuiThemeSprite sprite_slider_handle_pressed;
+	ztGuiThemeSprite sprite_slider_background;
+
 	ztGuiThemeSprite sprite_menu;
 	ztGuiThemeSprite sprite_group;
 	ztGuiThemeSprite sprite_slider;
@@ -925,11 +930,15 @@ struct ztGuiTheme
 
 	r32 button_default_w;
 	r32 button_default_h;
-	r32 button_padding_x;
-	r32 button_padding_y;
+	r32 button_padding_w;
+	r32 button_padding_h;
 	
-	r32 checkbox_size_x;
-	r32 checkbox_size_y;
+	r32 checkbox_size_w;
+	r32 checkbox_size_h;
+
+	r32 slider_handle_w;
+	r32 slider_handle_h;
+	r32 slider_background_h;
 
 	r32 padding; // space around interior items
 	r32 spacing; // space between interior items
@@ -1072,7 +1081,7 @@ ztGuiItemID zt_guiMakeButton(ztGuiItemID parent, const char *label, i32 flags = 
 ztGuiItemID zt_guiMakeToggleButton(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
 ztGuiItemID zt_guiMakeCheckbox(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
 ztGuiItemID zt_guiMakeRadioButton(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
-ztGuiItemID zt_guiMakeSlider(ztGuiItemID parent, i32 min, i32 max, i32 flags = 0, i32 *live_value = nullptr);
+ztGuiItemID zt_guiMakeSlider(ztGuiItemID parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
 ztGuiItemID zt_guiMakeMenu(ztGuiItemID parent);
 ztGuiItemID zt_guiMakeScrollbar(ztGuiItemID parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
 ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent);
@@ -6449,6 +6458,15 @@ struct ztGuiItem
 			i32 flags;
 			zt_guiButtonPressed_Func *on_pressed;
 		} button;
+
+		struct {
+			r32 *live_value;
+			r32 value;
+			ztGuiItemOrient_Enum orient;
+			r32 drag_pos[2];
+			ztDragState drag_state;
+			bool highlight;
+		} slider;
 	};
 };
 
@@ -6630,8 +6648,8 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 
 		gm->default_theme.button_default_w = 96 / ppu;
 		gm->default_theme.button_default_h = 32 / ppu;
-		gm->default_theme.button_padding_x = 8 / ppu;
-		gm->default_theme.button_padding_y = 6 / ppu;
+		gm->default_theme.button_padding_w = 8 / ppu;
+		gm->default_theme.button_padding_h = 6 / ppu;
 
 		gm->default_theme.padding = 6.f / ppu;
 		gm->default_theme.spacing = 6.f / ppu;
@@ -6663,6 +6681,9 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 		gm->default_theme.sprite_checkbox_check.type = ztGuiThemeSpriteType_Sprite;
 		gm->default_theme.sprite_checkbox_check.s = zt_spriteMake(tex, ztPoint2(465,85), ztPoint2(16, 16));
 
+		gm->default_theme.checkbox_size_w = 16 / ppu;
+		gm->default_theme.checkbox_size_h = 16 / ppu;
+
 		gm->default_theme.sprite_radio.type = ztGuiThemeSpriteType_Sprite;
 		gm->default_theme.sprite_radio.s = zt_spriteMake(tex, ztPoint2(477, 28), ztPoint2(18,17));
 		gm->default_theme.sprite_radio_highlight.type = ztGuiThemeSpriteType_Sprite;
@@ -6672,8 +6693,13 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 		gm->default_theme.sprite_radio_check.type = ztGuiThemeSpriteType_Sprite;
 		gm->default_theme.sprite_radio_check.s = zt_spriteMake(tex, ztPoint2(438, 84), ztPoint2(17,17));
 
-		gm->default_theme.checkbox_size_x = 16 / ppu;
-		gm->default_theme.checkbox_size_y = 16 / ppu;
+		gm->default_theme.sprite_slider_handle = gm->default_theme.sprite_button;
+		gm->default_theme.sprite_slider_handle_highlight = gm->default_theme.sprite_button_highlight;
+		gm->default_theme.sprite_slider_handle_pressed = gm->default_theme.sprite_button_pressed;
+		gm->default_theme.sprite_slider_background = gm->default_theme.sprite_checkbox_pressed;
+		gm->default_theme.slider_handle_w = 14 / ppu;
+		gm->default_theme.slider_handle_h = 26 / ppu;
+		gm->default_theme.slider_background_h = 10 / ppu;
 #endif
 	}
 
@@ -7071,7 +7097,7 @@ void zt_guiSetActiveManager(ztGuiManagerID gui_manager)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiManager *gm, ztGuiItem *item, ztInputMouse *input_mouse)
+ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiManager *gm, ztVec2* pos, ztInputMouse *input_mouse)
 {
 	if(drag_state->dragging) {
 		if(input_mouse->leftJustReleased()) {
@@ -7079,7 +7105,7 @@ ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiMana
 		}
 		else {
 			ztVec2 drag_pos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
-			item->pos = drag_pos - ztVec2(drag_state->offset_x, drag_state->offset_y);
+			*pos = drag_pos - ztVec2(drag_state->offset_x, drag_state->offset_y);
 		}
 		return true;
 	}
@@ -7087,8 +7113,8 @@ ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiMana
 		if(input_mouse->leftJustPressed()) {
 			drag_state->dragging = true;
 			ztVec2 drag_start = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
-			drag_state->offset_x = drag_start.x - item->pos.x;
-			drag_state->offset_y = drag_start.y - item->pos.y;
+			drag_state->offset_x = drag_start.x - pos->x;
+			drag_state->offset_y = drag_start.y - pos->y;
 			return true;
 		}
 	}
@@ -7167,7 +7193,7 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
 		{
 			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
-			return _zt_guiProcessDrag(&item->window.drag_state, gm, item, input_mouse);
+			return _zt_guiProcessDrag(&item->window.drag_state, gm, &item->pos, input_mouse);
 		}
 	};
 
@@ -7304,7 +7330,7 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 			bool radio    = zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio);
 
 			if(checkbox || radio) {
-				ztVec2 box_size = ztVec2(theme->checkbox_size_x, theme->checkbox_size_y);
+				ztVec2 box_size = ztVec2(theme->checkbox_size_w, theme->checkbox_size_h);
 				ztVec2 box_pos, txt_size, txt_pos;
 
 				if(item->label) {
@@ -7376,8 +7402,8 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 
 			if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsCheckbox) || zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio)) {
 				ztVec2 txt_size = zt_fontGetExtents(theme->font, item->label);
-				size->x = txt_size.x + theme->spacing + theme->checkbox_size_x + theme->padding * 2;
-				size->y = zt_max(txt_size.y, theme->checkbox_size_y) + theme->padding * 2;
+				size->x = txt_size.x + theme->spacing + theme->checkbox_size_w + theme->padding * 2;
+				size->y = zt_max(txt_size.y, theme->checkbox_size_h) + theme->padding * 2;
 				*min_size = *size;
 			}
 			else {
@@ -7405,8 +7431,8 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 	if(label) {
 		if(theme) {
 			ztVec2 text = zt_fontGetExtents(theme->font, label);
-			text.x = zt_max(theme->button_default_w, text.x + theme->button_padding_x * 2);
-			text.y = zt_max(theme->button_default_h, text.y + theme->button_padding_y * 2);
+			text.x = zt_max(theme->button_default_w, text.x + theme->button_padding_w * 2);
+			text.y = zt_max(theme->button_default_h, text.y + theme->button_padding_h * 2);
 			item->size = text;
 		}
 	}
@@ -7565,12 +7591,170 @@ void zt_guiRadioSetValue(ztGuiItemID radio, bool value)
 
 // ------------------------------------------------------------------------------------------------
 
+ztGuiItemID zt_guiMakeSlider(ztGuiItemID parent, ztGuiItemOrient_Enum orient, r32 *live_value)
+{
+	struct local
+	{
+		static r32 getHandlePos(ztGuiItem *item, ztGuiTheme *theme)
+		{
+			r32 size_item = item->slider.orient == ztGuiItemOrient_Horz ?  item->size.x : item->size.y;
+			r32 size_value = size_item - theme->slider_handle_w;
+			return (size_item / -2.f) + (size_value * item->slider.value) + theme->slider_handle_w / 2.f;
+		}
+
+		static void processDragReturn(ztGuiManager *gm, ztGuiItem *item, ztGuiTheme *theme, ztInputMouse *input_mouse)
+		{
+			ztVec2 mouse_pos = zt_guiItemPositionScreenToLocal(item->id, zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y));
+			if(item->slider.orient == ztGuiItemOrient_Horz) {
+				r32 pos_x = (mouse_pos.x - item->slider.drag_state.offset_x) + ((item->size.x - theme->slider_handle_w) / 2);
+				item->slider.value = zt_clamp(pos_x / (item->size.x - theme->slider_handle_w), 0, 1);
+			}
+			else {
+				r32 pos_y = (mouse_pos.y) + (item->size.y / 2);
+				item->slider.value = zt_clamp(pos_y / (item->size.y - theme->slider_handle_w), 0, 1);
+			}
+			if (item->slider.live_value) {
+				*item->slider.live_value = item->slider.value;
+			}
+		}
+
+		static ZT_FUNC_GUI_ITEM_UPDATE(update)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+
+			if (!item->slider.drag_state.dragging) {
+				item->slider.value = *item->slider.live_value;
+			}
+		}
+
+		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
+		{
+			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
+			if(!item->slider.drag_state.dragging) {
+				ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+				ztVec2 mouse_pos = zt_guiItemPositionScreenToLocal(item->id, zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y));
+				if(item->slider.orient == ztGuiItemOrient_Horz) {
+					ztVec2 handle_pos = ztVec2(getHandlePos(item, theme), 0);
+					if(mouse_pos.x >= handle_pos.x - theme->slider_handle_w / 2.f && mouse_pos.x <= handle_pos.x + theme->slider_handle_w / 2.f) {
+						item->slider.drag_pos[0] = zt_guiItemPositionLocalToScreen(item_id, handle_pos).x;
+						item->slider.drag_pos[1] = 0;
+						item->slider.highlight = true;
+						if(_zt_guiProcessDrag(&item->slider.drag_state, gm, (ztVec2*)item->slider.drag_pos, input_mouse)) {
+							processDragReturn(gm, item, theme, input_mouse);
+							return true;
+						}
+						return false;
+					}
+				}
+				else {
+					ztVec2 handle_pos = ztVec2(0, getHandlePos(item, theme));
+					if(mouse_pos.y >= handle_pos.y - theme->slider_handle_w / 2.f && mouse_pos.y <= handle_pos.y + theme->slider_handle_w / 2.f) {
+						item->slider.drag_pos[0] = 0;
+						item->slider.drag_pos[1] = zt_guiItemPositionLocalToScreen(item_id, handle_pos).y;
+						item->slider.highlight = true;
+						if(_zt_guiProcessDrag(&item->slider.drag_state, gm, (ztVec2*)item->slider.drag_pos, input_mouse)) {
+							processDragReturn(gm, item, theme, input_mouse);
+							return true;
+						}
+						return false;
+					}
+				}
+			}
+			else if(_zt_guiProcessDrag(&item->slider.drag_state, gm, (ztVec2*)item->slider.drag_pos, input_mouse)) {
+				ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+				processDragReturn(gm, item, theme, input_mouse);
+				return true;
+			}
+			item->slider.highlight = false;
+			return false;
+		}
+
+		static ZT_FUNC_GUI_ITEM_RENDER(render)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+			ztVec2 pos = offset + item->pos;
+			ztVec2 handle_pos, handle_size;
+
+			if(item->slider.orient == ztGuiItemOrient_Horz) {
+				handle_pos = pos + ztVec2(getHandlePos(item, theme), 0);
+				handle_size = ztVec2(theme->slider_handle_w, theme->slider_handle_h);
+				zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_slider_background, pos, ztVec2(item->size.x, theme->slider_background_h));
+			}
+			else {
+				handle_pos = pos + ztVec2(0, getHandlePos(item, theme));
+				handle_size = ztVec2(theme->slider_handle_h, theme->slider_handle_w);
+				zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_slider_background, pos, ztVec2(theme->slider_background_h, item->size.y));
+			}
+
+			if (item->slider.highlight && zt_bitIsSet(gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver)) {
+				if(item->slider.drag_state.dragging) {
+					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_slider_handle_pressed, handle_pos, handle_size);
+				}
+				else {
+					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_slider_handle_highlight, handle_pos, handle_size);
+				}
+			}
+			else {
+				zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_slider_handle, handle_pos, handle_size);
+			}
+		}
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			if(item->slider.orient == ztGuiItemOrient_Horz) {
+				min_size->x = theme->slider_handle_w * 2 + theme->padding * 2;
+				min_size->y = zt_max(theme->slider_handle_h, theme->slider_background_h);
+			}
+			else {
+				min_size->y = theme->slider_handle_w * 2 + theme->padding * 2;
+				min_size->x = zt_max(theme->slider_handle_h, theme->slider_background_h);
+			}
+			*size = *min_size;
+		}
+	};
+
+
+	_zt_guiManagerGetFromItem(gm, parent);
+	zt_returnValOnNull(gm, ztInvalidID);
+
+	ztGuiItemID item_id = ztInvalidID;
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_Slider , ztGuiItemFlags_WantsInput | ztGuiItemFlags_WantsFocus, &item_id);
+	if (!item) return ztInvalidID;
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+
+	item->slider.live_value = live_value;
+	if (item->slider.live_value) {
+		item->functions.update = local::update;
+	}
+
+	item->slider.value = live_value ? zt_clamp(*live_value, 0, 1) : 0;
+	item->slider.orient = orient;
+
+	item->functions.input_mouse = local::inputMouse;
+	item->functions.render = local::render;
+	item->functions.best_size = local::best_size;
+	item->functions.user_data = gm;
+
+	ztVec2 min_size;
+	local::best_size(item->id, &min_size, nullptr, &item->size, theme, gm);
+
+	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiItemSetSize(ztGuiItemID item_id, const ztVec2& size)
 {
 	_zt_guiItemFromID(item, item_id);
 	zt_returnOnNull(item);
 
-	item->size = size;
+	if(size.x != -1) item->size.x = size.x;
+	if(size.y != -1) item->size.y = size.y;
 }
 
 // ------------------------------------------------------------------------------------------------
