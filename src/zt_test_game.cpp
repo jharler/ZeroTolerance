@@ -121,7 +121,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	if (!zt_drawListMake(&g_game->draw_list, 1024)) {
+	if (!zt_drawListMake(&g_game->draw_list, 2048)) {
 		zt_logCritical("Unable to initialize draw list");
 		return false;
 	}
@@ -152,11 +152,13 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	zt_fiz(2){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
-		zt_guiItemSetPosition(window, ztVec2(5.f + i, 0.f + i));
+		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
 
 		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
 		ztGuiItemID text_id = zt_guiMakeText(window, text);
 		zt_guiItemSetPosition(text_id, ztVec2(-2, 2));
+
+		zt_guiItemSetPosition(zt_guiMakeText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.5f));
 
 		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
 		zt_guiItemSetPosition(button_id, ztVec2(-2, -2));
@@ -170,9 +172,13 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(2, .55f));
 
 		g_game->slider_live_value = 0;
-		ztGuiItemID slider_id = zt_guiMakeSlider(window, ztGuiItemOrient_Horz, &g_game->slider_live_value);
-		zt_guiItemSetPosition(slider_id, ztVec2(0, -.55f));
-		zt_guiItemSetSize(slider_id, ztVec2(10, -1));
+		ztGuiItemID slider_id = zt_guiMakeSlider(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
+		zt_guiItemSetPosition(slider_id, i == 0 ? ztVec2(0, -.55f) : ztVec2(4.75f, 0));
+		zt_guiItemSetSize(slider_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
+
+		ztGuiItemID scrollbar_id = zt_guiMakeScrollbar(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
+		zt_guiItemSetPosition(scrollbar_id, i == 0 ? ztVec2(0, -1.05f) : ztVec2(4.0f, 0));
+		zt_guiItemSetSize(scrollbar_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
 
 		struct local
 		{
