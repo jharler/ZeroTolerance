@@ -195,6 +195,7 @@ struct ztGameSettings
 	i32 renderer_target_version_minor;
 	i32 renderer_flags;
 	ztRendererScreenChangeBehavior_Enum renderer_screen_change_behavior;
+	i32 renderer_memory;
 	i32 pixels_per_unit;
 };
 
@@ -215,6 +216,13 @@ struct ztGameDetails
 
 	int argc;
 	char** argv;
+
+	i32 current_frame;
+
+	i32 shader_switches;
+	i32 texture_switches;
+	i32 triangles_drawn;
+	i32 draw_calls;
 };
 
 
@@ -2153,6 +2161,11 @@ struct ztGameGlobals
 	i32 win_count = 0;
 	ztRendererRequest renderer_requests[ztMaxRendererRequests];
 	i32 renderer_requests_count = 0;
+	byte *renderer_memory;
+	i32 renderer_memory_size;
+
+	ztGameDetails game_details;
+	i32 last_drawn_frame = 0;
 
 	// ----------------------
 
@@ -2190,6 +2203,7 @@ struct ztGameGlobals
 	ztGuiManagerID gui_manager_active;
 
 	// ----------------------
+
 };
 
 ztGameGlobals *zt = nullptr;
@@ -2991,9 +3005,14 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 #define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 32)
 
 // ------------------------------------------------------------------------------------------------
-
+#
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags)
 {
+	if (zt->last_drawn_frame != zt->game_details.current_frame) {
+		zt->game_details.shader_switches = zt->game_details.texture_switches = zt->game_details.triangles_drawn = zt->game_details.draw_calls = 0;
+		zt->last_drawn_frame = zt->game_details.current_frame;
+	}
+
 	zt_returnOnNull(camera);
 	zt_returnOnNull(draw_lists);
 
@@ -3005,6 +3024,497 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		zt_rendererClear(clear);
 	}
 
+	byte *mem = zt->renderer_memory;
+	i32 mem_left = zt->renderer_memory_size;
+
+	struct ztCompileItem
+	{
+		ztDrawCommand *command;
+		ztCompileItem *next;
+	};
+
+	struct ztCompileColor
+	{
+		ztVec4 color;
+		ztCompileItem *item;
+		ztCompileItem *last_item;
+		ztCompileColor *next;
+	};
+
+	struct ztCompileTexture
+	{
+		ztDrawCommand *command;
+		ztCompileColor *color;
+		ztCompileTexture *next;
+	};
+
+	struct ztCompileShader
+	{
+		ztShaderID shader;
+		ztVec4 color;
+		ztCompileTexture *texture;
+	};
+
+	ztCompileShader *shaders[128];
+	i32 shaders_count = 0;
+
+	struct local
+	{
+		static bool texturesMatch(ztDrawCommand *cmd1, ztDrawCommand *cmd2)
+		{
+			if (cmd1 == nullptr ) {
+				return cmd2->texture_count == 0;
+			}
+			if (cmd1->texture_count != cmd2->texture_count) {
+				return false;
+			}
+			zt_fiz(cmd1->texture_count) {
+				if (cmd1->texture[i] != cmd2->texture[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 *mem_left, ztCompileShader **shader)
+		{
+#			define _zt_castMem(type) (type*)mem; mem += zt_sizeof(type); *mem_left -= zt_sizeof(type); zt_assert(*mem_left >= 0);
+
+			ztCompileShader *cmp_shader = _zt_castMem(ztCompileShader);
+			cmp_shader->shader = shader_id;
+			cmp_shader->texture = nullptr;
+
+			ztCompileTexture *cmp_texture = nullptr;
+			ztCompileColor *cmp_color = nullptr;
+
+			if (shader_id == ztInvalidID) {
+				cmp_texture = _zt_castMem(ztCompileTexture);
+				cmp_texture->command = nullptr;
+				cmp_texture->next = nullptr;
+				cmp_shader->texture = cmp_texture;
+
+				cmp_texture->color = _zt_castMem(ztCompileColor);
+				cmp_texture->color->color = ztVec4::one;
+				cmp_texture->color->next = nullptr;
+				cmp_texture->color->item = nullptr;
+				cmp_texture->color->last_item = nullptr;
+				cmp_shader->color = ztVec4::one;
+
+				// all lines and points go here
+				zt_fiz(draw_lists_count) {
+					ztDrawList *draw_list = draw_lists[i];
+					zt_assert(draw_list != nullptr);
+
+					// extract colors first
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeColor) {
+							ztCompileColor *cmp_color = nullptr;
+							zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+							if (!cmp_color) {
+								cmp_color = _zt_castMem(ztCompileColor);
+								cmp_color->color = command->color;
+								cmp_color->item = nullptr;
+								cmp_color->last_item = nullptr;
+								zt_singleLinkAddToEnd(cmp_texture->color, cmp_color);
+							}
+						}
+					}
+
+					// extract points next
+					cmp_color = cmp_texture->color;
+
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeColor) {
+							zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+							zt_assert(cmp_color != nullptr);
+						}
+						else if (command->type == ztDrawCommandType_Point) {
+							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
+							cmp_item->command = command;
+							zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+						}
+					}
+
+					// extract lines next
+					cmp_color = cmp_texture->color;
+
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeColor) {
+							zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+							zt_assert(cmp_color != nullptr);
+						}
+						else if (command->type == ztDrawCommandType_Line) {
+							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
+							cmp_item->command = command;
+							zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+						}
+					}
+				}
+			}
+			else {
+				cmp_texture = _zt_castMem(ztCompileTexture);
+				cmp_texture->command = nullptr;
+				cmp_texture->color = nullptr;
+				cmp_texture->next = nullptr;
+				cmp_shader->texture = cmp_texture;
+
+				zt_fiz(draw_lists_count) {
+					ztDrawList *draw_list = draw_lists[i];
+					zt_assert(draw_list != nullptr);
+
+					bool ignore_shader = true;
+
+					// extract all textures
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+						if (command->type == ztDrawCommandType_ChangeShader) {
+							ignore_shader = command->shader != shader_id;
+						}
+						if (!ignore_shader) {
+							if (command->type == ztDrawCommandType_ChangeTexture) {
+								zt_linkFind(cmp_shader->texture, cmp_texture, texturesMatch(cmp_texture->command, command));
+								if (cmp_texture == nullptr) {
+									cmp_texture = _zt_castMem(ztCompileTexture);
+									cmp_texture->command = command;
+
+									cmp_texture->color = cmp_color = _zt_castMem(ztCompileColor);
+									cmp_color->color = ztVec4::one;
+									cmp_color->item = nullptr;
+									cmp_color->last_item = nullptr;
+									cmp_color->next = nullptr;
+
+									cmp_texture->next = nullptr;
+									zt_singleLinkAddToEnd(cmp_shader->texture, cmp_texture);
+								}
+							}
+						}
+					}
+
+					// extract colors
+					ignore_shader = true;
+					cmp_texture = cmp_shader->texture;
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeShader) {
+							ignore_shader = command->shader != shader_id;
+						}
+						if (!ignore_shader) {
+							if (command->type == ztDrawCommandType_ChangeTexture) {
+								zt_linkFind(cmp_shader->texture, cmp_texture, texturesMatch(cmp_texture->command, command));
+								zt_assert(cmp_texture != nullptr);
+							}
+							if (command->type == ztDrawCommandType_ChangeColor) {
+								zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+								if (!cmp_color) {
+									cmp_color = _zt_castMem(ztCompileColor);
+									cmp_color->color = command->color;
+									cmp_color->last_item = nullptr;
+									cmp_color->item = nullptr;
+									zt_singleLinkAddToEnd(cmp_texture->color, cmp_color);
+								}
+							}
+						}
+					}
+
+					// extract triangles
+					cmp_texture = cmp_shader->texture;
+					cmp_color = cmp_texture->color;
+
+					ztCompileItem *cmp_item_last = nullptr;
+
+					ignore_shader = true;
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeShader) {
+							ignore_shader = command->shader != shader_id;
+						}
+						if (!ignore_shader) {
+							if (command->type == ztDrawCommandType_ChangeTexture) {
+								zt_linkFind(cmp_shader->texture, cmp_texture, texturesMatch(cmp_texture->command, command));
+								zt_assert(cmp_texture != nullptr);
+								cmp_color = cmp_texture->color;
+								cmp_item_last = cmp_color ? cmp_color->last_item : nullptr;
+							}
+							if (command->type == ztDrawCommandType_ChangeColor) {
+								zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+								zt_assert(cmp_color != nullptr);
+								cmp_item_last = cmp_color->last_item;
+							}
+
+							if (command->type == ztDrawCommandType_Triangle) {
+								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
+								cmp_item->command = command;
+								if (cmp_item_last == nullptr) {
+									cmp_color->last_item = cmp_item_last = cmp_item;
+									zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+								}
+								else {
+									cmp_item_last->next = cmp_item;
+									cmp_item_last = cmp_item;
+									cmp_item_last->next = nullptr;
+									cmp_color->last_item = cmp_item_last;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			*shader = cmp_shader;
+
+#			undef _zt_castMem
+
+			return mem;
+		}
+
+		static bool processedShader(ztShaderID shader_id, ztCompileShader **shaders, i32 shaders_count)
+		{
+			zt_fiz(shaders_count) {
+				if (shaders[i]->shader == shader_id) {
+					return true;
+				}
+			}
+			return false;
+		}
+	};
+
+	zt_fiz(draw_lists_count) {
+		ztDrawList *draw_list = draw_lists[i];
+		zt_assert(draw_list != nullptr);
+
+		zt_fjz(draw_list->commands_count) {
+			ztDrawCommand *command = &draw_list->commands[j];
+
+			switch (command->type)
+			{
+			case ztDrawCommandType_ChangeShader: {
+				if (!local::processedShader(command->shader, shaders, shaders_count)) {
+					zt_assert(shaders_count < zt_elementsOf(shaders));
+					mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, &mem_left, &shaders[shaders_count++]);
+				}
+			} break;
+			}
+		}
+	}
+
+	// process non-shader commands last
+	local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, &mem_left, &shaders[shaders_count++]);
+	
+	zt_fiz(draw_lists_count) {
+		ztDrawList *draw_list = draw_lists[i];
+		if (!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
+			draw_list->commands_count = 0;
+		}
+	}
+
+	struct ztVertex
+	{
+		ztVec3 pos;
+		ztVec2 uv;
+		ztVec3 norm;
+	};
+
+	struct ztBuffer
+	{
+		ztVertex vertices[ztRenderDrawListVertexArraySize];
+		i32 vertices_count;
+	};
+
+	zt_assert(sizeof(ztBuffer) == ztRenderDrawListVertexByteSize + 4);
+
+	static ztBuffer buffer;
+	buffer.vertices_count = 0;
+
+	zt_assert(sizeof(ztVertex) == 32);
+
+	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
+#if defined(ZT_OPENGL)
+		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+			zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+			zt_glCallAndReportOnErrorFast(glDepthFunc(GL_LESS));
+		}
+		else {
+			zt_glCallAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
+		}
+
+		zt_glCallAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+
+		ztMat4 mat2d;
+
+		zt_fiz(shaders_count) {
+			ztShaderID shader_id = shaders[i]->shader;
+			if (shaders[i]->shader != ztInvalidID) {
+				zt->game_details.shader_switches += 1;
+				zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
+
+				GLuint model_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "model");
+				GLuint proj_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "projection");
+				GLuint view_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "view");
+				GLuint color_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "color");
+
+				if (model_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, ztMat4::identity.values));
+				if (proj_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(proj_loc, 1, GL_FALSE, camera->mat_proj.values));
+				if (view_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(view_loc, 1, GL_FALSE, camera->mat_view.values));
+				if (color_loc != -1) zt_glCallAndReportOnErrorFast(glUniform4fv(color_loc, 1, shaders[i]->color.values));
+			}
+			else {
+				glColor4fv(ztVec4::one.values);
+
+				mat2d = camera->mat_proj * camera->mat_view;
+				//mat2d.inverse();
+			}
+
+			ztCompileTexture *cmp_tex = shaders[i]->texture;
+			while (cmp_tex) {
+
+				if (cmp_tex->command) {
+					zt->game_details.texture_switches += 1;
+					zt_fiz(cmp_tex->command->texture_count) {
+						zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
+						zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[cmp_tex->command->texture[i]].gl_texid));
+
+						GLuint tex_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "tex_diffuse");
+						zt_glCallAndReportOnErrorFast(glUniform1i(tex_loc, 0));
+					}
+				}
+
+				ztCompileColor *cmp_clr = cmp_tex->color;
+				while (cmp_clr) {
+
+					if (shader_id == ztInvalidID) {
+						glColor4fv(cmp_clr->color.values);
+					}
+
+					ztCompileItem *cmp_item = cmp_clr->item;
+
+					ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
+
+					struct OpenGL
+					{
+						static void processLastCommand(ztCamera *cam, ztMat4 *mat, ztCompileColor *cmp_clr, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
+						{
+							switch (last_command)
+							{
+								case ztDrawCommandType_Triangle: {
+									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ztVertex), (GLvoid*)buffer->vertices));
+									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(0));
+									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 3 * sizeof(GLfloat))));
+									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
+									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 5 * sizeof(GLfloat))));
+									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
+									zt_glCallAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, buffer->vertices_count));
+									zt->game_details.draw_calls += 1;
+
+								} break;
+
+								case ztDrawCommandType_Line:
+								case ztDrawCommandType_Point: {
+									zt->game_details.draw_calls += 1;
+									glEnd();
+									zt_glCallAndReportOnErrorFast(glPopMatrix());
+								} break;
+							}
+
+							switch (this_command)
+							{
+								case ztDrawCommandType_Triangle: {
+									buffer->vertices_count = 0;
+								} break;
+
+								case ztDrawCommandType_Line: {
+									if (cam->type == ztCameraType_Perspective) {
+										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+										zt_glCallAndReportOnErrorFast(glPushMatrix());
+										zt_dxCallAndReportOnErrorFast(glLoadMatrixf(mat->values));
+									}
+									else {
+										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
+										zt_glCallAndReportOnErrorFast(glPushMatrix());
+										zt_glCallAndReportOnErrorFast(glLoadIdentity());
+									}
+									zt_glCallAndReportOnErrorFast(glLineWidth(1));
+									glColor4fv(cmp_clr->color.values);
+									glBegin(GL_LINES);
+								} break;
+
+								case ztDrawCommandType_Point: {
+									if (cam->type == ztCameraType_Perspective) {
+										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+										zt_glCallAndReportOnErrorFast(glPushMatrix());
+										zt_dxCallAndReportOnErrorFast(glLoadMatrixf(mat->values));
+									}
+									else {
+										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
+										zt_glCallAndReportOnErrorFast(glPushMatrix());
+										zt_glCallAndReportOnErrorFast(glLoadIdentity());
+									}
+									glColor4fv(cmp_clr->color.values);
+									glBegin(GL_POINTS);
+								} break;
+							}
+						}
+					};
+
+					while (cmp_item) {
+
+						if (cmp_item->command->type != last_command) {
+							OpenGL::processLastCommand(camera, &mat2d, cmp_clr, cmp_item->command->type, last_command, &buffer);
+							last_command = cmp_item->command->type;
+						}
+
+						switch (cmp_item->command->type)
+						{
+							case ztDrawCommandType_Triangle: {
+								++zt->game_details.triangles_drawn;
+
+								zt_fkz(3) {
+									int idx = buffer.vertices_count++;
+									zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
+									zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
+									zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
+								}
+
+							} break;
+
+							case ztDrawCommandType_Line: {
+								glVertex3f(cmp_item->command->line[0].x, cmp_item->command->line[0].y, cmp_item->command->line[0].z);
+								glVertex3f(cmp_item->command->line[1].x, cmp_item->command->line[1].y, cmp_item->command->line[1].z);
+							} break;
+
+							case ztDrawCommandType_Point: {
+								glVertex3f(cmp_item->command->point.x, cmp_item->command->point.y, cmp_item->command->point.z);
+							} break;
+						};
+
+						cmp_item = cmp_item->next;
+					}
+					OpenGL::processLastCommand(nullptr, nullptr, nullptr, ztDrawCommandType_Invalid, last_command, &buffer);
+
+					cmp_clr = cmp_clr->next;
+				}
+
+				if (cmp_tex->command) {
+					glBindTexture(GL_TEXTURE_2D, 0);
+				}
+
+				cmp_tex = cmp_tex->next;
+			}
+
+			glUseProgram(0);
+		}
+	}
+#endif // ZT_OPENGL
+
+
+#if 0
 	ztShaderID active_shader = ztInvalidID;
 	ztColor active_color = ztColor::one;
 	i32 active_texture_idx = -1;
@@ -3028,6 +3538,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	buffer.vertices_count = 0;
 
 	zt_assert(sizeof(ztVertex) == 32);
+
 
 	ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
 
@@ -3402,7 +3913,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	else {
 		zt_assert(false && "Invalid renderer");
 	}
-
+#endif // 0
 	// need to support the following:
 
 	// points	(position, color)
@@ -4639,7 +5150,9 @@ void zt_rendererFreeTexture(ztTextureID texture_id)
 
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 {
-	r32 rem = zt_abs(*val * ppu) - zt_convertToi32Floor(zt_abs(*val * ppu));
+	r32 abval = zt_abs(*val *ppu);
+	r32 rem = abval - zt_convertToi32Floor(abval);
+//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
 	if (rem > .25f && rem < .75f) {
 		if (*val >= 0) {
 			*val = zt_convertToi32Floor((*val * ppu)) / ppu;
@@ -5412,10 +5925,9 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 	int current_row = 0;
 
 	zt_fiz(text_len) {
-		i32 codepoint;
-		text = zt_strCodepoint(text, &codepoint);
 		int glyph_idx = glyphs_idx[i];
 		if (glyph_idx < 0) {
+			i32 codepoint = zt_strCodepoint(text, i);
 			if (codepoint == '\n') {
 				if (current_row == row) {
 					*width = row_width;
@@ -5806,11 +6318,11 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 {
 	r32 ppu = zt_pixelsPerUnit();
 
-	ztVec2 upper_left  = ztVec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 upper_right = ztVec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 lower_left  = ztVec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 lower_right = ztVec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 center = ztVec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
+	ztVec2 upper_left (pos.x - size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 upper_right(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 lower_left (pos.x - size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 lower_right(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 center     (pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
 
 	ztVec3 scale_corners = ztVec3::one;
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
@@ -6032,7 +6544,7 @@ ztInternal bool _zt_glSetViewport(ztWindowDetails* win_details, ztGameSettings *
 			zt_glCallAndReturnValOnError(glClearColor( 0.0f, 0.0f, 0.0f, 0.0f ), false);
 			zt_glCallAndReturnValOnError(glMatrixMode(GL_PROJECTION), false);
 			zt_glCallAndReturnValOnError(glLoadIdentity(), false);
-			zt_glCallAndReturnValOnError(glOrtho(-realw, realw, -realh, realh, 0.0, 1.0), false);
+			zt_glCallAndReturnValOnError(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0), false);
 			zt_glCallAndReturnValOnError(glEnable(GL_TEXTURE_2D), false);
 			zt_glCallAndReturnValOnError(glEnable(GL_BLEND), false);
 			zt_glCallAndReturnValOnError(glEnable(GL_MULTISAMPLE), false);
@@ -8681,12 +9193,14 @@ int main(int argc, char** argv)
 		zt->input_mouse.cursor = ztInputMouseCursor_Arrow;
 	}
 
-	ztGameDetails game_details = {};
-	game_details.argc = argc;
-	game_details.argv = argv;
+	zt->game_details = {};
+	zt->game_details.argc = argc;
+	zt->game_details.argv = argv;
 
-	game_details.app_path = app_path;
-	game_details.user_path = user_path;
+	zt->game_details.app_path = app_path;
+	zt->game_details.user_path = user_path;
+
+	zt->game_details.current_frame = 0;
 
 	ztGameSettings *game_settings = &zt->win_game_settings[0];
 	zt->win_count += 1;
@@ -8699,12 +9213,19 @@ int main(int argc, char** argv)
 	game_settings->renderer = ztRenderer_OpenGL;
 	game_settings->renderer_flags = ztRendererFlags_Windowed | ztRendererFlags_LockAspect;
 	game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
+	game_settings->renderer_memory = zt_megabytes(16);
 
-	if (!_zt_callFuncSettings(&game_details, game_settings))
+	if (!_zt_callFuncSettings(&zt->game_details, game_settings))
 		return 1;
 
-	zt_logDebug("main: app path: %s", game_details.app_path);
-	zt_logDebug("main: user path: %s", game_details.user_path);
+	zt_logDebug("main: app path: %s", zt->game_details.app_path);
+	zt_logDebug("main: user path: %s", zt->game_details.user_path);
+
+	char app_memory_str[128];
+	zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
+	zt_logDebug("main: initializing %s of memory", app_memory_str);
+
+	zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
 
 	ztWindowDetails *win_details = &zt->win_details[0];
 	if (!_zt_winCreateWindow(game_settings, win_details))
@@ -8717,6 +9238,9 @@ int main(int argc, char** argv)
 		zt->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
 		zt->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
 	}
+
+	zt->renderer_memory_size = game_settings->renderer_memory;
+	zt->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt->renderer_memory_size);
 
 	if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
 		zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
@@ -8736,13 +9260,7 @@ int main(int argc, char** argv)
 	}
 
 
-	char app_memory_str[128];
-	zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
-	zt_logDebug("main: initializing %s of memory", app_memory_str);
-
-	zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
-
-	if (!_zt_callFuncInit(&game_details, game_settings))
+	if (!_zt_callFuncInit(&zt->game_details, game_settings))
 		return 1;
 
 	_zt_callFuncScreenChange(game_settings);
@@ -8757,6 +9275,8 @@ int main(int argc, char** argv)
 	}
 
 	do {
+		++zt->game_details.current_frame;
+
 		if (mouse_look != zt->input_mouse_look) {
 			mouse_look = zt->input_mouse_look;
 			if (mouse_look) {
@@ -8818,6 +9338,8 @@ int main(int argc, char** argv)
 	zt_fiz(zt->textures_count) {
 		//zt_rendererFreeTexture((ztTextureID)i);
 	}
+
+	zt_memFree(zt_memGetGlobalArena(), zt->renderer_memory);
 
 	_zt_winCleanupWindow(&zt->win_details[0], &zt->win_game_settings[0]);
 
