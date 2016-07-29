@@ -123,7 +123,7 @@
 // ------------------------------------------------------------------------------------------------
 // useful macros
 
-#define zt_assert(cond)	zt_assert_raw(cond, #cond, __FILE__, __LINE__)
+#define zt_assert(cond)	if(!(cond)) zt_assert_raw(#cond, __FILE__, __LINE__)
 #define zt_elementsOf(native_array)	((int)(sizeof(native_array) / sizeof((native_array)[0])))
 #define zt_sizeof(type) ((i32)sizeof(type))
 
@@ -578,7 +578,7 @@ r32 zt_pow(r32 v, r32 p);
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_assert_raw(bool condition, const char *condition_name, const char *file, int file_line);
+void zt_assert_raw(const char *condition_name, const char *file, int file_line);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1105,6 +1105,39 @@ r64 zt_getTime(); // seconds since app started
 void zt_sleep(r32 seconds);
 
 
+// ------------------------------------------------------------------------------------------------
+// linked lists
+
+#define zt_singleLinkAddToEnd(item_first_ptr, item_add_ptr) \
+	{ \
+		item_add_ptr->next = nullptr; \
+		auto *prev = item_first_ptr; \
+				while(prev && prev->next) { \
+			prev = prev->next; \
+						} \
+		if(prev) { \
+			prev->next = item_add_ptr; \
+				} \
+				else { \
+			item_first_ptr = item_add_ptr; \
+		} \
+	}
+
+#define zt_singleLinkAddToBegin(item_first_ptr, item_add_ptr) \
+	{ \
+		item_add_ptr->next = item_first_ptr; \
+		item_first_ptr = item_add_ptr; \
+	}
+
+
+#define zt_linkFind(item_first_ptr, item_find_ptr, condition) \
+	{ \
+		item_find_ptr = item_first_ptr; \
+		while(item_find_ptr) { \
+			if(condition) { break; } \
+			item_find_ptr = item_find_ptr->next; \
+		} \
+	}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1232,12 +1265,10 @@ ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInline void zt_assert_raw(bool condition, const char *condition_name, const char *file, int file_line)
+ztInline void zt_assert_raw(const char *condition_name, const char *file, int file_line)
 {
-	if (!condition) {
-		zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
-		zt_debugOnly(__asm { int 3 });
-	}
+	zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
+	zt_debugOnly(__asm { int 3 });
 }
 
 // ------------------------------------------------------------------------------------------------
