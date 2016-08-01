@@ -80,7 +80,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -191,6 +191,52 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiButtonSetCallback(tbutton_id, local::on_pressed);
 
 	}
+
+	{
+		zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png", game_details->user_path);
+		zt_strMakePrintf(gui_cpp, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png.cpp", game_details->user_path);
+		if (!zt_fileExists(gui_cpp) && zt_fileExists(gui_tex)) {
+			i32 size = 0;
+			byte *data = (byte*)zt_readEntireFile(gui_tex, &size);
+
+			ztFile file;
+			if (zt_fileOpen(&file, gui_cpp, ztFileOpenMethod_WriteOver)) {
+				char *func_header =
+					"byte *zt_loadGuiPng(i32 *size) {\n"
+					"	byte data[] = {\n\t\t";
+				char *func_footer =
+					"};\n"
+					"	*size = zt_sizeof(data);\n"
+					"	byte *result = zt_mallocStructArray(byte, *size);\n"
+					"	zt_memCpy(result, *size, data, *size);\n"
+					"	return result;\n"
+					"}";
+
+				zt_fileWrite(&file, func_header, zt_strSize(func_header) - 1);
+
+				char buff[32];
+				zt_fiz(size) {
+					if (i == 0) {
+						zt_strPrintf(buff, zt_sizeof(buff), "0x%02x", data[i]);
+					}
+					else if (i % 1000 == 0){
+						zt_strPrintf(buff, zt_sizeof(buff), ",\n\t\t0x%02x", data[i]);
+					}
+					else {
+						zt_strPrintf(buff, zt_sizeof(buff), ",0x%02x", data[i]);
+					}
+
+					zt_fileWrite(&file, buff, zt_strSize(buff) - 1);
+				}
+
+				zt_fileWrite(&file, func_footer, zt_strSize(func_footer) - 1);
+				zt_fileClose(&file);
+			}
+
+			zt_free(data);
+		}
+	}
+
 
 	return true;
 }

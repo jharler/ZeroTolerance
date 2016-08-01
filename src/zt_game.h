@@ -3369,7 +3369,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				glColor4fv(ztVec4::one.values);
 
 				mat2d = camera->mat_proj * camera->mat_view;
-				//mat2d.inverse();
 			}
 
 			ztCompileTexture *cmp_tex = shaders[i]->texture;
@@ -3510,8 +3509,284 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			glUseProgram(0);
 		}
-	}
 #endif // ZT_OPENGL
+	}
+	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
+#if defined(ZT_DIRECTX)
+		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled, 1);
+		}
+		else {
+			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_disabled, 1);
+		}
+
+		ztMat4 mat2d;
+
+		zt_fiz(shaders_count) {
+			ztShaderID shader_id = shaders[i]->shader;
+			if (shaders[i]->shader != ztInvalidID) {
+				zt->game_details.shader_switches += 1;
+				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
+				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+				//zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
+
+				ztMat4 dxMod = ztMat4::identity.getTranspose();
+				ztMat4 dxView = camera->mat_view.getTranspose();
+				ztMat4 dxProj = camera->mat_proj.getTranspose();
+
+				zt_shaderSetVariableMat4(shader_id, "model", dxMod);
+				zt_shaderSetVariableMat4(shader_id, "view", dxView);
+				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
+			}
+			else {
+				shader_id = zt_rendererGetDefaultShader(ztShaderDefault_Solid);
+
+				zt->game_details.shader_switches += 1;
+				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
+				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+				//zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
+
+				ztMat4 dxMod = ztMat4::identity.getTranspose();
+				ztMat4 dxView = camera->mat_view.getTranspose();
+				ztMat4 dxProj = camera->mat_proj.getTranspose();
+
+				zt_shaderSetVariableMat4(shader_id, "model", dxMod);
+				zt_shaderSetVariableMat4(shader_id, "view", dxView);
+				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
+
+				// set color
+
+				mat2d = camera->mat_proj * camera->mat_view;
+			}
+
+			ztCompileTexture *cmp_tex = shaders[i]->texture;
+			while (cmp_tex) {
+
+				if (cmp_tex->command) {
+					zt->game_details.texture_switches += 1;
+					zt_fiz(cmp_tex->command->texture_count) {
+						ztTextureID texture_id = cmp_tex->command->texture[i];
+						zt_assert(texture_id >= 0 && texture_id < zt->textures_count);
+
+						zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &zt->textures[texture_id].dx_shader_resource_view);
+						zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
+
+						float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+						zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
+					}
+				}
+
+				ztCompileColor *cmp_clr = cmp_tex->color;
+				while (cmp_clr) {
+
+					if (shader_id == ztInvalidID) {
+						// set color
+					}
+
+					ztCompileItem *cmp_item = cmp_clr->item;
+
+					ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
+
+					struct DirectX
+					{
+						static void applyShaderVars(ztShaderID active_shader)
+						{
+							if (active_shader != ztInvalidID) {
+								// populate cbuffer data
+								if (zt->shaders[active_shader].variable_count) {
+									zt_fiz(zt->shaders[active_shader].dx_cbuffers_count) {
+										i32 cbuffer_idx = i;
+										///D3D11_MAPPED_SUBRESOURCE ms;
+										//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
+
+										byte cbuffer_data[1024 * 4];
+										i32 cbuffer_pos = 0;
+										i32 last_offset = -1;
+										while (true) {
+											i32 lowest_idx = -1;
+											i32 lowest_val = 9999;
+											zt_fiz(zt->shaders[active_shader].variable_count) {
+												if (zt->shaders[active_shader].variables[i].dx_offset < lowest_val && zt->shaders[active_shader].variables[i].dx_offset > last_offset) {
+													lowest_idx = i;
+													lowest_val = zt->shaders[active_shader].variables[i].dx_offset;
+												}
+											}
+											if (lowest_idx == -1) {
+												break;
+											}
+
+											i32 size = 0;
+											switch (zt->shaders[active_shader].variables[lowest_idx].type)
+											{
+											case ztShaderVariable_Float: size = zt_sizeof(r32); break;
+											case ztShaderVariable_Int: size = zt_sizeof(i32); break;
+											case ztShaderVariable_Vec2: size = zt_sizeof(r32) * 2; break;
+											case ztShaderVariable_Vec3: size = zt_sizeof(r32) * 3; break;
+											case ztShaderVariable_Vec4: size = zt_sizeof(r32) * 4; break;
+											case ztShaderVariable_Mat3: size = zt_sizeof(r32) * 9; break;
+											case ztShaderVariable_Mat4: size = zt_sizeof(r32) * 16; break;
+											case ztShaderVariable_Tex: size = zt_sizeof(i32); break;
+											}
+
+											zt_memCpy(cbuffer_data + cbuffer_pos, size, &zt->shaders[active_shader].variables[lowest_idx].val_float, size);
+
+											last_offset = cbuffer_pos;
+											cbuffer_pos += size;
+										}
+										//ms.pData = cbuffer_data;
+
+										//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], NULL));
+										zt->win_details[0].dx_context->UpdateSubresource(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
+										zt->win_details[0].dx_context->VSSetConstantBuffers(0, 1, &zt->shaders[active_shader].dx_cbuffers[cbuffer_idx]);
+										zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
+										//zt->win_details[0].dx_context->PSSetConstantBuffers(0, 1, &zt->shaders[active_shader].dx_cbuffers[cbuffer_idx]);
+									}
+								}
+							}
+						}
+
+						static void processLastCommand(ztShaderID active_shader, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
+						{
+							switch (last_command)
+							{
+								case ztDrawCommandType_Triangle: {
+									applyShaderVars(active_shader);
+
+									// copy the vertices into the buffer
+									D3D11_MAPPED_SUBRESOURCE ms;
+									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
+									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
+									//memcpy(ms.pData, temp, buffer->vertices_count * sizeof(ztVec3));
+									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
+
+									UINT stride = sizeof(ztVertex), offset = 0;
+									zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
+									zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
+
+									// select which primtive type we are using
+									zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+									// draw the vertex buffer to the back buffer
+									zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
+									buffer->vertices_count = 0;
+
+									zt->game_details.draw_calls += 1;
+								} break;
+
+								case ztDrawCommandType_Line:
+								case ztDrawCommandType_Point: {
+									applyShaderVars(active_shader);
+
+									// copy the vertices into the buffer
+									D3D11_MAPPED_SUBRESOURCE ms;
+									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
+									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
+									//memcpy(ms.pData, temp, buffer->vertices_count * sizeof(ztVec3));
+									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
+
+									UINT stride = sizeof(ztVertex), offset = 0;
+									zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
+									zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
+
+									// select which primtive type we are using
+									zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);// D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+									// draw the vertex buffer to the back buffer
+									zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
+									buffer->vertices_count = 0;
+
+									zt->game_details.draw_calls += 1;
+								} break;
+							}
+
+							switch (this_command)
+							{
+								case ztDrawCommandType_Triangle: {
+									buffer->vertices_count = 0;
+									zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
+								} break;
+
+								case ztDrawCommandType_Line: {
+									buffer->vertices_count = 0;
+									zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
+								} break;
+
+								case ztDrawCommandType_Point: {
+								} break;
+							}
+						}
+					};
+
+					while (cmp_item) {
+
+						if (cmp_item->command->type != last_command) {
+							DirectX::processLastCommand(shader_id, cmp_item->command->type, last_command, &buffer);
+							last_command = cmp_item->command->type;
+						}
+
+						switch (cmp_item->command->type)
+						{
+						case ztDrawCommandType_Triangle: {
+							++zt->game_details.triangles_drawn;
+
+							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
+								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Triangle, &buffer);
+							}
+
+							zt_fkz(3) {
+								int idx = buffer.vertices_count++;
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
+								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
+								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
+							}
+
+						} break;
+
+						case ztDrawCommandType_Line: {
+							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
+								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Line, &buffer);
+							}
+
+							zt_fkz(2) {
+								int idx = buffer.vertices_count++;
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j];
+								zt_fjz(2) buffer.vertices[idx].uv.values[j] = k;
+								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1;
+
+								buffer.vertices[idx].pos = mat2d * buffer.vertices[idx].pos;
+							}
+						} break;
+
+						case ztDrawCommandType_Point: {
+							zt_fkz(2) {
+								int idx = buffer.vertices_count++;
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f);
+								zt_fjz(2) buffer.vertices[idx].uv.values[j] = k;
+								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1;
+
+								//buffer.vertices[idx].pos = mat2d * buffer.vertices[idx].pos;
+							}
+						} break;
+						};
+
+						cmp_item = cmp_item->next;
+					}
+					DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, last_command, &buffer);
+
+					cmp_clr = cmp_clr->next;
+				}
+
+				if (cmp_tex->command) {
+					// unbind texture?
+				}
+
+				cmp_tex = cmp_tex->next;
+			}
+
+			// unbind shader?
+		}
+#endif
+	}
 
 
 #if 0
