@@ -770,6 +770,9 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, co
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count, const ztVec2 uvs[4], const ztVec3 normals[4]);
 
+bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
+
+
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
 bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color);
@@ -2214,7 +2217,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
 };
 ztInternal const char *_zt_default_shaders[] = {
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		//gl_Position = vec4(position, 1);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	uniform vec4 color = vec4(1,1,1,1);\n\n	void main()\n	{\n		frag_color = color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n\n	float4 vertexShader(float3 inPos : POSITION) : SV_POSITION\n	{\n		return float4(inPos.x, inPos.y, inPos.z, 1);\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	float4 fragmentShader() : SV_TARGET\n	{\n		return float4(0.0f, 0.0f, 1.0f, 1.0f);\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		//gl_Position = vec4(position, 1);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	uniform vec4 color = vec4(1,1,1,1);\n\n	void main()\n	{\n		frag_color = color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = float4(1,0,0,1);\n		return color;\n	}\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2855,6 +2858,36 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count,
 		command->tri_norm[0] = normals[0];
 		command->tri_norm[1] = normals[1 + j];
 		command->tri_norm[2] = normals[2 + j];
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
+{
+	r32 max_x = center.x + width / 2.f;
+	r32 max_z = center.z + width / 2.f;
+
+	r32 x = center.x - width / 2.f;
+	r32 z = center.z - depth / 2.f;
+
+	while(z <= max_z) {
+		if(!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x + width, center.y, z))) {
+			return false;
+		}
+		z += grid_d;
+	}
+
+	x = center.x - width / 2.f;
+	z = center.z - depth / 2.f;
+
+	while(x <= max_x) {
+		if(!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x, center.y, z + depth))) {
+			return false;
+		}
+		x += grid_w;
 	}
 
 	return true;
@@ -3520,15 +3553,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_disabled, 1);
 		}
 
-		ztMat4 mat2d;
-
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
 			if (shaders[i]->shader != ztInvalidID) {
 				zt->game_details.shader_switches += 1;
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
 				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
-				//zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
 
 				ztMat4 dxMod = ztMat4::identity.getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
@@ -3544,9 +3574,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt->game_details.shader_switches += 1;
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
 				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
-				//zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
 
-				ztMat4 dxMod = ztMat4::identity.getTranspose();
+				ztMat4 dxMod = ztMat4::identity .getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
 
@@ -3555,8 +3584,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
 
 				// set color
-
-				mat2d = camera->mat_proj * camera->mat_view;
 			}
 
 			ztCompileTexture *cmp_tex = shaders[i]->texture;
@@ -3656,7 +3683,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									D3D11_MAPPED_SUBRESOURCE ms;
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
 									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-									//memcpy(ms.pData, temp, buffer->vertices_count * sizeof(ztVec3));
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
 
 									UINT stride = sizeof(ztVertex), offset = 0;
@@ -3681,7 +3707,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									D3D11_MAPPED_SUBRESOURCE ms;
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
 									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-									//memcpy(ms.pData, temp, buffer->vertices_count * sizeof(ztVec3));
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
 
 									UINT stride = sizeof(ztVertex), offset = 0;
@@ -3689,7 +3714,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
 
 									// select which primtive type we are using
-									zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);// D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+									zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 
 									// draw the vertex buffer to the back buffer
 									zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
@@ -3750,10 +3775,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							zt_fkz(2) {
 								int idx = buffer.vertices_count++;
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j];
-								zt_fjz(2) buffer.vertices[idx].uv.values[j] = k;
-								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1;
-
-								buffer.vertices[idx].pos = mat2d * buffer.vertices[idx].pos;
+								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
+								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 							}
 						} break;
 
@@ -3761,10 +3784,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							zt_fkz(2) {
 								int idx = buffer.vertices_count++;
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f);
-								zt_fjz(2) buffer.vertices[idx].uv.values[j] = k;
-								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1;
-
-								//buffer.vertices[idx].pos = mat2d * buffer.vertices[idx].pos;
+								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
+								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 							}
 						} break;
 						};

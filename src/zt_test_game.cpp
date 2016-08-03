@@ -16,7 +16,7 @@
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DIAGNOSE
-#define ZT_DIRECTX_DEBUGGING
+//#define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
 #define ZT_GAME_LOCAL_ONLY
@@ -80,7 +80,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -149,7 +149,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	zt_fiz(2){
+	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
@@ -250,7 +250,7 @@ void game_screenChange(ztGameSettings *game_settings)
 	zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
 	zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f);
 
-	g_game->camera.position = ztVec3(0, 0, 1);
+	g_game->camera.position = ztVec3(0, 1.8f, 1);
 	g_game->camera.rotation = ztVec3(270, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->camera);
 
@@ -317,10 +317,13 @@ bool game_loop(r32 dt)
 
 	{
 		{
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(.5f, .5f, .5f, 1));
+			zt_drawListAddFloorGrid(&g_game->draw_list, ztVec3(0, -0.0001f, 0), 30, 30);
+
 			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
 			zt_drawListPushTexture(&g_game->draw_list, g_game->tex_id_crate);
 			{
-				static ztVec3 pos[3] = { ztVec3(.0f, .5f, -.5f), ztVec3(-.5f, -.5f, -.5f), ztVec3(.5f, -.5f, -.5f) };
+				static ztVec3 pos[3] = { ztVec3(.0f, 1.5f, -.5f), ztVec3(-.5f, .5f, -.5f), ztVec3(.5f, .5f, -.5f) };
 				static ztVec2 uvs[3] = { ztVec2(0, 0), ztVec2(1, 1), ztVec2(.5f, 0) };
 				static ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
@@ -328,7 +331,7 @@ bool game_loop(r32 dt)
 			}
 
 			{
-				static ztVec3 pos[4] = { ztVec3(-2, 1, -2), ztVec3(-2, -1, -2), ztVec3(0, -1, -1), ztVec3(0, 1, -1) };
+				static ztVec3 pos[4] = { ztVec3(-2, 2, -2), ztVec3(-2, 0, -2), ztVec3(0, 0, -1), ztVec3(0, 2, -1) };
 				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
 				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
@@ -346,7 +349,7 @@ bool game_loop(r32 dt)
 			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, 0, .1f));
 		}
 
-		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, .15f, .15f, .5f), 0);
+		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);
 
 		// display frame time
 		{
