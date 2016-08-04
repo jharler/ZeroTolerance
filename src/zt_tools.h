@@ -1465,8 +1465,8 @@ ztInline r32 ztVec3::angle(const ztVec3& v) const
 
 ztInline r32 ztVec3::distance(const ztVec3& v) const
 {
-	r32 x = x - v.x, y = y - v.y, z = z - v.z; 
-	return zt_sqrt(x * x + y * y + z * z);
+	r32 tx = x - v.x, ty = y - v.y, tz = z - v.z; 
+	return zt_sqrt(tx * tx + ty * ty + tz * tz);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3716,11 +3716,11 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 			if (*number > div) {
 				int64 num = *number / div;
 				if (*first) {
-					sprintf_s(*buffer, 5, "%d,", num);
+					sprintf_s(*buffer, 5, "%lld,", num);
 					*first = false;
 				}
 				else {
-					sprintf_s(*buffer, 5, "%03d,", num);
+					sprintf_s(*buffer, 5, "%03lld,", num);
 				}
 
 				++(*buffer);
@@ -3746,10 +3746,10 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 	local::process(&number, &buffer_pos, &first, 1000);
 
 	if (first) {
-		return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%d", number);
+		return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%lld", number);
 	}
 
-	return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03d", number);
+	return (buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03lld", number);
 }
 
 // ------------------------------------------------------------------------------------------------

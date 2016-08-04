@@ -5055,10 +5055,10 @@ void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const 
 void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4& value)
 {
 	_zt_shaderCheck(shader_id, ztShaderVariable_Vec4);
-	zt->shaders[shader_id].variables[idx].val_vec3[0] = value.values[0];
-	zt->shaders[shader_id].variables[idx].val_vec3[1] = value.values[1];
-	zt->shaders[shader_id].variables[idx].val_vec3[2] = value.values[2];
-	zt->shaders[shader_id].variables[idx].val_vec3[3] = value.values[3];
+	zt->shaders[shader_id].variables[idx].val_vec4[0] = value.values[0];
+	zt->shaders[shader_id].variables[idx].val_vec4[1] = value.values[1];
+	zt->shaders[shader_id].variables[idx].val_vec4[2] = value.values[2];
+	zt->shaders[shader_id].variables[idx].val_vec4[3] = value.values[3];
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5076,7 +5076,7 @@ void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const 
 void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12])
 {
 	_zt_shaderCheck(shader_id, ztShaderVariable_Mat3);
-	zt_fiz(zt_elementsOf(value)) {
+	zt_fiz(12) {
 		zt->shaders[shader_id].variables[idx].val_mat3[i] = value[i];
 	}
 }

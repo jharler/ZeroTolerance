@@ -335,6 +335,12 @@ bool test_strings()
 	zt_testResults(zt_strEquals(cmd_val, "TEST"));
 	zt_testResults(zt_cmdGetArg(argv, zt_elementsOf(argv), "m", "missing", cmd_val, zt_elementsOf(cmd_val)) == false);
 
+	char strcvt[128];
+	zt_strNumberToString(strcvt, zt_elementsOf(strcvt), (i64)5999999999);
+	zt_testResults(zt_strEquals(strcvt, "5,999,999,999"));
+	zt_strNumberToString(strcvt, zt_elementsOf(strcvt), (i64)-5999999999);
+	zt_testResults(zt_strEquals(strcvt, "-5,999,999,999"));
+
 	return true;
 }
 
