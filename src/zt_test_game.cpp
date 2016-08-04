@@ -149,7 +149,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	zt_fiz(0){
+	zt_fiz(2){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
@@ -320,6 +320,7 @@ bool game_loop(r32 dt)
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(.5f, .5f, .5f, 1));
 			zt_drawListAddFloorGrid(&g_game->draw_list, ztVec3(0, -0.0001f, 0), 30, 30);
 
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 1, 1));
 			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
 			zt_drawListPushTexture(&g_game->draw_list, g_game->tex_id_crate);
 			{
@@ -330,6 +331,7 @@ bool game_loop(r32 dt)
 				zt_drawListAddFilledTriangle(&g_game->draw_list, pos, uvs, nml);
 			}
 
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 			{
 				static ztVec3 pos[4] = { ztVec3(-2, 2, -2), ztVec3(-2, 0, -2), ztVec3(0, 0, -1), ztVec3(0, 2, -1) };
 				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
@@ -342,11 +344,12 @@ bool game_loop(r32 dt)
 			zt_drawListPopShader(&g_game->draw_list);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(.1f, 0, 0));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(.5f, 0, 0));
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, .1f, 0));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, .5f, 0));
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, 0, .1f));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, 0, .5f));
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 		}
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);

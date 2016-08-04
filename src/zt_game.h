@@ -2217,7 +2217,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
 };
 ztInternal const char *_zt_default_shaders[] = {
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		//gl_Position = vec4(position, 1);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	uniform vec4 color = vec4(1,1,1,1);\n\n	void main()\n	{\n		frag_color = color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = float4(1,0,0,1);\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -3035,7 +3035,7 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 // ------------------------------------------------------------------------------------------------
 
 #define ztRenderDrawListVertexArraySize	3 * 1024 * 8
-#define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 32)
+#define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 48)
 
 // ------------------------------------------------------------------------------------------------
 #
@@ -3116,6 +3116,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztCompileShader *cmp_shader = _zt_castMem(ztCompileShader);
 			cmp_shader->shader = shader_id;
 			cmp_shader->texture = nullptr;
+			cmp_shader->color = ztVec4::one;
 
 			ztCompileTexture *cmp_texture = nullptr;
 			ztCompileColor *cmp_color = nullptr;
@@ -3202,12 +3203,16 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					zt_assert(draw_list != nullptr);
 
 					bool ignore_shader = true;
+					ztVec4 active_color = ztVec4::one;
 
 					// extract all textures
 					zt_fjz(draw_list->commands_count) {
 						ztDrawCommand *command = &draw_list->commands[j];
 						if (command->type == ztDrawCommandType_ChangeShader) {
 							ignore_shader = command->shader != shader_id;
+						}
+						if (command->type == ztDrawCommandType_ChangeColor) {
+							active_color = command->color;
 						}
 						if (!ignore_shader) {
 							if (command->type == ztDrawCommandType_ChangeTexture) {
@@ -3217,7 +3222,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_texture->command = command;
 
 									cmp_texture->color = cmp_color = _zt_castMem(ztCompileColor);
-									cmp_color->color = ztVec4::one;
+									cmp_color->color = active_color;// ztVec4::one;
 									cmp_color->item = nullptr;
 									cmp_color->last_item = nullptr;
 									cmp_color->next = nullptr;
@@ -3353,6 +3358,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		ztVec3 pos;
 		ztVec2 uv;
 		ztVec3 norm;
+		ztVec4 color;
 	};
 
 	struct ztBuffer
@@ -3361,12 +3367,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		i32 vertices_count;
 	};
 
+	zt_assert(sizeof(ztVertex) == 48);
 	zt_assert(sizeof(ztBuffer) == ztRenderDrawListVertexByteSize + 4);
 
 	static ztBuffer buffer;
 	buffer.vertices_count = 0;
 
-	zt_assert(sizeof(ztVertex) == 32);
 
 	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
@@ -3441,7 +3447,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 3 * sizeof(GLfloat))));
 									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
 									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 5 * sizeof(GLfloat))));
-									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
+									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(2));
+									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(3, 4, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 8 * sizeof(GLfloat))));
+									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(3));
 									zt_glCallAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, buffer->vertices_count));
 									zt->game_details.draw_calls += 1;
 
@@ -3512,6 +3520,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
 									zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 									zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
+									zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
 								}
 
 							} break;
@@ -3763,6 +3772,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
+								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
 							}
 
 						} break;
@@ -3777,6 +3787,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
+								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
 							}
 						} break;
 
@@ -3786,6 +3797,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f);
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
+								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
 							}
 						} break;
 						};
@@ -3808,436 +3820,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 #endif
 	}
-
-
-#if 0
-	ztShaderID active_shader = ztInvalidID;
-	ztColor active_color = ztColor::one;
-	i32 active_texture_idx = -1;
-
-	struct ztVertex
-	{
-		ztVec3 pos;
-		ztVec2 uv;
-		ztVec3 norm;
-	};
-
-	struct ztBuffer
-	{
-		ztVertex vertices[ztRenderDrawListVertexArraySize];
-		i32 vertices_count;
-	};
-
-	zt_assert(sizeof(ztBuffer) == ztRenderDrawListVertexByteSize + 4);
-
-	static ztBuffer buffer;
-	buffer.vertices_count = 0;
-
-	zt_assert(sizeof(ztVertex) == 32);
-
-
-	ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
-
-	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-#if defined(ZT_OPENGL)
-		struct OpenGL
-		{
-			static void cleanupLastCommand(ztDrawCommandType_Enum last_command, ztBuffer *buffer)
-			{
-				switch(last_command)
-				{
-					case ztDrawCommandType_Point: {
-						glEnd();
-					} break;
-
-					case ztDrawCommandType_Line: {
-						glEnd();
-					} break;
-
-					case ztDrawCommandType_Triangle: {
-						zt_glCallAndReportOnErrorFast(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ztVertex), (GLvoid*)buffer->vertices));
-						zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(0));
-
-						zt_glCallAndReportOnErrorFast(glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 3 * sizeof(GLfloat))));
-						zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
-
-						zt_glCallAndReportOnErrorFast(glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 5 * sizeof(GLfloat))));
-						zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(1));
-
-						zt_glCallAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, buffer->vertices_count));
-						buffer->vertices_count = 0;
-					} break;
-				}
-			}
-		};
-
-		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
-			zt_glCallAndReportOnErrorFast(glDepthFunc(GL_LESS));
-		}
-		else {
-			zt_glCallAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
-		}
-		
-		zt_glCallAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
-
-		zt_fiz(draw_lists_count) {
-			ztDrawList *draw_list = draw_lists[i];
-			if (draw_list == nullptr) continue;
-
-			zt_fjz(draw_list->commands_count) {
-				ztDrawCommand *command = &draw_list->commands[j];
-
-				if (command->type != last_command) {
-					OpenGL::cleanupLastCommand(last_command, &buffer);
-				}
-
-				switch(command->type)
-				{
-					case ztDrawCommandType_Point: {
-						if (last_command != ztDrawCommandType_Point) {
-							if (active_shader != ztInvalidID) {
-								zt_assert(false && "OpenGL cannot draw primatives with an active shader");
-							}
-							zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
-							zt_glCallAndReportOnErrorFast(glLoadIdentity());
-							zt_glCallAndReportOnErrorFast(glLineWidth(1));
-							glBegin(GL_POINTS);
-						}
-						glVertex3f(command->point.x, command->point.y, command->point.z);
-					} break;
-
-					case ztDrawCommandType_Line: {
-						if (last_command != ztDrawCommandType_Line) {
-							if (active_shader != ztInvalidID) {
-								zt_assert(false && "OpenGL cannot draw primatives with an active shader");
-							}
-							zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
-							zt_glCallAndReportOnErrorFast(glLoadIdentity());
-							zt_glCallAndReportOnErrorFast(glLineWidth(1));
-							glBegin(GL_LINES);
-						}
-						glVertex3f(command->line[0].x, command->line[0].y, command->line[0].z);
-						glVertex3f(command->line[1].x, command->line[1].y, command->line[1].z);
-					} break;
-
-					case ztDrawCommandType_Triangle: {
-						if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
-							OpenGL::cleanupLastCommand(ztDrawCommandType_Triangle, &buffer);
-						}
-
-						zt_fiz(3) {
-							int idx = buffer.vertices_count++;
-							buffer.vertices[idx].pos = command->tri_pos[i];
-							buffer.vertices[idx].uv = command->tri_uv[i];
-							buffer.vertices[idx].norm = command->tri_norm[i];
-						}
-					} break;
-
-					case ztDrawCommandType_Mesh: {
-					} break;
-
-					case ztDrawCommandType_ChangeShader: {
-						zt_assert(command->shader >= 0 && command->shader < zt->shaders_count);
-						zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[command->shader].gl_program_id));
-
-						GLuint model_loc = glGetUniformLocation(zt->shaders[command->shader].gl_program_id, "model");
-						GLuint proj_loc = glGetUniformLocation(zt->shaders[command->shader].gl_program_id, "projection");
-						GLuint view_loc = glGetUniformLocation(zt->shaders[command->shader].gl_program_id, "view");
-						GLuint color_loc = glGetUniformLocation(zt->shaders[command->shader].gl_program_id, "color");
-
-						if (model_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, ztMat4::identity.values));
-						if (proj_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(proj_loc, 1, GL_FALSE, camera->mat_proj.values));
-						if (view_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(view_loc, 1, GL_FALSE, camera->mat_view.values));
-						if (color_loc != -1) zt_glCallAndReportOnErrorFast(glUniform4fv(color_loc, 1, active_color.values));
-
-						active_shader = command->shader;
-					} break;
-
-					case ztDrawCommandType_ChangeColor: {
-						active_color = command->color;
-						if (active_shader == ztInvalidID) {
-							zt_glCallAndReportOnErrorFast(glColor4f(command->color.r, command->color.g, command->color.b, command->color.a));
-						}
-					} break;
-
-					case ztDrawCommandType_ChangeTexture: {
-						if (active_texture_idx != -1) {
-							
-						}
-						zt_fiz(command->texture_count) {
-							zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
-							zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[command->texture[i]].gl_texid));
-
-							GLuint tex_loc = glGetUniformLocation(zt->shaders[active_shader].gl_program_id, "tex_diffuse");
-							zt_glCallAndReportOnErrorFast(glUniform1i(tex_loc, 0));
-						}
-					} break;
-
-					case ztDrawCommandType_ChangeClipping: {
-					} break;
-
-					case ztDrawCommandType_ChangeFlags: {
-					} break;
-				}
-
-				last_command = command->type;
-			}
-
-			if (!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
-				draw_list->commands_count = 0;
-			}
-		}
-
-		OpenGL::cleanupLastCommand(last_command, &buffer);
-
-		if (active_shader != ztInvalidID) {
-			zt_glCallAndReportOnErrorFast(glUseProgram(0));
-		}
-#else
-		zt_assert(false):	
-#endif
-	}
-	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
-#if defined(ZT_DIRECTX)
-		struct DirectX
-		{
-			static void cleanupLastCommand(ztDrawCommandType_Enum last_command, ztBuffer *buffer, ztShaderID active_shader)
-			{
-				switch (last_command)
-				{
-					case ztDrawCommandType_Point: {
-					} break;
-
-					case ztDrawCommandType_Line: {
-					} break;
-
-					case ztDrawCommandType_Triangle: {
-						if (active_shader != ztInvalidID) {
-							// populate cbuffer data
-							if(zt->shaders[active_shader].variable_count) {
-								zt_fiz(zt->shaders[active_shader].dx_cbuffers_count) {
-									i32 cbuffer_idx = i;
-									///D3D11_MAPPED_SUBRESOURCE ms;
-									//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
-
-									byte cbuffer_data[1024 * 4];
-									i32 cbuffer_pos = 0;
-									i32 last_offset = -1;
-									while (true) {
-										i32 lowest_idx = -1;
-										i32 lowest_val = 9999;
-										zt_fiz(zt->shaders[active_shader].variable_count) {
-											if (zt->shaders[active_shader].variables[i].dx_offset < lowest_val && zt->shaders[active_shader].variables[i].dx_offset > last_offset) {
-												lowest_idx = i;
-												lowest_val = zt->shaders[active_shader].variables[i].dx_offset;
-											}
-										}
-										if (lowest_idx == -1) {
-											break;
-										}
-
-										i32 size = 0;
-										switch (zt->shaders[active_shader].variables[lowest_idx].type)
-										{
-										case ztShaderVariable_Float: size = zt_sizeof(r32); break;
-										case ztShaderVariable_Int: size = zt_sizeof(i32); break;
-										case ztShaderVariable_Vec2: size = zt_sizeof(r32) * 2; break;
-										case ztShaderVariable_Vec3: size = zt_sizeof(r32) * 3; break;
-										case ztShaderVariable_Vec4: size = zt_sizeof(r32) * 4; break;
-										case ztShaderVariable_Mat3: size = zt_sizeof(r32) * 9; break;
-										case ztShaderVariable_Mat4: size = zt_sizeof(r32) * 16; break;
-										case ztShaderVariable_Tex: size = zt_sizeof(i32); break;
-										}
-
-										//zt_memCpy((byte*)ms.pData + cbuffer_pos, size, &zt->shaders[active_shader].variables[lowest_idx].val_float, size);
-										zt_memCpy(cbuffer_data + cbuffer_pos, size, &zt->shaders[active_shader].variables[lowest_idx].val_float, size);
-										//r32 t[16] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-										//zt_memCpy(cbuffer_data + cbuffer_pos, size, t, size);
-
-										//zt_memSet(cbuffer_data + cbuffer_pos, size, 1);
-										last_offset = cbuffer_pos;
-										cbuffer_pos += size;
-									}
-									//ms.pData = cbuffer_data;
-
-									//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], NULL));
-									zt->win_details[0].dx_context->UpdateSubresource(zt->shaders[active_shader].dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
-									zt->win_details[0].dx_context->VSSetConstantBuffers(0, 1, &zt->shaders[active_shader].dx_cbuffers[cbuffer_idx]);
-									zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
-									//zt->win_details[0].dx_context->PSSetConstantBuffers(0, 1, &zt->shaders[active_shader].dx_cbuffers[cbuffer_idx]);
-								}
-							}
-
-							// copy the vertices into the buffer
-							D3D11_MAPPED_SUBRESOURCE ms;
-							zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
-							memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-							//memcpy(ms.pData, temp, buffer->vertices_count * sizeof(ztVec3));
-							zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
-
-							UINT stride = sizeof(ztVertex), offset = 0;
-							zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
-							zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
-
-							// select which primtive type we are using
-							zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-							// draw the vertex buffer to the back buffer
-							zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
-							buffer->vertices_count = 0;
-						}
-					} break;
-				}
-			}
-		};
-
-		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled, 1);
-		}
-		else {
-			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_disabled, 1);
-		}
-
-		zt_fiz(draw_lists_count) {
-			ztDrawList *draw_list = draw_lists[i];
-			if (draw_list == nullptr) continue;
-
-			zt_fjz(draw_list->commands_count) {
-				ztDrawCommand *command = &draw_list->commands[j];
-
-				if (command->type != last_command) {
-					DirectX::cleanupLastCommand(last_command, &buffer, active_shader);
-				}
-
-				switch (command->type)
-				{
-				case ztDrawCommandType_Point: {
-					if (last_command != ztDrawCommandType_Point) {
-					}
-				} break;
-
-				case ztDrawCommandType_Line: {
-					if (last_command != ztDrawCommandType_Line) {
-					}
-				} break;
-
-				case ztDrawCommandType_Triangle: {
-					if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
-						DirectX::cleanupLastCommand(ztDrawCommandType_Triangle, &buffer, active_shader);
-					}
-					if (last_command != ztDrawCommandType_Triangle) {
-						zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
-					}
-
-					zt_fiz(3) {
-						int idx = buffer.vertices_count++;
-						buffer.vertices[idx].pos = command->tri_pos[i];
-						buffer.vertices[idx].uv = command->tri_uv[i];
-						buffer.vertices[idx].norm = command->tri_norm[i];
-					}
-				} break;
-
-				case ztDrawCommandType_Mesh: {
-				} break;
-
-				case ztDrawCommandType_ChangeShader: {
-					zt_assert(command->shader >= 0 && command->shader < zt->shaders_count);
-
-					zt->win_details[0].dx_context->VSSetShader(zt->shaders[command->shader].dx_vert, NULL, NULL);
-					zt->win_details[0].dx_context->PSSetShader(zt->shaders[command->shader].dx_frag, NULL, NULL);
-					//zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[command->shader].dx_layout);
-
-					ztMat4 dxMod = ztMat4::identity.getTranspose();
-					ztMat4 dxView = camera->mat_view.getTranspose();
-					ztMat4 dxProj = camera->mat_proj.getTranspose();
-
-					zt_shaderSetVariableMat4(command->shader, "model", dxMod);
-					zt_shaderSetVariableMat4(command->shader, "view", dxView);
-					zt_shaderSetVariableMat4(command->shader, "projection", dxProj);
-
-					active_shader = command->shader;
-				} break;
-
-				case ztDrawCommandType_ChangeColor: {
-				} break;
-
-				case ztDrawCommandType_ChangeTexture: {
-					zt_assert(command->texture_count >= 0 && command->texture_count < zt_elementsOf(command->texture));
-
-					if (command->texture_count == 0) {
-						// texture should be removed
-					}
-					else {
-						zt_fiz(command->texture_count) {
-							ztTextureID texture_id = command->texture[i];
-							zt_assert(texture_id >= 0 && texture_id < zt->textures_count);
-
-							zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &zt->textures[texture_id].dx_shader_resource_view);
-							zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
-
-							//float blend_factor[] = { 0.95f, 0.95f, 0.95f, 1.0f };
-							float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
-							zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
-						}
-					}
-				} break;
-
-				case ztDrawCommandType_ChangeClipping: {
-				} break;
-
-				case ztDrawCommandType_ChangeFlags: {
-				} break;
-				}
-
-				last_command = command->type;
-			}
-
-			if (!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
-				draw_list->commands_count = 0;
-			}
-		}
-
-		DirectX::cleanupLastCommand(last_command, &buffer, active_shader);
-
-		if (active_shader != ztInvalidID) {
-		}
-#else
-		zt_assert(false);
-#endif
-	}
-	else {
-		zt_assert(false && "Invalid renderer");
-	}
-#endif // 0
-	// need to support the following:
-
-	// points	(position, color)
-	// lines	(position, color)
-	// empty triangles	(positions, color) - made by lines
-	// empty quads		(positions, color) - made by lines
-	// filled triangles (positions, color, uvs, normals)
-	// filled quads		(positions, color, uvs, normals) - made by triangles
-
-	// meshes
-	// models
-	// scenes (lights, collection of models)
-
-	// hierarchy of transforms
-
-	// shader
-	// vertices
-	// uvs (if textured)
-	// normals (if textured)
-	// color
-
-	// needs to support wireframe mode (flags)
-
-	// needs to be able to toggle culling, blending modes, depth tests (these should be pushed/popped)
-
-	// needs to sort by shaders, then by textures, then by colors ..
-
-	// triangles should be grouped together into one vertex/uv/normal array and sent in one draw call
 }
 
 // ------------------------------------------------------------------------------------------------

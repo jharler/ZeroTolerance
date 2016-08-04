@@ -6,11 +6,13 @@ Anything outside of < < [ ] > > will be ignored
 	layout (location = 0) in vec3 position;
 	layout (location = 1) in vec2 tex_coord; 
 	layout (location = 2) in vec3 normal;
+	layout (location = 3) in vec4 color;
 
 	out VS_OUT {
 		vec3 frag_pos;
 		vec3 normal;
 		vec2 tex_coord;
+		vec4 color;
 	} vs_out;
 
 	uniform mat4 model;
@@ -23,6 +25,7 @@ Anything outside of < < [ ] > > will be ignored
 		//gl_Position = vec4(position, 1);
 		//vs_out.frag_pos = vec3(model * vec4(position, 1.0));
 		vs_out.tex_coord = tex_coord;
+		vs_out.color = color;
 	}
 ]>>
 
@@ -35,16 +38,14 @@ Anything outside of < < [ ] > > will be ignored
 		vec3 frag_pos;
 		vec3 normal;
 		vec2 tex_coord;
+		vec4 color;
 	} fs_in;
 
 	uniform sampler2D tex_diffuse;
-	uniform vec4 color = vec4(1,1,1,1);
 
 	void main()
 	{
-		vec4 clr = texture(tex_diffuse, fs_in.tex_coord);
-		//clr *= vec4(0,1,0,1);
-		//clr = vec4(0,1,1,1);
+		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;
 		frag_color = clr;
 	};
 ]>>
@@ -63,12 +64,14 @@ Anything outside of < < [ ] > > will be ignored
 		float3 position : POSITION;
 		float2 tex_coord : TEXCOORD0;
 		float3 normal : NORMAL;
+		float4 color : COLOR;
 	};
 
 	struct FragmentInputType
 	{
 		float4 position : SV_POSITION;
 		float2 tex_coord : TEXCOORD0;
+		float4 color : COLOR0;
 	};
 
 
@@ -81,6 +84,7 @@ Anything outside of < < [ ] > > will be ignored
 		output.position = mul(output.position, projection);
 		
 		output.tex_coord = input.tex_coord;
+		output.color = input.color;
 		
 		return output;
 	}
@@ -95,13 +99,13 @@ Anything outside of < < [ ] > > will be ignored
 	{
 		float4 position : SV_POSITION;
 		float2 tex_coord : TEXCOORD0;
+		float4 color : COLOR0;
 	};
 
 
 	float4 fragmentShader(FragmentInputType input) : SV_TARGET
 	{
-		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord);
-		//color *= float4(1,0,0,1);
+		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;
 		return color;
 	}
 ]>>
