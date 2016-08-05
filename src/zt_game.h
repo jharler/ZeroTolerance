@@ -201,6 +201,7 @@ struct ztGameSettings
 
 // ------------------------------------------------------------------------------------------------
 
+ztRenderer_Enum zt_currentRenderer();
 r32 zt_pixelsPerUnit();
 
 // ------------------------------------------------------------------------------------------------
@@ -591,6 +592,62 @@ void zt_rendererFreeTexture(ztTextureID texture_id);
 
 
 // ------------------------------------------------------------------------------------------------
+// materials
+
+enum ztMaterialType_Enum
+{
+	ztMaterialType_Diffuse,
+	ztMaterialType_Normal,
+	ztMaterialType_Specular,
+
+	ztMaterialType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztMaterialFlags_Enum
+{
+	ztMaterialFlags_OwnsTexture = (1 << 0),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztMaterialList
+{
+	struct {
+		ztTextureID tex_id;
+		i32 flags;
+
+	} materials[ztMaterialType_MAX];
+};
+
+
+ztMaterialList zt_materialListMake(ztTextureID diffuse = ztInvalidID, i32 diffuse_flags = 0, ztTextureID normal = ztInvalidID, i32 normal_flags = 0, ztTextureID specular = ztInvalidID, i32 specular_flags = 0);
+void zt_materialListFree(ztMaterialList *material_list);
+
+
+// ------------------------------------------------------------------------------------------------
+// meshes
+
+typedef i32 ztMeshID;
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztMeshFlags_Enum
+{
+	ztMeshFlags_OwnsMaterials = (1 << 0),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count, ztMaterialList *materials, i32 flags = 0);
+void zt_meshFree(ztMeshID mesh_id);
+
+ztMeshID zt_meshMakePrimativeBox(ztMaterialList *materials, r32 width, r32 height, r32 depth, i32 flags = 0);
+ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 depth, int grid_w = 1, int grid_d = 1, i32 flags = 0);
+
+
+// ------------------------------------------------------------------------------------------------
 // transform
 
 struct ztTransform
@@ -702,9 +759,10 @@ struct ztDrawCommand
 			ztVec3 tri_norm[3];
 		};
 
-		//struct mesh {
-		//	ztMeshID mesh_id;
-		//};
+		struct {
+			ztMeshID mesh_id;
+			ztVec3 mesh_pos, mesh_rot, mesh_scale;
+		};
 
 		struct {
 			ztShaderID shader;
@@ -769,6 +827,7 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const zt
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count, const ztVec2 uvs[4], const ztVec3 normals[4]);
+bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
 
@@ -873,6 +932,7 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztPoint2 tex_pos, ztPoint2 tex_size, ztPoint2 nw_interior, ztPoint2 se_interior, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
 
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size);
+
 
 // ------------------------------------------------------------------------------------------------
 // gui
@@ -1737,6 +1797,8 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_TEXTURE0 0x84C0
 #define GL_CLAMP_TO_EDGE 0x812F
 #define GL_MULTISAMPLE 0x809D
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+
 
 // function prototypes we need
 #define ZTGL_WINAPI	__stdcall
@@ -2142,6 +2204,25 @@ struct ztFont
 
 // ------------------------------------------------------------------------------------------------
 
+struct ztMesh
+{
+	ztMaterialList materials;
+	i32 flags;
+	i32 triangles;
+	i32 indices;
+
+#if defined(ZT_OPENGL)
+	GLuint gl_vao, gl_vbo, gl_ebo;
+#endif
+
+#if defined(ZT_DIRECTX)
+#endif
+};
+
+#define ztMeshMaxMeshes	256
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztGuiManager;
 
 // ------------------------------------------------------------------------------------------------
@@ -2189,6 +2270,11 @@ struct ztGameGlobals
 
 	// ----------------------
 
+	ztMesh meshes[ztMeshMaxMeshes];
+	i32 meshes_count = 0;
+
+	// ----------------------
+
 	bool input_this_frame = false;
 	ztInputKeys_Enum input_key_strokes[ztInputKeyMaxStrokes];
 	i32 input_key_strokes_count = 0;
@@ -2219,6 +2305,13 @@ ztInternal const char *_zt_default_shaders_names[] = {
 ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 };
+
+// ------------------------------------------------------------------------------------------------
+
+ztRenderer_Enum zt_currentRenderer()
+{
+	return zt->win_game_settings[0].renderer;
+}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2865,6 +2958,23 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count,
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale)
+{
+	_zt_drawListCheck(draw_list);
+	auto* command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_Mesh;
+
+	command->mesh_id = mesh_id;
+	command->mesh_pos = pos;
+	command->mesh_rot = rot;
+	command->mesh_scale = scale;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
 {
 	r32 max_x = center.x + width / 2.f;
@@ -3303,6 +3413,49 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							}
 						}
 					}
+
+					// extract meshes
+					cmp_texture = cmp_shader->texture;
+					cmp_color = cmp_texture->color;
+
+					cmp_item_last = nullptr;
+
+					ignore_shader = true;
+					zt_fjz(draw_list->commands_count) {
+						ztDrawCommand *command = &draw_list->commands[j];
+
+						if (command->type == ztDrawCommandType_ChangeShader) {
+							ignore_shader = command->shader != shader_id;
+						}
+						if (!ignore_shader) {
+							if (command->type == ztDrawCommandType_ChangeTexture) {
+								zt_linkFind(cmp_shader->texture, cmp_texture, texturesMatch(cmp_texture->command, command));
+								zt_assert(cmp_texture != nullptr);
+								cmp_color = cmp_texture->color;
+								cmp_item_last = cmp_color ? cmp_color->last_item : nullptr;
+							}
+							if (command->type == ztDrawCommandType_ChangeColor) {
+								zt_linkFind(cmp_texture->color, cmp_color, cmp_color->color == command->color);
+								zt_assert(cmp_color != nullptr);
+								cmp_item_last = cmp_color->last_item;
+							}
+
+							if (command->type == ztDrawCommandType_Mesh) {
+								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
+								cmp_item->command = command;
+								if (cmp_item_last == nullptr) {
+									cmp_color->last_item = cmp_item_last = cmp_item;
+									zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+								}
+								else {
+									cmp_item_last->next = cmp_item;
+									cmp_item_last = cmp_item;
+									cmp_item_last->next = nullptr;
+									cmp_color->last_item = cmp_item_last;
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -3390,11 +3543,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
+
+			GLuint model_loc = -1;
+
 			if (shaders[i]->shader != ztInvalidID) {
 				zt->game_details.shader_switches += 1;
 				zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
 
-				GLuint model_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "model");
+				model_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "model");
 				GLuint proj_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "projection");
 				GLuint view_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "view");
 				GLuint color_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "color");
@@ -3512,6 +3668,38 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						switch (cmp_item->command->type)
 						{
+							case ztDrawCommandType_Mesh: {
+								ztMesh *mesh = &zt->meshes[cmp_item->command->mesh_id];
+								zt->game_details.triangles_drawn += mesh->triangles;
+
+								ztMat4 model = ztMat4::identity;
+								model.translate(cmp_item->command->mesh_pos);
+
+								model.rotateEuler(cmp_item->command->mesh_rot);
+
+								if (cmp_item->command->mesh_scale != ztVec3::one) {
+									ztMat4 scale = ztMat4::identity;
+									scale.scale(cmp_item->command->mesh_scale);
+									model = model * scale;
+								}
+
+								zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, model.values));
+
+								glBindTexture(GL_TEXTURE_2D, 0);
+								zt_fiz(zt_elementsOf(mesh->materials.materials)) {
+									if (mesh->materials.materials[i].tex_id != ztInvalidID) {
+										zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
+										zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[mesh->materials.materials[i].tex_id].gl_texid));
+									}
+								}
+
+								zt_glCallAndReportOnErrorFast(glBindVertexArray(mesh->gl_vao));
+								zt_glCallAndReportOnErrorFast(glDrawElements(GL_TRIANGLES, mesh->indices, GL_UNSIGNED_INT, 0));
+								zt_glCallAndReportOnErrorFast(glBindVertexArray(0));
+
+								glBindTexture(GL_TEXTURE_2D, 0);
+							} break;
+
 							case ztDrawCommandType_Triangle: {
 								++zt->game_details.triangles_drawn;
 
@@ -6270,6 +6458,295 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	zt_drawListPopTexture(draw_list);
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztMaterialList zt_materialListMake(ztTextureID diffuse, i32 diffuse_flags, ztTextureID normal, i32 normal_flags, ztTextureID specular, i32 specular_flags)
+{
+	ztMaterialList result;
+	result.materials[ztMaterialType_Diffuse ].tex_id = diffuse;
+	result.materials[ztMaterialType_Diffuse ].flags  = diffuse_flags;
+	result.materials[ztMaterialType_Normal  ].tex_id = normal;
+	result.materials[ztMaterialType_Normal  ].flags  = normal_flags;
+	result.materials[ztMaterialType_Specular].tex_id = specular;
+	result.materials[ztMaterialType_Specular].flags  = specular_flags;
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_materialListFree(ztMaterialList *material_list)
+{
+	zt_returnOnNull(material_list);
+
+	zt_fiz(zt_elementsOf(material_list->materials)) {
+		if (zt_bitIsSet(material_list->materials[i].flags, ztMaterialFlags_OwnsTexture)) {
+			zt_rendererFreeTexture(material_list->materials[i].tex_id);
+		}
+
+		material_list->materials[i].tex_id = ztInvalidID;
+		material_list->materials[i].flags = 0;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count, ztMaterialList *materials, i32 flags)
+{
+	struct ztVertex
+	{
+		ztVec3 pos;
+		ztVec2 uv;
+		ztVec3 normals;
+		ztVec4 colors;
+	};
+
+	ztVertex *vertices = zt_mallocStructArray(ztVertex, vert_count);
+
+	u32* t_indices = nullptr;
+	if (indices_count == 0) {
+		t_indices = zt_mallocStructArray(u32, vert_count);
+		indices_count = vert_count;
+		indices = t_indices;
+
+		zt_fiz(indices_count) indices[i] = i;
+	}
+
+	ztVec3 *t_normals = nullptr;
+	if (normals == nullptr) {
+		// calculate the vertex normals
+		t_normals = zt_mallocStructArray(ztVec3, vert_count);
+		zt_fiz(vert_count) t_normals[i] = ztVec3::zero;
+
+		// for each vertex, we need to find the faces that surround it and add them to
+		for (int i = 0; i < indices_count; i += 3) {
+			ztVec3 u = verts[indices[i + 1]] - verts[indices[i + 0]];
+			ztVec3 v = verts[indices[i + 2]] - verts[indices[i + 0]];
+
+			for (int j = 0; j < 3; ++j) {
+				t_normals[indices[i + j]].x += u.y * v.z - u.z * v.y;
+				t_normals[indices[i + j]].y += u.z * v.x - u.x * v.z;
+				t_normals[indices[i + j]].z += u.x * v.y - u.y * v.x;
+			}
+		}
+
+		zt_fiz(vert_count) {
+			t_normals[i].normalize();
+		}
+
+		normals = t_normals;
+	}
+
+	int vidx = 0;
+	for (int i = 0; i < vert_count; ++i) {
+		vertices[i].pos = verts[i];
+		vertices[i].uv = uvs == nullptr ? ztVec2::zero : uvs[i];
+		vertices[i].normals = normals[i];
+		vertices[i].colors = ztVec4::one;
+	}
+
+	zt_assert(zt->meshes_count < zt_elementsOf(zt->meshes));
+	ztMeshID mesh_id = zt->meshes_count++;
+	ztMesh *mesh = &zt->meshes[mesh_id];
+	mesh->triangles = indices_count / 3;
+	mesh->indices = indices_count;
+	mesh->flags = flags;
+	mesh->materials = *materials;
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#if defined(ZT_OPENGL)
+			GLuint vao = 0, vbo = 0, ebo = 0;
+
+			zt_glCallAndReturnValOnError(glGenVertexArrays(1, &vao), ztInvalidID);
+			zt_glCallAndReturnValOnError(glGenBuffers(1, &vbo), ztInvalidID);
+			zt_glCallAndReturnValOnError(glGenBuffers(1, &ebo), ztInvalidID);
+
+			mesh->gl_vao = vao;
+			mesh->gl_vbo = vbo;
+			mesh->gl_ebo = ebo;
+
+			zt_glCallAndReportOnError(glBindVertexArray(mesh->gl_vao));
+			{
+				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, mesh->gl_vbo));
+				zt_glCallAndReportOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * zt_sizeof(ztVertex), vertices, GL_STATIC_DRAW));
+
+				zt_glCallAndReportOnError(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gl_ebo));
+				zt_glCallAndReportOnError(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(GLuint), indices, GL_STATIC_DRAW));
+
+				zt_glCallAndReportOnError(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)0));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(0));
+				zt_glCallAndReportOnError(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(3 * sizeof(GLfloat))));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(1));
+				zt_glCallAndReportOnError(glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(5 * sizeof(GLfloat))));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(2));
+				zt_glCallAndReportOnError(glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(8 * sizeof(GLfloat))));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(3));
+
+				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
+			}
+			zt_glCallAndReportOnError(glBindVertexArray(0));
+
+#endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#if defined(ZT_DIRECTX)
+#endif
+		} break;
+	}
+
+	if (t_indices != nullptr) {
+		zt_free(t_indices);
+	}
+	if (t_normals != nullptr) {
+		zt_free(t_normals);
+	}
+
+	zt_free(vertices);
+
+	return mesh_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_meshFree(ztMeshID mesh_id)
+{
+	zt_assert(mesh_id >= 0 && mesh_id < zt->meshes_count);
+
+	ztMesh *mesh = &zt->meshes[mesh_id];
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#if defined(ZT_OPENGL)
+			glDeleteVertexArrays(1, &mesh->gl_vao);
+			glDeleteBuffers(1, &mesh->gl_vbo);
+			glDeleteBuffers(1, &mesh->gl_ebo);
+#endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#if defined(ZT_DIRECTX)
+#endif
+		} break;
+	}
+
+	if (zt_bitIsSet(mesh->flags, ztMeshFlags_OwnsMaterials)) {
+		zt_materialListFree(&mesh->materials);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMakePrimativeBox(ztMaterialList *materials, r32 width, r32 height, r32 depth, i32 flags)
+{
+	ztVec3 vertices[] = {
+		/* front face  */ ztVec3(-.5f * width,  .5f * height,  .5f * depth), ztVec3(-.5f * width, -.5f * height,  .5f * depth), ztVec3( .5f * width, -.5f * height,  .5f * depth), ztVec3( .5f * width,  .5f * height,  .5f * depth),
+		/* back face   */ ztVec3( .5f * width,  .5f * height, -.5f * depth), ztVec3( .5f * width, -.5f * height, -.5f * depth), ztVec3(-.5f * width, -.5f * height, -.5f * depth), ztVec3(-.5f * width,  .5f * height, -.5f * depth),
+		/* top face    */ ztVec3(-.5f * width,  .5f * height, -.5f * depth), ztVec3(-.5f * width,  .5f * height,  .5f * depth), ztVec3( .5f * width,  .5f * height,  .5f * depth), ztVec3( .5f * width,  .5f * height, -.5f * depth),
+		/* bottom face */ ztVec3(-.5f * width, -.5f * height,  .5f * depth), ztVec3(-.5f * width, -.5f * height, -.5f * depth), ztVec3( .5f * width, -.5f * height, -.5f * depth), ztVec3( .5f * width, -.5f * height,  .5f * depth),
+		/* right face  */ ztVec3( .5f * width,  .5f * height,  .5f * depth), ztVec3( .5f * width, -.5f * height,  .5f * depth), ztVec3( .5f * width, -.5f * height, -.5f * depth), ztVec3( .5f * width,  .5f * height, -.5f * depth),
+		/* left face   */ ztVec3(-.5f * width,  .5f * height, -.5f * depth), ztVec3(-.5f * width, -.5f * height, -.5f * depth), ztVec3(-.5f * width, -.5f * height,  .5f * depth), ztVec3(-.5f * width,  .5f * height,  .5f * depth)
+	};
+
+	ztVec2 uvs[] = {
+		ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
+		ztVec2(0.0f, 0.0f),	ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
+		ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
+		ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
+		ztVec2(0.0f, 0.0f),	ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
+		ztVec2(1.0f, 1.0f),	ztVec2(1.0f, 0.0f), ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f),
+	};
+
+	ztVec3 normals[] = {
+		ztVec3(0, 0, 1), ztVec3(0, 0, 1), ztVec3(0, 0, 1), ztVec3(0, 0, 1),
+		ztVec3(0, 0, -1), ztVec3(0, 0, -1), ztVec3(0, 0, -1), ztVec3(0, 0, -1),
+		ztVec3(0, 1, 0), ztVec3(0, 1, 0), ztVec3(0, 1, 0), ztVec3(0, 1, 0),
+		ztVec3(0, -1, 0), ztVec3(0, -1, 0), ztVec3(0, -1, 0), ztVec3(0, -1, 0),
+		ztVec3(1, 0, 0), ztVec3(1, 0, 0), ztVec3(1, 0, 0), ztVec3(1, 0, 0),
+		ztVec3(-1, 0, 0), ztVec3(-1, 0, 0), ztVec3(-1, 0, 0), ztVec3(-1, 0, 0),
+	};
+
+	u32 indices[] = {
+		/* front face  */ 0, 1, 2, 0, 2, 3,
+		/* back face   */ 4, 5, 6, 4, 6, 7,
+		/* top face    */ 8, 9, 10, 8, 10, 11,
+		/* bottom face */ 12, 13, 14, 12, 14, 15,
+		/* right face  */ 16, 17, 18, 16, 18, 19,
+		/* left face   */ 20, 21, 22, 20, 22, 23,
+	};
+
+	zt_assert(zt_elementsOf(vertices) == zt_elementsOf(normals) && zt_elementsOf(vertices) == zt_elementsOf(uvs));
+
+	return zt_meshMake(vertices, uvs, normals, zt_elementsOf(vertices), indices, zt_elementsOf(indices), materials, flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 depth, int grid_w, int grid_d, i32 flags)
+{
+	int verts_count = (grid_w * grid_d) * 4;
+	ztVec3 *vertices = zt_mallocStructArray(ztVec3, verts_count);
+	ztVec2 *uvs = zt_mallocStructArray(ztVec2, verts_count);
+	ztVec3 *normals = zt_mallocStructArray(ztVec3, verts_count);
+	int indices_count = (grid_w * grid_d) * 6;
+	u32* indices = zt_mallocStructArray(u32, indices_count);
+
+	real32 x_offset = (width / -2.0f);
+	real32 z_offset = (depth / -2.0f);
+
+	int vrt_idx = 0;
+	int ind_idx = 0;
+
+	r32 sec_w = (width / grid_w) * .5f;
+	r32 sec_d = (depth / grid_d) * .5f;
+
+	for (int z = 0; z < grid_d; ++z) {
+		for (int x = 0; x < grid_w; ++x) {
+			r32 x_pos = sec_w + x_offset + (x * (width / grid_w));
+			r32 z_pos = sec_d + z_offset + (z * (depth / grid_d));
+
+			vertices[vrt_idx] = ztVec3(-sec_w + x_pos, 0, -sec_d + z_pos);
+			uvs[vrt_idx] = ztVec2(0.0f, 0.0f);
+			normals[vrt_idx++] = ztVec3(0, 1, 0);
+
+			vertices[vrt_idx] = ztVec3(-sec_w + x_pos, 0, sec_d + z_pos);
+			uvs[vrt_idx] = ztVec2(0.0f, 1.0f);
+			normals[vrt_idx++] = ztVec3(0, 1, 0);
+
+			vertices[vrt_idx] = ztVec3(sec_w + x_pos, 0, sec_d + z_pos);
+			uvs[vrt_idx] = ztVec2(1.0f, 1.0f);
+			normals[vrt_idx++] = ztVec3(0, 1, 0);
+
+			vertices[vrt_idx] = ztVec3(sec_w + x_pos, 0, -sec_d + z_pos);
+			uvs[vrt_idx] = ztVec2(1.0f, 0.0f);
+			normals[vrt_idx++] = ztVec3(0, 1, 0);
+
+			indices[ind_idx++] = vrt_idx - 4;
+			indices[ind_idx++] = vrt_idx - 3;
+			indices[ind_idx++] = vrt_idx - 2;
+			indices[ind_idx++] = vrt_idx - 4;
+			indices[ind_idx++] = vrt_idx - 2;
+			indices[ind_idx++] = vrt_idx - 1;
+		}
+	}
+
+	ztMeshID result = zt_meshMake(vertices, uvs, normals, verts_count, indices, indices_count, materials, flags);
+
+	zt_free(indices);
+	zt_free(normals);
+	zt_free(uvs);
+	zt_free(vertices);
+
+	return result;
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------

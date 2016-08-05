@@ -58,6 +58,8 @@ struct ztGame
 	ztTextureID gui_tex;
 	bool button_live_value;
 	r32 slider_live_value;
+
+	ztMeshID cube, plane;
 };
 
 
@@ -149,7 +151,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	zt_fiz(2){
+	
+	ztMaterialList materials = zt_materialListMake(g_game->tex_id_crate);
+	g_game->cube = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
+	g_game->plane = zt_meshMakePrimativePlane(&materials, 10, 10, 10, 10);
+
+	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
@@ -263,6 +270,9 @@ void game_cleanup()
 {
 	zt_guiManagerFree(g_game->gui_manager);
 
+	zt_meshFree(g_game->cube);
+	zt_meshFree(g_game->plane);
+
 	zt_fontFree(g_game->font_id_bmp);
 	zt_fontFree(g_game->font_id_uni2);
 	zt_fontFree(g_game->font_id_uni);
@@ -333,12 +343,18 @@ bool game_loop(r32 dt)
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 			{
+				// top left, bottom left, bottom right, top right
 				static ztVec3 pos[4] = { ztVec3(-2, 2, -2), ztVec3(-2, 0, -2), ztVec3(0, 0, -1), ztVec3(0, 2, -1) };
 				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
 				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
 				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
 			}
+
+			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
+			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
+
+			zt_drawListAddMesh(&g_game->draw_list, g_game->plane, ztVec3(0, -.01f, 0), ztVec3::zero, ztVec3::one);
 
 			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
