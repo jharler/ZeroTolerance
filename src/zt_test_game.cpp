@@ -117,7 +117,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	g_game->shader_id = zt_rendererMakeShader(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "shaders/shader_simple.zts"));
+	g_game->shader_id = zt_shaderMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "shaders/shader_simple.zts"));
 	if (g_game->shader_id == ztInvalidID) {
 		zt_logCritical("Unable to load game shader");
 		return false;
@@ -128,7 +128,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	g_game->tex_id_crate = zt_rendererMakeTexture(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"));
+	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"));
 	if (g_game->tex_id_crate == ztInvalidID) {
 		return false;
 	}
@@ -146,7 +146,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 
 
-	g_game->gui_tex = zt_rendererMakeTexture(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/gui.png"));
+	g_game->gui_tex = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/gui.png"));
 	if (g_game->gui_tex == ztInvalidID) {
 		return false;
 	}
@@ -277,9 +277,9 @@ void game_cleanup()
 	zt_fontFree(g_game->font_id_uni2);
 	zt_fontFree(g_game->font_id_uni);
 	zt_fontFree(g_game->font_id);
-	zt_rendererFreeTexture(g_game->tex_id_crate);
+	zt_textureFree(g_game->tex_id_crate);
 	zt_drawListFree(&g_game->draw_list);
-	zt_rendererFreeShader(g_game->shader_id);
+	zt_shaderFree(g_game->shader_id);
 
 	zt_assetManagerFree(&g_game->asset_mgr);
 	zt_memDumpArena(g_game->asset_arena, "asset memory");

@@ -526,8 +526,8 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
 
 typedef i32 ztShaderID;
 
-ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id);
-void zt_rendererFreeShader(ztShaderID shader_id);
+ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_shaderFree(ztShaderID shader_id);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -584,11 +584,11 @@ enum ztTextureFlags_Enum
 	ztTextureFlags_PixelPerfect  = (1<<3),
 };
 
-ztTextureID zt_rendererMakeTexture(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags = 0);
-ztTextureID zt_rendererMakeTexture(byte *pixels, i32 width, i32 height, i32 flags = 0);
-ztTextureID zt_rendererMakeTextureFromFile(const char *file, i32 flags = 0);
-ztTextureID zt_rendererMakeTextureFromFileData(void *data, i32 size, i32 flags = 0);
-void zt_rendererFreeTexture(ztTextureID texture_id);
+ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags = 0);
+ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
+ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
+ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags = 0);
+void zt_textureFree(ztTextureID texture_id);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -4113,7 +4113,7 @@ void zt_rendererRequestFullscreen()
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
+ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
 
 // ---------
 
@@ -4142,7 +4142,7 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 		goto on_error;
 	}
 
-	ztShaderID result_shader_id = _zt_rendererMakeShaderBase(asset_mgr->asset_name[asset_id], data, size, shader_id);
+	ztShaderID result_shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size, shader_id);
 	if(result_shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -4163,7 +4163,7 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace = ztInvalidID)
+ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace = ztInvalidID)
 {
 	ztShaderID shader_id = ztInvalidID;
 
@@ -4336,7 +4336,7 @@ ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32
 		if (program == 0) { error = "Unable to compile and link shader program."; goto on_error; }
 
 		if(replace != ztInvalidID) {
-			zt_rendererFreeShader(replace);
+			zt_shaderFree(replace);
 			shader_id = replace;
 		}
 		else {
@@ -4419,7 +4419,7 @@ ztShaderID _zt_rendererMakeShaderBase(const char *name, const char *data_in, i32
 		}
 
 		if(replace != ztInvalidID) {
-			zt_rendererFreeShader(replace);
+			zt_shaderFree(replace);
 			shader_id = replace;
 		}
 		else {
@@ -4632,9 +4632,9 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID zt_rendererMakeShader(const char *name, const char *data, i32 data_len)
+ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len)
 {
-	ztShaderID shader_id = _zt_rendererMakeShaderBase(name, data, data_len);
+	ztShaderID shader_id = _zt_shaderMakeBase(name, data, data_len);
 	if (shader_id == ztInvalidID) {
 		return shader_id;
 	}
@@ -4648,7 +4648,7 @@ ztShaderID zt_rendererMakeShader(const char *name, const char *data, i32 data_le
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id)
+ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -4674,7 +4674,7 @@ ztShaderID zt_rendererMakeShader(ztAssetManager *asset_mgr, ztAssetID asset_id)
 		goto on_error;
 	}
 
-	ztShaderID shader_id = _zt_rendererMakeShaderBase(asset_mgr->asset_name[asset_id], data, size);
+	ztShaderID shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size);
 	if (shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -4696,7 +4696,7 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_rendererFreeShader(ztShaderID shader_id)
+void zt_shaderFree(ztShaderID shader_id)
 {
 	zt_assert(shader_id >= 0 && shader_id < zt->shaders_count);
 
@@ -4885,7 +4885,7 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztTextureID _zt_rendererMakeTextureBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char** error)
+ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char** error)
 {
 	if (zt_bitIsSet(flags, ztTextureFlags_Flip)) {
 		int half_height = height / 2;
@@ -5033,7 +5033,7 @@ ztInternal ztTextureID _zt_rendererMakeTextureBase(byte *pixel_data, i32 width, 
 
 // ------------------------------------------------------------------------------------------------
 
-ztTextureID zt_rendererMakeTexture(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags)
+ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags)
 {
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -5068,7 +5068,7 @@ ztTextureID zt_rendererMakeTexture(ztAssetManager *asset_mgr, ztAssetID asset_id
 		goto on_error;
 	}
 
-	ztTextureID texture_id = _zt_rendererMakeTextureBase(pixel_data, width, height, depth, flags, &error);
+	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
 		zt->textures[texture_id].load_type = ztTextureLoadType_Asset;
 		zt->textures[texture_id].asset_mgr = asset_mgr;
@@ -5092,13 +5092,13 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-ztTextureID zt_rendererMakeTexture(byte *pixel_data, i32 width, i32 height, i32 flags)
+ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 {
 	zt_returnValOnNull(pixel_data, ztInvalidID);
 
 	int depth = 4;
 	const char *error = nullptr;
-	ztTextureID texture_id = _zt_rendererMakeTextureBase(pixel_data, width, height, depth, flags, &error);
+	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
 		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
 		
@@ -5117,7 +5117,7 @@ ztTextureID zt_rendererMakeTexture(byte *pixel_data, i32 width, i32 height, i32 
 
 // ------------------------------------------------------------------------------------------------
 
-ztTextureID zt_rendererMakeTextureFromFile(const char *file, i32 flags)
+ztTextureID zt_textureMakeFromFile(const char *file, i32 flags)
 {
 	i32 size = 0;
 	void *data = zt_readEntireFile(file, &size);
@@ -5125,7 +5125,7 @@ ztTextureID zt_rendererMakeTextureFromFile(const char *file, i32 flags)
 		return ztInvalidID;
 	}
 
-	ztTextureID tex_id = zt_rendererMakeTextureFromFileData(data, size, flags);
+	ztTextureID tex_id = zt_textureMakeFromFileData(data, size, flags);
 
 	zt_free(data);
 
@@ -5138,7 +5138,7 @@ ztTextureID zt_rendererMakeTextureFromFile(const char *file, i32 flags)
 
 // ------------------------------------------------------------------------------------------------
 
-ztTextureID zt_rendererMakeTextureFromFileData(void *data, i32 size, i32 flags)
+ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 {
 	const char *error = nullptr;
 
@@ -5150,7 +5150,7 @@ ztTextureID zt_rendererMakeTextureFromFileData(void *data, i32 size, i32 flags)
 		goto on_error;
 	}
 
-	ztTextureID texture_id = _zt_rendererMakeTextureBase(pixel_data, width, height, depth, flags, &error);
+	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
 		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
 
@@ -5174,7 +5174,7 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_rendererFreeTexture(ztTextureID texture_id)
+void zt_textureFree(ztTextureID texture_id)
 {
 	if (zt->textures[texture_id].renderer == ztRenderer_Invalid) {
 		return;
@@ -5716,7 +5716,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 						zt_strPrintf(tex_file_full, zt_elementsOf(tex_file_full), "%s/%s", bmp_dir, tex_file);
 						i32 tex_asset_hash = 0;
 						if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
-							font->texture = zt_rendererMakeTexture(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
+							font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
 						}
 						else if(zt_fileExists(tex_file_full)) {
 							// TODO(josh): should this support loading non-asset files?
@@ -5874,7 +5874,7 @@ void zt_fontFree(ztFontID font_id)
 	ztFont *font = &zt->fonts[font_id];
 
 	if (font->texture != ztInvalidID) {
-		zt_rendererFreeTexture(font->texture);
+		zt_textureFree(font->texture);
 	}
 
 	if (font->glyph_code_point) {
@@ -6484,7 +6484,7 @@ void zt_materialListFree(ztMaterialList *material_list)
 
 	zt_fiz(zt_elementsOf(material_list->materials)) {
 		if (zt_bitIsSet(material_list->materials[i].flags, ztMaterialFlags_OwnsTexture)) {
-			zt_rendererFreeTexture(material_list->materials[i].tex_id);
+			zt_textureFree(material_list->materials[i].tex_id);
 		}
 
 		material_list->materials[i].tex_id = ztInvalidID;
@@ -7654,7 +7654,7 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 
 		i32 tex_size = 0;
 		byte *tex_data = _zt_guiLoadDefaultTexture(&tex_size);
-		ztTextureID tex = zt_rendererMakeTextureFromFileData(tex_data, tex_size, ztTextureFlags_PixelPerfect);
+		ztTextureID tex = zt_textureMakeFromFileData(tex_data, tex_size, ztTextureFlags_PixelPerfect);
 		zt_free(tex_data);
 
 		gm->default_theme.font = _zt_guiLoadDefaultFont(tex);
@@ -7817,7 +7817,7 @@ void zt_guiManagerFree(ztGuiManagerID gui_manager)
 
 	if (zt_bitIsSet(gm->internal_flags, ztGuiManagerInternalFlags_OwnsTheme)) {
 		zt_fontFree(gm->default_theme.font);
-		zt_rendererFreeTexture(gm->default_theme.sprite_window.sns.tex);
+		zt_textureFree(gm->default_theme.sprite_window.sns.tex);
 	}
 
 	zt_freeArena(zt->gui_managers[gui_manager], zt->gui_managers[gui_manager]->arena);
@@ -9608,7 +9608,7 @@ int main(int argc, char** argv)
 	}
 
 	zt_fiz(zt_elementsOf(_zt_default_shaders)) {
-		if (zt_rendererMakeShader(_zt_default_shaders_names[i], _zt_default_shaders[i], zt_strLen(_zt_default_shaders[i])) == ztInvalidID) {
+		if (zt_shaderMake(_zt_default_shaders_names[i], _zt_default_shaders[i], zt_strLen(_zt_default_shaders[i])) == ztInvalidID) {
 			zt_logCritical("main: Failed to load default shader: %s", _zt_default_shaders_names[i]);
 			return 1;
 		}
@@ -9688,10 +9688,10 @@ int main(int argc, char** argv)
 	_zt_callFuncCleanup();
 
 	zt_fiz(zt->shaders_count) {
-		zt_rendererFreeShader((ztShaderID)i);
+		zt_shaderFree((ztShaderID)i);
 	}
 	zt_fiz(zt->textures_count) {
-		//zt_rendererFreeTexture((ztTextureID)i);
+		//zt_textureFree((ztTextureID)i);
 	}
 
 	zt_memFree(zt_memGetGlobalArena(), zt->renderer_memory);
@@ -20333,7 +20333,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	}
 	zt_free(pixel_data);
 
-	font->texture = zt_rendererMakeTexture(pixel_data_full, tex_size, tex_size, 0);
+	font->texture = zt_textureMake(pixel_data_full, tex_size, tex_size, 0);
 	zt_free(pixel_data_full);
 
 	if (font->texture == ztInvalidID) {
