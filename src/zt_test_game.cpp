@@ -16,7 +16,7 @@
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DIAGNOSE
-//#define ZT_DIRECTX_DEBUGGING
+#define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
 #define ZT_GAME_LOCAL_ONLY

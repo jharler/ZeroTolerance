@@ -2216,6 +2216,8 @@ struct ztMesh
 #endif
 
 #if defined(ZT_DIRECTX)
+	ID3D11Buffer *dx_buff_vert, *dx_buff_idx;
+	i32 dx_stride;
 #endif
 };
 
@@ -3948,6 +3950,40 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						switch (cmp_item->command->type)
 						{
+						case ztDrawCommandType_Mesh: {
+							ztMesh *mesh = &zt->meshes[cmp_item->command->mesh_id];
+							zt->game_details.triangles_drawn += mesh->triangles;
+
+							ztMat4 model = ztMat4::identity;
+							model.translate(cmp_item->command->mesh_pos);
+
+							model.rotateEuler(cmp_item->command->mesh_rot);
+
+							if (cmp_item->command->mesh_scale != ztVec3::one) {
+								ztMat4 scale = ztMat4::identity;
+								scale.scale(cmp_item->command->mesh_scale);
+								model = model * scale;
+							}
+							model.transpose();
+							zt_shaderSetVariableMat4(shader_id, "model", model.values);
+
+							DirectX::applyShaderVars(shader_id);
+
+							ztTextureID texture_id = mesh->materials.materials[ztMaterialType_Diffuse].tex_id;
+							zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &zt->textures[texture_id].dx_shader_resource_view);
+							zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
+							float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+							zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
+
+							UINT stride = mesh->dx_stride, offset = 0;
+							zt->win_details[0].dx_context->IASetIndexBuffer(mesh->dx_buff_idx, DXGI_FORMAT_R32_UINT, 0);
+							zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &mesh->dx_buff_vert, &stride, &offset);
+							zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
+							zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+							zt->win_details[0].dx_context->DrawIndexed(mesh->indices, 0, 0);
+
+						} break;
+
 						case ztDrawCommandType_Triangle: {
 							++zt->game_details.triangles_drawn;
 
@@ -6543,7 +6579,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	}
 
 	int vidx = 0;
-	for (int i = 0; i < vert_count; ++i) {
+	zt_fiz(vert_count) {
 		vertices[i].pos = verts[i];
 		vertices[i].uv = uvs == nullptr ? ztVec2::zero : uvs[i];
 		vertices[i].normals = normals[i];
@@ -6553,6 +6589,8 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	zt_assert(zt->meshes_count < zt_elementsOf(zt->meshes));
 	ztMeshID mesh_id = zt->meshes_count++;
 	ztMesh *mesh = &zt->meshes[mesh_id];
+	zt_memSet(mesh, zt_sizeof(ztMesh), 0);
+
 	mesh->triangles = indices_count / 3;
 	mesh->indices = indices_count;
 	mesh->flags = flags;
@@ -6598,6 +6636,49 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 		case ztRenderer_DirectX: {
 #if defined(ZT_DIRECTX)
+			ztWindowDetails *win_details = &zt->win_details[0];
+
+
+			// indice buffer
+			D3D11_BUFFER_DESC ib;
+			ZeroMemory(&ib, sizeof(ib));
+
+			ib.Usage = D3D11_USAGE_DEFAULT;
+			ib.ByteWidth = zt_sizeof(u32) * indices_count;
+			ib.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+			u32 *uindices = zt_mallocStructArray(u32, indices_count);
+			zt_assert(indices_count % 3 == 0);
+			for (int i = 0; i < indices_count; i += 3) {
+				uindices[i+0] = indices[i+0];
+				uindices[i+1] = indices[i+1];
+				uindices[i+2] = indices[i+2];
+			}
+
+			D3D11_SUBRESOURCE_DATA ib_data;
+			ZeroMemory(&ib_data, sizeof(ib_data));
+			ib_data.pSysMem = uindices;
+
+			zt_dxCallAndReportOnError(win_details->dx_device->CreateBuffer(&ib, &ib_data, &mesh->dx_buff_idx));
+
+			zt_free(uindices);
+
+			// vertex buffer
+			D3D11_BUFFER_DESC vb;
+			ZeroMemory(&vb, sizeof(vb));
+
+			vb.Usage = D3D11_USAGE_DEFAULT;
+			vb.ByteWidth = zt_sizeof(ztVertex) * vert_count;
+			vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			vb.CPUAccessFlags = 0;
+
+			D3D11_SUBRESOURCE_DATA vb_data;
+			ZeroMemory(&vb_data, sizeof(vb_data));
+			vb_data.pSysMem = vertices;
+
+			zt_dxCallAndReportOnError(win_details->dx_device->CreateBuffer(&vb, &vb_data, &mesh->dx_buff_vert));
+
+			mesh->dx_stride = sizeof(ztVertex);
 #endif
 		} break;
 	}
@@ -6634,6 +6715,14 @@ void zt_meshFree(ztMeshID mesh_id)
 
 		case ztRenderer_DirectX: {
 #if defined(ZT_DIRECTX)
+			if (mesh->dx_buff_idx) {
+				mesh->dx_buff_idx->Release();
+				mesh->dx_buff_idx = nullptr;
+			}
+			if (mesh->dx_buff_vert) {
+				mesh->dx_buff_vert->Release();
+				mesh->dx_buff_vert = nullptr;
+			}
 #endif
 		} break;
 	}
@@ -6662,7 +6751,7 @@ ztMeshID zt_meshMakePrimativeBox(ztMaterialList *materials, r32 width, r32 heigh
 		ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
 		ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
 		ztVec2(0.0f, 0.0f),	ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
-		ztVec2(1.0f, 1.0f),	ztVec2(1.0f, 0.0f), ztVec2(0.0f, 0.0f), ztVec2(0.0f, 1.0f),
+		ztVec2(0.0f, 0.0f),	ztVec2(0.0f, 1.0f), ztVec2(1.0f, 1.0f), ztVec2(1.0f, 0.0f),
 	};
 
 	ztVec3 normals[] = {
