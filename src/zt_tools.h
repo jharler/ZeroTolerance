@@ -742,6 +742,11 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
 int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
 
+int zt_strCount(const char *haystack, const char *needle);
+int zt_strCount(const char *haystack, int haystack_len, const char *needle);
+int zt_striCount(const char *haystack, const char *needle);
+int zt_striCount(const char *haystack, int haystack_len, const char *needle);
+
 bool zt_strStartsWith(const char *s, const char *starts_with);
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
 bool zt_strEndsWith(const char *s, const char *ends_with);
@@ -3359,6 +3364,48 @@ int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needl
 	}
 
 	return -1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strCount(const char *haystack, const char *needle)
+{
+	return zt_strCount(haystack, zt_strLen(haystack), needle);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strCount(const char *haystack, int haystack_len, const char *needle)
+{
+	int count = 0;
+	int pos = zt_strFindPos(haystack, haystack_len, needle, 0);
+	while(pos != ztStrPosNotFound) {
+		count += 1;
+		pos = zt_strFindPos(haystack, haystack_len, needle, pos + 1);
+	}
+
+	return count;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_striCount(const char *haystack, const char *needle)
+{
+	return zt_striCount(haystack, zt_strLen(haystack), needle);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_striCount(const char *haystack, int haystack_len, const char *needle)
+{
+	int count = 0;
+	int pos = zt_striFindPos(haystack, haystack_len, needle, 0);
+	while(pos != ztStrPosNotFound) {
+		count += 1;
+		pos = zt_striFindPos(haystack, haystack_len, needle, pos + 1);
+	}
+
+	return count;
 }
 
 // ------------------------------------------------------------------------------------------------
