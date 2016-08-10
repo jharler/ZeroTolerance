@@ -443,6 +443,8 @@ enum ztAssetManagerType_Enum
 
 	ztAssetManagerType_Font,
 
+	ztAssetManagerType_MeshOBJ,
+
 	ztAssetManagerType_MAX,
 };
 
@@ -625,6 +627,8 @@ struct ztMaterialList
 ztMaterialList zt_materialListMake(ztTextureID diffuse = ztInvalidID, i32 diffuse_flags = 0, ztTextureID normal = ztInvalidID, i32 normal_flags = 0, ztTextureID specular = ztInvalidID, i32 specular_flags = 0);
 void zt_materialListFree(ztMaterialList *material_list);
 
+bool zt_materialListIsEmpty(ztMaterialList *material_list);
+
 
 // ------------------------------------------------------------------------------------------------
 // meshes
@@ -645,6 +649,8 @@ void zt_meshFree(ztMeshID mesh_id);
 
 ztMeshID zt_meshMakePrimativeBox(ztMaterialList *materials, r32 width, r32 height, r32 depth, i32 flags = 0);
 ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 depth, int grid_w = 1, int grid_d = 1, i32 flags = 0);
+
+ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1423,6 +1429,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 		else if (zt_striEndsWith(token, ".zts")) asset_mgr->asset_type[i] = ztAssetManagerType_Shader;
 		else if (zt_striEndsWith(token, ".ttf")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
 		else if (zt_striEndsWith(token, ".fnt")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
+		else if (zt_striEndsWith(token, ".obj")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshOBJ;
 		else asset_mgr->asset_type[i] = ztAssetManagerType_Unknown;
 
 		asset_mgr->asset_data[i] = nullptr;
@@ -4995,7 +5002,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		D3D11_TEXTURE2D_DESC desc;
 		desc.Width = width;
 		desc.Height = height;
-		desc.MipLevels = zt_bitIsSet(flags, ztTextureFlags_MipMaps) ? 0 : 1;
+		desc.MipLevels = 1; // zt_bitIsSet(flags, ztTextureFlags_MipMaps) ? 0 : 1; // this is crashing
 		desc.ArraySize = 1;
 		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		desc.SampleDesc.Count = 1;
@@ -6529,6 +6536,18 @@ void zt_materialListFree(ztMaterialList *material_list)
 }
 
 // ------------------------------------------------------------------------------------------------
+
+bool zt_materialListIsEmpty(ztMaterialList *material_list)
+{
+	zt_fiz(ztMaterialType_MAX) {
+		if(material_list->materials[i].tex_id != ztInvalidID) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -6835,6 +6854,316 @@ ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 dep
 	zt_free(vertices);
 
 	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale, const ztVec3& offset)
+{
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_MeshOBJ) {
+		return ztInvalidID;
+	}
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+
+	zt_logDebug("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
+	if (size <= 0) {
+		return ztInvalidID;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if (!data) {
+		return ztInvalidID;
+	}
+
+	const char *error = nullptr;
+
+	ztMaterialList material_list_local = zt_materialListMake();
+
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		zt_logCritical("Unable to load asset contents");
+		zt_free(data);
+		return ztInvalidID;
+	}
+
+	int lines = 0;
+	zt_fiz(size) {
+		if (data[i] == '\n') {
+			lines += 1;
+		}
+	}
+
+	ztToken *tokens = zt_mallocStructArray(ztToken, lines + 1);
+	int tokens_count = zt_strTokenize(data, "\r\n", tokens, lines + 1, 0);
+
+	int verts_count = 0;
+	int normals_count = 0;
+	int tex_coords_count = 0;
+	int indices_count = 0;
+	bool has_uv_indices = false;
+	bool has_norm_indices = false;
+
+	ztToken l_tokens[128], i_tokens[128];
+
+	bool first_face_entry = true;
+	int group_idx = 0;
+
+	zt_fiz(tokens_count) {
+		if (tokens[i].len <= 2) continue;
+
+		char* line = data + tokens[i].beg;
+
+		if (line[0] == 'v' && line[1] == ' ') verts_count += 1;
+		if (line[0] == 'v' && line[1] == 'n' && line[2] == ' ') normals_count += 1;
+		if (line[0] == 'v' && line[1] == 't' && line[2] == ' ') tex_coords_count += 1;
+		if (line[0] == 'f' && line[1] == ' ') {
+			int f_tokens = zt_strTokenize(line, tokens[i].len, " ", l_tokens, zt_elementsOf(l_tokens), 0);
+			if (f_tokens < 4) {
+				zt_assert(false);
+			}
+			int triangles = f_tokens - 3;
+			indices_count += 3 * triangles;
+
+			if (first_face_entry && f_tokens > 3) {
+				first_face_entry = false;
+				if (zt_strFindPos(line + l_tokens[1].beg, l_tokens[1].len, "//", 0) != ztStrPosNotFound) {
+					has_norm_indices = true;
+				}
+				int count = zt_strCount(line + l_tokens[1].beg, l_tokens[1].len, "/");
+				if (count >= 1) {
+					has_uv_indices = true;
+				}
+			}
+		}
+		//if (line[0] == 'g' && line[1] == ' ') {
+		//	group_idx += 1;
+		//	if (group_idx > 1) {
+		//		break;
+		//	}
+		//}
+	}
+
+	struct local
+	{
+		static real32 parseReal(const char* src, ztToken& token)
+		{
+			static char buffer[128];
+			zt_strCpy(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
+
+			return zt_strToReal32(src + token.beg, token.len, 0.f);
+		}
+
+		static int parseInt(const char* src, ztToken& token)
+		{
+			static char buffer[128];
+			strncpy_s(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
+
+			return zt_strToInt(src + token.beg, token.len, 0);
+		}
+	};
+
+	if (verts_count == 0 || indices_count <= 0) {
+		zt_logCritical("Invalid vertices or indices count");
+		zt_free(data);
+		return ztInvalidID;
+	}
+
+	ztVec3* verts = zt_mallocStructArray(ztVec3, verts_count);
+	ztVec3* normals = normals_count > 0 ? zt_mallocStructArray(ztVec3, normals_count) : nullptr;
+	ztVec2* uvs = tex_coords_count > 0 ? zt_mallocStructArray(ztVec2, tex_coords_count) : nullptr;
+	u32* indices = zt_mallocStructArray(u32, indices_count);
+	u32* normal_indices = has_norm_indices ? zt_mallocStructArray(u32, indices_count) : nullptr;
+	u32* uv_indices = has_uv_indices ? zt_mallocStructArray(u32, indices_count) : nullptr;
+
+	int verts_idx = 0;
+	int normals_idx = 0;
+	int uvs_idx = 0;
+	int indices_idx = 0;
+
+	group_idx = 0;
+
+	bool failed = false;
+	for (int i = 0; i < tokens_count && !failed; ++i) {
+		if (tokens[i].len <= 2) continue;
+		char* line = data + tokens[i].beg;
+
+		if (line[0] == '#') continue;
+
+		int l_tokens_count = zt_strTokenize(line, tokens[i].len, " ", l_tokens, zt_elementsOf(l_tokens), 0);
+
+		if (line[0] == 'v' && line[1] == ' ') {
+			if (l_tokens_count < 4) {
+				failed = true;
+			}
+			else {
+				verts[verts_idx  ].x = offset.x + (scale.x * local::parseReal(line, l_tokens[1]));
+				verts[verts_idx  ].y = offset.y + (scale.y * local::parseReal(line, l_tokens[2]));
+				verts[verts_idx++].z = offset.z + (scale.z * local::parseReal(line, l_tokens[3]));
+			}
+		}
+		else if (line[0] == 'v' && line[1] == 'n' && line[2] == ' ') {
+			if (l_tokens_count < 4) {
+				failed = true;
+			}
+			else {
+				normals[normals_idx  ].x = local::parseReal(line, l_tokens[1]);
+				normals[normals_idx  ].y = local::parseReal(line, l_tokens[2]);
+				normals[normals_idx++].z = local::parseReal(line, l_tokens[3]);
+			}
+		}
+		else if (line[0] == 'v' && line[1] == 't' && line[2] == ' ') {
+			if (l_tokens_count < 3) {
+				failed = true;
+			}
+			else {
+				uvs[uvs_idx  ].x = local::parseReal(line, l_tokens[1]);
+				uvs[uvs_idx++].y = local::parseReal(line, l_tokens[2]);
+			}
+		}
+		else if (line[0] == 'f' && line[1] == ' ') {
+			if (l_tokens_count < 4) {
+				failed = true;
+			}
+			else if (l_tokens_count <= 64) {
+				int triangles = l_tokens_count - 3;
+				int vert_indexes[64] = { 0 };
+				int norm_indexes[64] = { 0 };
+				int uv_indexes[64] = { 0 };
+
+				int indexes_idx = 0;
+
+				for (int j = 1; j < l_tokens_count; ++j) {
+					char* i_token_str = line + l_tokens[j].beg;
+					int i_tokens_count = zt_strTokenize(i_token_str, l_tokens[j].len, "/", i_tokens, zt_elementsOf(i_tokens), 0);
+					switch (i_tokens_count)
+					{
+						case 3: {	// vertex / uv / normal
+							norm_indexes[indexes_idx  ] = local::parseInt(i_token_str, i_tokens[2]) - 1;
+							uv_indexes  [indexes_idx  ] = local::parseInt(i_token_str, i_tokens[1]) - 1;
+							vert_indexes[indexes_idx++] = local::parseInt(i_token_str, i_tokens[0]) - 1;
+						} break;
+
+						case 2: {	// either vertex / uv or vertex // normal
+							if (has_uv_indices) {
+								uv_indexes[indexes_idx] = local::parseInt(i_token_str, i_tokens[1]) - 1;
+							}
+							else {
+								norm_indexes[indexes_idx] = local::parseInt(i_token_str, i_tokens[1]) - 1;
+							}
+							vert_indexes[indexes_idx++] = local::parseInt(i_token_str, i_tokens[0]) - 1;
+						} break;
+
+						case 1: {	// vertex
+							vert_indexes[indexes_idx++] = local::parseInt(i_token_str, i_tokens[0]) - 1;
+						} break;
+					}
+				}
+
+				#define _zt_assignIndexesToIndices(INDEX_IDX) \
+								if (has_norm_indices) { normal_indices[indices_idx] = norm_indexes[INDEX_IDX]; } \
+								if (has_uv_indices) { uv_indices[indices_idx] = uv_indexes[INDEX_IDX]; } \
+								indices[indices_idx++] = vert_indexes[INDEX_IDX];
+
+				for (int i = 0; i < triangles; ++i) {
+					_zt_assignIndexesToIndices(0);
+					_zt_assignIndexesToIndices(1 + i);
+					_zt_assignIndexesToIndices(2 + i);
+				}
+
+				#undef _zt_assignIndexesToIndices
+			}
+		}
+		else if (tokens[i].len > 8) {
+			if (zt_strStartsWith(line, "usemtl") && l_tokens_count > 1 && materials == nullptr) {
+				if (zt_materialListIsEmpty(&material_list_local)) {
+					char mtl_name[128];
+					zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + l_tokens[1].beg, l_tokens[1].len);
+					
+					char mtl_name_path[ztFileMaxPath];
+					bool found_file = true;
+					
+					zt_strCpy(mtl_name_path, zt_elementsOf(mtl_name_path), asset_mgr->asset_name[asset_id]);
+					int pos = zt_strFindLastPos(mtl_name_path, "/");
+					if (pos != ztStrPosNotFound) {
+						mtl_name_path[pos] = 0;
+					}
+
+					// check for "mtl_name".png
+					zt_strMakePrintf(mtl_name_file, ztFileMaxPath, "%s/%s.png", mtl_name_path, mtl_name);
+					i32 asset_hash = -1;
+					if (!zt_assetFileExistsAsAsset(asset_mgr, mtl_name_file, &asset_hash)) {
+						zt_strPrintf(mtl_name_file, zt_elementsOf(mtl_name_file), "%s/%s_d.png", mtl_name_path, mtl_name);
+						if (!zt_assetFileExistsAsAsset(asset_mgr, mtl_name_file, &asset_hash)) {
+							found_file = false;
+						}
+					}
+					
+					if (found_file) {
+						material_list_local = zt_materialListMake(zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, asset_hash), ztTextureFlags_MipMaps|ztTextureFlags_Flip), ztMaterialFlags_OwnsTexture);
+					}
+				}
+			}
+		}
+		//if (line[0] == 'g' && line[1] == ' ') {
+		//	group_idx += 1;
+		//	if (group_idx > 1) {
+		//		break;
+		//	}
+		//}
+	}
+
+	i32 mesh_flags = 0;
+	if (!zt_materialListIsEmpty(&material_list_local)) {
+		materials = &material_list_local;
+		mesh_flags |= ztMeshFlags_OwnsMaterials;
+	}
+
+	ztMeshID mesh = ztInvalidID;
+
+	if (has_norm_indices || has_uv_indices) {
+		// we need to redo the vert/normal/uv arrays
+		ztVec3* new_verts = zt_mallocStructArray(ztVec3, indices_idx);
+		ztVec2* new_uvs = has_uv_indices ? zt_mallocStructArray(ztVec2, indices_idx) : nullptr;
+		ztVec3* new_normals = has_norm_indices ? zt_mallocStructArray(ztVec3, indices_idx) : nullptr;
+
+		for (int i = 0; i < indices_idx; ++i) {
+			new_verts[i] = verts[indices[i]];
+			if (new_uvs) {
+				new_uvs[i] = uvs[uv_indices[i]];
+			}
+			if (new_normals) {
+				new_normals[i] = normals[normal_indices[i]];
+			}
+		}
+
+		zt_logDebug("obj contains %d triangles", indices_idx / 3);
+		
+		mesh = zt_meshMake(new_verts, new_uvs, new_normals, indices_idx, nullptr, 0, materials, mesh_flags);
+
+		zt_free(new_normals);
+		zt_free(new_uvs);
+		zt_free(new_verts);
+	}
+	else {
+		zt_logDebug("obj contains %d triangles", indices_idx / 3);
+		mesh = zt_meshMake(verts, uvs, normals, verts_idx, indices, indices_count, materials, mesh_flags);
+	}
+
+	zt_free(indices);
+	if (uvs != nullptr) zt_free(uvs);
+	if (uv_indices != nullptr) zt_free(uv_indices);
+	if (normals != nullptr) zt_free(normals);
+	if (normal_indices != nullptr) zt_free(normal_indices);
+	zt_free(verts);
+
+	zt_free(tokens);
+	zt_free(data);
+
+	return mesh;
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -39,7 +39,6 @@ struct ztGame
 	ztGameDetails *details;
 	ztGameSettings *settings;
 
-
 	ztMemoryArena* asset_arena;
 	ztAssetManager asset_mgr;
 
@@ -59,7 +58,7 @@ struct ztGame
 	bool button_live_value;
 	r32 slider_live_value;
 
-	ztMeshID cube, plane;
+	ztMeshID cube, plane, rock;
 };
 
 
@@ -155,6 +154,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	ztMaterialList materials = zt_materialListMake(g_game->tex_id_crate);
 	g_game->cube = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
 	g_game->plane = zt_meshMakePrimativePlane(&materials, 10, 10, 10, 10);
+	g_game->rock = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/rock.obj"), nullptr);
 
 	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
@@ -270,6 +270,7 @@ void game_cleanup()
 {
 	zt_guiManagerFree(g_game->gui_manager);
 
+	zt_meshFree(g_game->rock);
 	zt_meshFree(g_game->cube);
 	zt_meshFree(g_game->plane);
 
@@ -353,8 +354,8 @@ bool game_loop(r32 dt)
 
 			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
 			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
-
 			zt_drawListAddMesh(&g_game->draw_list, g_game->plane, ztVec3(0, -.01f, 0), ztVec3::zero, ztVec3::one);
+			zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
 
 			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
