@@ -60,7 +60,7 @@ struct ztGame
 
 	ztMeshID box, plane, rock, cube;
 
-	ztTextureID render_tex;
+	ztTextureID render_tex, cube_map;
 };
 
 
@@ -83,7 +83,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -160,6 +160,8 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
 
 	g_game->render_tex = zt_textureMakeRenderTarget(1024, 1024);
+
+	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
 	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
@@ -355,6 +357,7 @@ bool game_loop(r32 dt)
 		}
 		{
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(.5f, .5f, .5f, 1));
+			zt_drawListAddSkybox(&g_game->draw_list, g_game->cube_map);
 			zt_drawListAddFloorGrid(&g_game->draw_list, ztVec3(0, -0.0001f, 0), 30, 30);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 1, 1));

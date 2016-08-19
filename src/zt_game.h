@@ -566,11 +566,12 @@ void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 tex
 enum ztShaderDefault_Enum
 {
 	ztShaderDefault_Solid,
+	ztShaderDefault_Skybox,
 
 	ztShaderDefault_MAX,
 };
 
-ztShaderID zt_rendererGetDefaultShader(ztShaderDefault_Enum shader_default);
+ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -603,7 +604,9 @@ ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
 ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags = 0);
 ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
-ztTextureID zt_textureMakeCubeMap(ztAssetID files[ztTextureCubeMapFiles_MAX]);
+ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
+ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
+
 
 void zt_textureFree(ztTextureID texture_id);
 
@@ -745,7 +748,7 @@ void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztI
 
 enum ztDrawCommandType_Enum
 {
-	ztDrawCommandType_Invalid, 
+	ztDrawCommandType_Invalid,
 
 	ztDrawCommandType_Point,
 	ztDrawCommandType_Line,
@@ -757,6 +760,8 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_ChangeTexture,
 	ztDrawCommandType_ChangeClipping,
 	ztDrawCommandType_ChangeFlags,
+
+	ztDrawCommandType_Skybox,
 
 	ztDrawCommandType_MAX,
 };
@@ -808,6 +813,10 @@ struct ztDrawCommand
 		struct {
 			i32 flags;
 		};
+
+		struct {
+			ztTextureID skybox;
+		};
 	};
 };
 
@@ -853,6 +862,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count,
 bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
+bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox);
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
@@ -1831,6 +1841,9 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_TEXTURE_MAX_LEVEL 0x813D
 #define GL_READ_FRAMEBUFFER 0x8CA8
 #define GL_DRAW_FRAMEBUFFER 0x8CA9
+#define GL_TEXTURE_CUBE_MAP 0x8513
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8515
+#define GL_TEXTURE_WRAP_R 0x8072
 
 // function prototypes we need
 #define ZTGL_WINAPI	__stdcall
@@ -2082,6 +2095,8 @@ struct ztWindowDetails
 	zt_openGLSupport(HDC gl_hdc);
 	zt_openGLSupport(HGLRC gl_context);
 	zt_openGLSupport(RECT gl_win_screen_area);
+	zt_openGLSupport(GLuint gl_skybox_vao);
+	zt_openGLSupport(GLuint gl_skybox_vbo);
 
 	zt_directxSupport(IDXGISwapChain *dx_swapchain);
 	zt_directxSupport(ID3D11Device *dx_device);
@@ -2380,9 +2395,11 @@ ztGameGlobals *zt = nullptr;
 
 ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
+	"shader-skybox",
 };
 ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if(color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -3084,6 +3101,19 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox)
+{
+	_zt_drawListCheck(draw_list);
+	auto* command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_Skybox;
+	command->skybox = skybox;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 {
 	_zt_drawListCheck(draw_list);
@@ -3280,6 +3310,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztCompileShader *shaders[128];
 	i32 shaders_count = 0;
 
+	ztTextureID skybox = ztInvalidID;
+
 	struct local
 	{
 		static bool texturesMatch(ztDrawCommand *cmd1, ztDrawCommand *cmd2)
@@ -3298,7 +3330,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			return true;
 		}
 
-		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 *mem_left, ztCompileShader **shader)
+		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 *mem_left, ztTextureID *skybox, ztCompileShader **shader)
 		{
 #			define _zt_castMem(type) (type*)mem; mem += zt_sizeof(type); *mem_left -= zt_sizeof(type); zt_assert(*mem_left >= 0);
 
@@ -3420,6 +3452,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_singleLinkAddToEnd(cmp_shader->texture, cmp_texture);
 								}
 							}
+						}
+						if(command->type == ztDrawCommandType_Skybox) {
+							*skybox = command->skybox;
 						}
 					}
 
@@ -3568,7 +3603,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			case ztDrawCommandType_ChangeShader: {
 				if (!local::processedShader(command->shader, shaders, shaders_count)) {
 					zt_assert(shaders_count < zt_elementsOf(shaders));
-					mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, &mem_left, &shaders[shaders_count++]);
+					mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, &mem_left, &skybox, &shaders[shaders_count++]);
 				}
 			} break;
 			}
@@ -3576,7 +3611,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	}
 
 	// process non-shader commands last
-	local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, &mem_left, &shaders[shaders_count++]);
+	local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, &mem_left, &skybox, &shaders[shaders_count++]);
 	
 	zt_fiz(draw_lists_count) {
 		ztDrawList *draw_list = draw_lists[i];
@@ -3645,6 +3680,61 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			zt_rendererClear(clear);
 		}
+
+		if (skybox != ztInvalidID) {
+			if (zt->win_details[0].gl_skybox_vao == 0) {
+				GLfloat skybox_verts[] = {
+					-1.0f,  1.0f, -1.0f,    -1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,     1.0f,  1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,
+					-1.0f, -1.0f,  1.0f,    -1.0f, -1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,    -1.0f,  1.0f,  1.0f,    -1.0f, -1.0f,  1.0f,
+					 1.0f, -1.0f, -1.0f,     1.0f, -1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f, -1.0f,     1.0f, -1.0f, -1.0f,
+					-1.0f, -1.0f,  1.0f,    -1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f, -1.0f,  1.0f,    -1.0f, -1.0f,  1.0f,
+					-1.0f,  1.0f, -1.0f,     1.0f,  1.0f, -1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,    -1.0f,  1.0f,  1.0f,    -1.0f,  1.0f, -1.0f,
+					-1.0f, -1.0f, -1.0f,    -1.0f, -1.0f,  1.0f,     1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,    -1.0f, -1.0f,  1.0f,     1.0f, -1.0f,  1.0f
+				};
+
+				zt_glCallAndReportOnError(glGenVertexArrays(1, &zt->win_details[0].gl_skybox_vao));
+				zt_glCallAndReportOnError(glGenBuffers(1, &zt->win_details[0].gl_skybox_vbo));
+				zt_glCallAndReportOnError(glBindVertexArray(zt->win_details[0].gl_skybox_vao));
+				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, zt->win_details[0].gl_skybox_vbo));
+				zt_glCallAndReportOnError(glBufferData(GL_ARRAY_BUFFER, zt_elementsOf(skybox_verts) * sizeof(GLfloat), &skybox_verts, GL_STATIC_DRAW));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(0));
+				zt_glCallAndReportOnError(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0));
+				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
+				zt_glCallAndReportOnError(glBindVertexArray(0));
+			}
+
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+
+			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
+			if (shader_id != ztInvalidID) {
+				zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
+				{
+					GLuint projection_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "projection");
+					GLuint view_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "view");
+					GLuint skybox_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "skybox");
+
+					r32 view_mat[16];
+					zt_memCpy(view_mat, zt_sizeof(view_mat), camera->mat_view.values, zt_sizeof(view_mat));
+
+					view_mat[12] = view_mat[13] = view_mat[14] = 0;// view_mat[3] = view_mat[7] = view_mat[11] = 0;
+					view_mat[15] = 1;
+
+					zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(projection_loc, 1, GL_FALSE, camera->mat_proj.values));
+					zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(view_loc, 1, GL_FALSE, view_mat));
+
+					zt_glCallAndReportOnErrorFast(glBindVertexArray(zt->win_details[0].gl_skybox_vao));
+					zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0));
+					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, zt->textures[skybox].gl_texid));
+					zt_glCallAndReportOnErrorFast(glUniform1i(skybox_loc, 0));
+					zt_glCallAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, 36));
+					zt_glCallAndReportOnErrorFast(glBindVertexArray(0));
+					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+				}
+				zt_glCallAndReportOnErrorFast(glUseProgram(0));
+			}
+		}
+
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
@@ -3920,7 +4010,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
 			}
 			else {
-				shader_id = zt_rendererGetDefaultShader(ztShaderDefault_Solid);
+				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
 
 				zt->game_details.shader_switches += 1;
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
@@ -5056,10 +5146,13 @@ void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, ztTextu
 
 // ------------------------------------------------------------------------------------------------
 
-ztShaderID zt_rendererGetDefaultShader(ztShaderDefault_Enum shader_default)
+ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 {
 	switch(shader_default) {
 		case ztShaderDefault_Solid:
+			return shader_default;
+
+		case ztShaderDefault_Skybox:
 			return shader_default;
 	}
 
@@ -5501,8 +5594,249 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 
 // ------------------------------------------------------------------------------------------------
 
-ztTextureID zt_textureMakeCubeMap(ztAssetID files[ztTextureCubeMapFiles_MAX])
+ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format)
 {
+	ztAssetID asset_ids[ztTextureCubeMapFiles_MAX];
+
+	char asset_name[1024];
+
+	const char *names[ztTextureCubeMapFiles_MAX] = { "right", "left", "top", "bottom", "back", "front" };
+
+	zt_fiz(ztTextureCubeMapFiles_MAX) {
+		zt_strPrintf(asset_name, zt_elementsOf(asset_name), asset_format, names[i]);
+		asset_ids[i] = zt_assetLoad(asset_mgr, asset_name);
+	}
+
+	return zt_textureMakeCubeMap(asset_mgr, asset_ids);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX])
+{
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+
+	byte *tex_data[ztTextureCubeMapFiles_MAX];
+	int tex_size[ztTextureCubeMapFiles_MAX];
+
+	zt_fiz(ztTextureCubeMapFiles_MAX) {
+		ztAssetID asset_id = files[i];
+		zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+		if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
+			return ztInvalidID;
+		}
+
+		tex_size[i] = zt_assetSize(asset_mgr, asset_id);
+		if (tex_size[i] <= 0) {
+			return ztInvalidID;
+		}
+
+		tex_data[i] = zt_mallocStructArray(byte, tex_size[i]);
+		if (!tex_data[i]) {
+			return ztInvalidID;
+		}
+
+		if (!zt_assetLoadData(asset_mgr, asset_id, tex_data[i], tex_size[i])) {
+			zt_logCritical("Unable to load image asset: %s", asset_mgr->asset_name[asset_id]);
+			zt_fjzr(i) zt_free(tex_data[j]);
+			return ztInvalidID;
+		}
+	}
+
+	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
+#if defined(ZT_OPENGL)
+		struct OpenGL
+		{
+			static bool loadTexture(GLuint *tex_id, byte *tex_data[ztTextureCubeMapFiles_MAX], int tex_size[ztTextureCubeMapFiles_MAX])
+			{
+				zt_glCallAndReturnValOnError(glGenTextures(1, tex_id), false);
+				zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_CUBE_MAP, *tex_id), false);
+				zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
+				zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR), false);
+				zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
+				zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+				zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE), false);
+
+				int image_order[6] = { 1, 0, 2, 3, 5, 4 };
+
+				for (int i = 0; i < 6; ++i) {
+					int width, height, depth;
+					byte *pixel_data = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
+					if (pixel_data == nullptr) {
+						return false;
+					}
+
+					zt_glCallAndReturnValOnError(glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixel_data), false);
+
+					stbi_image_free(pixel_data);
+
+					if (false) {
+						zt_glCallAndReturnValOnError(glGenerateMipmap(GL_TEXTURE_CUBE_MAP), false);
+						zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST), false);
+					}
+				}
+
+				zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_CUBE_MAP, 0), false);
+
+				return true;
+			}
+
+		};
+
+
+		GLuint texid = 0;
+
+		if (!OpenGL::loadTexture(&texid, tex_data, tex_size)) {
+			zt_logCritical("Unable to load images into cube map texture");
+			zt_fiz(ztTextureCubeMapFiles_MAX) zt_free(tex_data[i]);
+			return ztInvalidID;
+		}
+
+		zt_fiz(ztTextureCubeMapFiles_MAX) zt_free(tex_data[i]);
+
+		ztTextureID texture_id = zt->textures_count++;
+		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
+
+		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
+		zt->textures[texture_id].width = -1;
+		zt->textures[texture_id].height = -1;
+		zt->textures[texture_id].flags = 0;
+		zt->textures[texture_id].gl_texid = texid;
+		zt->textures[texture_id].gl_fbo = 0;
+		zt->textures[texture_id].gl_dbo = 0;
+		zt->textures[texture_id].gl_rt = 0;
+		zt->textures[texture_id].gl_rb = 0;
+
+		return texture_id;
+#else
+		*error = "OpenGL is disabled in the library";
+		return ztInvalidID;
+#endif
+	}
+	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
+#if defined(ZT_DIRECTX) && 0
+		D3D11_TEXTURE2D_DESC desc;
+		desc.Width = width;
+		desc.Height = height;
+		desc.MipLevels = 1; // zt_bitIsSet(flags, ztTextureFlags_MipMaps) ? 0 : 1; // this is crashing
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.BindFlags = (render_target ? D3D11_BIND_RENDER_TARGET : 0) | D3D11_BIND_SHADER_RESOURCE;
+		desc.CPUAccessFlags = 0;
+		desc.MiscFlags = 0;
+
+		D3D11_SUBRESOURCE_DATA subr;
+		subr.pSysMem = pixel_data;
+		subr.SysMemPitch = width * 4;
+		subr.SysMemSlicePitch = width * height * 4; // not needed in 2d tex
+
+		ID3D11Texture2D *dx_tex;
+		if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&desc, (render_target ? nullptr : &subr), &dx_tex))) {
+			*error = "CreateTexture2D failed.";
+			return ztInvalidID;
+		}
+
+		ID3D11RenderTargetView *dx_render_target_view = nullptr;
+		ID3D11Texture2D *dx_depth_stencil_buffer = nullptr;
+		ID3D11DepthStencilView *dx_depth_stencil_view = nullptr;
+		if (render_target) {
+			D3D11_TEXTURE2D_DESC dsdesc;
+
+			dsdesc.Width = width;
+			dsdesc.Height = height;
+			dsdesc.MipLevels = 1;
+			dsdesc.ArraySize = 1;
+			dsdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+			dsdesc.SampleDesc.Count = 1;
+			dsdesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
+			dsdesc.Usage = D3D11_USAGE_DEFAULT;
+			dsdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+			dsdesc.CPUAccessFlags = 0;
+			dsdesc.MiscFlags = 0;
+
+			if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&dsdesc, NULL, &dx_depth_stencil_buffer))) {
+				*error = "CreateTexture2D failed.";
+				return ztInvalidID;
+			}
+			if (FAILED(zt->win_details[0].dx_device->CreateDepthStencilView(dx_depth_stencil_buffer, NULL, &dx_depth_stencil_view))) {
+				*error = "CreateDepthStencilView failed.";
+				return ztInvalidID;
+			}
+
+
+			D3D11_RENDER_TARGET_VIEW_DESC rtvd;
+			ZeroMemory(&rtvd, zt_sizeof(rtvd));
+			rtvd.Format = desc.Format;
+			rtvd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+			rtvd.Texture2D.MipSlice = 0;
+
+			if (FAILED(zt->win_details[0].dx_device->CreateRenderTargetView(dx_tex, &rtvd, &dx_render_target_view))) {
+				*error = "CreateRenderTargetView failed.";
+				return ztInvalidID;
+			}
+		}
+
+		ID3D11ShaderResourceView *dx_shader_resource_view;
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
+		ZeroMemory(&srvd, zt_sizeof(srvd));
+
+		srvd.Format = desc.Format;
+		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvd.Texture2D.MostDetailedMip = 0;
+		srvd.Texture2D.MipLevels = 1;
+
+		if (FAILED(zt->win_details[0].dx_device->CreateShaderResourceView(dx_tex, (render_target ? &srvd : nullptr), &dx_shader_resource_view))) {
+			*error = "CreateShaderResourceView failed.";
+			return ztInvalidID;
+		}
+
+		ID3D11SamplerState *dx_sampler_state;
+
+		D3D11_SAMPLER_DESC samp_desc;
+		ZeroMemory(&samp_desc, sizeof(samp_desc));
+		if (zt_bitIsSet(flags, ztTextureFlags_PixelPerfect)) {
+			samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		}
+		else {
+			samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		}
+		samp_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		samp_desc.MinLOD = 0;
+		samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
+
+		if (FAILED(zt->win_details[0].dx_device->CreateSamplerState(&samp_desc, &dx_sampler_state))) {
+			*error = "CreateSamplerState failed.";
+			return ztInvalidID;
+		}
+
+		texture_id = zt->textures_count++;
+		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
+
+		zt->textures[texture_id].renderer = ztRenderer_DirectX;
+		zt->textures[texture_id].width = width;
+		zt->textures[texture_id].height = height;
+		zt->textures[texture_id].flags = flags;
+		zt->textures[texture_id].dx_tex = dx_tex;
+		zt->textures[texture_id].dx_shader_resource_view = dx_shader_resource_view;
+		zt->textures[texture_id].dx_sampler_state = dx_sampler_state;
+		zt->textures[texture_id].dx_depth_stencil_buffer = dx_depth_stencil_buffer;
+		zt->textures[texture_id].dx_depth_stencil_view = dx_depth_stencil_view;
+		zt->textures[texture_id].dx_render_target_view = dx_render_target_view;
+
+#else
+		return ztInvalidID;
+#endif
+	}
+	else {
+		zt_assert(false);
+	}
+
 	return ztInvalidID;
 }
 
