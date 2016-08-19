@@ -15,7 +15,7 @@
 #define ZT_GAME_IMPLEMENTATION
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
-//#define ZT_OPENGL_DIAGNOSE
+#define ZT_OPENGL_DIAGNOSE
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -58,7 +58,9 @@ struct ztGame
 	bool button_live_value;
 	r32 slider_live_value;
 
-	ztMeshID cube, plane, rock;
+	ztMeshID box, plane, rock, cube;
+
+	ztTextureID render_tex;
 };
 
 
@@ -81,7 +83,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -152,9 +154,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	
 	ztMaterialList materials = zt_materialListMake(g_game->tex_id_crate);
-	g_game->cube = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
+	g_game->box = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
 	g_game->plane = zt_meshMakePrimativePlane(&materials, 10, 10, 10, 10);
 	g_game->rock = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/rock.obj"), nullptr);
+	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
+
+	g_game->render_tex = zt_textureMakeRenderTarget(1024, 1024);
 
 	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
@@ -270,8 +275,11 @@ void game_cleanup()
 {
 	zt_guiManagerFree(g_game->gui_manager);
 
-	zt_meshFree(g_game->rock);
+	zt_textureFree(g_game->render_tex);
+
 	zt_meshFree(g_game->cube);
+	zt_meshFree(g_game->rock);
+	zt_meshFree(g_game->box);
 	zt_meshFree(g_game->plane);
 
 	zt_fontFree(g_game->font_id_bmp);
@@ -328,6 +336,24 @@ bool game_loop(r32 dt)
 
 	{
 		{
+			static r32 osc = 0;
+			osc += dt * 2.f;
+			r32 off = 3 + zt_sin(osc);
+
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 1, 1));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(1, 1, 0), ztVec3(-1, -1, 0));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(-1, 1, 0), ztVec3(1, -1, 0));
+			zt_drawListAddEmptyQuad(&g_game->draw_list, ztVec3(-1 * off, 1 * off, 0), ztVec3(-1 * off, -1 * off, 0), ztVec3(1 * off, -1 * off, 0), ztVec3(1 * off, 1 * off, 0));
+
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
+			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
+			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, 0));
+	
+			zt_drawListPopShader(&g_game->draw_list);
+
+			zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor(.2f, 0, 0, 1), ztRenderDrawListFlags_NoDepthTest, g_game->render_tex);
+		}
+		{
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(.5f, .5f, .5f, 1));
 			zt_drawListAddFloorGrid(&g_game->draw_list, ztVec3(0, -0.0001f, 0), 30, 30);
 
@@ -341,23 +367,27 @@ bool game_loop(r32 dt)
 
 				zt_drawListAddFilledTriangle(&g_game->draw_list, pos, uvs, nml);
 			}
+			//zt_drawListPopTexture(&g_game->draw_list);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
+			zt_drawListPushTexture(&g_game->draw_list, g_game->render_tex);
 			{
 				// top left, bottom left, bottom right, top right
-				static ztVec3 pos[4] = { ztVec3(-2, 2, -2), ztVec3(-2, 0, -2), ztVec3(0, 0, -1), ztVec3(0, 2, -1) };
+				static ztVec3 pos[4] = { ztVec3(-22, 22, -22), ztVec3(-22, 0, -22), ztVec3(0, 0, -22), ztVec3(0, 22, -22) };
 				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
 				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
 				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
 			}
+			zt_drawListPopTexture(&g_game->draw_list);
+			zt_drawListPopTexture(&g_game->draw_list);
 
-			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
-			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
+			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
+			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
 			zt_drawListAddMesh(&g_game->draw_list, g_game->plane, ztVec3(0, -.01f, 0), ztVec3::zero, ztVec3::one);
 			zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
+			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-2, .5f, -2), ztVec3::zero, ztVec3::one);
 
-			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));

@@ -586,10 +586,25 @@ enum ztTextureFlags_Enum
 	ztTextureFlags_PixelPerfect  = (1<<3),
 };
 
+enum ztTextureCubeMapFiles_Enum
+{
+	ztTextureCubeMapFiles_Right,
+	ztTextureCubeMapFiles_Left,
+	ztTextureCubeMapFiles_Top,
+	ztTextureCubeMapFiles_Bottom,
+	ztTextureCubeMapFiles_Back,
+	ztTextureCubeMapFiles_Front,
+
+	ztTextureCubeMapFiles_MAX,
+};
+
 ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags = 0);
 ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
 ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags = 0);
+ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
+ztTextureID zt_textureMakeCubeMap(ztAssetID files[ztTextureCubeMapFiles_MAX]);
+
 void zt_textureFree(ztTextureID texture_id);
 
 
@@ -685,6 +700,7 @@ struct ztCamera
 	ztVec3 position;
 
 	i32 width, height;
+	r32 near_z, far_z;
 
 	ztMat4 mat_view, mat_proj;
 
@@ -695,6 +711,7 @@ struct ztCamera
 		};
 
 		struct { // perspective only
+			r32 fov;
 			ztVec3 rotation;
 			ztVec3 direction;
 		};
@@ -837,7 +854,6 @@ bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& p
 
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
 
-
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
 bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color);
@@ -857,8 +873,8 @@ enum ztRenderDrawListFlags_Enum
 	ztRenderDrawListFlags_NoDepthTest = (1<<2),
 };
 
-void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags);
-void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags);
+void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
+void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1805,7 +1821,16 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_CLAMP_TO_EDGE 0x812F
 #define GL_MULTISAMPLE 0x809D
 #define GL_ELEMENT_ARRAY_BUFFER 0x8893
-
+#define GL_FRAMEBUFFER 0x8D40
+#define GL_DEPTH_ATTACHMENT 0x8D00
+#define GL_CLAMP_TO_BORDER 0x812D
+#define GL_RENDERBUFFER 0x8D41
+#define GL_TEXTURE_2D_MULTISAMPLE 0x9100
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#define GL_COLOR_ATTACHMENT0 0x8CE0
+#define GL_TEXTURE_MAX_LEVEL 0x813D
+#define GL_READ_FRAMEBUFFER 0x8CA8
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
 
 // function prototypes we need
 #define ZTGL_WINAPI	__stdcall
@@ -1844,43 +1869,63 @@ typedef void      (ZTGL_WINAPI *ztgl_glGenerateMipmap_Func) (GLenum target);
 typedef void      (ZTGL_WINAPI *ztgl_glDeleteRenderbuffers_Func) (GLsizei n, const GLuint* renderbuffers);
 typedef void      (ZTGL_WINAPI *ztgl_glDeleteFramebuffers_Func) (GLsizei n, const GLuint* framebuffers);
 typedef void      (ZTGL_WINAPI *ztgl_glUniform1i_Func) (GLint location, GLint v0);
+typedef void      (ZTGL_WINAPI *ztgl_glGenFramebuffers_Func) (GLsizei n, GLuint* framebuffers);
+typedef void      (ZTGL_WINAPI *ztgl_glBindFramebuffer_Func) (GLenum target, GLuint framebuffer);
+typedef void      (ZTGL_WINAPI *ztgl_glFramebufferTexture2D_Func) (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+typedef void      (ZTGL_WINAPI *ztgl_glGenRenderbuffers_Func) (GLsizei n, GLuint* renderbuffers);
+typedef void      (ZTGL_WINAPI *ztgl_glBindRenderbuffer_Func) (GLenum target, GLuint renderbuffer);
+typedef GLenum    (ZTGL_WINAPI *ztgl_glCheckFramebufferStatus_Func) (GLenum target);
+typedef void      (ZTGL_WINAPI *ztgl_glRenderbufferStorageMultisample_Func) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+typedef void      (ZTGL_WINAPI *ztgl_glFramebufferRenderbuffer_Func) (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
+typedef void      (ZTGL_WINAPI *ztgl_glTexImage2DMultisample_Func) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
+typedef void      (ZTGL_WINAPI *ztgl_glBlitFramebuffer_Func) (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
 
 struct ztOpenGL
 {
 	bool initialized = false;
-	ztgl_wglSwapIntervalEXT_Func        wglSwapIntervalEXT;
-	ztgl_glCreateShader_Func            glCreateShader;
-	ztgl_glShaderSource_Func            glShaderSource;
-	ztgl_glCompileShader_Func           glCompileShader;
-	ztgl_glGetShaderiv_Func             glGetShaderiv;
-	ztgl_glGetShaderInfoLog_Func        glGetShaderInfoLog;
-	ztgl_glDeleteShader_Func            glDeleteShader;
-	ztgl_glCreateProgram_Func           glCreateProgram;
-	ztgl_glAttachShader_Func            glAttachShader;
-	ztgl_glLinkProgram_Func             glLinkProgram;
-	ztgl_glGetProgramiv_Func            glGetProgramiv;
-	ztgl_glGetProgramInfoLog_Func       glGetProgramInfoLog;
-	ztgl_glDeleteProgram_Func           glDeleteProgram;
-	ztgl_glDetachShader_Func            glDetachShader;
-	ztgl_glUseProgram_Func              glUseProgram;
-	ztgl_glBlendFuncSeparate_Func       glBlendFuncSeparate;
-	ztgl_glVertexAttribPointer_Func     glVertexAttribPointer;
-	ztgl_glEnableVertexAttribArray_Func glEnableVertexAttribArray;
-	ztgl_glGetUniformLocation_Func      glGetUniformLocation;
-	ztgl_glUniformMatrix4fv_Func        glUniformMatrix4fv;
-	ztgl_glUniform4fv_Func              glUniform4fv;
-	ztgl_glGenBuffers_Func              glGenBuffers;
-	ztgl_glBindBuffer_Func              glBindBuffer;
-	ztgl_glGenVertexArrays_Func         glGenVertexArrays;
-	ztgl_glBindVertexArray_Func         glBindVertexArray;
-	ztgl_glDeleteVertexArrays_Func      glDeleteVertexArrays;
-	ztgl_glDeleteBuffers_Func           glDeleteBuffers;
-	ztgl_glBufferData_Func              glBufferData;
-	ztgl_glActiveTexture_Func           glActiveTexture;
-	ztgl_glGenerateMipmap_Func          glGenerateMipmap;
-	ztgl_glDeleteRenderbuffers_Func     glDeleteRenderbuffers;
-	ztgl_glDeleteFramebuffers_Func      glDeleteFramebuffers;
-	ztgl_glUniform1i_Func               glUniform1i;
+	ztgl_wglSwapIntervalEXT_Func               wglSwapIntervalEXT;
+	ztgl_glCreateShader_Func                   glCreateShader;
+	ztgl_glShaderSource_Func                   glShaderSource;
+	ztgl_glCompileShader_Func                  glCompileShader;
+	ztgl_glGetShaderiv_Func                    glGetShaderiv;
+	ztgl_glGetShaderInfoLog_Func               glGetShaderInfoLog;
+	ztgl_glDeleteShader_Func                   glDeleteShader;
+	ztgl_glCreateProgram_Func                  glCreateProgram;
+	ztgl_glAttachShader_Func                   glAttachShader;
+	ztgl_glLinkProgram_Func                    glLinkProgram;
+	ztgl_glGetProgramiv_Func                   glGetProgramiv;
+	ztgl_glGetProgramInfoLog_Func              glGetProgramInfoLog;
+	ztgl_glDeleteProgram_Func                  glDeleteProgram;
+	ztgl_glDetachShader_Func                   glDetachShader;
+	ztgl_glUseProgram_Func                     glUseProgram;
+	ztgl_glBlendFuncSeparate_Func              glBlendFuncSeparate;
+	ztgl_glVertexAttribPointer_Func            glVertexAttribPointer;
+	ztgl_glEnableVertexAttribArray_Func        glEnableVertexAttribArray;
+	ztgl_glGetUniformLocation_Func             glGetUniformLocation;
+	ztgl_glUniformMatrix4fv_Func               glUniformMatrix4fv;
+	ztgl_glUniform4fv_Func                     glUniform4fv;
+	ztgl_glGenBuffers_Func                     glGenBuffers;
+	ztgl_glBindBuffer_Func                     glBindBuffer;
+	ztgl_glGenVertexArrays_Func                glGenVertexArrays;
+	ztgl_glBindVertexArray_Func                glBindVertexArray;
+	ztgl_glDeleteVertexArrays_Func             glDeleteVertexArrays;
+	ztgl_glDeleteBuffers_Func                  glDeleteBuffers;
+	ztgl_glBufferData_Func                     glBufferData;
+	ztgl_glActiveTexture_Func                  glActiveTexture;
+	ztgl_glGenerateMipmap_Func                 glGenerateMipmap;
+	ztgl_glDeleteRenderbuffers_Func            glDeleteRenderbuffers;
+	ztgl_glDeleteFramebuffers_Func             glDeleteFramebuffers;
+	ztgl_glUniform1i_Func                      glUniform1i;
+	ztgl_glGenFramebuffers_Func                glGenFramebuffers;
+	ztgl_glBindFramebuffer_Func                glBindFramebuffer;
+	ztgl_glFramebufferTexture2D_Func           glFramebufferTexture2D;
+	ztgl_glGenRenderbuffers_Func               glGenRenderbuffers;
+	ztgl_glBindRenderbuffer_Func               glBindRenderbuffer;
+	ztgl_glCheckFramebufferStatus_Func         glCheckFramebufferStatus;
+	ztgl_glRenderbufferStorageMultisample_Func glRenderbufferStorageMultisample;
+	ztgl_glFramebufferRenderbuffer_Func        glFramebufferRenderbuffer;
+	ztgl_glTexImage2DMultisample_Func          glTexImage2DMultisample;
+	ztgl_glBlitFramebuffer_Func                glBlitFramebuffer;
 };
 
 ztOpenGL zt_gl = {};
@@ -1923,43 +1968,63 @@ ztInternal void _zt_glLoadFunctions()
 	zt_loadFunc(glDeleteRenderbuffers);
 	zt_loadFunc(glDeleteFramebuffers);
 	zt_loadFunc(glUniform1i);
+	zt_loadFunc(glGenFramebuffers);
+	zt_loadFunc(glBindFramebuffer);
+	zt_loadFunc(glCheckFramebufferStatus);
+	zt_loadFunc(glFramebufferTexture2D);
+	zt_loadFunc(glGenRenderbuffers);
+	zt_loadFunc(glBindRenderbuffer);
+	zt_loadFunc(glRenderbufferStorageMultisample);
+	zt_loadFunc(glFramebufferRenderbuffer);
+	zt_loadFunc(glTexImage2DMultisample);
+	zt_loadFunc(glBlitFramebuffer);
 
 #undef zt_loadFunc
 }
 
-#define wglSwapIntervalEXT        zt_gl.wglSwapIntervalEXT
-#define glCreateShader            zt_gl.glCreateShader
-#define glShaderSource            zt_gl.glShaderSource
-#define glCompileShader           zt_gl.glCompileShader
-#define glGetShaderiv             zt_gl.glGetShaderiv
-#define glGetShaderInfoLog        zt_gl.glGetShaderInfoLog
-#define glDeleteShader            zt_gl.glDeleteShader
-#define glCreateProgram		      zt_gl.glCreateProgram
-#define glAttachShader            zt_gl.glAttachShader
-#define glLinkProgram             zt_gl.glLinkProgram
-#define glGetProgramiv            zt_gl.glGetProgramiv
-#define glGetProgramInfoLog       zt_gl.glGetProgramInfoLog
-#define glDeleteProgram           zt_gl.glDeleteProgram
-#define glDetachShader            zt_gl.glDetachShader
-#define glUseProgram              zt_gl.glUseProgram
-#define glBlendFuncSeparate       zt_gl.glBlendFuncSeparate
-#define glVertexAttribPointer     zt_gl.glVertexAttribPointer
-#define glEnableVertexAttribArray zt_gl.glEnableVertexAttribArray
-#define glGetUniformLocation      zt_gl.glGetUniformLocation
-#define glUniformMatrix4fv        zt_gl.glUniformMatrix4fv
-#define glUniform4fv              zt_gl.glUniform4fv
-#define glGenBuffers              zt_gl.glGenBuffers
-#define glBindBuffer              zt_gl.glBindBuffer
-#define glGenVertexArrays         zt_gl.glGenVertexArrays
-#define glBindVertexArray         zt_gl.glBindVertexArray
-#define glDeleteVertexArrays      zt_gl.glDeleteVertexArrays
-#define glDeleteBuffers           zt_gl.glDeleteBuffers
-#define glBufferData              zt_gl.glBufferData
-#define glActiveTexture           zt_gl.glActiveTexture
-#define glGenerateMipmap          zt_gl.glGenerateMipmap
-#define glDeleteRenderbuffers     zt_gl.glDeleteRenderbuffers
-#define glDeleteFramebuffers      zt_gl.glDeleteFramebuffers
-#define glUniform1i               zt_gl.glUniform1i
+#define wglSwapIntervalEXT               zt_gl.wglSwapIntervalEXT
+#define glCreateShader                   zt_gl.glCreateShader
+#define glShaderSource                   zt_gl.glShaderSource
+#define glCompileShader                  zt_gl.glCompileShader
+#define glGetShaderiv                    zt_gl.glGetShaderiv
+#define glGetShaderInfoLog               zt_gl.glGetShaderInfoLog
+#define glDeleteShader                   zt_gl.glDeleteShader
+#define glCreateProgram		             zt_gl.glCreateProgram
+#define glAttachShader                   zt_gl.glAttachShader
+#define glLinkProgram                    zt_gl.glLinkProgram
+#define glGetProgramiv                   zt_gl.glGetProgramiv
+#define glGetProgramInfoLog              zt_gl.glGetProgramInfoLog
+#define glDeleteProgram                  zt_gl.glDeleteProgram
+#define glDetachShader                   zt_gl.glDetachShader
+#define glUseProgram                     zt_gl.glUseProgram
+#define glBlendFuncSeparate              zt_gl.glBlendFuncSeparate
+#define glVertexAttribPointer            zt_gl.glVertexAttribPointer
+#define glEnableVertexAttribArray        zt_gl.glEnableVertexAttribArray
+#define glGetUniformLocation             zt_gl.glGetUniformLocation
+#define glUniformMatrix4fv               zt_gl.glUniformMatrix4fv
+#define glUniform4fv                     zt_gl.glUniform4fv
+#define glGenBuffers                     zt_gl.glGenBuffers
+#define glBindBuffer                     zt_gl.glBindBuffer
+#define glGenVertexArrays                zt_gl.glGenVertexArrays
+#define glBindVertexArray                zt_gl.glBindVertexArray
+#define glDeleteVertexArrays             zt_gl.glDeleteVertexArrays
+#define glDeleteBuffers                  zt_gl.glDeleteBuffers
+#define glBufferData                     zt_gl.glBufferData
+#define glActiveTexture                  zt_gl.glActiveTexture
+#define glGenerateMipmap                 zt_gl.glGenerateMipmap
+#define glDeleteRenderbuffers            zt_gl.glDeleteRenderbuffers
+#define glDeleteFramebuffers             zt_gl.glDeleteFramebuffers
+#define glUniform1i                      zt_gl.glUniform1i
+#define glCheckFramebufferStatus         zt_gl.glCheckFramebufferStatus
+#define glGenFramebuffers                zt_gl.glGenFramebuffers
+#define glBindFramebuffer                zt_gl.glBindFramebuffer
+#define glFramebufferTexture2D           zt_gl.glFramebufferTexture2D
+#define glGenRenderbuffers               zt_gl.glGenRenderbuffers
+#define glBindRenderbuffer               zt_gl.glBindRenderbuffer
+#define glRenderbufferStorageMultisample zt_gl.glRenderbufferStorageMultisample
+#define glFramebufferRenderbuffer        zt_gl.glFramebufferRenderbuffer
+#define glTexImage2DMultisample          zt_gl.glTexImage2DMultisample
+#define glBlitFramebuffer                zt_gl.glBlitFramebuffer
 
 bool zt_glCheckAndReportError(const char *function);
 i32 zt_glClearErrors();
@@ -1995,7 +2060,7 @@ i32 zt_dxClearErrors();
 #define zt_dxCallAndReturnValOnError(function, retval) if (zt_dxCheckAndReportError(#function, (function))) return retval;
 #define zt_dxCallAndReportOnError(function) zt_dxCheckAndReportError(#function, (function));
 
-#if defined(ZT_OPENGL_DIAGNOSE)
+#if defined(ZT_DIRECTX_DIAGNOSE)
 #define zt_dxCallAndReportOnErrorFast(function) zt_dxCheckAndReportError(#function, (function));
 #else
 #define zt_dxCallAndReportOnErrorFast(function) function;
@@ -2026,6 +2091,7 @@ struct ztWindowDetails
 	zt_directxSupport(ID3D11BlendState *dx_transparency);
 	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_ccw);
 	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_cw);
+	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_none);
 	zt_directxSupport(ID3D11DepthStencilView* dx_depth_stencil_view);
 	zt_directxSupport(ID3D11Texture2D *dx_depth_stencil_buffer);
 	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_enabled);
@@ -2131,6 +2197,7 @@ enum ztTextureLoadType_Enum
 {
 	ztTextureLoadType_Asset,
 	ztTextureLoadType_Data,
+	ztTextureLoadType_RenderTarget,
 
 	ztTextureLoadType_MAX,
 };
@@ -2153,6 +2220,9 @@ struct ztTexture
 	ID3D11ShaderResourceView *dx_shader_resource_view;
 	ID3D11SamplerState *dx_sampler_state;
 
+	ID3D11Texture2D *dx_depth_stencil_buffer;
+	ID3D11DepthStencilView *dx_depth_stencil_view;
+	ID3D11RenderTargetView* dx_render_target_view;
 #endif
 
 	i32 width, height;
@@ -3143,12 +3213,12 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags)
+void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
 	zt_returnOnNull(draw_list);
 
 	ztDrawList *draw_lists_arr[1] = {draw_list};
-	zt_renderDrawLists(camera, draw_lists_arr, 1, clear, flags);
+	zt_renderDrawLists(camera, draw_lists_arr, 1, clear, flags, render_target_id);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3158,7 +3228,7 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 
 // ------------------------------------------------------------------------------------------------
 #
-void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags)
+void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
 	if (zt->last_drawn_frame != zt->game_details.current_frame) {
 		zt->game_details.shader_switches = zt->game_details.texture_switches = zt->game_details.triangles_drawn = zt->game_details.draw_calls = 0;
@@ -3172,7 +3242,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		return;
 	}
 
-	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear) && render_target_id == ztInvalidID) {
 		zt_rendererClear(clear);
 	}
 
@@ -3535,9 +3605,47 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	static ztBuffer buffer;
 	buffer.vertices_count = 0;
 
+	ztCamera rt_cam;
+	if (render_target_id != ztInvalidID) {
+		if (camera->type == ztCameraType_Orthographic) {
+			zt_cameraMakeOrtho(&rt_cam, zt->textures[render_target_id].width, zt->textures[render_target_id].height, zt->textures[render_target_id].width, zt->textures[render_target_id].height, camera->near_z, camera->far_z);
+			rt_cam.zoom = camera->zoom;
+			rt_cam.position = camera->position;
+		}
+		else {
+			zt_cameraMakePersp(&rt_cam, zt->textures[render_target_id].width, zt->textures[render_target_id].height, camera->fov, camera->near_z, camera->far_z);
+			rt_cam.position = camera->position;
+			rt_cam.rotation = camera->rotation;
+			rt_cam.direction = camera->direction;
+		}
+
+		zt_cameraRecalcMatrices(&rt_cam);
+		camera = &rt_cam;
+	}
 
 	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
+		if (render_target_id != ztInvalidID) {
+			zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo));
+			zt_glCallAndReportOnErrorFast(glViewport(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height));
+
+			real32 realw = (zt->textures[render_target_id].width / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+			real32 realh = (zt->textures[render_target_id].height / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+
+			zt_glCallAndReportOnErrorFast(glClearColor(clear.r, clear.g, clear.b, clear.a));
+
+			zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+			zt_glCallAndReportOnErrorFast(glLoadIdentity());
+			zt_glCallAndReportOnErrorFast(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0));
+			zt_glCallAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
+			zt_glCallAndReportOnErrorFast(glEnable(GL_BLEND));
+			zt_glCallAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+			glEnable(GL_MULTISAMPLE);
+
+			zt_rendererClear(clear);
+		}
+
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			zt_glCallAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 			zt_glCallAndReportOnErrorFast(glDepthFunc(GL_LESS));
@@ -3638,7 +3746,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									if (cam->type == ztCameraType_Perspective) {
 										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
 										zt_glCallAndReportOnErrorFast(glPushMatrix());
-										zt_dxCallAndReportOnErrorFast(glLoadMatrixf(mat->values));
+										glLoadMatrixf(mat->values);
 									}
 									else {
 										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
@@ -3654,7 +3762,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									if (cam->type == ztCameraType_Perspective) {
 										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
 										zt_glCallAndReportOnErrorFast(glPushMatrix());
-										zt_dxCallAndReportOnErrorFast(glLoadMatrixf(mat->values));
+										glLoadMatrixf(mat->values);
 									}
 									else {
 										zt_glCallAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
@@ -3741,6 +3849,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (cmp_tex->command) {
 					glBindTexture(GL_TEXTURE_2D, 0);
+					if (model_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, ztMat4::identity.values));
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -3748,10 +3857,46 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			glUseProgram(0);
 		}
+
+		if (render_target_id != ztInvalidID) {
+			glDisable(GL_MULTISAMPLE);
+
+			if (zt->textures[render_target_id].gl_dbo!= 0) {
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[render_target_id].gl_rb);
+
+				glBlitFramebuffer(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height, 0, zt->textures[render_target_id].height, zt->textures[render_target_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+
+			_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+		}
 #endif // ZT_OPENGL
 	}
 	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
+		if (render_target_id != ztInvalidID) {
+			D3D11_VIEWPORT viewport;
+			ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+
+			viewport.TopLeftX = 0;
+			viewport.TopLeftY = 0;
+			viewport.MinDepth = 0;
+			viewport.MaxDepth = 1;
+
+			viewport.Width = (r32)zt->textures[render_target_id].width;
+			viewport.Height = (r32)zt->textures[render_target_id].height;
+
+			zt->win_details[0].dx_context->RSSetViewports(1, &viewport);
+
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->textures[render_target_id].dx_render_target_view, zt->textures[render_target_id].dx_depth_stencil_view);
+
+			zt->win_details[0].dx_context->ClearRenderTargetView(zt->textures[render_target_id].dx_render_target_view, clear.values);
+			zt->win_details[0].dx_context->ClearDepthStencilView(zt->textures[render_target_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		}
+
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled, 1);
 		}
@@ -3889,7 +4034,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									D3D11_MAPPED_SUBRESOURCE ms;
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
 									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
+									zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL);
 
 									UINT stride = sizeof(ztVertex), offset = 0;
 									zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
@@ -3913,7 +4058,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									D3D11_MAPPED_SUBRESOURCE ms;
 									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
 									memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-									zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL));
+									zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL);
 
 									UINT stride = sizeof(ztVertex), offset = 0;
 									zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
@@ -3937,12 +4082,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
 								} break;
 
-								case ztDrawCommandType_Line: {
-									buffer->vertices_count = 0;
-									zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
-								} break;
-
+								case ztDrawCommandType_Line:
 								case ztDrawCommandType_Point: {
+									buffer->vertices_count = 0;
+									zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none);
 								} break;
 							}
 						}
@@ -4048,6 +4191,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			}
 
 			// unbind shader?
+		}
+
+		if (render_target_id != ztInvalidID) {
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->win_details[0].dx_backbuffer, zt->win_details[0].dx_depth_stencil_view);
+			_zt_dxSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
 		}
 #endif
 	}
@@ -4928,7 +5076,7 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char** error)
+ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
 	if (zt_bitIsSet(flags, ztTextureFlags_Flip)) {
 		int half_height = height / 2;
@@ -4944,13 +5092,15 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		}
 	}
 
+	bool render_target = pixel_data == nullptr;
+
 	ztTextureID texture_id = ztInvalidID;
 
 	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		struct OpenGL
 		{
-			static bool load_texture(GLuint* tex_id, byte *pixel_data, i32 width, i32 height, i32 flags)
+			static bool loadTexture(GLuint *tex_id, byte *pixel_data, i32 width, i32 height, i32 flags)
 			{
 				zt_glCallAndReturnValOnError(glGenTextures(1, tex_id), false);
 				zt_glCallAndReturnValOnError(glActiveTexture(GL_TEXTURE0), false);
@@ -4975,12 +5125,78 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 
 				return true;
 			}
+
+			static bool makeRenderTarget(GLuint *tex_id, GLuint *frame_buffer_id, GLuint *depth_buffer_id, GLuint *resolve_buffer_id, GLuint *render_target_id, i32 width, i32 height, i32 flags)
+			{
+				zt_glCallAndReturnValOnError(glGenFramebuffers(1, frame_buffer_id), false);
+				zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
+
+				if (zt_bitIsSet(flags, ztTextureFlags_DepthMap)) {
+					zt_glCallAndReturnValOnError(glGenTextures(1, tex_id), false);
+					zt_glCallAndReturnValOnError(glActiveTexture(GL_TEXTURE0), false);
+					zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, *tex_id), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+
+					zt_glCallAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, *tex_id, 0), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR), false);
+					GLfloat border_color[] = { 1.0, 1.0, 1.0, 1.0 };
+					zt_glCallAndReturnValOnError(glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color), false);
+					zt_glCallAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL), false);
+					zt_glCallAndReturnValOnError(glDrawBuffer(GL_NONE), false);
+					zt_glCallAndReturnValOnError(glReadBuffer(GL_NONE), false);
+				}
+				else {
+					zt_glCallAndReturnValOnError(glGenRenderbuffers(1, depth_buffer_id), false);
+					zt_glCallAndReturnValOnError(glBindRenderbuffer(GL_RENDERBUFFER, *depth_buffer_id), false);
+					zt_glCallAndReturnValOnError(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, width, height), false);
+					zt_glCallAndReturnValOnError(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, *depth_buffer_id), false);
+
+					zt_glCallAndReturnValOnError(glGenTextures(1, render_target_id), false);
+					zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, *render_target_id), false);
+					zt_glCallAndReturnValOnError(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, width, height, true), false);
+					zt_glCallAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, *render_target_id, 0), false);
+
+					zt_glCallAndReturnValOnError(glGenFramebuffers(1, resolve_buffer_id), false);
+					zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *resolve_buffer_id), false);
+
+					zt_glCallAndReturnValOnError(glGenTextures(1, tex_id), false);
+					zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, *tex_id), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0), false);
+					zt_glCallAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr), false);
+					zt_glCallAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex_id, 0), false);
+				}
+
+				zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, 0), false);
+				zt_glCallAndReturnValOnError(glClear(GL_COLOR_BUFFER_BIT), false);
+				if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+					zt_logCritical("OpenGL frame buffer status is not complete");
+					return false;
+				}
+
+				return true;
+			}
 		};
 
-		GLuint tex_id;
-		if (!OpenGL::load_texture(&tex_id, pixel_data, width, height, flags)) {
-			*error = "Unable to load image into texture";
-			return ztInvalidID;
+		GLuint tex_id = 0, fb_id = 0, db_id = 0, rb_id = 0, rt_id = 0;
+
+		if (!render_target) {
+			if (!OpenGL::loadTexture(&tex_id, pixel_data, width, height, flags)) {
+				*error = "Unable to load image into texture";
+				return ztInvalidID;
+			}
+		}
+		else {
+			if (!OpenGL::makeRenderTarget(&tex_id, &fb_id, &db_id, &rb_id, &rt_id, width, height, flags)) {
+				*error = "Unable to create render target";
+				return ztInvalidID;
+			}
 		}
 
 		texture_id = zt->textures_count++;
@@ -4991,6 +5207,10 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		zt->textures[texture_id].height = height;
 		zt->textures[texture_id].flags = flags;
 		zt->textures[texture_id].gl_texid = tex_id;
+		zt->textures[texture_id].gl_fbo = fb_id;
+		zt->textures[texture_id].gl_dbo = db_id;
+		zt->textures[texture_id].gl_rt = rt_id;
+		zt->textures[texture_id].gl_rb = rb_id;
 
 #else
 		*error = "OpenGL is disabled in the library";
@@ -5008,7 +5228,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		desc.SampleDesc.Count = 1;
 		desc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.BindFlags = (render_target ? D3D11_BIND_RENDER_TARGET : 0) | D3D11_BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = 0;
 		desc.MiscFlags = 0;
 
@@ -5018,13 +5238,61 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		subr.SysMemSlicePitch = width * height * 4; // not needed in 2d tex
 
 		ID3D11Texture2D *dx_tex;
-		if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&desc, &subr, &dx_tex))) {
+		if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&desc, (render_target ? nullptr : &subr), &dx_tex))) {
 			*error = "CreateTexture2D failed.";
 			return ztInvalidID;
 		}
 
+		ID3D11RenderTargetView *dx_render_target_view = nullptr;
+		ID3D11Texture2D *dx_depth_stencil_buffer = nullptr;
+		ID3D11DepthStencilView *dx_depth_stencil_view = nullptr;
+		if (render_target) {
+			D3D11_TEXTURE2D_DESC dsdesc;
+
+			dsdesc.Width = width;
+			dsdesc.Height = height;
+			dsdesc.MipLevels = 1;
+			dsdesc.ArraySize = 1;
+			dsdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+			dsdesc.SampleDesc.Count = 1;
+			dsdesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
+			dsdesc.Usage = D3D11_USAGE_DEFAULT;
+			dsdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+			dsdesc.CPUAccessFlags = 0;
+			dsdesc.MiscFlags = 0;
+
+			if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&dsdesc, NULL, &dx_depth_stencil_buffer))) {
+				*error = "CreateTexture2D failed.";
+				return ztInvalidID;
+			}
+			if (FAILED(zt->win_details[0].dx_device->CreateDepthStencilView(dx_depth_stencil_buffer, NULL, &dx_depth_stencil_view))) {
+				*error = "CreateDepthStencilView failed.";
+				return ztInvalidID;
+			}
+
+
+			D3D11_RENDER_TARGET_VIEW_DESC rtvd;
+			ZeroMemory(&rtvd, zt_sizeof(rtvd));
+			rtvd.Format = desc.Format;
+			rtvd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+			rtvd.Texture2D.MipSlice = 0;
+
+			if (FAILED(zt->win_details[0].dx_device->CreateRenderTargetView(dx_tex, &rtvd, &dx_render_target_view))) {
+				*error = "CreateRenderTargetView failed.";
+				return ztInvalidID;
+			}
+		}
+
 		ID3D11ShaderResourceView *dx_shader_resource_view;
-		if (FAILED(zt->win_details[0].dx_device->CreateShaderResourceView(dx_tex, NULL, &dx_shader_resource_view))) {
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
+		ZeroMemory(&srvd, zt_sizeof(srvd));
+
+		srvd.Format = desc.Format;
+		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvd.Texture2D.MostDetailedMip = 0;
+		srvd.Texture2D.MipLevels = 1;
+
+		if (FAILED(zt->win_details[0].dx_device->CreateShaderResourceView(dx_tex, (render_target ? &srvd : nullptr), &dx_shader_resource_view))) {
 			*error = "CreateShaderResourceView failed.";
 			return ztInvalidID;
 		}
@@ -5061,6 +5329,9 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		zt->textures[texture_id].dx_tex = dx_tex;
 		zt->textures[texture_id].dx_shader_resource_view = dx_shader_resource_view;
 		zt->textures[texture_id].dx_sampler_state = dx_sampler_state;
+		zt->textures[texture_id].dx_depth_stencil_buffer = dx_depth_stencil_buffer;
+		zt->textures[texture_id].dx_depth_stencil_view = dx_depth_stencil_view;
+		zt->textures[texture_id].dx_render_target_view = dx_render_target_view;
 
 #else
 		*error = "DirectX is disabled in the library";
@@ -5217,6 +5488,26 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
+ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
+{
+	const char *error = nullptr;
+	ztTextureID texture_id = _zt_textureMakeBase(nullptr, width, height, 4, flags, &error);
+	if (texture_id != ztInvalidID) {
+		zt->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
+	}
+
+	return texture_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztTextureID zt_textureMakeCubeMap(ztAssetID files[ztTextureCubeMapFiles_MAX])
+{
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_textureFree(ztTextureID texture_id)
 {
 	if (zt->textures[texture_id].renderer == ztRenderer_Invalid) {
@@ -5240,11 +5531,24 @@ void zt_textureFree(ztTextureID texture_id)
 		zt_assert(false);
 #endif
 	}
-	else if(zt->textures[texture_id].renderer == ztRenderer_DirectX) {
+	else if (zt->textures[texture_id].renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
 		zt->textures[texture_id].dx_sampler_state->Release();
 		zt->textures[texture_id].dx_shader_resource_view->Release();
 		zt->textures[texture_id].dx_tex->Release();
+
+		if(zt->textures[texture_id].dx_render_target_view) {
+			zt->textures[texture_id].dx_render_target_view->Release();
+			zt->textures[texture_id].dx_depth_stencil_buffer->Release();
+			zt->textures[texture_id].dx_depth_stencil_view->Release();
+		}
+
+		zt->textures[texture_id].dx_sampler_state = nullptr;
+		zt->textures[texture_id].dx_shader_resource_view = nullptr;
+		zt->textures[texture_id].dx_tex = nullptr;
+		zt->textures[texture_id].dx_depth_stencil_buffer = nullptr;
+		zt->textures[texture_id].dx_depth_stencil_view = nullptr;
+		zt->textures[texture_id].dx_render_target_view = nullptr;
 #else
 		zt_assert(false);
 #endif
@@ -5288,6 +5592,8 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	camera->native_w = native_w;
 	camera->native_h = native_h;
 	camera->zoom = 1;
+	camera->near_z = near_z;
+	camera->far_z = far_z;
 	camera->position = ztVec3::zero;
 
 	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
@@ -5310,6 +5616,9 @@ void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 ne
 	camera->width = width;
 	camera->height = height;
 	camera->type = ztCameraType_Perspective;
+	camera->fov = fov;
+	camera->near_z = near_z;
+	camera->far_z = far_z;
 	camera->position = ztVec3::zero;
 	camera->rotation = ztVec3::zero;
 	camera->direction = ztVec3::zero;
@@ -6613,7 +6922,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	mesh->triangles = indices_count / 3;
 	mesh->indices = indices_count;
 	mesh->flags = flags;
-	mesh->materials = *materials;
+	mesh->materials = materials ? *materials : zt_materialListMake();
 
 	switch (zt_currentRenderer())
 	{
@@ -6899,6 +7208,10 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 
 	ztToken *tokens = zt_mallocStructArray(ztToken, lines + 1);
 	int tokens_count = zt_strTokenize(data, "\r\n", tokens, lines + 1, 0);
+
+	if (tokens_count > lines + 1) {
+		tokens_count = zt_min(tokens_count, lines + 1);
+	}
 
 	int verts_count = 0;
 	int normals_count = 0;
@@ -7702,7 +8015,7 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;// D3D11_BLEND_BLEND_FACTOR;
 	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
 	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.DestBlendAlpha = D3D11_BLEND_ONE;
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
 
@@ -7723,6 +8036,10 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 
 	cmdesc.FrontCounterClockwise = false;
 	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRasterizerState(&cmdesc, &win_details->dx_cull_mode_cw), false);
+
+	cmdesc.CullMode = D3D11_CULL_NONE;
+	cmdesc.FrontCounterClockwise = true;
+	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRasterizerState(&cmdesc, &win_details->dx_cull_mode_none), false);
 
 	// initialize the triangle vertex buffer (used when pushing triangles in draw lists)
 	D3D11_BUFFER_DESC bd;
@@ -7753,6 +8070,7 @@ ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 		win_details->dx_context->Release();
 		win_details->dx_cull_mode_ccw->Release();
 		win_details->dx_cull_mode_cw->Release();
+		win_details->dx_cull_mode_none->Release();
 		win_details->dx_transparency->Release();
 		win_details->dx_tri_verts_buffer->Release();
 		win_details->dx_depth_stencil_view->Release();
@@ -7766,6 +8084,7 @@ ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 		win_details->dx_context = nullptr;
 		win_details->dx_cull_mode_ccw = nullptr;
 		win_details->dx_cull_mode_cw = nullptr;
+		win_details->dx_cull_mode_none = nullptr;
 		win_details->dx_transparency = nullptr;
 		win_details->dx_tri_verts_buffer = nullptr;
 		win_details->dx_depth_stencil_view = nullptr;
