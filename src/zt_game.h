@@ -808,6 +808,7 @@ struct ztDrawCommand
 		struct {
 			ztVec2 clip_center;
 			ztVec2 clip_size;
+			int clip_idx;
 		};
 
 		struct {
@@ -849,12 +850,14 @@ bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2]);
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3]);
-bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3);
+bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3);
 bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4]); // clockwise or counter clockwise positions
-bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3, const ztVec3 p4);
-bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3); // points need to be ccw
+bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4);
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size);
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztVec2& size);
+bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3); // points need to be ccw
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3]);
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3, const ztVec3 p4, const ztVec2 uv1, const ztVec2 uv2, const ztVec2 uv3, const ztVec2 uv4, const ztVec3 n1, const ztVec3 n2, const ztVec3 n3, const ztVec3 n4); // points need to be ccw
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4); // points need to be ccw
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4]);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
@@ -1064,6 +1067,9 @@ struct ztGuiTheme
 	r32 scrollbar_button_h;
 	r32 scrollbar_handle_min_size;
 
+	r32 scroll_container_padding_x;
+	r32 scroll_container_padding_y;
+
 	r32 padding; // space around interior items
 	r32 spacing; // space between interior items
 };
@@ -1242,6 +1248,8 @@ ztGuiTheme *zt_guiItemGetTheme(ztGuiItemID item_id);
 
 void zt_guiItemLock(ztGuiItemID item_id);
 void zt_guiItemUnlock(ztGuiItemID item_id);
+
+void zt_guiItemReparent(ztGuiItemID item_id, ztGuiItemID new_parent);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2871,7 +2879,7 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3)
+bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3)
 {
 	if (!zt_drawListAddLine(draw_list, p1, p2)) return false;
 	if (!zt_drawListAddLine(draw_list, p2, p3)) return false;
@@ -2893,13 +2901,41 @@ bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3])
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3, const ztVec3 p4)
+bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4)
 {
 	if (!zt_drawListAddLine(draw_list, p1, p2)) return false;
 	if (!zt_drawListAddLine(draw_list, p2, p3)) return false;
 	if (!zt_drawListAddLine(draw_list, p3, p4)) return false;
 	if (!zt_drawListAddLine(draw_list, p4, p1)) return false;
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size)
+{
+	return zt_drawListAddEmptyRect(draw_list, ztVec3(pos, 0), size);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztVec2& size)
+{
+	r32 ppu = zt_pixelsPerUnit();
+	r32 pix = 1 / ppu;
+
+	ztVec3 p[4] = {
+		ztVec3(pos.x - size.x / 2.f + pix, pos.y + size.y / 2.f - pix, pos.z),
+		ztVec3(pos.x - size.x / 2.f + pix, pos.y - size.y / 2.f, pos.z),
+		ztVec3(pos.x + size.x / 2.f,       pos.y - size.y / 2.f, pos.z),
+		ztVec3(pos.x + size.x / 2.f,       pos.y + size.y / 2.f - pix, pos.z)
+	};
+
+	zt_fiz(4) {
+		zt_fjz(2) zt_alignToPixel(&p[i].values[j], ppu); // ignore the z value
+	}
+
+	return zt_drawListAddEmptyQuad(draw_list, p);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2932,7 +2968,7 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p1, const ztVec3 p2, const ztVec3 p3, const ztVec3 p4, const ztVec2 uv1, const ztVec2 uv2, const ztVec2 uv3, const ztVec2 uv4, const ztVec3 n1, const ztVec3 n2, const ztVec3 n3, const ztVec3 n4)
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4)
 {
 	{
 		_zt_drawListCheck(draw_list);
@@ -3241,6 +3277,38 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_ChangeClipping;
+	command->clip_center = center;
+	command->clip_size = size;
+	command->clip_idx = 0;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPopClipRegion(ztDrawList *draw_list)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto* command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_ChangeClipping;
+	command->clip_center = ztVec2::zero;
+	command->clip_size = ztVec2::zero;
+	command->clip_idx = 0;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 #undef 	_zt_drawListCheck
 
 // ------------------------------------------------------------------------------------------------
@@ -3281,10 +3349,17 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	byte *mem = zt->renderer_memory;
 	i32 mem_left = zt->renderer_memory_size;
 
+	struct ztCompileClipRegion
+	{
+		ztDrawCommand *command;
+	};
+
 	struct ztCompileItem
 	{
 		ztDrawCommand *command;
 		ztCompileItem *next;
+
+		ztCompileClipRegion *clip_region;
 	};
 
 	struct ztCompileColor
@@ -3293,6 +3368,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		ztCompileItem *item;
 		ztCompileItem *last_item;
 		ztCompileColor *next;
+		int cnt_display_items;
 	};
 
 	struct ztCompileTexture
@@ -3311,6 +3387,49 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 	ztCompileShader *shaders[128];
 	i32 shaders_count = 0;
+
+	int clip_regions_count = 0;
+	zt_fiz(draw_lists_count) {
+		ztDrawList *draw_list = draw_lists[i];
+		zt_assert(draw_list);
+		zt_fjz(draw_list->commands_count) {
+			if (draw_list->commands[j].type == ztDrawCommandType_ChangeClipping && draw_list->commands[j].clip_size != ztVec2::zero) {
+				clip_regions_count += 1;
+			}
+		}
+	}
+
+	ztCompileClipRegion* clip_regions = clip_regions_count == 0 ? nullptr : (ztCompileClipRegion*)mem;
+
+	mem += zt_sizeof(ztCompileClipRegion) * clip_regions_count;
+	mem_left -= zt_sizeof(ztCompileClipRegion) * clip_regions_count;
+	zt_assert(mem_left >= 0);
+
+	{
+		int clip_stack[512];
+		int clip_stack_idx = -1;
+
+		clip_regions_count = 0;
+		zt_fiz(draw_lists_count) {
+			ztDrawList *draw_list = draw_lists[i];
+			zt_assert(draw_list);
+			zt_fjz(draw_list->commands_count) {
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeClipping) {
+					if (draw_list->commands[j].clip_size != ztVec2::zero) {
+						clip_stack[++clip_stack_idx] = clip_regions_count;
+						clip_regions[clip_regions_count].command = &draw_list->commands[j];
+						clip_regions_count += 1;
+					}
+					else {
+						clip_stack_idx--;
+					}
+					draw_list->commands[j].clip_idx = clip_stack_idx >= 0 ? clip_stack[clip_stack_idx] : -1;
+				}
+			}
+		}
+
+		zt_assert(clip_stack_idx == -1); // if you're here, you have mismatching push/pop clip regions
+	}
 
 	ztTextureID skybox = ztInvalidID;
 
@@ -3332,7 +3451,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			return true;
 		}
 
-		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 *mem_left, ztTextureID *skybox, ztCompileShader **shader)
+		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 *mem_left, ztTextureID *skybox, ztCompileShader **shader, ztCompileClipRegion *clip_regions)
 		{
 #			define _zt_castMem(type) (type*)mem; mem += zt_sizeof(type); *mem_left -= zt_sizeof(type); zt_assert(*mem_left >= 0);
 
@@ -3343,6 +3462,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			ztCompileTexture *cmp_texture = nullptr;
 			ztCompileColor *cmp_color = nullptr;
+			ztCompileClipRegion *cmp_clip_region = nullptr;
 
 			if (shader_id == ztInvalidID) {
 				cmp_texture = _zt_castMem(ztCompileTexture);
@@ -3355,6 +3475,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				cmp_texture->color->next = nullptr;
 				cmp_texture->color->item = nullptr;
 				cmp_texture->color->last_item = nullptr;
+				cmp_texture->color->cnt_display_items = 0;
 				cmp_shader->color = ztVec4::one;
 
 				// all lines and points go here
@@ -3374,6 +3495,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								cmp_color->color = command->color;
 								cmp_color->item = nullptr;
 								cmp_color->last_item = nullptr;
+								cmp_color->cnt_display_items = 0;
 								zt_singleLinkAddToEnd(cmp_texture->color, cmp_color);
 							}
 						}
@@ -3392,7 +3514,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						else if (command->type == ztDrawCommandType_Point) {
 							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 							cmp_item->command = command;
+							cmp_item->clip_region = nullptr;
 							zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+							cmp_color->cnt_display_items += 1;
 						}
 					}
 
@@ -3409,7 +3533,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						else if (command->type == ztDrawCommandType_Line) {
 							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 							cmp_item->command = command;
+							cmp_item->clip_region = nullptr;
 							zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
+							cmp_color->cnt_display_items += 1;
 						}
 					}
 				}
@@ -3449,6 +3575,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_color->item = nullptr;
 									cmp_color->last_item = nullptr;
 									cmp_color->next = nullptr;
+									cmp_color->cnt_display_items = 0;
 
 									cmp_texture->next = nullptr;
 									zt_singleLinkAddToEnd(cmp_shader->texture, cmp_texture);
@@ -3481,6 +3608,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_color->color = command->color;
 									cmp_color->last_item = nullptr;
 									cmp_color->item = nullptr;
+									cmp_color->cnt_display_items = 0;
 									zt_singleLinkAddToEnd(cmp_texture->color, cmp_color);
 								}
 							}
@@ -3491,6 +3619,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					cmp_texture = cmp_shader->texture;
 					cmp_color = cmp_texture->color;
 
+					cmp_clip_region = nullptr;
 					ztCompileItem *cmp_item_last = nullptr;
 
 					ignore_shader = true;
@@ -3499,6 +3628,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						if (command->type == ztDrawCommandType_ChangeShader) {
 							ignore_shader = command->shader != shader_id;
+						}
+						if (command->type == ztDrawCommandType_ChangeClipping) {
+							cmp_clip_region = command->clip_idx < 0 ? nullptr : &clip_regions[command->clip_idx];
 						}
 						if (!ignore_shader) {
 							if (command->type == ztDrawCommandType_ChangeTexture) {
@@ -3516,6 +3648,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							if (command->type == ztDrawCommandType_Triangle) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
+								cmp_item->clip_region = cmp_clip_region;
 								if (cmp_item_last == nullptr) {
 									cmp_color->last_item = cmp_item_last = cmp_item;
 									zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
@@ -3526,6 +3659,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_item_last->next = nullptr;
 									cmp_color->last_item = cmp_item_last;
 								}
+								cmp_color->cnt_display_items += 1;
 							}
 						}
 					}
@@ -3534,6 +3668,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					cmp_texture = cmp_shader->texture;
 					cmp_color = cmp_texture->color;
 
+					cmp_clip_region = nullptr;
 					cmp_item_last = nullptr;
 
 					ignore_shader = true;
@@ -3542,6 +3677,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						if (command->type == ztDrawCommandType_ChangeShader) {
 							ignore_shader = command->shader != shader_id;
+						}
+						if (command->type == ztDrawCommandType_ChangeClipping) {
+							cmp_clip_region = command->clip_idx < 0 ? nullptr : &clip_regions[command->clip_idx];
 						}
 						if (!ignore_shader) {
 							if (command->type == ztDrawCommandType_ChangeTexture) {
@@ -3559,6 +3697,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							if (command->type == ztDrawCommandType_Mesh) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
+								cmp_item->clip_region = cmp_clip_region;
 								if (cmp_item_last == nullptr) {
 									cmp_color->last_item = cmp_item_last = cmp_item;
 									zt_singleLinkAddToEnd(cmp_color->item, cmp_item);
@@ -3569,6 +3708,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_item_last->next = nullptr;
 									cmp_color->last_item = cmp_item_last;
 								}
+								cmp_color->cnt_display_items += 1;
 							}
 						}
 					}
@@ -3605,7 +3745,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			case ztDrawCommandType_ChangeShader: {
 				if (!local::processedShader(command->shader, shaders, shaders_count)) {
 					zt_assert(shaders_count < zt_elementsOf(shaders));
-					mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, &mem_left, &skybox, &shaders[shaders_count++]);
+					mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, &mem_left, &skybox, &shaders[shaders_count++], clip_regions);
 				}
 			} break;
 			}
@@ -3613,8 +3753,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	}
 
 	// process non-shader commands last
-	local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, &mem_left, &skybox, &shaders[shaders_count++]);
-	
+	local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, &mem_left, &skybox, &shaders[shaders_count++], clip_regions);
+
 	zt_fiz(draw_lists_count) {
 		ztDrawList *draw_list = draw_lists[i];
 		if (!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
@@ -3753,6 +3893,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		ztMat4 mat2d;
 
+		if (clip_regions_count > 0) {
+			zt_glCallAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
+			zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+		}
+
+		ztCompileClipRegion *curr_clip_region = nullptr;
+		int clip_region_count = 0;
+
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
 
@@ -3781,6 +3929,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztCompileTexture *cmp_tex = shaders[i]->texture;
 			while (cmp_tex) {
 
+				if (curr_clip_region) {
+					curr_clip_region = nullptr;
+					//glDisable(GL_SCISSOR_TEST);
+					zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+				}
+
 				if (cmp_tex->command) {
 					zt->game_details.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
@@ -3794,9 +3948,19 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				ztCompileColor *cmp_clr = cmp_tex->color;
 				while (cmp_clr) {
+					if (cmp_clr->cnt_display_items == 0) {
+						cmp_clr = cmp_clr->next;
+						continue;
+					}
 
 					if (shader_id == ztInvalidID) {
 						glColor4fv(cmp_clr->color.values);
+					}
+
+					if (curr_clip_region) {
+						curr_clip_region = nullptr;
+						//glDisable(GL_SCISSOR_TEST);
+						zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
 					}
 
 					ztCompileItem *cmp_item = cmp_clr->item;
@@ -3873,6 +4037,27 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 					while (cmp_item) {
 
+						if (cmp_item->clip_region != curr_clip_region && camera->type == ztCameraType_Orthographic) {
+							OpenGL::processLastCommand(nullptr, nullptr, nullptr, ztDrawCommandType_Invalid, last_command, &buffer);
+							last_command = ztDrawCommandType_Invalid;
+
+							curr_clip_region = cmp_item->clip_region;
+
+							if (curr_clip_region) {
+								r32 ppu = zt_pixelsPerUnit();
+								ztPoint2 pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
+
+								int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
+								int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
+
+								zt_glCallAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
+							}
+							else {
+								zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+								//zt_glCallAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
+							}
+						}
+
 						if (cmp_item->command->type != last_command) {
 							OpenGL::processLastCommand(camera, &mat2d, cmp_clr, cmp_item->command->type, last_command, &buffer);
 							last_command = cmp_item->command->type;
@@ -3942,6 +4127,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					cmp_clr = cmp_clr->next;
 				}
 
+				if (curr_clip_region) {
+					curr_clip_region = nullptr;
+					//glDisable(GL_SCISSOR_TEST);
+					zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+				}
+
 				if (cmp_tex->command) {
 					glBindTexture(GL_TEXTURE_2D, 0);
 					if (model_loc != -1) zt_glCallAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, ztMat4::identity.values));
@@ -3950,7 +4141,17 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				cmp_tex = cmp_tex->next;
 			}
 
+			if (curr_clip_region) {
+				curr_clip_region = nullptr;
+				//glDisable(GL_SCISSOR_TEST);
+				zt_glCallAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+			}
+
 			glUseProgram(0);
+		}
+
+		if (clip_regions_count > 0) {
+			glDisable(GL_SCISSOR_TEST);
 		}
 
 		if (render_target_id != ztInvalidID) {
@@ -6163,7 +6364,7 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, const ztVec2& pos)
 	r32 ppu = (r32)zt->win_game_settings[0].pixels_per_unit;
 	ztVec2 diff = pos - camera->position.xy;
 	return ztPoint2(zt_convertToi32Floor((diff.x + ((camera->width / ppu) / 2.f)) * ppu),
-					zt_convertToi32Floor((((camera->height / ppu) / 2) - diff.y) * ppu));
+					zt_convertToi32Floor((((camera->height / ppu) / 2) + diff.y) * ppu));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8580,6 +8781,8 @@ struct ztGuiItem
 	ztGuiItemFunctions functions;
 	ztGuiTheme *theme;
 
+	zt_debugOnly(ztColor debug_highlight);
+
 	struct ztDragState
 	{
 		bool dragging;
@@ -8613,6 +8816,18 @@ struct ztGuiItem
 			r32 press_time;
 			r32 step, step_page, handle_pct;
 		} slider;
+
+		struct {
+			ztGuiItemID scrollbar_vert;
+			ztGuiItemID scrollbar_horz;
+			ztGuiItemID viewport;
+			ztGuiItemID contained_item;
+
+			r32 scroll_amt_vert;
+			r32 scroll_amt_horz;
+			r32 viewport_pos[2];
+			r32 viewport_size[2];
+		} scrolled_container;
 	};
 };
 
@@ -8824,7 +9039,7 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 		gm->default_theme.spacing = 6.f / ppu;
 
 		gm->default_theme.sprite_panel.type = ztGuiThemeSpriteType_SpriteNineSlice;
-		gm->default_theme.sprite_panel.sns = zt_spriteNineSliceMake(tex, ztPoint2(68, 0), ztPoint2(12, 12), ztPoint2(69, 1), ztPoint2(78, 10));
+		gm->default_theme.sprite_panel.sns = zt_spriteNineSliceMake(tex, ztPoint2(72, 0), ztPoint2(12, 12), ztPoint2(74, 2), ztPoint2(81, 9));
 
 		gm->default_theme.sprite_window.type = ztGuiThemeSpriteType_SpriteNineSlice;
 		gm->default_theme.sprite_window.sns = zt_spriteNineSliceMake(tex, ztPoint2(0, 0), ztPoint2(32, 32), ztPoint2(2, 29), ztPoint2(29, 30));
@@ -8918,6 +9133,9 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 		gm->default_theme.scrollbar_button_h = 14 / ppu;
 		gm->default_theme.scrollbar_button_w = 20 / ppu;
 		gm->default_theme.scrollbar_handle_min_size = 10 / ppu;
+
+		gm->default_theme.scroll_container_padding_x = 2 / ppu;
+		gm->default_theme.scroll_container_padding_y = 2 / ppu;
 #endif
 	}
 
@@ -9256,6 +9474,10 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 	{
 		static void renderItem(ztGuiManager *gm, ztGuiItem *item, ztDrawList *draw_list, const ztVec2& offset)
 		{
+			if(!zt_bitIsSet(item->flags, ztGuiItemFlags_Visible)) {
+				return;
+			}
+
 			ztVec2 pos = item->pos + offset;
 
 			ztGuiTheme *theme = item->theme == nullptr ? &gm->default_theme : item->theme;
@@ -9290,7 +9512,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				} break;
 
 				case ztGuiItemType_Panel: {
-					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_panel, item->pos, item->size);
+					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_panel, pos, item->size);
 				} break;
 
 				case ztGuiItemType_Text: {
@@ -9304,10 +9526,31 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				}
 			}
 
+#if _DEBUG
+			if (item->debug_highlight != ztVec4::zero) {
+				zt_drawListPushColor(draw_list, item->debug_highlight);
+				zt_drawListAddEmptyRect(draw_list, pos, item->size);
+				zt_drawListPopColor(draw_list);
+			}
+#endif
+			bool clip = zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) && item->first_child;
+			if (clip) {
+				if (item->clip_area != ztVec4::zero) {
+					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+				}
+				else {
+					zt_drawListPushClipRegion(draw_list, pos, item->size);
+				}
+			}
+
 			ztGuiItem *child = item->first_child;
 			while (child) {
 				renderItem(gm, child, draw_list, pos);
 				child = child->sib_next;
+			}
+
+			if (clip) {
+				zt_drawListPopClipRegion(draw_list);
 			}
 		}
 	};
@@ -9383,6 +9626,8 @@ ztInternal ztGuiItem *_zt_guiMakeItemBase(ztGuiManager *gm, ztGuiItemID parent, 
 	item->flags = item_flags | ztGuiItemFlags_Visible;
 	item->color = ztVec4::one;
 
+	zt_debugOnly(item->debug_highlight = ztVec4::zero);
+
 	_zt_guiItemFromID(gi_parent, parent);
 	if (gi_parent != nullptr) {
 		item->parent = gi_parent;
@@ -9434,7 +9679,7 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 	zt_returnValOnNull(gm, ztInvalidID);
 
 	ztGuiItemID item_id = ztInvalidID;
-	ztGuiItem *item = _zt_guiMakeItemBase(gm, ztInvalidID, ztGuiItemType_Window, ztGuiItemFlags_WantsInput | ztGuiItemFlags_WantsFocus | ztGuiItemFlags_Visible | ztGuiItemFlags_ClipChildren | ztGuiItemFlags_BringToFront, &item_id);
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, ztInvalidID, ztGuiItemType_Window, ztGuiItemFlags_WantsInput | ztGuiItemFlags_WantsFocus | ztGuiItemFlags_Visible | ztGuiItemFlags_BringToFront, &item_id);
 	if (!item) return ztInvalidID;
 
 	zt_guiItemSetSize(item_id, ztVec2(7, 5));
@@ -9473,6 +9718,11 @@ ztGuiItemID zt_guiMakeText(ztGuiItemID parent, const char *label)
 	if (!item) return ztInvalidID;
 
 	zt_guiItemSetLabel(item_id, label);
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+	zt_assert(theme);
+
+	item->size = zt_fontGetExtents(theme->font, label);
 
 	return item_id;
 }
@@ -9858,8 +10108,8 @@ ztInternal ztGuiItemID _zt_guiMakeSliderBase(ztGuiItemID parent, ztGuiItemOrient
 				else if (mpos.x >= item->size.x / 2.f - theme->scrollbar_button_w) return 1;
 			}
 			else {
-				if (mpos.y <= item->size.y / -2.f + theme->scrollbar_button_w) return -1;
-				else if (mpos.y >= item->size.y / 2.f - theme->scrollbar_button_w) return 1;
+				if (mpos.y <= item->size.y / -2.f + theme->scrollbar_button_w) return 1;
+				else if (mpos.y >= item->size.y / 2.f - theme->scrollbar_button_w) return -1;
 			}
 
 			return 0;
@@ -9887,6 +10137,10 @@ ztInternal ztGuiItemID _zt_guiMakeSliderBase(ztGuiItemID parent, ztGuiItemOrient
 
 				if (theme->scrollbar_has_buttons) {
 					size_value -= theme->scrollbar_button_w * 2;
+
+					if (zt_real32Eq(size_value, 0.f)) {
+						size_value = 0.01f;
+					}
 				}
 
 				if (item->slider.orient == ztGuiItemOrient_Horz) {
@@ -10309,6 +10563,238 @@ void zt_guiScrollbarSetPercent(ztGuiItemID scrollbar, r32 percent)
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_guiScrollContainerCalcViewportSizePos(ztGuiManager *gm, ztGuiItem *item, ztVec2 *pposition, ztVec2 *psize)
+{
+	ztVec2 size = *psize;
+	ztVec2 position = *pposition;
+
+	if (item->scrolled_container.contained_item == ztInvalidID) {
+		return;
+	}
+
+	bool horz_vis = false;
+	if (size.x < gm->item_cache[item->scrolled_container.contained_item].size.x) {
+		gm->item_cache[item->scrolled_container.scrollbar_horz].flags |= ztGuiItemFlags_Visible;
+		horz_vis = true;
+	}
+	else {
+		zt_bitRemove(gm->item_cache[item->scrolled_container.scrollbar_horz].flags, ztGuiItemFlags_Visible);
+	}
+
+	bool vert_vis = false;
+	if (size.x < gm->item_cache[item->scrolled_container.contained_item].size.x) {
+		gm->item_cache[item->scrolled_container.scrollbar_vert].flags |= ztGuiItemFlags_Visible;
+		vert_vis = true;
+	}
+	else {
+		zt_bitRemove(gm->item_cache[item->scrolled_container.scrollbar_vert].flags, ztGuiItemFlags_Visible);
+	}
+
+	zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_horz, item->scrolled_container.scroll_amt_horz);
+	zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_vert, item->scrolled_container.scroll_amt_vert);
+
+	if (horz_vis) {
+		zt_guiScrollbarSetPercent(item->scrolled_container.scrollbar_horz, item->size.x / gm->item_cache[item->scrolled_container.contained_item].size.x);
+
+		r32 x_off = vert_vis ? gm->item_cache[item->scrolled_container.scrollbar_vert].size.x : 0;
+		gm->item_cache[item->scrolled_container.scrollbar_horz].size.x = item->size.x - x_off;
+		gm->item_cache[item->scrolled_container.scrollbar_horz].pos.x = x_off / -2;
+		gm->item_cache[item->scrolled_container.scrollbar_horz].pos.y = -(item->size.y - gm->item_cache[item->scrolled_container.scrollbar_horz].size.y) / 2;
+		size.y -= gm->item_cache[item->scrolled_container.scrollbar_horz].size.y;
+		position.y += gm->item_cache[item->scrolled_container.scrollbar_horz].size.y / 2;
+	}
+
+	if (vert_vis) {
+		zt_guiScrollbarSetPercent(item->scrolled_container.scrollbar_vert, item->size.y / gm->item_cache[item->scrolled_container.contained_item].size.y);
+
+		r32 y_off = horz_vis ? gm->item_cache[item->scrolled_container.scrollbar_horz].size.y : 0;
+		gm->item_cache[item->scrolled_container.scrollbar_vert].size.y = item->size.y - y_off;
+		gm->item_cache[item->scrolled_container.scrollbar_vert].pos.y = y_off / 2;
+		gm->item_cache[item->scrolled_container.scrollbar_vert].pos.x = (item->size.x - gm->item_cache[item->scrolled_container.scrollbar_vert].size.x) / 2;
+		size.x -= gm->item_cache[item->scrolled_container.scrollbar_vert].size.x;
+		position.x -= gm->item_cache[item->scrolled_container.scrollbar_vert].size.x / 2;
+	}
+
+	*pposition = position;
+	*psize = size;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent)
+{
+	struct local
+	{
+		static ZT_FUNC_GUI_ITEM_UPDATE(update)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+
+			if (item->scrolled_container.contained_item == ztInvalidID) {
+				return;
+			}
+
+			ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+
+			ztVec2 size = item->size;
+			ztVec2 pos = item->pos;
+			ztVec2 orig_pos = pos;
+			_zt_guiScrollContainerCalcViewportSizePos(gm, item, &pos, &size);
+			item->scrolled_container.viewport_pos[0] = pos.x - orig_pos.x;
+			item->scrolled_container.viewport_pos[1] = pos.y - orig_pos.y;
+			item->scrolled_container.viewport_size[0] = size.x;
+			item->scrolled_container.viewport_size[1] = size.y;
+
+			zt_guiItemSetSize(item->scrolled_container.viewport, size);
+			zt_guiItemSetPosition(item->scrolled_container.viewport, ztVec2(item->scrolled_container.viewport_pos[0], item->scrolled_container.viewport_pos[1]));
+
+			ztGuiItem *contained = &gm->item_cache[item->scrolled_container.contained_item];
+
+			contained->pos.x = (((size.x - contained->size.x) / -2.f) + theme->scroll_container_padding_x) - (item->scrolled_container.scroll_amt_horz * ((contained->size.x - size.x) + theme->scroll_container_padding_x * 2));
+			contained->pos.y = (((size.y - contained->size.y) /  2.f) - theme->scroll_container_padding_y) + (item->scrolled_container.scroll_amt_vert * ((contained->size.y - size.y) + theme->scroll_container_padding_y * 2));
+
+			pos = zt_guiItemPositionScreenToLocal(item->scrolled_container.contained_item, pos);
+			gm->item_cache[item->scrolled_container.contained_item].flags |= ztGuiItemFlags_ClipChildren;
+			gm->item_cache[item->scrolled_container.contained_item].clip_area = ztVec4(pos.x + item->pos.x, pos.y - item->pos.y, size.x - theme->scroll_container_padding_x * 2, size.y - theme->scroll_container_padding_y * 2);
+		}
+
+		// ------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
+		{
+			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
+
+			if (input_mouse->wheel_delta > 0) {
+				zt_guiScrollbarStepNeg(item->scrolled_container.scrollbar_vert);
+			}
+			else if (input_mouse->wheel_delta < 0) {
+				zt_guiScrollbarStepPos(item->scrolled_container.scrollbar_vert);
+			}
+
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_INPUT_KEY(inputKey)
+		{
+			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
+
+			if (input_keys[ztInputKeys_Up].justPressed()) {
+				zt_guiScrollbarStepNeg(item->scrolled_container.scrollbar_vert);
+			}
+			if (input_keys[ztInputKeys_Down].justPressed()) {
+				zt_guiScrollbarStepPos(item->scrolled_container.scrollbar_vert);
+			}
+			if (input_keys[ztInputKeys_Home].justPressed()) {
+				zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_vert, 0);
+				zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_horz, 0);
+			}
+			if (input_keys[ztInputKeys_End].justPressed()) {
+				zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_vert, 1);
+				zt_guiScrollbarSetValue(item->scrolled_container.scrollbar_horz, 1);
+			}
+
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_RENDER(render)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+		}
+
+		// ------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			if (item->scrolled_container.contained_item != ztInvalidID) {
+				*min_size = gm->item_cache[item->scrolled_container.contained_item].size;
+			}
+
+			*size = *min_size;
+		}
+	};
+
+
+	_zt_guiManagerGetFromItem(gm, parent);
+	zt_returnValOnNull(gm, ztInvalidID);
+
+	ztGuiItemID item_id = ztInvalidID;
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_ScrollContainer, ztGuiItemFlags_ClipChildren, &item_id);
+	if (!item) return ztInvalidID;
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+
+	item->scrolled_container.scrollbar_horz = zt_guiMakeScrollbar(item_id, ztGuiItemOrient_Horz, &item->scrolled_container.scroll_amt_horz);
+	item->scrolled_container.scrollbar_vert = zt_guiMakeScrollbar(item_id, ztGuiItemOrient_Vert, &item->scrolled_container.scroll_amt_vert);
+	item->scrolled_container.viewport = zt_guiMakePanel(item_id, ztGuiItemFlags_Visible | ztGuiItemFlags_ClipChildren);
+	item->scrolled_container.contained_item = ztInvalidID;
+	item->scrolled_container.scroll_amt_vert = 0;
+	item->scrolled_container.scroll_amt_horz = 0;
+	item->scrolled_container.viewport_pos[0] = 0;
+	item->scrolled_container.viewport_pos[1] = 0;
+	item->scrolled_container.viewport_size[0] = 0;
+	item->scrolled_container.viewport_size[1] = 0;
+
+	//zt_debugOnly(item->debug_highlight = ztVec4(1, 0, 0, 1));
+	//zt_debugOnly(gm->item_cache[item->scrolled_container.viewport].debug_highlight = ztVec4(0, 1, 0, 1));
+
+
+	item->functions.input_mouse = local::inputMouse;
+	item->functions.input_key = local::inputKey;
+	item->functions.update = local::update;
+	//item->functions.render = local::render;
+	item->functions.best_size = local::best_size;
+	item->functions.user_data = gm;
+
+	ztVec2 min_size;
+	local::best_size(item->id, &min_size, nullptr, &item->size, theme, gm);
+
+	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiScrollContainerSetItem(ztGuiItemID scroll, ztGuiItemID internal_item)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, scroll, ztGuiItemType_ScrollContainer);
+
+	zt_guiItemReparent(internal_item, item->scrolled_container.viewport);
+
+	item->scrolled_container.contained_item = internal_item;
+	item->functions.update(scroll, 0, item->functions.user_data);
+
+	_zt_guiManagerGetFromItem(gm, scroll);
+	//zt_debugOnly(gm->item_cache[item->scrolled_container.contained_item].debug_highlight = ztVec4(0, 0, 1, 1));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec4 zt_guiScrollContainerGetViewport(ztGuiItemID scroll)
+{
+	return ztVec4::zero;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec2 zt_guiScrollContainerGetPadding(ztGuiItemID scroll)
+{
+	return ztVec2::zero;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiScrollContainerResetScroll(ztGuiItemID scroll)
+{
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiItemSetSize(ztGuiItemID item_id, const ztVec2& size)
 {
 	_zt_guiItemFromID(item, item_id);
@@ -10506,6 +10992,59 @@ void zt_guiItemUnlock(ztGuiItemID item_id)
 {
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiItemReparent(ztGuiItemID item_id, ztGuiItemID new_parent_id)
+{
+	_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+	_zt_guiItemFromID(new_parent, new_parent_id);
+
+	zt_assert(item->sib_prev != item);
+	if (new_parent == item->parent) {
+		return;
+	}
+
+	if (item->parent) {
+		if (item == item->parent->first_child) {
+			item->parent->first_child = item->sib_next;
+		}
+	}
+	else {
+		if (item == gm->first_child) {
+			gm->first_child = item->sib_next;
+		}
+	}
+	if (item->sib_prev) item->sib_prev->sib_next = item->sib_next;
+	if (item->sib_next) item->sib_next->sib_prev = item->sib_prev;
+	zt_assert(item->sib_next == nullptr || item->sib_next->sib_prev != item->sib_next);
+
+	item->sib_next = nullptr;
+	item->sib_prev = nullptr;
+
+	item->parent = new_parent;
+
+	ztGuiItem *sibling = new_parent == nullptr ? gm->first_child : new_parent->first_child;
+	if (sibling == nullptr) {
+		if (new_parent == nullptr) {
+			gm->first_child = item;
+			return;
+		}
+		else {
+			new_parent->first_child = item;
+			return;
+		}
+	}
+
+	while (sibling) {
+		if (sibling->sib_next == nullptr) {
+			item->sib_prev = sibling;
+			sibling->sib_next = item;
+			zt_assert(item->sib_prev != item);
+			break;
+		}
+		sibling = sibling->sib_next;
+	}
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------

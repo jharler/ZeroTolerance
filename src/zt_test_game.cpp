@@ -83,7 +83,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -163,35 +163,37 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
-	zt_fiz(0){
+	zt_fiz(1){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
 
+		zt->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
+
 		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
 		ztGuiItemID text_id = zt_guiMakeText(window, text);
-		zt_guiItemSetPosition(text_id, ztVec2(-2, 2));
+		zt_guiItemSetPosition(text_id, ztVec2(-3.75f, 2.25f));
 
-		zt_guiItemSetPosition(zt_guiMakeText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.5f));
+		zt_guiItemSetPosition(zt_guiMakeText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.75f));
 
 		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
-		zt_guiItemSetPosition(button_id, ztVec2(-2, -2));
+		zt_guiItemSetPosition(button_id, ztVec2(2.15f, -3.15f));
 
 		ztGuiItemID tbutton_id = zt_guiMakeToggleButton(window, "Toggle Button", 0);
-		zt_guiItemSetPosition(tbutton_id, ztVec2(1, -2));
+		zt_guiItemSetPosition(tbutton_id, ztVec2(3.85f, -3.15f));
 
-		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", 0), ztVec2(0, 0));
-		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(0, .55f));
-		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", 0), ztVec2(2, 0));
-		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(2, .55f));
+		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", 0), ztVec2(2.25f, 2));
+		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(2.25f, 2.3f));
+		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", 0), ztVec2(3.75f, 2));
+		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(3.75f, 2.3f));
 
 		g_game->slider_live_value = 0;
 		ztGuiItemID slider_id = zt_guiMakeSlider(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
-		zt_guiItemSetPosition(slider_id, i == 0 ? ztVec2(0, -.55f) : ztVec2(4.75f, 0));
+		zt_guiItemSetPosition(slider_id, i == 0 ? ztVec2(0, 1.75f) : ztVec2(4.75f, 0));
 		zt_guiItemSetSize(slider_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
 
 		ztGuiItemID scrollbar_id = zt_guiMakeScrollbar(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
-		zt_guiItemSetPosition(scrollbar_id, i == 0 ? ztVec2(0, -1.05f) : ztVec2(4.0f, 0));
+		zt_guiItemSetPosition(scrollbar_id, i == 0 ? ztVec2(0, 1.25f) : ztVec2(4.0f, 0));
 		zt_guiItemSetSize(scrollbar_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
 
 		struct local
@@ -203,6 +205,17 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		};
 		zt_guiButtonSetCallback(button_id, local::on_pressed);
 		zt_guiButtonSetCallback(tbutton_id, local::on_pressed);
+
+		ztGuiItemID scroll_container = zt_guiMakeScrollContainer(window);
+		zt_guiItemSetPosition(scroll_container, ztVec2(1, 0));
+		zt_guiItemSetSize(scroll_container, ztVec2(3, 1));
+		{
+			ztGuiItemID text = zt_guiMakeText(scroll_container, "This is line number 1\nThis is line number 2\nThis is line number 3\nThis is line number 4\nThis is line number 5\n");
+			zt_guiScrollContainerSetItem(scroll_container, text);
+		}
+		
+
+		zt_guiItemSetPosition(zt_guiMakeText(window, text), ztVec2(-3.75f, -2.25f));
 
 	}
 
