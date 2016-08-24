@@ -215,7 +215,9 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 		
 
-		zt_guiItemSetPosition(zt_guiMakeText(window, text), ztVec2(-3.75f, -2.25f));
+		ztGuiItemID text_edit = zt_guiMakeTextEdit(window, "Testing\nOne Two Three\nFour", 0);
+		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2));
+		zt_guiItemSetSize(text_edit, ztVec2(3, 1));
 
 	}
 
