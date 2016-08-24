@@ -159,12 +159,12 @@
 #define zt_real64Eq(val1, val2) (zt_abs(val1 - val2) < ztReal64Epsilon)
 
 // yes, shamelessly "borrowed" from Shawn McGrath
-#define zt_fiz(end) for(int i = 0; i < (end); ++i)
-#define zt_fjz(end) for(int j = 0; j < (end); ++j)
-#define zt_fkz(end) for(int k = 0; k < (end); ++k)
-#define zt_fizr(beg) for(int i = beg; i >= 0; --i)
-#define zt_fjzr(beg) for(int j = beg; j >= 0; --j)
-#define zt_fkzr(beg) for(int k = beg; k >= 0; --k)
+#define zt_fiz(end) for(int i = 0; i < (int)(end); ++i)
+#define zt_fjz(end) for(int j = 0; j < (int)(end); ++j)
+#define zt_fkz(end) for(int k = 0; k < (int)(end); ++k)
+#define zt_fizr(beg) for(int i = (int)beg; i >= 0; --i)
+#define zt_fjzr(beg) for(int j = (int)beg; j >= 0; --j)
+#define zt_fkzr(beg) for(int k = (int)beg; k >= 0; --k)
 
 #define ztMathPi		 3.14159626f
 #define ztMathPi2		 6.28319252f
