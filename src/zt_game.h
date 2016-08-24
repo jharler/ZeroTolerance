@@ -2419,7 +2419,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-skybox",
 };
 ztInternal const char *_zt_default_shaders[] = {
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out layout (location = 0) vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in layout (location = 0) vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if(color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 };
 
@@ -11007,12 +11007,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 		static void selectEnd(ztGuiItem *item)
 		{
-			if (item->textedit.cursor_pos < item->textedit.select_beg) {
-				item->textedit.select_beg = item->textedit.cursor_pos;
-			}
-			if (item->textedit.cursor_pos > item->textedit.select_end) {
-				item->textedit.select_end = item->textedit.cursor_pos;
-			}
+			item->textedit.select_end = item->textedit.cursor_pos;
 		}
 
 		// ------------------------------------------------------------------------------------------------
@@ -11188,22 +11183,22 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 			int prev_pos = 0;
 			int pos = zt_strFindPos(item->textedit.text_buffer, "\n", 0);
 			while (pos != ztStrPosNotFound && pos < ch) {
+				pos += 1;
 				ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), pos - prev_pos);
-				chpos.y += ext.y;
+				chpos.y -= ext.y;
 
 				prev_pos = pos;
 				pos = zt_strFindPos(item->textedit.text_buffer, "\n", pos + 1);
 			}
-
-			if (!bottom_right) {
-				ch -= 1;
+			if(item->textedit.text_buffer[prev_pos] == '\n') {
+				prev_pos += 1;
 			}
 
 			ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), ch - prev_pos);
 			chpos.x += ext.x;
 
 			if (bottom_right) {
-				chpos.y += ext.y;
+				chpos.y -= ext.y;
 			}
 
 			return chpos;
@@ -11219,17 +11214,30 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 			zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit, pos, item->size);
 
-			if (item->textedit.select_beg != item->textedit.select_end) {
-				ztVec2 pos_beg = getCharacterPos(item, item->textedit.select_beg, theme, false);
-				ztVec2 pos_end = getCharacterPos(item, item->textedit.select_end, theme, true);
-
-				ztVec2 pos_size = ztVec2(pos_end.x - pos_beg.x, pos_end.y - pos_beg.y);
-				ztVec2 pos_center = ztVec2(pos_beg.x + pos_size.x / 2.f, pos_beg.y + pos_size.y / 2.f);
-
-				zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit_select, pos_center, pos_size);
-			}
-
 			ztVec2 text_pos = ztVec2(pos.x - item->size.x / 2.f + theme->textedit_padding_x, pos.y + item->size.y / 2.f - theme->textedit_padding_y);
+
+			if(item->textedit.select_beg != item->textedit.select_end) {
+				int sel_beg = zt_min(item->textedit.select_beg, item->textedit.select_end);
+				int sel_end = zt_max(item->textedit.select_beg, item->textedit.select_end);
+
+				while(sel_beg < sel_end) {
+					ztVec2 pos_beg = getCharacterPos(item, sel_beg, theme, false);
+
+					int idx_end_line = zt_strFindPos(item->textedit.text_buffer, "\n", sel_beg);
+					if(idx_end_line == ztStrPosNotFound || idx_end_line > sel_end) {
+						idx_end_line = sel_end;
+					}
+
+					ztVec2 pos_end = getCharacterPos(item, idx_end_line, theme, true);
+
+					ztVec2 pos_size = ztVec2(pos_end.x - pos_beg.x, pos_beg.y - pos_end.y);
+					ztVec2 pos_center = ztVec2(pos_beg.x + pos_size.x / 2.f, pos_beg.y - pos_size.y / 2.f);
+
+					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit_select, text_pos + pos_center, pos_size);
+
+					sel_beg = idx_end_line + 1;
+				}
+			}
 
 			ztVec2 text_size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
 			zt_drawListAddText2D(draw_list, theme->font, item->textedit.text_buffer, text_pos, ztAlign_Left|ztAlign_Top, ztAnchor_Left|ztAnchor_Top);

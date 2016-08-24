@@ -15,7 +15,7 @@
 #define ZT_GAME_IMPLEMENTATION
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
-#define ZT_OPENGL_DIAGNOSE
+//#define ZT_OPENGL_DIAGNOSE
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -156,7 +156,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	ztMaterialList materials = zt_materialListMake(g_game->tex_id_crate);
 	g_game->box = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
 	g_game->plane = zt_meshMakePrimativePlane(&materials, 10, 10, 10, 10);
-	g_game->rock = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/rock.obj"), nullptr);
+	//g_game->rock = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/rock.obj"), nullptr);
 	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
 
 	g_game->render_tex = zt_textureMakeRenderTarget(1024, 1024);
@@ -168,7 +168,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
 
-		zt->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
+		//zt->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
 
 		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
 		ztGuiItemID text_id = zt_guiMakeText(window, text);
@@ -401,7 +401,7 @@ bool game_loop(r32 dt)
 			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
 			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
 			zt_drawListAddMesh(&g_game->draw_list, g_game->plane, ztVec3(0, -.01f, 0), ztVec3::zero, ztVec3::one);
-			zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
+			//zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
 			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-2, .5f, -2), ztVec3::zero, ztVec3::one);
 
 			zt_drawListPopShader(&g_game->draw_list);
