@@ -399,6 +399,7 @@ bool game_loop(r32 dt)
 				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
 			}
 			zt_drawListPopTexture(&g_game->draw_list);
+
 			zt_drawListPopTexture(&g_game->draw_list);
 
 			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
@@ -407,6 +408,19 @@ bool game_loop(r32 dt)
 			//zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
 			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-2, .5f, -2), ztVec3::zero, ztVec3::one);
 
+			zt_drawListPopShader(&g_game->draw_list);
+
+			zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Billboard));
+			zt_drawListPushTexture(&g_game->draw_list, g_game->render_tex);
+			{
+				// top left, bottom left, bottom right, top right
+				static ztVec3 pos[4] = { ztVec3(-2, 2, -2), ztVec3(-2, 1.5f, -2), ztVec3(-1.5f, 1.5f, -2), ztVec3(-1.5f, 2, -2) };
+				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
+				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
+			}
+			zt_drawListPopTexture(&g_game->draw_list);
 			zt_drawListPopShader(&g_game->draw_list);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
