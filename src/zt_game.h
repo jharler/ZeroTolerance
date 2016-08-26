@@ -10921,12 +10921,19 @@ ztInternal ztVec2 _zt_guiTextEditGetCharacterPos(ztGuiItem *item, int ch, ztGuiT
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztVec2 _zt_guiTextEditGetTextStartPos(ztGuiItem *item, ztGuiTheme *theme)
+ztInternal ztVec2 _zt_guiTextEditGetTextStartPos(ztGuiItem *item, ztGuiTheme *theme, ztGuiManager *gm)
 {
 	ztVec2 pos = zt_guiItemPositionLocalToScreen(item->id, ztVec2::zero);
 
-	r32 diff_x = zt_max(0, item->textedit.content_size[0] - item->size.x);
-	r32 diff_y = zt_max(0, item->textedit.content_size[1] - item->size.y);
+	r32 diff_x = zt_max(0, item->textedit.content_size[0] - (item->size.x - theme->textedit_padding_x * 2.f));
+	r32 diff_y = zt_max(0, item->textedit.content_size[1] - (item->size.y - theme->textedit_padding_y * 2.f));
+
+	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_vert].flags, ztGuiItemFlags_Visible)) {
+		diff_x += gm->item_cache[item->textedit.scrollbar_vert].size.x;
+	}
+	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_horz].flags, ztGuiItemFlags_Visible)) {
+		diff_y += gm->item_cache[item->textedit.scrollbar_horz].size.y;
+	}
 
 	return ztVec2(pos.x - item->size.x / 2.f + theme->textedit_padding_x - (diff_x * item->textedit.scroll_amt_horz),
 		pos.y + item->size.y / 2.f - theme->textedit_padding_y + (diff_y * item->textedit.scroll_amt_vert));
@@ -10939,29 +10946,39 @@ ztInternal void _zt_guiTextEditAdjustViewForCursor(ztGuiItem *item)
 	_zt_guiManagerGetFromItem(gm, item->id);
 	ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
 
-	ztVec2 cursor_pos = _zt_guiTextEditGetCharacterPos(item, item->textedit.cursor_pos + 1, zt_guiItemGetTheme(item->id), true);
+	ztVec2 cursor_pos_beg = _zt_guiTextEditGetCharacterPos(item, item->textedit.cursor_pos, zt_guiItemGetTheme(item->id), false);
+	ztVec2 cursor_pos_end = _zt_guiTextEditGetCharacterPos(item, item->textedit.cursor_pos, zt_guiItemGetTheme(item->id), true);
 
-	cursor_pos += zt_guiItemPositionScreenToLocal(item->id, _zt_guiTextEditGetTextStartPos(item, theme));
+	ztVec2 text_pos = zt_guiItemPositionScreenToLocal(item->id, _zt_guiTextEditGetTextStartPos(item, theme, gm));
+	cursor_pos_beg += text_pos;
+	cursor_pos_end += text_pos;
 
-	r32 x_diff = zt_max(0, item->textedit.content_size[0] - item->size.x);
-	r32 y_diff = zt_max(0, item->textedit.content_size[1] - item->size.y);
-
+	r32 x_diff = zt_max(0, item->textedit.content_size[0] - (item->size.x - theme->textedit_padding_x * 2.f));
+	r32 y_diff = zt_max(0, item->textedit.content_size[1] - (item->size.y - theme->textedit_padding_y * 2.f));
 
 	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_vert].flags, ztGuiItemFlags_Visible)) {
-		x_diff -= gm->item_cache[item->textedit.scrollbar_vert].size.x;
+		x_diff += gm->item_cache[item->textedit.scrollbar_vert].size.x;
 	}
 	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_horz].flags, ztGuiItemFlags_Visible)) {
-		y_diff -= gm->item_cache[item->textedit.scrollbar_horz].size.y;
+		y_diff += gm->item_cache[item->textedit.scrollbar_horz].size.y;
 	}
 
-	if (cursor_pos.x < item->clip_area.x) {
-		r32 diff = cursor_pos.x - (item->clip_area.x + item->clip_area.z / 2.f);
-		item->textedit.scroll_amt_horz = (diff / x_diff) + item->textedit.scroll_amt_horz;
+	if (cursor_pos_beg.x < item->clip_area.x - item->clip_area.z / 2.f) {
+		r32 diff = item->clip_area.x - cursor_pos_beg.x;
+		item->textedit.scroll_amt_horz = zt_max(0, item->textedit.scroll_amt_horz - (diff / x_diff));
+	}
+	if (cursor_pos_end.x > item->clip_area.x + item->clip_area.z / 2.f) {
+		r32 diff = cursor_pos_end.x - (item->clip_area.x + item->clip_area.z / 2.f);
+		item->textedit.scroll_amt_horz = zt_min(1, (diff / x_diff) + item->textedit.scroll_amt_horz);
 	}
 
-	if (cursor_pos.x > item->clip_area.x + item->clip_area.z / 2.f) {
-		r32 diff = cursor_pos.x - (item->clip_area.x + item->clip_area.z / 2.f);
-		item->textedit.scroll_amt_horz = (diff / x_diff) + item->textedit.scroll_amt_horz;
+	if(cursor_pos_beg.y > item->clip_area.y + item->clip_area.w / 2.f) {
+		r32 diff = cursor_pos_beg.y - (item->clip_area.y + item->clip_area.w / 2.f);
+		item->textedit.scroll_amt_vert = zt_max(0, item->textedit.scroll_amt_vert - (diff / y_diff));
+	}
+	if(cursor_pos_end.y < item->clip_area.y - item->clip_area.w / 2.f) {
+		r32 diff = (item->clip_area.y - item->clip_area.w / 2.f) - cursor_pos_end.y;
+		item->textedit.scroll_amt_vert = zt_min(1, (diff / y_diff) + item->textedit.scroll_amt_vert);
 	}
 }
 
@@ -11291,8 +11308,9 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 		static int getCursorIndexAtPosition(ztGuiItem *item, ztVec2 pos)
 		{
 			ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+			_zt_guiManagerGetFromItem(gm, item->id);
 
-			ztVec2 chpos = _zt_guiTextEditGetTextStartPos(item, theme);
+			ztVec2 chpos = _zt_guiTextEditGetTextStartPos(item, theme, gm);
 
 			int prev_idx = 0;
 			int idx = zt_strFindPos(item->textedit.text_buffer, "\n", 0);
@@ -11361,6 +11379,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				ztVec2 mpos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
 				item->textedit.cursor_pos = item->textedit.select_end = getCursorIndexAtPosition(item, mpos);
 				recalcCursor(item);
+				_zt_guiTextEditAdjustViewForCursor(item);
 			}
 
 			return false;
@@ -11377,8 +11396,6 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				item->textedit.cursor_blink_time += .5f;
 				item->textedit.cursor_vis = !item->textedit.cursor_vis;
 			}
-
-
 		}
 
 		// ------------------------------------------------------------------------------------------------
@@ -11391,7 +11408,55 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 			zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit, pos, item->size);
 
-			ztVec2 text_pos = _zt_guiTextEditGetTextStartPos(item, theme);
+			if(item->textedit.content_size[0] == 0 && item->textedit.content_size[1] == 0) {
+				ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+				ztVec2 size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
+
+				if(zt_strEndsWith(item->textedit.text_buffer, "\n")) {
+					ztVec2 extra = zt_fontGetExtents(theme->font, " ");
+					size.y += extra.y;
+				}
+
+				item->textedit.content_size[0] = size.x;
+				item->textedit.content_size[1] = size.y;
+
+				ztGuiItem *scroll_horz = &gm->item_cache[item->textedit.scrollbar_horz];
+				ztGuiItem *scroll_vert = &gm->item_cache[item->textedit.scrollbar_vert];
+
+				bool vert = item->textedit.content_size[1] > item->size.y;
+				bool horz = item->textedit.content_size[0] > item->size.x - (vert ? scroll_vert->size.x : 0);
+
+				item->clip_area.xy = ztVec2::zero;
+				item->clip_area.zw = item->size;
+
+				if(horz) {
+					if(zt_bitIsSet(item->flags, ztGuiTextEditFlags_MultiLine)) {
+						scroll_horz->flags |= ztGuiItemFlags_Visible;
+						scroll_horz->pos.y = (item->size.y - scroll_horz->size.y) / -2.f;
+						scroll_horz->pos.x = (vert ? -scroll_vert->size.x / 2.f : 0);
+						scroll_horz->size.x = item->size.x - (vert ? scroll_vert->size.x : 0);
+						item->clip_area.y += scroll_horz->size.y / 2.f;
+						item->clip_area.w -= scroll_horz->size.y;
+					}
+				}
+				else {
+					zt_bitRemove(scroll_horz->flags, ztGuiItemFlags_Visible);
+				}
+
+				if(vert) {
+					scroll_vert->flags |= ztGuiItemFlags_Visible;
+					scroll_vert->pos.x = (item->size.x - scroll_vert->size.x) / 2.f;
+					scroll_vert->pos.y = (horz ? scroll_horz->size.y / 2.f : 0);
+					scroll_vert->size.y = item->size.y - (horz ? scroll_horz->size.y : 0);
+					item->clip_area.x -= scroll_vert->size.x / 2.f;
+					item->clip_area.z -= scroll_vert->size.x;
+				}
+				else {
+					zt_bitRemove(scroll_vert->flags, ztGuiItemFlags_Visible);
+				}
+			}
+
+			ztVec2 text_pos = _zt_guiTextEditGetTextStartPos(item, theme, gm);
 
 			if(item->textedit.select_beg != item->textedit.select_end) {
 				int sel_beg = zt_min(item->textedit.select_beg, item->textedit.select_end);
@@ -11414,59 +11479,6 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 					sel_beg = idx_end_line + 1;
 				}
-			}
-
-			if (item->textedit.content_size[0] == 0 && item->textedit.content_size[1] == 0) {
-				ztVec2 size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
-
-				if (zt_strEndsWith(item->textedit.text_buffer, "\n")) {
-					ztVec2 extra = zt_fontGetExtents(theme->font, " ");
-					size.y += extra.y;
-				}
-
-				item->textedit.content_size[0] = size.x;
-				item->textedit.content_size[1] = size.y;
-
-				ztGuiItem *scroll_horz = &gm->item_cache[item->textedit.scrollbar_horz];
-				ztGuiItem *scroll_vert = &gm->item_cache[item->textedit.scrollbar_vert];
-
-				bool vert = item->textedit.content_size[1] > item->size.y;
-				bool horz = item->textedit.content_size[0] > item->size.x - (vert ? scroll_vert->size.x : 0);
-
-				item->clip_area.xy = ztVec2::zero;
-				item->clip_area.zw = item->size;
-
-				if (horz) {
-					if (zt_bitIsSet(item->flags, ztGuiTextEditFlags_MultiLine)) {
-						scroll_horz->flags |= ztGuiItemFlags_Visible;
-						scroll_horz->pos.y = (item->size.y - scroll_horz->size.y) / -2.f;
-						scroll_horz->pos.x = (vert ? -scroll_vert->size.x / 2.f : 0);
-						scroll_horz->size.x = item->size.x - (vert ? scroll_vert->size.x : 0);
-						item->clip_area.y += scroll_horz->size.y / 2.f;
-						item->clip_area.w -= scroll_horz->size.y;
-					}
-				}
-				else {
-					zt_bitRemove(scroll_horz->flags, ztGuiItemFlags_Visible);
-				}
-
-				if (vert) {
-					scroll_vert->flags |= ztGuiItemFlags_Visible;
-					scroll_vert->pos.x = (item->size.x - scroll_vert->size.x) / 2.f;
-					scroll_vert->pos.y = (horz ? scroll_horz->size.y / 2.f : 0);
-					scroll_vert->size.y = item->size.y - (horz ? scroll_horz->size.y : 0);
-					item->clip_area.x -= scroll_vert->size.x / 2.f;
-					item->clip_area.z -= scroll_vert->size.x;
-				}
-				else {
-					zt_bitRemove(scroll_vert->flags, ztGuiItemFlags_Visible);
-				}
-			}
-
-			if (item->clip_area != ztVec4::zero) {
-				zt_drawListPushColor(draw_list, ztVec4(1, 0, 0, 1));
-				zt_drawListAddEmptyRect(draw_list, ztVec3(pos + item->clip_area.xy, 0), item->clip_area.zw);
-				zt_drawListPopColor(draw_list);
 			}
 
 			ztVec2 text_size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
