@@ -1116,7 +1116,8 @@ enum ztGuiItemFlags_Enum
 	ztGuiItemFlags_Visible          = (1<<2),
 	ztGuiItemFlags_OutlyingChildren = (1<<3),
 	ztGuiItemFlags_ClipChildren     = (1<<4),
-	ztGuiItemFlags_BringToFront     = (1<<5),
+	ztGuiItemFlags_ClipContents     = (1<<5),
+	ztGuiItemFlags_BringToFront     = (1<<6),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1198,6 +1199,7 @@ enum ztGuiRadioButtonFlags_Enum
 enum ztGuiTextEditFlags_Enum
 {
 	ztGuiTextEditFlags_MultiLine = (1<<31),
+	ztGuiTextEditFlags_WordWrap  = (1<<30),
 };
 
 enum ztGuiItemOrient_Enum
@@ -2419,7 +2421,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-skybox",
 };
 ztInternal const char *_zt_default_shaders[] = {
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out layout (location = 0) vec4 out_color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		out_color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in layout (location = 0) vec4 in_color;\n\n	void main()\n	{\n		frag_color = in_color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if(color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 };
 
@@ -6978,12 +6980,12 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 	zt_fiz(text_len) {
 		int glyph_idx = glyphs_idx[i];
 		if (glyph_idx < 0) {
+			if (row_height == 0) {
+				row_height = font->line_height;
+			}
+
 			i32 codepoint = zt_strCodepoint(text, i);
 			if (codepoint == '\n') {
-				if (row_height == 0) {
-					row_height = font->line_height;
-				}
-
 				if (current_row == row) {
 					*width = row_width;
 					*height = row_height;
@@ -8891,7 +8893,17 @@ struct ztGuiItem
 			i32 select_beg;
 			i32 select_end;
 
+			bool dragging;
+
+			ztGuiItemID scrollbar_vert;
+			ztGuiItemID scrollbar_horz;
+
+			r32 scroll_amt_vert;
+			r32 scroll_amt_horz;
+
 			ztString text_buffer;
+
+			r32 content_size[2];
 		} textedit;
 	};
 };
@@ -9561,6 +9573,16 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 
 			ztGuiTheme *theme = item->theme == nullptr ? &gm->default_theme : item->theme;
 
+			bool clip = zt_bitIsSet(item->flags, ztGuiItemFlags_ClipContents);
+			if (clip) {
+				if (item->clip_area != ztVec4::zero) {
+					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+				}
+				else {
+					zt_drawListPushClipRegion(draw_list, pos, item->size);
+				}
+			}
+
 			if(item->functions.render) {
 				item->functions.render(item->id, draw_list, theme, offset, item->functions.user_data);
 			}
@@ -9612,14 +9634,18 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				zt_drawListPopColor(draw_list);
 			}
 #endif
-			bool clip = zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) && item->first_child;
-			if (clip) {
+			if(!clip && zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) ) {
+				clip = true;
 				if (item->clip_area != ztVec4::zero) {
 					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
 				}
 				else {
 					zt_drawListPushClipRegion(draw_list, pos, item->size);
 				}
+			}
+			else if (clip && !zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren)) {
+				zt_drawListPopClipRegion(draw_list);
+				clip = false;
 			}
 
 			ztGuiItem *child = item->first_child;
@@ -10865,6 +10891,82 @@ void zt_guiScrollContainerResetScroll(ztGuiItemID scroll)
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal ztVec2 _zt_guiTextEditGetCharacterPos(ztGuiItem *item, int ch, ztGuiTheme *theme, bool bottom_right)
+{
+	ztVec2 chpos = ztVec2::zero;
+
+	int prev_pos = 0;
+	int pos = zt_strFindPos(item->textedit.text_buffer, "\n", 0);
+	while (pos != ztStrPosNotFound && pos < ch) {
+		pos += 1;
+		ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), pos - prev_pos);
+		chpos.y -= ext.y;
+
+		prev_pos = pos;
+		pos = zt_strFindPos(item->textedit.text_buffer, "\n", pos + 1);
+	}
+	if (item->textedit.text_buffer[prev_pos] == '\n') {
+		prev_pos += 1;
+	}
+
+	ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), ch - prev_pos);
+	chpos.x += ext.x;
+
+	if (bottom_right) {
+		chpos.y -= ext.y;
+	}
+
+	return chpos;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztVec2 _zt_guiTextEditGetTextStartPos(ztGuiItem *item, ztGuiTheme *theme)
+{
+	ztVec2 pos = zt_guiItemPositionLocalToScreen(item->id, ztVec2::zero);
+
+	r32 diff_x = zt_max(0, item->textedit.content_size[0] - item->size.x);
+	r32 diff_y = zt_max(0, item->textedit.content_size[1] - item->size.y);
+
+	return ztVec2(pos.x - item->size.x / 2.f + theme->textedit_padding_x - (diff_x * item->textedit.scroll_amt_horz),
+		pos.y + item->size.y / 2.f - theme->textedit_padding_y + (diff_y * item->textedit.scroll_amt_vert));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiTextEditAdjustViewForCursor(ztGuiItem *item)
+{
+	_zt_guiManagerGetFromItem(gm, item->id);
+	ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+
+	ztVec2 cursor_pos = _zt_guiTextEditGetCharacterPos(item, item->textedit.cursor_pos + 1, zt_guiItemGetTheme(item->id), true);
+
+	cursor_pos += zt_guiItemPositionScreenToLocal(item->id, _zt_guiTextEditGetTextStartPos(item, theme));
+
+	r32 x_diff = zt_max(0, item->textedit.content_size[0] - item->size.x);
+	r32 y_diff = zt_max(0, item->textedit.content_size[1] - item->size.y);
+
+
+	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_vert].flags, ztGuiItemFlags_Visible)) {
+		x_diff -= gm->item_cache[item->textedit.scrollbar_vert].size.x;
+	}
+	if (zt_bitIsSet(gm->item_cache[item->textedit.scrollbar_horz].flags, ztGuiItemFlags_Visible)) {
+		y_diff -= gm->item_cache[item->textedit.scrollbar_horz].size.y;
+	}
+
+	if (cursor_pos.x < item->clip_area.x) {
+		r32 diff = cursor_pos.x - (item->clip_area.x + item->clip_area.z / 2.f);
+		item->textedit.scroll_amt_horz = (diff / x_diff) + item->textedit.scroll_amt_horz;
+	}
+
+	if (cursor_pos.x > item->clip_area.x + item->clip_area.z / 2.f) {
+		r32 diff = cursor_pos.x - (item->clip_area.x + item->clip_area.z / 2.f);
+		item->textedit.scroll_amt_horz = (diff / x_diff) + item->textedit.scroll_amt_horz;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags, i32 buffer_size)
 {
 	static const char *word_separators = " \t";
@@ -10872,12 +10974,6 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 	struct local
 	{
-		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
-		{
-			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
-			return false;
-		}
-
 		// ------------------------------------------------------------------------------------------------
 
 		static void getCurrentLineInfo(ztGuiItem *item, int *beg_pos, int *end_pos, int from_pos = -1)
@@ -10996,9 +11092,9 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 		// ------------------------------------------------------------------------------------------------
 
-		static void selectBeg(ztGuiItem *item)
+		static void selectBeg(ztGuiItem *item, bool force = false)
 		{
-			if (item->textedit.select_beg == -1) {
+			if (force || item->textedit.select_beg == -1) {
 				item->textedit.select_beg = item->textedit.select_end = item->textedit.cursor_pos;
 			}
 		}
@@ -11012,6 +11108,26 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 		// ------------------------------------------------------------------------------------------------
 
+		static void recalcCursor(ztGuiItem *item)
+		{
+			ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+			int beg_line = 0;
+			getCurrentLineInfo(item, &beg_line, nullptr);
+			if (beg_line != ztStrPosNotFound) {
+				ztVec2 ext = zt_fontGetExtents(theme->font, item->textedit.text_buffer, beg_line);
+
+				item->textedit.cursor_xy[1] = -ext.y;
+			}
+			else {
+				beg_line = 0;
+				item->textedit.cursor_xy[1] = 0;
+			}
+
+			const char *text = zt_strMoveForward(item->textedit.text_buffer, beg_line);
+			item->textedit.cursor_xy[0] = zt_fontGetExtents(theme->font, text, item->textedit.cursor_pos - beg_line).x;
+		}
+
+		// ------------------------------------------------------------------------------------------------
 		static ZT_FUNC_GUI_ITEM_INPUT_KEY(inputKey)
 		{
 			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
@@ -11078,33 +11194,53 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				}
 			}
 			if (input_keys[ztInputKeys_Delete].justPressed()) {
-				item->textedit.cursor_vis = true;
-				int iterations = 1;
-				if (input_keys[ztInputKeys_Control].pressed()) {
-					int next_word = posNextWord(item, str_len);
-					iterations = next_word - item->textedit.cursor_pos;
+				recalc_cursor = true;
+				if (item->textedit.select_beg != item->textedit.select_end) {
+					int offset = zt_max(item->textedit.select_beg, item->textedit.select_end) - zt_min(item->textedit.select_beg, item->textedit.select_end);
+					for (int i = zt_min(item->textedit.select_beg, item->textedit.select_end); i <= str_len; ++i) {
+						item->textedit.text_buffer[i] = item->textedit.text_buffer[i + offset];
+					}
+					item->textedit.cursor_pos = zt_min(item->textedit.select_beg, item->textedit.select_end);
+					item->textedit.select_beg = item->textedit.select_end = -1;
 				}
+				else {
+					int iterations = 1;
+					if (input_keys[ztInputKeys_Control].pressed()) {
+						int next_word = posNextWord(item, str_len);
+						iterations = next_word - item->textedit.cursor_pos;
+					}
 
-				zt_fjz(iterations) {
-					for (int i = item->textedit.cursor_pos; i <= str_len; ++i) {
-						item->textedit.text_buffer[i] = item->textedit.text_buffer[i + 1];
+					zt_fjz(iterations) {
+						for (int i = item->textedit.cursor_pos; i <= str_len; ++i) {
+							item->textedit.text_buffer[i] = item->textedit.text_buffer[i + 1];
+						}
 					}
 				}
 			}
 			if (input_keys[ztInputKeys_Back].justPressed()) {
 				recalc_cursor = true;
-				int iterations = 1;
-				if (input_keys[ztInputKeys_Control].pressed()) {
-					int prev_word = posPrevWord(item, str_len);
-					iterations = item->textedit.cursor_pos - prev_word;
+				if (item->textedit.select_beg != item->textedit.select_end) {
+					int offset = zt_max(item->textedit.select_beg, item->textedit.select_end) - zt_min(item->textedit.select_beg, item->textedit.select_end);
+					for (int i = zt_min(item->textedit.select_beg, item->textedit.select_end); i <= str_len; ++i) {
+						item->textedit.text_buffer[i] = item->textedit.text_buffer[i + offset];
+					}
+					item->textedit.cursor_pos = zt_min(item->textedit.select_beg, item->textedit.select_end);
+					item->textedit.select_beg = item->textedit.select_end = -1;
 				}
+				else {
+					int iterations = 1;
+					if (input_keys[ztInputKeys_Control].pressed()) {
+						int prev_word = posPrevWord(item, str_len);
+						iterations = item->textedit.cursor_pos - prev_word;
+					}
 
-				zt_fjz(iterations) {
-					if(item->textedit.cursor_pos > 0) {
-						for (int i = item->textedit.cursor_pos - 1; i <= str_len; ++i) {
-							item->textedit.text_buffer[i] = item->textedit.text_buffer[i + 1];
+					zt_fjz(iterations) {
+						if (item->textedit.cursor_pos > 0) {
+							for (int i = item->textedit.cursor_pos - 1; i <= str_len; ++i) {
+								item->textedit.text_buffer[i] = item->textedit.text_buffer[i + 1];
+							}
+							item->textedit.cursor_pos -= 1;
 						}
-						item->textedit.cursor_pos -= 1;
 					}
 				}
 			}
@@ -11141,21 +11277,90 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				}
 				item->textedit.cursor_vis = true;
 
-				ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
-				int beg_line = 0;
-				getCurrentLineInfo(item, &beg_line, nullptr);
-				if (beg_line != ztStrPosNotFound) {
-					ztVec2 ext = zt_fontGetExtents(theme->font, item->textedit.text_buffer, beg_line);
+				recalcCursor(item);
+				_zt_guiTextEditAdjustViewForCursor(item);
+				item->textedit.content_size[0] = 0;
+				item->textedit.content_size[1] = 0;
+			}
 
-					item->textedit.cursor_xy[1] = -ext.y;
-				}
-				else {
-					beg_line = 0;
-					item->textedit.cursor_xy[1] = 0;
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static int getCursorIndexAtPosition(ztGuiItem *item, ztVec2 pos)
+		{
+			ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+
+			ztVec2 chpos = _zt_guiTextEditGetTextStartPos(item, theme);
+
+			int prev_idx = 0;
+			int idx = zt_strFindPos(item->textedit.text_buffer, "\n", 0);
+			while (idx != ztStrPosNotFound) {
+				idx += 1;
+
+				ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_idx), idx - prev_idx);
+
+				if ((pos.y < chpos.y && pos.y >= chpos.y - ext.y) || pos.y > chpos.y) {
+					break;
 				}
 
-				const char *text = zt_strMoveForward(item->textedit.text_buffer, beg_line);
-				item->textedit.cursor_xy[0] = zt_fontGetExtents(theme->font, text, item->textedit.cursor_pos - beg_line).x;
+				chpos.y -= ext.y;
+
+				prev_idx = idx;
+				idx = zt_strFindPos(item->textedit.text_buffer, "\n", idx + 1);
+			}
+
+			if (idx == ztStrPosNotFound) {
+				idx = zt_strLen(item->textedit.text_buffer);
+			}
+			idx = zt_max(0, idx - 1);
+
+			int beg_pos = 0, end_pos = 0;
+			getCurrentLineInfo(item, &beg_pos, &end_pos, idx);
+
+			int line_len = end_pos - beg_pos;
+			const char *line = zt_strMoveForward(item->textedit.text_buffer, beg_pos);
+			ztVec2 ext_prev = ztVec2::zero;
+			zt_fiz(line_len) {
+				ztVec2 ext = zt_fontGetExtents(theme->font, line, i);
+				if (pos.x < chpos.x +  ext.x) {
+					r32 half = (ext.x - ext_prev.x) / 2.f;
+					if (i != 0 && pos.x < chpos.x + (ext.x - half)) {
+						return beg_pos + (i - 1);
+					}
+					else {
+						return beg_pos + i;
+					}
+				}
+				ext_prev = ext;
+			}
+
+			return end_pos;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
+		{
+			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
+
+			if (input_mouse->leftJustPressed()) {
+				ztVec2 mpos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+				item->textedit.cursor_pos = getCursorIndexAtPosition(item, mpos);
+				recalcCursor(item);
+
+				item->textedit.dragging = true;
+				selectBeg(item, true);
+			}
+			else if (input_mouse->leftJustReleased()) {
+				item->textedit.dragging = false;
+				selectEnd(item);
+			}
+			else if (item->textedit.dragging) {
+				ztVec2 mpos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+				item->textedit.cursor_pos = item->textedit.select_end = getCursorIndexAtPosition(item, mpos);
+				recalcCursor(item);
 			}
 
 			return false;
@@ -11172,36 +11377,8 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				item->textedit.cursor_blink_time += .5f;
 				item->textedit.cursor_vis = !item->textedit.cursor_vis;
 			}
-		}
 
-		// ------------------------------------------------------------------------------------------------
 
-		static ztVec2 getCharacterPos(ztGuiItem *item, int ch, ztGuiTheme *theme, bool bottom_right)
-		{
-			ztVec2 chpos = ztVec2::zero;
-
-			int prev_pos = 0;
-			int pos = zt_strFindPos(item->textedit.text_buffer, "\n", 0);
-			while (pos != ztStrPosNotFound && pos < ch) {
-				pos += 1;
-				ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), pos - prev_pos);
-				chpos.y -= ext.y;
-
-				prev_pos = pos;
-				pos = zt_strFindPos(item->textedit.text_buffer, "\n", pos + 1);
-			}
-			if(item->textedit.text_buffer[prev_pos] == '\n') {
-				prev_pos += 1;
-			}
-
-			ztVec2 ext = zt_fontGetExtents(theme->font, zt_strMoveForward(item->textedit.text_buffer, prev_pos), ch - prev_pos);
-			chpos.x += ext.x;
-
-			if (bottom_right) {
-				chpos.y -= ext.y;
-			}
-
-			return chpos;
 		}
 
 		// ------------------------------------------------------------------------------------------------
@@ -11214,21 +11391,21 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 			zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit, pos, item->size);
 
-			ztVec2 text_pos = ztVec2(pos.x - item->size.x / 2.f + theme->textedit_padding_x, pos.y + item->size.y / 2.f - theme->textedit_padding_y);
+			ztVec2 text_pos = _zt_guiTextEditGetTextStartPos(item, theme);
 
 			if(item->textedit.select_beg != item->textedit.select_end) {
 				int sel_beg = zt_min(item->textedit.select_beg, item->textedit.select_end);
 				int sel_end = zt_max(item->textedit.select_beg, item->textedit.select_end);
 
 				while(sel_beg < sel_end) {
-					ztVec2 pos_beg = getCharacterPos(item, sel_beg, theme, false);
+					ztVec2 pos_beg = _zt_guiTextEditGetCharacterPos(item, sel_beg, theme, false);
 
 					int idx_end_line = zt_strFindPos(item->textedit.text_buffer, "\n", sel_beg);
 					if(idx_end_line == ztStrPosNotFound || idx_end_line > sel_end) {
 						idx_end_line = sel_end;
 					}
 
-					ztVec2 pos_end = getCharacterPos(item, idx_end_line, theme, true);
+					ztVec2 pos_end = _zt_guiTextEditGetCharacterPos(item, idx_end_line, theme, true);
 
 					ztVec2 pos_size = ztVec2(pos_end.x - pos_beg.x, pos_beg.y - pos_end.y);
 					ztVec2 pos_center = ztVec2(pos_beg.x + pos_size.x / 2.f, pos_beg.y - pos_size.y / 2.f);
@@ -11237,6 +11414,59 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 					sel_beg = idx_end_line + 1;
 				}
+			}
+
+			if (item->textedit.content_size[0] == 0 && item->textedit.content_size[1] == 0) {
+				ztVec2 size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
+
+				if (zt_strEndsWith(item->textedit.text_buffer, "\n")) {
+					ztVec2 extra = zt_fontGetExtents(theme->font, " ");
+					size.y += extra.y;
+				}
+
+				item->textedit.content_size[0] = size.x;
+				item->textedit.content_size[1] = size.y;
+
+				ztGuiItem *scroll_horz = &gm->item_cache[item->textedit.scrollbar_horz];
+				ztGuiItem *scroll_vert = &gm->item_cache[item->textedit.scrollbar_vert];
+
+				bool vert = item->textedit.content_size[1] > item->size.y;
+				bool horz = item->textedit.content_size[0] > item->size.x - (vert ? scroll_vert->size.x : 0);
+
+				item->clip_area.xy = ztVec2::zero;
+				item->clip_area.zw = item->size;
+
+				if (horz) {
+					if (zt_bitIsSet(item->flags, ztGuiTextEditFlags_MultiLine)) {
+						scroll_horz->flags |= ztGuiItemFlags_Visible;
+						scroll_horz->pos.y = (item->size.y - scroll_horz->size.y) / -2.f;
+						scroll_horz->pos.x = (vert ? -scroll_vert->size.x / 2.f : 0);
+						scroll_horz->size.x = item->size.x - (vert ? scroll_vert->size.x : 0);
+						item->clip_area.y += scroll_horz->size.y / 2.f;
+						item->clip_area.w -= scroll_horz->size.y;
+					}
+				}
+				else {
+					zt_bitRemove(scroll_horz->flags, ztGuiItemFlags_Visible);
+				}
+
+				if (vert) {
+					scroll_vert->flags |= ztGuiItemFlags_Visible;
+					scroll_vert->pos.x = (item->size.x - scroll_vert->size.x) / 2.f;
+					scroll_vert->pos.y = (horz ? scroll_horz->size.y / 2.f : 0);
+					scroll_vert->size.y = item->size.y - (horz ? scroll_horz->size.y : 0);
+					item->clip_area.x -= scroll_vert->size.x / 2.f;
+					item->clip_area.z -= scroll_vert->size.x;
+				}
+				else {
+					zt_bitRemove(scroll_vert->flags, ztGuiItemFlags_Visible);
+				}
+			}
+
+			if (item->clip_area != ztVec4::zero) {
+				zt_drawListPushColor(draw_list, ztVec4(1, 0, 0, 1));
+				zt_drawListAddEmptyRect(draw_list, ztVec3(pos + item->clip_area.xy, 0), item->clip_area.zw);
+				zt_drawListPopColor(draw_list);
 			}
 
 			ztVec2 text_size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
@@ -11276,7 +11506,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 	zt_returnValOnNull(gm, ztInvalidID);
 
 	ztGuiItemID item_id = ztInvalidID;
-	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_TextEdit, ztGuiItemFlags_ClipChildren | ztGuiItemFlags_WantsFocus, &item_id);
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_TextEdit, ztGuiItemFlags_ClipContents | ztGuiItemFlags_WantsFocus | flags, &item_id);
 	if (!item) return ztInvalidID;
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
@@ -11290,6 +11520,28 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 	item->textedit.text_buffer[0] = 0;
 	item->textedit.select_beg = -1;
 	item->textedit.select_end = -1;
+	item->textedit.dragging = false;
+	item->textedit.scroll_amt_horz = 0;
+	item->textedit.scroll_amt_vert = 0;
+	item->textedit.content_size[0] = 0;
+	item->textedit.content_size[1] = 0;
+
+	if (zt_bitIsSet(flags, ztGuiTextEditFlags_MultiLine)) {
+		if (zt_bitIsSet(flags, ztGuiTextEditFlags_WordWrap)) {
+			item->textedit.scrollbar_horz = ztInvalidID;
+		}
+		else {
+			item->textedit.scrollbar_horz = zt_guiMakeScrollbar(item_id, ztGuiItemOrient_Horz, &item->textedit.scroll_amt_horz);
+			zt_bitRemove(gm->item_cache[item->textedit.scrollbar_horz].flags, ztGuiItemFlags_Visible);
+		}
+
+		item->textedit.scrollbar_vert = zt_guiMakeScrollbar(item_id, ztGuiItemOrient_Vert, &item->textedit.scroll_amt_vert);
+		zt_bitRemove(gm->item_cache[item->textedit.scrollbar_vert].flags, ztGuiItemFlags_Visible);
+	}
+	else {
+		item->textedit.scrollbar_vert = ztInvalidID;
+		item->textedit.scrollbar_horz = ztInvalidID;
+	}
 
 	if (value) {
 		zt_stringOverwrite(item->textedit.text_buffer, value, gm->arena);
