@@ -303,7 +303,8 @@ enum ztInputKeyFlags_Enum
 	ztInputKeyFlags_Pressed      = (1<<0),
 	ztInputKeyFlags_JustPressed  = (1<<1),
 	ztInputKeyFlags_JustReleased = (1<<2),
-	ztInputKeyFlags_StateKey     = (1<<3),
+	ztInputKeyFlags_JustRepeated = (1<<3),
+	ztInputKeyFlags_StateKey     = (1<<4),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -319,10 +320,17 @@ struct ztInputKeys
 
 	i32 platform_mapping;
 
+	r64 time_pressed;
+
 	bool pressed()      { return zt_bitIsSet(flags, ztInputKeyFlags_Pressed); }
 	bool justPressed()  { return zt_bitIsSet(flags, ztInputKeyFlags_JustPressed); }
 	bool justReleased() { return zt_bitIsSet(flags, ztInputKeyFlags_JustReleased); }
+	bool justRepeated() { return zt_bitIsSet(flags, ztInputKeyFlags_JustRepeated); }
 	bool stateKey()     { return zt_bitIsSet(flags, ztInputKeyFlags_StateKey); }
+
+	bool justPressedOrRepeated() {
+		return justPressed() || justRepeated();
+	}
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2422,7 +2430,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 };
 ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if(color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2468,7 +2476,7 @@ bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details);
 // ------------------------------------------------------------------------------------------------
 
-#define _zt_setKeyData(code, name, display, shift_display, mapping) zt->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping}
+#define _zt_setKeyData(code, name, display, shift_display, mapping) zt->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
 
 ztInternal void _zt_inputSetupKeys()
 {
@@ -2729,6 +2737,7 @@ void _zt_inputClearState( bool lost_focus )
 	zt_fiz(ztInputKeys_MAX) {
 		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustPressed);
 		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustReleased);
+		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustRepeated);
 	}
 
 	zt_fiz(zt_elementsOf(zt->input_key_strokes)) {
@@ -3130,8 +3139,8 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 	r32 x = center.x - width / 2.f;
 	r32 z = center.z - depth / 2.f;
 
-	while(z <= max_z) {
-		if(!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x + width, center.y, z))) {
+	while (z <= max_z) {
+		if (!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x + width, center.y, z))) {
 			return false;
 		}
 		z += grid_d;
@@ -3140,8 +3149,8 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 	x = center.x - width / 2.f;
 	z = center.z - depth / 2.f;
 
-	while(x <= max_x) {
-		if(!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x, center.y, z + depth))) {
+	while (x <= max_x) {
+		if (!zt_drawListAddLine(draw_list, ztVec3(x, center.y, z), ztVec3(x, center.y, z + depth))) {
 			return false;
 		}
 		x += grid_w;
@@ -3595,7 +3604,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 							}
 						}
-						if(command->type == ztDrawCommandType_Skybox) {
+						if (command->type == ztDrawCommandType_Skybox) {
 							*skybox = command->skybox;
 						}
 					}
@@ -4675,26 +4684,26 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 	zt_assert(shader_id >= 0 && shader_id < zt->shaders_count);
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
-	if(size <= 0) {
+	if (size <= 0) {
 		zt_logCritical("shader reload: unable to determine asset size");
 		return;
 	}
 
 	char *data = zt_mallocStructArray(char, size);
-	if(!data) {
+	if (!data) {
 		zt_logCritical("shader reload: unable to allocate memory for asset data");
 		return;
 	}
 
 	const char *error = nullptr;
 
-	if(!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
 	ztShaderID result_shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size, shader_id);
-	if(result_shader_id == ztInvalidID) {
+	if (result_shader_id == ztInvalidID) {
 		goto on_error;
 	}
 
@@ -4743,7 +4752,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	const char *error = nullptr;
 
 	i32 pos_beg = zt_strFindPos(data, "<<[", 0);
-	while(pos_beg != ztStrPosNotFound) {
+	while (pos_beg != ztStrPosNotFound) {
 		int pos_end = zt_strFindPos(data, "]>>", pos_beg);
 		if (pos_end == ztStrPosNotFound) {
 			error = "Invalid format.";
@@ -4886,7 +4895,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		GLuint program = OpenGL::load_program(vert, frag, geom);
 		if (program == 0) { error = "Unable to compile and link shader program."; goto on_error; }
 
-		if(replace != ztInvalidID) {
+		if (replace != ztInvalidID) {
 			zt_shaderFree(replace);
 			shader_id = replace;
 		}
@@ -4969,7 +4978,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			}
 		}
 
-		if(replace != ztInvalidID) {
+		if (replace != ztInvalidID) {
 			zt_shaderFree(replace);
 			shader_id = replace;
 		}
@@ -5324,14 +5333,14 @@ bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVa
 // ------------------------------------------------------------------------------------------------
 
 #define _zt_shaderCheck(shader_id, shader_type) \
-	if(shader_id < 0 || shader_id >= zt->shaders_count) { zt_debugOnly(zt_logDebug("shader_id invalid")); return; }\
+	if (shader_id < 0 || shader_id >= zt->shaders_count) { zt_debugOnly(zt_logDebug("shader_id invalid")); return; }\
 	int idx = -1; \
 	zt_fiz(zt->shaders[shader_id].variable_count) { \
 		if (zt_strEquals(zt->shaders[shader_id].variables[i].name, variable)) {\
 			idx = i; break; \
 		} \
 	} \
-	if(idx == -1) { zt_debugOnly(zt_logDebug("idx == -1")); return; } \
+	if (idx == -1) { zt_debugOnly(zt_logDebug("idx == -1")); return; } \
 	if (zt->shaders[shader_id].variables[idx].type != shader_type) { \
 		zt_assert(false); return; \
 	}
@@ -6149,17 +6158,17 @@ void zt_textureFree(ztTextureID texture_id)
 		return;
 	}
 
-	if(zt->textures[texture_id].renderer == ztRenderer_OpenGL) {
+	if (zt->textures[texture_id].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (zt->textures[texture_id].gl_dbo != 0) {
 			zt_glCallAndReportOnError(glDeleteRenderbuffers(1, &zt->textures[texture_id].gl_dbo));
 			zt_glCallAndReportOnError(glDeleteTextures(1, &zt->textures[texture_id].gl_rt));
 			zt_glCallAndReportOnError(glDeleteFramebuffers(1, &zt->textures[texture_id].gl_rb));
 		}
-		if( zt->textures[texture_id].gl_fbo != 0 ) {
+		if ( zt->textures[texture_id].gl_fbo != 0 ) {
 			zt_glCallAndReportOnError(glDeleteFramebuffers(1, &zt->textures[texture_id].gl_fbo));
 		}
-		if( zt->textures[texture_id].gl_texid != 0 ) {
+		if ( zt->textures[texture_id].gl_texid != 0 ) {
 			zt_glCallAndReportOnError(glDeleteTextures(1, &zt->textures[texture_id].gl_texid));
 		}
 #else
@@ -6172,7 +6181,7 @@ void zt_textureFree(ztTextureID texture_id)
 		zt->textures[texture_id].dx_shader_resource_view->Release();
 		zt->textures[texture_id].dx_tex->Release();
 
-		if(zt->textures[texture_id].dx_render_target_view) {
+		if (zt->textures[texture_id].dx_render_target_view) {
 			zt->textures[texture_id].dx_render_target_view->Release();
 			zt->textures[texture_id].dx_depth_stencil_buffer->Release();
 			zt->textures[texture_id].dx_depth_stencil_view->Release();
@@ -6705,7 +6714,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 						if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
 							font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
 						}
-						else if(zt_fileExists(tex_file_full)) {
+						else if (zt_fileExists(tex_file_full)) {
 							// TODO(josh): should this support loading non-asset files?
 							zt_assert(false);
 						}
@@ -7036,7 +7045,7 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text)
 
 ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 {
-	if(text == nullptr || text_len <= 0) {
+	if (text == nullptr || text_len <= 0) {
 		return ztVec2::zero;
 	}
 
@@ -7062,7 +7071,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	zt_returnOnNull(draw_list);
 	zt_returnOnNull(text);
 	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
-	if(text_len <= 0) return;
+	if (text_len <= 0) return;
 
 	ztFont *font = &zt->fonts[font_id];
 
@@ -7488,7 +7497,7 @@ void zt_materialListFree(ztMaterialList *material_list)
 bool zt_materialListIsEmpty(ztMaterialList *material_list)
 {
 	zt_fiz(ztMaterialType_MAX) {
-		if(material_list->materials[i].tex_id != ztInvalidID) {
+		if (material_list->materials[i].tex_id != ztInvalidID) {
 			return false;
 		}
 	}
@@ -8532,7 +8541,7 @@ ztInternal bool _zt_dxSetViewport(ztWindowDetails* win_details, ztGameSettings *
 	D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_game_settings[0].native_w; rect.bottom = zt->win_game_settings[0].native_h;
 	win_details->dx_context->RSSetScissorRects(1, &rect);
 
-	if(force) {
+	if (force) {
 		// this crashes.  i think i need to re-create the swapchain and everything when this happens
 		//zt_dxCallAndReturnValOnError(win_details->dx_swapchain->ResizeBuffers(0, (UINT)viewport.Width, (UINT)viewport.Height, DXGI_FORMAT_UNKNOWN, 0), false);
 	}
@@ -8964,7 +8973,7 @@ enum ztGuiManagerInternalFlags_Enum
 
 #define _zt_guiManagerGetFromItem(gm_var, gui_item_id) \
 	ztGuiManager *gm_var; \
-	if(gui_item_id != ztInvalidID) { \
+	if (gui_item_id != ztInvalidID) { \
 		i32 _gui_manager_idx = zt_convertToi32Floor((r32)gui_item_id / ztGuiManagerItemIDOffset); \
 		zt_assert(_gui_manager_idx >= 0 && _gui_manager_idx < zt_elementsOf(zt->gui_managers) && zt->gui_managers[_gui_manager_idx] != nullptr); \
 		gm_var = zt->gui_managers[_gui_manager_idx]; \
@@ -8974,7 +8983,7 @@ enum ztGuiManagerInternalFlags_Enum
 												}
 #define _zt_guiItemFromID(gi_var, gui_item_id) \
 	ztGuiItem *gi_var = nullptr; \
-	if(gui_item_id != ztInvalidID) { \
+	if (gui_item_id != ztInvalidID) { \
 		i32 _gui_manager_idx = zt_convertToi32Floor((r32)gui_item_id / ztGuiManagerItemIDOffset); \
 		zt_assert(_gui_manager_idx >= 0 && _gui_manager_idx < zt_elementsOf(zt->gui_managers) && zt->gui_managers[_gui_manager_idx] != nullptr); \
 		i32 _gui_item_idx = gui_item_id - (_gui_manager_idx * ztGuiManagerItemIDOffset); \
@@ -8983,27 +8992,27 @@ enum ztGuiManagerInternalFlags_Enum
 
 #define _zt_guiItemTypeFromIDReturnOnError(gi_var, gui_item_id, gi_type) \
 	_zt_guiItemFromID(gi_var, gui_item_id); \
-	if(gi_var == nullptr) return; \
+	if (gi_var == nullptr) return; \
 	zt_assert(gi_var->type == gi_type); \
-	if(gi_var->type != gi_type) return;
+	if (gi_var->type != gi_type) return;
 
 #define _zt_guiItemTypeFromIDReturnValOnError(gi_var, gui_item_id, gi_type, ret_val) \
 	_zt_guiItemFromID(gi_var, gui_item_id); \
-	if(gi_var == nullptr) return ret_val; \
+	if (gi_var == nullptr) return ret_val; \
 	zt_assert(gi_var->type == gi_type); \
-	if(gi_var->type != gi_type) return ret_val;
+	if (gi_var->type != gi_type) return ret_val;
 
 #define _zt_guiItemAndManagerReturnOnError(gm_var, gi_var, item_id) \
 		_zt_guiManagerGetFromItem(gm_var, item_id); \
-		if(gm_var == nullptr) return; \
+		if (gm_var == nullptr) return; \
 		_zt_guiItemFromID(gi_var, item_id); \
-		if(gi_var == nullptr) return;
+		if (gi_var == nullptr) return;
 
 #define _zt_guiItemAndManagerReturnValOnError(gm_var, gi_var, item_id, ret_val) \
 		_zt_guiManagerGetFromItem(gm_var, item_id); \
-		if(gm_var == nullptr) return ret_val; \
+		if (gm_var == nullptr) return ret_val; \
 		_zt_guiItemFromID(gi_var, item_id); \
-		if(gi_var == nullptr) return ret_val;
+		if (gi_var == nullptr) return ret_val;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -9277,12 +9286,12 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, r32 dt, ztInputKeys in
 	zt_returnValOnNull(input_keys, false);
 	zt_returnValOnNull(input_mouse, false);
 
-	if(gm->mouse_over_gui) {
+	if (gm->mouse_over_gui) {
 		zt_fiz(zt_elementsOf(gm->item_cache_flags)) {
-			if(gm->item_cache_flags[i] != 0) {
+			if (gm->item_cache_flags[i] != 0) {
 				zt_bitRemove(gm->item_cache_flags[i], ztGuiManagerItemCacheFlags_MouseOver);
 
-				if(gm->item_cache[i].functions.update) {
+				if (gm->item_cache[i].functions.update) {
 					gm->item_cache[i].functions.update(i, dt, gm->item_cache[i].functions.user_data);
 				}
 			}
@@ -9406,7 +9415,7 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, r32 dt, ztInputKeys in
 					}
 
 					if (mouse_intersecting || gm->item_has_mouse == item->id) {
-						if(mouse_intersecting) {
+						if (mouse_intersecting) {
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
 						}
 						if (item->functions.input_mouse && item->functions.input_mouse(item->id, input_mouse, item->functions.user_data)) {
@@ -9456,7 +9465,7 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, r32 dt, ztInputKeys in
 						gm->tooltip_item = ztInvalidID;
 					}
 					if (mouse_intersecting || gm->item_has_mouse == item->id) {
-						if(mouse_intersecting) {
+						if (mouse_intersecting) {
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
 						}
 						if (item->functions.input_mouse && item->functions.input_mouse(item->id, input_mouse, item->functions.user_data)) {
@@ -9565,7 +9574,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 	{
 		static void renderItem(ztGuiManager *gm, ztGuiItem *item, ztDrawList *draw_list, const ztVec2& offset)
 		{
-			if(!zt_bitIsSet(item->flags, ztGuiItemFlags_Visible)) {
+			if (!zt_bitIsSet(item->flags, ztGuiItemFlags_Visible)) {
 				return;
 			}
 
@@ -9583,7 +9592,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				}
 			}
 
-			if(item->functions.render) {
+			if (item->functions.render) {
 				item->functions.render(item->id, draw_list, theme, offset, item->functions.user_data);
 			}
 			else {
@@ -9617,7 +9626,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				} break;
 
 				case ztGuiItemType_Text: {
-					if(item->label) {
+					if (item->label) {
 						zt_drawListAddText2D(draw_list, theme->font, item->label, pos);
 					}
 				} break;
@@ -9634,7 +9643,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 				zt_drawListPopColor(draw_list);
 			}
 #endif
-			if(!clip && zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) ) {
+			if (!clip && zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) ) {
 				clip = true;
 				if (item->clip_area != ztVec4::zero) {
 					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
@@ -9680,8 +9689,8 @@ void zt_guiSetActiveManager(ztGuiManagerID gui_manager)
 
 ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiManager *gm, ztVec2* pos, ztInputMouse *input_mouse)
 {
-	if(drag_state->dragging) {
-		if(input_mouse->leftJustReleased()) {
+	if (drag_state->dragging) {
+		if (input_mouse->leftJustReleased()) {
 			drag_state->dragging = false;
 		}
 		else {
@@ -9691,7 +9700,7 @@ ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiMana
 		return true;
 	}
 	else {
-		if(input_mouse->leftJustPressed()) {
+		if (input_mouse->leftJustPressed()) {
 			drag_state->dragging = true;
 			ztVec2 drag_start = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
 			drag_state->offset_x = drag_start.x - pos->x;
@@ -9851,37 +9860,37 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
 		{
 			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
-			if(input_mouse->leftJustReleased()) {
-				if(gm->item_has_mouse == item_id && zt_bitIsSet(gm->item_cache_flags[item_id], ztGuiManagerItemCacheFlags_MouseOver)) {
+			if (input_mouse->leftJustReleased()) {
+				if (gm->item_has_mouse == item_id && zt_bitIsSet(gm->item_cache_flags[item_id], ztGuiManagerItemCacheFlags_MouseOver)) {
 					bool value = true;
-					if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggleButton)) {
+					if (zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggleButton)) {
 						value = !zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggled);
-						if(value) {
+						if (value) {
 							item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 						}
 						else {
 							zt_bitRemove(item->button.flags, ztGuiButtonInternalFlags_IsToggled);
 						}
 					}
-					if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio)) {
+					if (zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio)) {
 						value = true;
 						item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 
 						ztGuiItem *sib = item->parent ? item->parent->first_child : nullptr;
-						while(sib) {
-							if(sib->type == ztGuiItemType_RadioButton && sib != item) {
+						while (sib) {
+							if (sib->type == ztGuiItemType_RadioButton && sib != item) {
 								zt_bitRemove(sib->button.flags, ztGuiButtonInternalFlags_IsToggled);
-								if(sib->button.live_value) {
+								if (sib->button.live_value) {
 									*sib->button.live_value = false;
 								}
 							}
 							sib = sib->sib_next;
 						}
 					}
-					if(item->button.live_value) {
+					if (item->button.live_value) {
 						*item->button.live_value = value;
 					}
-					if(item->button.on_pressed) {
+					if (item->button.on_pressed) {
 						item->button.on_pressed(item_id);
 					}
 					return true;
@@ -9893,9 +9902,9 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 		static ZT_FUNC_GUI_ITEM_UPDATE(update)
 		{
 			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
-			if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggleButton)) {
-				if(item->button.live_value) {
-					if(*item->button.live_value) {
+			if (zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggleButton)) {
+				if (item->button.live_value) {
+					if (*item->button.live_value) {
 						item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 					}
 					else {
@@ -9903,7 +9912,7 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 					}
 				}
 			}
-			else if(item->button.live_value && *item->button.live_value) {
+			else if (item->button.live_value && *item->button.live_value) {
 				*item->button.live_value = false;
 			}
 		}
@@ -9917,13 +9926,13 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 			bool checkbox = zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsCheckbox);
 			bool radio    = zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio);
 
-			if(checkbox || radio) {
+			if (checkbox || radio) {
 				ztVec2 box_size = checkbox ? ztVec2(theme->checkbox_size_w, theme->checkbox_size_h) : ztVec2(theme->radio_size_w, theme->radio_size_h);
 				ztVec2 box_pos, txt_size, txt_pos;
 
-				if(item->label) {
+				if (item->label) {
 					txt_size = zt_fontGetExtents(theme->font, item->label);
-					if(zt_bitIsSet(item->button.flags, ztGuiCheckboxFlags_RightText)) {
+					if (zt_bitIsSet(item->button.flags, ztGuiCheckboxFlags_RightText)) {
 						box_pos = ztVec2((item->size.x - box_size.x) / -2.f + theme->padding, 0);
 						txt_pos =  ztVec2(box_pos.x + box_size.x / 2.f + theme->spacing, 0);
 					}
@@ -9944,17 +9953,17 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 				bool pressed = highlighted && gm->item_has_mouse == item->id;
 				zt_drawListAddGuiThemeButtonSprite(draw_list, sprite, box_pos, box_size, highlighted, pressed);
 
-				if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggled)) {
+				if (zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggled)) {
 					zt_drawListAddGuiThemeSprite(draw_list, sprite_check, box_pos, box_size);
 				}
 			}
 			else {
-				if(!zt_bitIsSet(item->button.flags, ztGuiButtonFlags_NoBackground)) {
+				if (!zt_bitIsSet(item->button.flags, ztGuiButtonFlags_NoBackground)) {
 					bool highlighted = zt_bitIsSet(gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
 					bool pressed = gm->item_has_mouse == item->id || (!highlighted && zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsToggled));
 					zt_drawListAddGuiThemeButtonSprite(draw_list, &theme->sprite_button, pos, item->size, highlighted, pressed);
 				}
-				if(item->label) {
+				if (item->label) {
 					zt_drawListAddText2D(draw_list, theme->font, item->label, pos);
 				}
 			}
@@ -9965,7 +9974,7 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 			ztGuiManager *gm = (ztGuiManager *)user_data;
 			ztGuiItem *item = &gm->item_cache[item_id];
 
-			if(zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsCheckbox) || zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio)) {
+			if (zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsCheckbox) || zt_bitIsSet(item->button.flags, ztGuiButtonInternalFlags_IsRadio)) {
 				ztVec2 txt_size = zt_fontGetExtents(theme->font, item->label);
 				size->x = txt_size.x + theme->spacing + theme->checkbox_size_w + theme->padding * 2;
 				size->y = zt_max(txt_size.y, theme->checkbox_size_h) + theme->padding * 2;
@@ -9993,8 +10002,8 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 
-	if(label) {
-		if(theme) {
+	if (label) {
+		if (theme) {
 			ztVec2 text = zt_fontGetExtents(theme->font, label);
 			text.x = zt_max(theme->button_default_w, text.x + theme->button_padding_w * 2);
 			text.y = zt_max(theme->button_default_h, text.y + theme->button_padding_h * 2);
@@ -10011,7 +10020,7 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 	item->functions.best_size = local::best_size;
 	item->functions.user_data = gm;
 
-	if(item->button.live_value) {
+	if (item->button.live_value) {
 		*item->button.live_value = false;
 		item->functions.update = local::update;
 	}
@@ -10019,11 +10028,11 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 	ztVec2 min_size;
 	local::best_size(item->id, &min_size, nullptr, &item->size, theme, gm);
 
-	if(zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsToggleButton)) {
-		if(zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsCheckbox)) {
+	if (zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsToggleButton)) {
+		if (zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsCheckbox)) {
 			item->type = ztGuiItemType_Checkbox;
 		}
-		else if(zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsRadio)) {
+		else if (zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsRadio)) {
 			item->type = ztGuiItemType_RadioButton;
 		}
 		else {
@@ -10076,7 +10085,7 @@ void zt_guiToggleButtonSetValue(ztGuiItemID button, bool value)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, button, ztGuiItemType_ToggleButton);
 
-	if(value) {
+	if (value) {
 		item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 	}
 	else {
@@ -10106,7 +10115,7 @@ void zt_guiCheckboxSetValue(ztGuiItemID checkbox, bool value)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, checkbox, ztGuiItemType_Checkbox);
 
-	if(value) {
+	if (value) {
 		item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 	}
 	else {
@@ -10136,7 +10145,7 @@ void zt_guiRadioSetValue(ztGuiItemID radio, bool value)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, radio, ztGuiItemType_RadioButton);
 
-	if(value) {
+	if (value) {
 		item->button.flags |= ztGuiButtonInternalFlags_IsToggled;
 	}
 	else {
@@ -10297,7 +10306,7 @@ ztInternal ztGuiItemID _zt_guiMakeSliderBase(ztGuiItemID parent, ztGuiItemOrient
 		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
 		{
 			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
-			if(!item->slider.drag_state.dragging) {
+			if (!item->slider.drag_state.dragging) {
 				ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 				ztVec2 mouse_pos = zt_guiItemPositionScreenToLocal(item->id, zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y));
 
@@ -10377,7 +10386,7 @@ ztInternal ztGuiItemID _zt_guiMakeSliderBase(ztGuiItemID parent, ztGuiItemOrient
 					}
 				}
 			}
-			else if(_zt_guiProcessDrag(&item->slider.drag_state, gm, (ztVec2*)item->slider.drag_pos, input_mouse)) {
+			else if (_zt_guiProcessDrag(&item->slider.drag_state, gm, (ztVec2*)item->slider.drag_pos, input_mouse)) {
 				item->slider.highlight = true;
 				ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 				processDragReturn(gm, item, theme, input_mouse);
@@ -10398,7 +10407,7 @@ ztInternal ztGuiItemID _zt_guiMakeSliderBase(ztGuiItemID parent, ztGuiItemOrient
 
 			ztGuiThemeSprite *sprite_background = (item->type == ztGuiItemType_Slider ? &theme->sprite_slider_background : &theme->sprite_scrollbar_background);
 
-			if(item->slider.orient == ztGuiItemOrient_Horz) {
+			if (item->slider.orient == ztGuiItemOrient_Horz) {
 				handle_pos = pos + ztVec2(getHandlePos(item, theme), 0);
 
 				if (item->type == ztGuiItemType_Slider) {
@@ -10972,11 +10981,11 @@ ztInternal void _zt_guiTextEditAdjustViewForCursor(ztGuiItem *item)
 		item->textedit.scroll_amt_horz = zt_min(1, (diff / x_diff) + item->textedit.scroll_amt_horz);
 	}
 
-	if(cursor_pos_beg.y > item->clip_area.y + item->clip_area.w / 2.f) {
+	if (cursor_pos_beg.y > item->clip_area.y + item->clip_area.w / 2.f) {
 		r32 diff = cursor_pos_beg.y - (item->clip_area.y + item->clip_area.w / 2.f);
 		item->textedit.scroll_amt_vert = zt_max(0, item->textedit.scroll_amt_vert - (diff / y_diff));
 	}
-	if(cursor_pos_end.y < item->clip_area.y - item->clip_area.w / 2.f) {
+	if (cursor_pos_end.y < item->clip_area.y - item->clip_area.w / 2.f) {
 		r32 diff = (item->clip_area.y - item->clip_area.w / 2.f) - cursor_pos_end.y;
 		item->textedit.scroll_amt_vert = zt_min(1, (diff / y_diff) + item->textedit.scroll_amt_vert);
 	}
@@ -11158,7 +11167,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				selectBeg(item);
 			}
 
-			if (input_keys[ztInputKeys_Right].justPressed()) {
+			if (input_keys[ztInputKeys_Right].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				if (item->textedit.cursor_pos < str_len) {
 					if (input_keys[ztInputKeys_Control].pressed()) {
@@ -11169,7 +11178,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					}
 				}
 			}
-			if (input_keys[ztInputKeys_Left].justPressed()) {
+			if (input_keys[ztInputKeys_Left].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				if (item->textedit.cursor_pos > 0) {
 					if (input_keys[ztInputKeys_Control].pressed()) {
@@ -11180,17 +11189,17 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					}
 				}
 			}
-			if (input_keys[ztInputKeys_Up].justPressed()) {
+			if (input_keys[ztInputKeys_Up].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				item->textedit.cursor_pos = posAboveChar(item);
 			}
-			if (input_keys[ztInputKeys_Down].justPressed()) {
+			if (input_keys[ztInputKeys_Down].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				item->textedit.cursor_pos = posBelowChar(item, str_len);
 			}
-			if(input_keys[ztInputKeys_Home].justPressed()) {
+			if (input_keys[ztInputKeys_Home].justPressedOrRepeated()) {
 				recalc_cursor = true;
-				if(input_keys[ztInputKeys_Control].pressed()) {
+				if (input_keys[ztInputKeys_Control].pressed()) {
 					item->textedit.cursor_pos = 0;
 				}
 				else {
@@ -11199,9 +11208,9 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					item->textedit.cursor_pos = beg_line;
 				}
 			}
-			if(input_keys[ztInputKeys_End].justPressed()) {
+			if (input_keys[ztInputKeys_End].justPressedOrRepeated()) {
 				recalc_cursor = true;
-				if(input_keys[ztInputKeys_Control].pressed()) {
+				if (input_keys[ztInputKeys_Control].pressed()) {
 					item->textedit.cursor_pos = str_len + 1;
 				}
 				else {
@@ -11210,7 +11219,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					item->textedit.cursor_pos = end_line;
 				}
 			}
-			if (input_keys[ztInputKeys_Delete].justPressed()) {
+			if (input_keys[ztInputKeys_Delete].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				if (item->textedit.select_beg != item->textedit.select_end) {
 					int offset = zt_max(item->textedit.select_beg, item->textedit.select_end) - zt_min(item->textedit.select_beg, item->textedit.select_end);
@@ -11234,7 +11243,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					}
 				}
 			}
-			if (input_keys[ztInputKeys_Back].justPressed()) {
+			if (input_keys[ztInputKeys_Back].justPressedOrRepeated()) {
 				recalc_cursor = true;
 				if (item->textedit.select_beg != item->textedit.select_end) {
 					int offset = zt_max(item->textedit.select_beg, item->textedit.select_end) - zt_min(item->textedit.select_beg, item->textedit.select_end);
@@ -11279,7 +11288,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 						continue;
 					}
 
-					for(int j = str_len; j >= item->textedit.cursor_pos; --j) {
+					for (int j = str_len; j >= item->textedit.cursor_pos; --j) {
 						item->textedit.text_buffer[j + 1] = item->textedit.text_buffer[j];
 					}
 					item->textedit.text_buffer[item->textedit.cursor_pos++] = input_keys[input_key_strokes[i]].display;
@@ -11408,11 +11417,11 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 			zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_textedit, pos, item->size);
 
-			if(item->textedit.content_size[0] == 0 && item->textedit.content_size[1] == 0) {
+			if (item->textedit.content_size[0] == 0 && item->textedit.content_size[1] == 0) {
 				ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
 				ztVec2 size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
 
-				if(zt_strEndsWith(item->textedit.text_buffer, "\n")) {
+				if (zt_strEndsWith(item->textedit.text_buffer, "\n")) {
 					ztVec2 extra = zt_fontGetExtents(theme->font, " ");
 					size.y += extra.y;
 				}
@@ -11429,8 +11438,8 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 				item->clip_area.xy = ztVec2::zero;
 				item->clip_area.zw = item->size;
 
-				if(horz) {
-					if(zt_bitIsSet(item->flags, ztGuiTextEditFlags_MultiLine)) {
+				if (horz) {
+					if (zt_bitIsSet(item->flags, ztGuiTextEditFlags_MultiLine)) {
 						scroll_horz->flags |= ztGuiItemFlags_Visible;
 						scroll_horz->pos.y = (item->size.y - scroll_horz->size.y) / -2.f;
 						scroll_horz->pos.x = (vert ? -scroll_vert->size.x / 2.f : 0);
@@ -11443,7 +11452,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					zt_bitRemove(scroll_horz->flags, ztGuiItemFlags_Visible);
 				}
 
-				if(vert) {
+				if (vert) {
 					scroll_vert->flags |= ztGuiItemFlags_Visible;
 					scroll_vert->pos.x = (item->size.x - scroll_vert->size.x) / 2.f;
 					scroll_vert->pos.y = (horz ? scroll_horz->size.y / 2.f : 0);
@@ -11451,10 +11460,10 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					item->clip_area.x -= scroll_vert->size.x / 2.f;
 					item->clip_area.z -= scroll_vert->size.x;
 
-					int lines_count = zt_strCount(item->textedit.text_buffer, "\n");
-					r32 line_height = item->textedit.content_size[1] / lines_count;
-					int lines_shown = zt_convertToi32Floor(((item->size.y - theme->textedit_padding_y * 2.f) - (horz ? scroll_horz->size.y : 0)) / line_height);
-					r32 pct_per_line =line_height / ((lines_count - lines_shown) * line_height);
+					int lines_count  = zt_strCount(item->textedit.text_buffer, "\n");
+					r32 line_height  = item->textedit.content_size[1] / lines_count;
+					int lines_shown  = zt_convertToi32Floor(((item->size.y - theme->textedit_padding_y * 2.f) - (horz ? scroll_horz->size.y : 0)) / line_height);
+					r32 pct_per_line = line_height / ((lines_count - lines_shown) * line_height);
 
 					zt_guiScrollbarSetSteps(item->textedit.scrollbar_vert, pct_per_line, lines_shown * pct_per_line);
 				}
@@ -11465,15 +11474,15 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 
 			ztVec2 text_pos = _zt_guiTextEditGetTextStartPos(item, theme, gm);
 
-			if(item->textedit.select_beg != item->textedit.select_end) {
+			if (item->textedit.select_beg != item->textedit.select_end) {
 				int sel_beg = zt_min(item->textedit.select_beg, item->textedit.select_end);
 				int sel_end = zt_max(item->textedit.select_beg, item->textedit.select_end);
 
-				while(sel_beg < sel_end) {
+				while (sel_beg < sel_end) {
 					ztVec2 pos_beg = _zt_guiTextEditGetCharacterPos(item, sel_beg, theme, false);
 
 					int idx_end_line = zt_strFindPos(item->textedit.text_buffer, "\n", sel_beg);
-					if(idx_end_line == ztStrPosNotFound || idx_end_line > sel_end) {
+					if (idx_end_line == ztStrPosNotFound || idx_end_line > sel_end) {
 						idx_end_line = sel_end;
 					}
 
@@ -11600,8 +11609,8 @@ void zt_guiItemSetSize(ztGuiItemID item_id, const ztVec2& size)
 	_zt_guiItemFromID(item, item_id);
 	zt_returnOnNull(item);
 
-	if(size.x != -1) item->size.x = size.x;
-	if(size.y != -1) item->size.y = size.y;
+	if (size.x != -1) item->size.x = size.x;
+	if (size.y != -1) item->size.y = size.y;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -11767,12 +11776,12 @@ void zt_guiItemSetFocus(ztGuiItemID item_id, ztGuiItemID *prev_focus_item_id)
 ztGuiTheme *zt_guiItemGetTheme(ztGuiItemID item_id)
 {
 	_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, nullptr);
-	if(item->theme) {
+	if (item->theme) {
 		return item->theme;
 	}
 
-	for(ztGuiItem *parent = item->parent; parent; parent = parent->parent) {
-		if(parent->theme) {
+	for (ztGuiItem *parent = item->parent; parent; parent = parent->parent) {
+		if (parent->theme) {
 			return parent->theme;
 		}
 	}
@@ -12220,19 +12229,26 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 	u32 key_code = (uint32)msg.wParam;
 	bool is_down = !zt_bitIsSet(msg.lParam, (1<<31));
 	bool was_down = zt_bitIsSet(msg.lParam, (1<<30));
+	bool repeated = (msg.lParam & 0xffff) != 0;
 
-	if (was_down != is_down) {
+	if (was_down != is_down || repeated) {
 		zt->input_this_frame = true;
 
 		auto* input_key = &zt->input_keys[zt->input_keys_mapping[key_code]];
 		
 		input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
 
-		if (is_down && !was_down) input_key->flags |= ztInputKeyFlags_JustPressed;
+		if (is_down && !was_down) {
+			input_key->flags |= ztInputKeyFlags_JustPressed;
+			input_key->time_pressed = zt_getTime();
+		}
+
 		if (!is_down && was_down) input_key->flags |= ztInputKeyFlags_JustReleased;
 		if (is_down) input_key->flags |= ztInputKeyFlags_Pressed;
 
-		if ( is_down && !was_down && zt->input_key_strokes_count < zt_elementsOf(zt->input_key_strokes) ) {
+		if (is_down && repeated) input_key->flags |= ztInputKeyFlags_JustRepeated;
+
+		if ( is_down && (!was_down || repeated) && zt->input_key_strokes_count < zt_elementsOf(zt->input_key_strokes) ) {
 			zt->input_key_strokes[zt->input_key_strokes_count++] = input_key->code;
 		}
 
@@ -12474,7 +12490,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 						r32 w_pct = c_width / (r32)game_settings->native_w;
 						r32 h_pct = c_height / (r32)game_settings->native_h;
 
-						if(w_pct > h_pct) {
+						if (w_pct > h_pct) {
 							height = (int)(game_settings->native_h * w_pct);
 						}
 						else {

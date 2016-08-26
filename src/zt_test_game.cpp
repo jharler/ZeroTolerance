@@ -219,9 +219,9 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2));
 		zt_guiItemSetSize(text_edit, ztVec2(3, 1));
 
-//		text_edit = zt_guiMakeTextEdit(window, "This is a test string");
-//		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2.75f));
-//		zt_guiItemSetSize(text_edit, ztVec2(3, -1));
+		text_edit = zt_guiMakeTextEdit(window, "This is a test string");
+		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2.75f));
+		zt_guiItemSetSize(text_edit, ztVec2(3, -1));
 	}
 
 	{
