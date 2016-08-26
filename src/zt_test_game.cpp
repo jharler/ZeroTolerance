@@ -215,7 +215,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 		
 
-		ztGuiItemID text_edit = zt_guiMakeTextEdit(window, "Testing\nTesting a really,' really, really long line of text.\nOne Two Three\nFour", ztGuiTextEditFlags_MultiLine);
+		ztGuiItemID text_edit = zt_guiMakeTextEdit(window, "Testing\nTesting a really,' really, really long line of text.\nOne Two Three\nFour\nFive\nSix\nSeven\nEight\nNine\nTen\nEleven\nTwelve", ztGuiTextEditFlags_MultiLine);
 		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2));
 		zt_guiItemSetSize(text_edit, ztVec2(3, 1));
 

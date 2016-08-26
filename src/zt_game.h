@@ -11450,6 +11450,13 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					scroll_vert->size.y = item->size.y - (horz ? scroll_horz->size.y : 0);
 					item->clip_area.x -= scroll_vert->size.x / 2.f;
 					item->clip_area.z -= scroll_vert->size.x;
+
+					int lines_count = zt_strCount(item->textedit.text_buffer, "\n");
+					r32 line_height = item->textedit.content_size[1] / lines_count;
+					int lines_shown = zt_convertToi32Floor(((item->size.y - theme->textedit_padding_y * 2.f) - (horz ? scroll_horz->size.y : 0)) / line_height);
+					r32 pct_per_line =line_height / ((lines_count - lines_shown) * line_height);
+
+					zt_guiScrollbarSetSteps(item->textedit.scrollbar_vert, pct_per_line, lines_shown * pct_per_line);
 				}
 				else {
 					zt_bitRemove(scroll_vert->flags, ztGuiItemFlags_Visible);
