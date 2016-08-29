@@ -347,6 +347,33 @@ bool game_loop(r32 dt)
 	if (button_value != g_game->button_live_value) {
 		button_value = g_game->button_live_value;
 		zt_logDebug("button_live_value changed");
+
+		static ztGuiItemID menu = ztInvalidID;
+		if (menu == ztInvalidID) {
+			menu = zt_guiMakeMenu();
+			zt_guiMenuAppend(menu, "Menu Item 1", 1);
+			zt_guiMenuAppend(menu, "Menu Item 2", 2);
+			zt_guiMenuAppend(menu, "Menu Item 3", 3);
+
+			ztSprite sprite = zt_spriteMake(zt->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(84, 17), ztPoint2(8, 8));
+			zt_guiMenuAppend(menu, "Icon Menu Item", 4, &sprite);
+
+			ztGuiItemID submenu = zt_guiMakeMenu();
+			zt_guiMenuAppend(submenu, "Submenu Item 1", 4);
+			zt_guiMenuAppend(submenu, "Submenu Item 2", 5);
+
+
+			ztGuiItemID submenu2 = zt_guiMakeMenu();
+			zt_guiMenuAppend(submenu2, "Submenu 2 Item 1", 4);
+			zt_guiMenuAppend(submenu2, "Submenu 2 Item 2", 5);
+			zt_guiMenuAppendSubmenu(submenu2, "Recursive Submenu", menu);
+
+			zt_guiMenuAppendSubmenu(submenu, "Submenu", submenu2);
+
+			zt_guiMenuAppendSubmenu(menu, "Submenu", submenu);
+		}
+
+		zt_guiMenuPopupAtPosition(menu, zt_cameraOrthoScreenToWorld(&g_game->gui_camera, mouse->screen_x, mouse->screen_y));
 	}
 
 	int shader_switches = g_game->details->shader_switches;
@@ -399,6 +426,8 @@ bool game_loop(r32 dt)
 				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
 			}
 			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(-2, 2, -2), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
+			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(2, 3, -3), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
+			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(-1, 5, -1), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
 			zt_drawListPopTexture(&g_game->draw_list);
 
 			zt_drawListPopTexture(&g_game->draw_list);
