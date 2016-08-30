@@ -124,7 +124,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	if (!zt_drawListMake(&g_game->draw_list, 2048)) {
+	if (!zt_drawListMake(&g_game->draw_list, 4096)) {
 		zt_logCritical("Unable to initialize draw list");
 		return false;
 	}
@@ -146,6 +146,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 
+	zt_guiInitDebug(g_game->gui_manager);
 
 	g_game->gui_tex = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/gui.png"));
 	if (g_game->gui_tex == ztInvalidID) {
@@ -181,6 +182,15 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 		ztGuiItemID tbutton_id = zt_guiMakeToggleButton(window, "Toggle Button", 0);
 		zt_guiItemSetPosition(tbutton_id, ztVec2(3.85f, -3.15f));
+
+		ztGuiItemID ibutton_id = zt_guiMakeButton(window, "icon");
+		zt_guiItemSetPosition(ibutton_id, ztVec2(1, -2.15f));
+
+		ztSprite sprite = zt_spriteMake(zt->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(1, 81), ztPoint2(21, 21));
+		zt_guiButtonSetIcon(ibutton_id, &sprite);
+		zt_guiItemSetSize(ibutton_id, ztVec2(1.25f, 1.25f));
+		zt_guiItemSetAlign(ibutton_id, ztAlign_Right);
+		zt_guiButtonSetTextPosition(ibutton_id, ztAlign_Bottom);
 
 		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", 0), ztVec2(2.25f, 2));
 		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(2.25f, 2.3f));
@@ -326,6 +336,8 @@ bool game_loop(r32 dt)
 	ztInputKeys_Enum input_keystrokes[16];
 	zt_inputGetKeyStrokes(input_keystrokes);
 
+	zt_guiManagerUpdate(g_game->gui_manager, dt);
+
 	if (input[ztInputKeys_Space].justPressed()) {
 		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
 		if (zt_inputMouseIsLook()) {
@@ -339,7 +351,7 @@ bool game_loop(r32 dt)
 		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
 	}
 	else {
-		if (!zt_guiManagerHandleInput(g_game->gui_manager, dt, input, input_keystrokes, mouse)) {
+		if (!zt_guiManagerHandleInput(g_game->gui_manager, input, input_keystrokes, mouse)) {
 		}
 	}
 
@@ -465,7 +477,7 @@ bool game_loop(r32 dt)
 				triangles, shader_switches, texture_switches, draw_calls);
 
 			ztVec2 pos = zt_cameraOrthoGetMaxExtent(&g_game->gui_camera);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, fps, pos, ztAlign_Right, ztAnchor_Right|ztAnchor_Top);
+			//zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, fps, pos, ztAlign_Right, ztAnchor_Right|ztAnchor_Top);
 
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, "This is a test string.", ztVec2(-pos.x, pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Top);
 			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni, "ゼロ容認 零容忍", ztVec2(-pos.x, -pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Bottom);
