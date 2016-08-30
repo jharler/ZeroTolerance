@@ -220,10 +220,12 @@ struct ztGameDetails
 
 	i32 current_frame;
 
-	i32 shader_switches;
-	i32 texture_switches;
-	i32 triangles_drawn;
-	i32 draw_calls;
+	struct {
+		i32 shader_switches;
+		i32 texture_switches;
+		i32 triangles_drawn;
+		i32 draw_calls;
+	} curr_frame, prev_frame;
 };
 
 
@@ -1488,7 +1490,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 	i32 len = zt_getDirectoryFiles(directory, buffer, buffer_size, true);
 	if (len == 0) {
-		zt_logDebug("Asset Manager: No assets found in directory: %s", directory);
+		zt_logInfo("Asset Manager: No assets found in directory: %s", directory);
 		zt_free(buffer);
 		return false;
 	}
@@ -1503,7 +1505,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 	int tokens_count = zt_strTokenize(buffer, "\n", nullptr, 0);
 	if (tokens_count <= 0) {
-		zt_logDebug("Asset Manager: Unable to parse directory list: %s", buffer);
+		zt_logCritical("Asset Manager: Unable to parse directory list: %s", buffer);
 		zt_free(buffer);
 		return false;
 	}
@@ -3488,7 +3490,8 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
 	if (zt->last_drawn_frame != zt->game_details.current_frame) {
-		zt->game_details.shader_switches = zt->game_details.texture_switches = zt->game_details.triangles_drawn = zt->game_details.draw_calls = 0;
+		zt->game_details.prev_frame = zt->game_details.curr_frame;
+		zt->game_details.curr_frame.shader_switches = zt->game_details.curr_frame.texture_switches = zt->game_details.curr_frame.triangles_drawn = zt->game_details.curr_frame.draw_calls = 0;
 		zt->last_drawn_frame = zt->game_details.current_frame;
 	}
 
@@ -3963,7 +3966,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
 			if (shader_id != ztInvalidID) {
 				zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
-				zt->game_details.shader_switches += 1;
+				zt->game_details.curr_frame.shader_switches += 1;
 				{
 					GLuint projection_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "projection");
 					GLuint view_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "view");
@@ -3986,7 +3989,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					zt_glCallAndReportOnErrorFast(glBindVertexArray(0));
 					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
 
-					zt->game_details.triangles_drawn += 36;
+					zt->game_details.curr_frame.triangles_drawn += 36;
 				}
 				zt_glCallAndReportOnErrorFast(glUseProgram(0));
 			}
@@ -4018,7 +4021,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			GLuint model_loc = -1;
 
 			if (shaders[i]->shader != ztInvalidID) {
-				zt->game_details.shader_switches += 1;
+				zt->game_details.curr_frame.shader_switches += 1;
 				zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
 
 				model_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "model");
@@ -4047,7 +4050,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (cmp_tex->command) {
-					zt->game_details.texture_switches += 1;
+					zt->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
 						zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
 						zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[cmp_tex->command->texture[i]].gl_texid));
@@ -4095,13 +4098,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_glCallAndReportOnErrorFast(glVertexAttribPointer(3, 4, GL_FLOAT, false, sizeof(ztVertex), (GLvoid*)((byte*)buffer->vertices + 8 * sizeof(GLfloat))));
 									zt_glCallAndReportOnErrorFast(glEnableVertexAttribArray(3));
 									zt_glCallAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, buffer->vertices_count));
-									zt->game_details.draw_calls += 1;
+									zt->game_details.curr_frame.draw_calls += 1;
 
 								} break;
 
 								case ztDrawCommandType_Line:
 								case ztDrawCommandType_Point: {
-									zt->game_details.draw_calls += 1;
+									zt->game_details.curr_frame.draw_calls += 1;
 									glEnd();
 									zt_glCallAndReportOnErrorFast(glPopMatrix());
 								} break;
@@ -4180,7 +4183,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						{
 							case ztDrawCommandType_Mesh: {
 								ztMesh *mesh = &zt->meshes[cmp_item->command->mesh_id];
-								zt->game_details.triangles_drawn += mesh->triangles;
+								zt->game_details.curr_frame.triangles_drawn += mesh->triangles;
 
 								ztMat4 model = ztMat4::identity;
 								model.translate(cmp_item->command->mesh_pos);
@@ -4211,7 +4214,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							} break;
 
 							case ztDrawCommandType_Triangle: {
-								++zt->game_details.triangles_drawn;
+								++zt->game_details.curr_frame.triangles_drawn;
 
 								zt_fkz(3) {
 									int idx = buffer.vertices_count++;
@@ -4224,7 +4227,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							} break;
 
 							case ztDrawCommandType_Billboard: {
-								zt->game_details.triangles_drawn += 2;
+								zt->game_details.curr_frame.triangles_drawn += 2;
 
 								ztVec3 p[4] = {
 									ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
@@ -4404,7 +4407,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderSetVariableMat4(shader_id, "view", dxView);
 				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
 
-				zt->game_details.shader_switches += 1;
+				zt->game_details.curr_frame.shader_switches += 1;
 				{
 					ztTextureID texture_id = skybox;
 					zt->win_details[0].dx_context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
@@ -4418,7 +4421,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					zt->win_details[0].dx_context->Draw(36, 0);
 
-					zt->game_details.triangles_drawn += 36;
+					zt->game_details.curr_frame.triangles_drawn += 36;
 				}
 
 				if (render_target_id != ztInvalidID) {
@@ -4442,7 +4445,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
 			if (shaders[i]->shader != ztInvalidID) {
-				zt->game_details.shader_switches += 1;
+				zt->game_details.curr_frame.shader_switches += 1;
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
 				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
 
@@ -4457,7 +4460,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			else {
 				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
 
-				zt->game_details.shader_switches += 1;
+				zt->game_details.curr_frame.shader_switches += 1;
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
 				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
 
@@ -4476,7 +4479,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			while (cmp_tex) {
 
 				if (cmp_tex->command) {
-					zt->game_details.texture_switches += 1;
+					zt->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
 						ztTextureID texture_id = cmp_tex->command->texture[i];
 						zt_assert(texture_id >= 0 && texture_id < zt->textures_count);
@@ -4527,7 +4530,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
 									buffer->vertices_count = 0;
 
-									zt->game_details.draw_calls += 1;
+									zt->game_details.curr_frame.draw_calls += 1;
 								} break;
 
 								case ztDrawCommandType_Line:
@@ -4551,7 +4554,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
 									buffer->vertices_count = 0;
 
-									zt->game_details.draw_calls += 1;
+									zt->game_details.curr_frame.draw_calls += 1;
 								} break;
 							}
 
@@ -4605,7 +4608,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						{
 						case ztDrawCommandType_Mesh: {
 							ztMesh *mesh = &zt->meshes[cmp_item->command->mesh_id];
-							zt->game_details.triangles_drawn += mesh->triangles;
+							zt->game_details.curr_frame.triangles_drawn += mesh->triangles;
 
 							ztMat4 model = ztMat4::identity;
 							model.translate(cmp_item->command->mesh_pos);
@@ -4638,7 +4641,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Triangle: {
-							++zt->game_details.triangles_drawn;
+							++zt->game_details.curr_frame.triangles_drawn;
 
 							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
 								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Triangle, &buffer);
@@ -4655,7 +4658,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Billboard: {
-							zt->game_details.triangles_drawn += 2;
+							zt->game_details.curr_frame.triangles_drawn += 2;
 
 							ztVec3 p[4] = {
 								ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
@@ -4875,7 +4878,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
-	zt_logDebug("shader reload: asset_id: %d (%s)", asset_id, asset_mgr->asset_name[asset_id]);
+	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_mgr->asset_name[asset_id]);
 	ztShaderID shader_id = (ztShaderID)user_data;
 	zt_assert(shader_id >= 0 && shader_id < zt->shaders_count);
 
@@ -5529,14 +5532,14 @@ bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVa
 // ------------------------------------------------------------------------------------------------
 
 #define _zt_shaderCheck(shader_id, shader_type) \
-	if (shader_id < 0 || shader_id >= zt->shaders_count) { zt_debugOnly(zt_logDebug("shader_id invalid")); return; }\
+	if (shader_id < 0 || shader_id >= zt->shaders_count) { zt_assert(false); return; }\
 	int idx = -1; \
 	zt_fiz(zt->shaders[shader_id].variable_count) { \
 		if (zt_strEquals(zt->shaders[shader_id].variables[i].name, variable)) {\
 			idx = i; break; \
 		} \
 	} \
-	if (idx == -1) { zt_debugOnly(zt_logDebug("idx == -1")); return; } \
+	if (idx == -1) { zt_assert(false); return; } \
 	if (zt->shaders[shader_id].variables[idx].type != shader_type) { \
 		zt_assert(false); return; \
 	}
@@ -8018,7 +8021,7 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 
-	zt_logDebug("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
+	zt_logInfo("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
 	if (size <= 0) {
 		return ztInvalidID;
 	}
@@ -9701,7 +9704,7 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, ztInputKeys input_keys
 						gm->tooltip_item = ztInvalidID;
 					}
 
-					if (mouse_intersecting && gm->item_has_mouse == ztInvalidID && (input_mouse->leftJustPressed() || input_mouse->rightJustPressed() || input_mouse->middleJustPressed())) {
+					if(mouse_intersecting && gm->item_has_mouse == ztInvalidID && (input_mouse->leftJustPressed() || input_mouse->rightJustPressed() || input_mouse->middleJustPressed()) && zt_bitIsSet(item->flags, ztGuiItemFlags_WantsFocus)) {
 						gm->item_has_mouse = item->id;
 						recv_focus = true;
 					}
@@ -12880,8 +12883,9 @@ ztInternal void _zt_guiDebugFpsDisplay()
 		static ZT_FUNC_GUI_ITEM_UPDATE(item_update)
 		{
 			time += dt;
+			if(!zt_guiItemIsShowing(window_id)) return;
 
-			zt_strMakePrintf(fps, 128, "%.0f f/s %2.04f us/f\n%.0f f/s %2.04f us/f\n", 1.f / dt, dt * 1000.f, 1.f / (time / (r32)zt->game_details.current_frame), (time / (r32)zt->game_details.current_frame) * 1000.f);
+			zt_strMakePrintf(fps, 128, "%.0f f/s %2.04f us/f\n%.0f f/s %2.04f us/f", 1.f / dt, dt * 1000.f, 1.f / (time / (r32)zt->game_details.current_frame), (time / (r32)zt->game_details.current_frame) * 1000.f);
 			zt_guiItemSetLabel(text_id, fps);
 			//zt_guiItemAutoSize(text_id);
 			//zt_guiItemSetPosition(text_id, ztAlign_Left, ztAnchor_Left, ztVec2(3.f / zt_pixelsPerUnit(), 0));
@@ -12894,6 +12898,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 
 	window_id = zt_guiMakeWindow(nullptr, ztGuiWindowFlags_AllowDrag);
 	text_id = zt_guiMakeText(window_id, "00000 f/s 00.0000f us/f\n00000 f/s 00.0000f us/f");
+	zt_guiItemSetAlign(text_id, ztAlign_Right);
 
 	ztGuiItemID button_id = zt_guiMakeButton(window_id, nullptr, ztGuiButtonFlags_NoBackground);
 	zt_guiButtonSetCallback(button_id, local::on_close);
@@ -12919,6 +12924,64 @@ ztInternal void _zt_guiDebugFpsDisplay()
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_guiDebugRenderingDetails()
+{
+	static ztGuiItemID window_id = ztInvalidID;
+	static ztGuiItemID text_id = ztInvalidID;
+	static r64 time = 0;
+
+	if(window_id != ztInvalidID) {
+		zt_guiItemShow(window_id);
+		return;
+	}
+
+	struct local
+	{
+		static ZT_FUNC_GUI_BUTTON_PRESSED(on_close)
+		{
+			zt_guiItemHide(window_id);
+		}
+
+		static ZT_FUNC_GUI_ITEM_UPDATE(item_update)
+		{
+			time += dt;
+			if(!zt_guiItemIsShowing(window_id)) return;
+
+			zt_strMakePrintf(fps, 256, "%d triangles\n%d shader switches\n%d tex switches\n%d draw calls", zt->game_details.prev_frame.triangles_drawn, zt->game_details.prev_frame.shader_switches, zt->game_details.prev_frame.texture_switches, zt->game_details.prev_frame.draw_calls);
+			zt_guiItemSetLabel(text_id, fps);
+		}
+
+		static ZT_FUNC_GUI_ITEM_RENDER(item_render)
+		{
+		}
+	};
+
+	window_id = zt_guiMakeWindow(nullptr, ztGuiWindowFlags_AllowDrag);
+	text_id = zt_guiMakeText(window_id, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls");
+
+	ztGuiItemID button_id = zt_guiMakeButton(window_id, nullptr, ztGuiButtonFlags_NoBackground);
+	zt_guiButtonSetCallback(button_id, local::on_close);
+
+	_zt_guiManagerGetFromItem(gm, window_id);
+
+	ztSprite sprite = zt_spriteMake(gm->default_theme.sprite_panel.type == ztGuiThemeSpriteType_Sprite ? gm->default_theme.sprite_panel.s.tex : gm->default_theme.sprite_panel.sns.tex, ztPoint2(16, 64), ztPoint2(16, 16));
+	zt_guiButtonSetIcon(button_id, &sprite);
+
+	zt_guiItemSetSize(window_id, ztVec2(3.25f, 1.35f));
+
+	zt_guiItemSetAlign(text_id, ztAlign_Left);
+	zt_guiItemSetPosition(text_id, ztAlign_Left, ztAnchor_Left, ztVec2(3.f / zt_pixelsPerUnit(), 0));
+	zt_guiItemSetPosition(button_id, ztAlign_Right, ztAnchor_Right, ztVec2(-3.f / zt_pixelsPerUnit(), 0));
+
+	ztGuiItemID update_id = ztInvalidID;
+	ztGuiItem *update = _zt_guiMakeItemBase(gm, window_id, ztGuiItemType_Custom, 0, &update_id);
+	update->functions.update = local::item_update;
+	update->functions.render = local::item_render;
+
+	zt_guiItemSetPosition(window_id, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, -.75f));
+}
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiInitDebug(ztGuiManagerID gui_manager)
 {
 	static ztGuiItemID menu_id;
@@ -12926,7 +12989,7 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 	enum
 	{
 		ztGuiDebugMenu_FpsDisplay,
-		ztGuiDebugMenu_RenderInfoDisplay,
+		ztGuiDebugMenu_RenderingDetails,
 	};
 
 	struct local
@@ -12943,6 +13006,10 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 				case ztGuiDebugMenu_FpsDisplay: {
 					_zt_guiDebugFpsDisplay();
 				} break;
+
+				case ztGuiDebugMenu_RenderingDetails: {
+					_zt_guiDebugRenderingDetails();
+				} break;
 			};
 		}
 	};
@@ -12957,10 +13024,12 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 
 	menu_id = zt_guiMakeMenu();
 	zt_guiMenuAppend(menu_id, "FPS Display", ztGuiDebugMenu_FpsDisplay);
+	zt_guiMenuAppend(menu_id, "Rendering Details", ztGuiDebugMenu_RenderingDetails);
 
 	zt_guiMenuSetCallback(menu_id, local::on_menu_item);
 
 	_zt_guiDebugFpsDisplay();
+	_zt_guiDebugRenderingDetails();
 }
 
 // ------------------------------------------------------------------------------------------------

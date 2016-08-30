@@ -388,10 +388,10 @@ bool game_loop(r32 dt)
 		zt_guiMenuPopupAtPosition(menu, zt_cameraOrthoScreenToWorld(&g_game->gui_camera, mouse->screen_x, mouse->screen_y));
 	}
 
-	int shader_switches = g_game->details->shader_switches;
-	int texture_switches = g_game->details->texture_switches;
-	int triangles = g_game->details->triangles_drawn;
-	int draw_calls = g_game->details->draw_calls;
+	int shader_switches = g_game->details->curr_frame.shader_switches;
+	int texture_switches = g_game->details->curr_frame.texture_switches;
+	int triangles = g_game->details->curr_frame.triangles_drawn;
+	int draw_calls = g_game->details->curr_frame.draw_calls;
 
 	{
 		{
