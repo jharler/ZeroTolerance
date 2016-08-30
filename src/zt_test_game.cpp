@@ -172,10 +172,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		//zt->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
 
 		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
-		ztGuiItemID text_id = zt_guiMakeText(window, text);
+		ztGuiItemID text_id = zt_guiMakeStaticText(window, text);
 		zt_guiItemSetPosition(text_id, ztVec2(-3.75f, 2.25f));
 
-		zt_guiItemSetPosition(zt_guiMakeText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.75f));
+		zt_guiItemSetPosition(zt_guiMakeStaticText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.75f));
 
 		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
 		zt_guiItemSetPosition(button_id, ztVec2(2.15f, -3.15f));
@@ -220,7 +220,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetPosition(scroll_container, ztVec2(1, 0));
 		zt_guiItemSetSize(scroll_container, ztVec2(3, 1));
 		{
-			ztGuiItemID text = zt_guiMakeText(scroll_container, "This is line number 1\nThis is line number 2\nThis is line number 3\nThis is line number 4\nThis is line number 5\n");
+			ztGuiItemID text = zt_guiMakeStaticText(scroll_container, "This is line number 1\nThis is line number 2\nThis is line number 3\nThis is line number 4\nThis is line number 5\n");
 			zt_guiScrollContainerSetItem(scroll_container, text);
 		}
 		
