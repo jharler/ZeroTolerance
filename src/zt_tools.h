@@ -1796,8 +1796,33 @@ void zt_memSet(void *mem, int32 mem_len, byte value)
 void zt_memCpy(void *dst, int32 dst_len, void *src, int32 src_len)
 {
 	int max_idx = zt_min(dst_len, src_len);
-	for (int i = 0; i < max_idx; ++i) {
-		((byte*)dst)[i] = ((byte*)src)[i];
+
+//	for (int i = 0; i < max_idx; ++i) {
+//		((byte*)dst)[i] = ((byte*)src)[i];
+//	}
+
+	if(max_idx % 4 == 0) {
+		max_idx /= 4;
+		u32 *udst = (u32*)dst;
+		u32 *usrc = (u32*)src;
+		while(max_idx--) {
+			*udst++ = *usrc++;
+		}
+	}
+	else if(max_idx % 2 == 0) {
+		max_idx /= 2;
+		u16 *udst = (u16*)dst;
+		u16 *usrc = (u16*)src;
+		while(max_idx--) {
+			*udst++ = *usrc++;
+		}
+	}
+	else {
+		byte *bdst = (byte*)dst;
+		byte *bsrc = (byte*)src;
+		while(max_idx--) {
+			*bdst++ = *bsrc++;
+		}
 	}
 }
 
