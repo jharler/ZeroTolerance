@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ZeroTolerance", "ZeroTolerance\ZeroTolerance.vcxproj", "{E34DD27B-CC37-4E31-BC09-71B32B560C3B}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "unittests", "unittests\build\vs\unittests.vcxproj", "{E34DD27B-CC37-4E31-BC09-71B32B560C3B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Game Test", "Game Test\Game Test.vcxproj", "{627E3672-E438-4E84-91C0-3327DABE2AFB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sandbox", "sandbox\build\vs\sandbox.vcxproj", "{627E3672-E438-4E84-91C0-3327DABE2AFB}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{65064F3C-9AA4-404A-A9B8-F917382518EE}"
 EndProject

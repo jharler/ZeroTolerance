@@ -10,10 +10,17 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\zt_tests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\src\zt_game.h" />
+    <ClInclude Include="..\..\..\..\src\zt_tools.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E34DD27B-CC37-4E31-BC09-71B32B560C3B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>ZeroTolerance</RootNamespace>
+    <RootNamespace>unittests</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -41,9 +48,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);E:\Development\Projects\ZeroTolerance\src</IncludePath>
+    <OutDir>$(SolutionDir)$(ProjectName)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);E:\Development\Projects\ZeroTolerance\src</IncludePath>
+    <OutDir>$(SolutionDir)$(ProjectName)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -75,13 +86,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\src\zt_game.h" />
-    <ClInclude Include="..\..\src\zt_tools.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\src\zt_tests.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

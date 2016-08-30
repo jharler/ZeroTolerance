@@ -12,12 +12,10 @@ cloc*
 settings.cfg
 
 # Build results
-vs/[Dd]ebug/
-vs/[Rr]elease/
-vs/ZeroTolerance/[Dd]ebug/
-vs/ZeroTolerance/[Rr]elease/
-vs/Game Test/[Dd]ebug
-vs/Game Test/[Rr]elease
+**/bin/[Dd]ebug/
+**/bin/[Rr]elease/
+**/vs/[Dd]ebug/
+**/vs/[Rr]elease/
 
 
 # Visual C++ cache files
