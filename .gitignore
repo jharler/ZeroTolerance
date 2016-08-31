@@ -9,7 +9,7 @@
 *.vsp
 *.psess
 cloc*
-settings.cfg
+**/settings.cfg
 
 # Build results
 **/bin/[Dd]ebug/

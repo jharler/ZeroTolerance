@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\src\zt_game.h" />
+    <ClInclude Include="..\..\..\..\src\zt_game_gui.h" />
     <ClInclude Include="..\..\..\..\src\zt_tools.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

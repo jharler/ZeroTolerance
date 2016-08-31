@@ -13,6 +13,7 @@
 
 #define ZT_TOOLS_IMPLEMENTATION
 #define ZT_GAME_IMPLEMENTATION
+#define ZT_GAME_GUI_IMPLEMENTATION
 
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DIAGNOSE
@@ -28,6 +29,7 @@
 
 #include "zt_tools.h"
 #include "zt_game.h"
+#include "zt_game_gui.h"
 
 
 // types/enums/defines ============================================================================
@@ -169,7 +171,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
 
-		//zt->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
+		//zt_gui->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
 
 		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
 		ztGuiItemID text_id = zt_guiMakeStaticText(window, text);
@@ -186,7 +188,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		ztGuiItemID ibutton_id = zt_guiMakeButton(window, "icon");
 		zt_guiItemSetPosition(ibutton_id, ztVec2(1, -2.15f));
 
-		ztSprite sprite = zt_spriteMake(zt->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(1, 81), ztPoint2(21, 21));
+		ztSprite sprite = zt_spriteMake(zt_gui->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(1, 81), ztPoint2(21, 21));
 		zt_guiButtonSetIcon(ibutton_id, &sprite);
 		zt_guiItemSetSize(ibutton_id, ztVec2(1.25f, 1.25f));
 		zt_guiItemSetAlign(ibutton_id, ztAlign_Right);
@@ -367,7 +369,7 @@ bool game_loop(r32 dt)
 			zt_guiMenuAppend(menu, "Menu Item 2", 2);
 			zt_guiMenuAppend(menu, "Menu Item 3", 3);
 
-			ztSprite sprite = zt_spriteMake(zt->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(84, 17), ztPoint2(8, 8));
+			ztSprite sprite = zt_spriteMake(zt_gui->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(84, 17), ztPoint2(8, 8));
 			zt_guiMenuAppend(menu, "Icon Menu Item", 4, &sprite);
 
 			ztGuiItemID submenu = zt_guiMakeMenu();
