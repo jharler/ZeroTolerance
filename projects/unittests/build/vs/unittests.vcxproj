@@ -14,8 +14,7 @@
     <ClCompile Include="..\..\zt_tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\src\zt_game.h" />
-    <ClInclude Include="..\..\..\..\src\zt_tools.h" />
+    <ClInclude Include="..\..\..\..\zt_tools.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E34DD27B-CC37-4E31-BC09-71B32B560C3B}</ProjectGuid>
@@ -48,12 +47,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\..\..\..\src</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\..\..\..\</IncludePath>
     <OutDir>$(SolutionDir)$(ProjectName)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\..\..\..\src</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);..\..\..\..\</IncludePath>
     <OutDir>$(SolutionDir)$(ProjectName)\bin\$(Configuration)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

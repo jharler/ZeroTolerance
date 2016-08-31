@@ -340,7 +340,16 @@ bool game_loop(r32 dt)
 
 	zt_guiManagerUpdate(g_game->gui_manager, dt);
 
-	if (input[ztInputKeys_Space].justPressed()) {
+	bool gui_input = false;
+	if (zt_inputMouseIsLook()) {
+		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
+	}
+	else {
+		if (zt_guiManagerHandleInput(g_game->gui_manager, input, input_keystrokes, mouse)) {
+			gui_input = true;
+		}
+	}
+	if (input[ztInputKeys_Space].justPressed() && !zt_guiManagerHasKeyboardFocus(g_game->gui_manager)) {
 		zt_inputMouseLook(!zt_inputMouseIsLook()); // toggle mouse look and cursor
 		if (zt_inputMouseIsLook()) {
 			zt_inputMouseSetCursor(ztInputMouseCursor_None);
@@ -349,13 +358,7 @@ bool game_loop(r32 dt)
 			zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
 		}
 	}
-	else if (zt_inputMouseIsLook()) {
-		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
-	}
-	else {
-		if (!zt_guiManagerHandleInput(g_game->gui_manager, input, input_keystrokes, mouse)) {
-		}
-	}
+
 
 	static bool button_value = false;
 	if (button_value != g_game->button_live_value) {
@@ -466,7 +469,7 @@ bool game_loop(r32 dt)
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);
 
 		// display frame time
-		{
+		if (false){
 			static r32 total_time = 0;
 			total_time += dt;
 
@@ -497,7 +500,7 @@ bool game_loop(r32 dt)
 		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list);
 		zt_drawListPopShader(&g_game->draw_list);
 
-		if (true){
+		if (zt_inputMouseIsLook()){
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
 			zt_drawListAddLine(&g_game->draw_list, ztVec3(-1, 0, 0), ztVec3(1, 0, 0));
 

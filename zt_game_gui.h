@@ -195,7 +195,7 @@ struct ztGuiTheme
 
 enum ztGuiItemType_Enum
 {
-	ztGuiItemType_Invalid, 
+	ztGuiItemType_Invalid,
 
 	ztGuiItemType_Window,
 	ztGuiItemType_Panel,
@@ -212,6 +212,8 @@ enum ztGuiItemType_Enum
 	ztGuiItemType_Tab,
 	ztGuiItemType_Tree,
 	ztGuiItemType_ProgressBar,
+
+	ztGuiItemType_Sizer,
 	
 	ztGuiItemType_Custom,
 };
@@ -325,8 +327,8 @@ enum ztGuiTextEditFlags_Enum
 
 enum ztGuiItemOrient_Enum
 {
-	ztGuiItemOrient_Horz,
-	ztGuiItemOrient_Vert,
+	ztGuiItemOrient_Horz = (1<<0),
+	ztGuiItemOrient_Vert = (1<<1),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -338,6 +340,8 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, ztInputKeys input_keys
 void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list);
 
 void zt_guiSetActiveManager(ztGuiManagerID gui_manager);
+
+bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -356,6 +360,8 @@ ztGuiItemID zt_guiMakeMenu();
 ztGuiItemID zt_guiMakeTab(ztGuiItemID parent);
 ztGuiItemID zt_guiMakeTree(ztGuiItemID parent);
 ztGuiItemID zt_guiMakeProgressBar(ztGuiItemID parent, ztGuiItemOrient_Enum orient);
+
+ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -480,6 +486,16 @@ void zt_guiTreeClear(ztGuiItemID tree);
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_guiSizerAddItem(ztGuiItemID sizer, ztGuiItemID item_id, int proportion, r32 padding, i32 align_flags = ztAlign_Center, i32 grow_direction = ztGuiItemOrient_Horz | ztGuiItemOrient_Vert);
+void zt_guiSizerAddStretcher(ztGuiItemID sizer, int proportion, r32 padding = 0);
+
+void zt_guiSizerSizeToParent(ztGuiItemID sizer, bool size_to_parent = true);
+
+void zt_guiSizerRecalc(ztGuiItemID item);
+void zt_guiSizerRecalcImmediately(ztGuiItemID sizer);
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiInitDebug(ztGuiManagerID gui_manager);
 
 
@@ -554,6 +570,19 @@ struct ztGuiItem
 		r32 offset_x;
 		r32 offset_y;
 	};
+
+	struct ztSizerItemEntry
+	{
+		ztGuiItem *item;
+		int proportion;
+		r32 padding;
+		int align_flags;
+		int grow_direction;
+
+		ztSizerItemEntry *next;
+	};
+
+
 
 	union {
 		struct {
@@ -631,6 +660,14 @@ struct ztGuiItem
 
 			zt_guiMenuSelected_Func *on_selected;
 		} menu;
+
+		struct {
+			ztGuiItemOrient_Enum orient;
+
+			ztSizerItemEntry *items;
+			r32 size[2];
+			bool size_to_parent;
+		} sizer;
 	};
 };
 
@@ -1336,6 +1373,7 @@ bool zt_guiManagerHandleInput(ztGuiManagerID gui_manager, ztInputKeys input_keys
 			if (mouse_captured || input_mouse->leftPressed() || input_mouse->rightPressed() || input_mouse->middlePressed() ||
 				input_mouse->leftJustReleased() || input_mouse->rightJustReleased() || input_mouse->middleJustReleased()) {
 				if (local::processMouseFocusEvent(gm, child, input_mouse, mpos)) {
+					gm->keyboard_focus = true;
 					if (zt_bitIsSet(child->flags, ztGuiItemFlags_BringToFront)) {
 						// need to make this particular child the last in the series
 						if (child->sib_next) {
@@ -1502,6 +1540,14 @@ void zt_guiSetActiveManager(ztGuiManagerID gui_manager)
 {
 	_zt_guiManagerCheckAndGet(gm, gui_manager);
 	zt_gui->active_gui_manager = gui_manager;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager)
+{
+	_zt_guiManagerCheckAndGet(gm, gui_manager);
+	return gm->keyboard_focus;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1700,9 +1746,19 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_
 
 			if (zt_bitIsSet(item->flags, ztGuiItemFlags_Dirty)) {
 				if (item->draw_list) {
+					ztVec2 ext = zt_fontGetExtents(theme->font, item->label);
+					ztVec2 off = ztVec2::zero;
+
+					if (item->align_flags != 0) {
+						if (zt_bitIsSet(item->align_flags, ztAlign_Left)) off.x -= (item->size.x - ext.x) / 2.f;
+						if (zt_bitIsSet(item->align_flags, ztAlign_Right)) off.x += (item->size.x - ext.x) / 2.f;
+						if (zt_bitIsSet(item->align_flags, ztAlign_Top)) off.y += (item->size.y - ext.y) / 2.f;
+						if (zt_bitIsSet(item->align_flags, ztAlign_Bottom)) off.y -= (item->size.y - ext.y) / 2.f;
+					}
+
 					ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 					zt_drawListReset(item->draw_list);
-					zt_drawListAddText2D(item->draw_list, theme->font, item->label, ztVec2::zero, item->align_flags, item->anchor_flags);
+					zt_drawListAddText2D(item->draw_list, theme->font, item->label, off, item->align_flags, item->anchor_flags);
 				}
 			}
 
@@ -4050,6 +4106,270 @@ void zt_guiMenuSetCallback(ztGuiItemID menu, zt_guiMenuSelected_Func *on_selecte
 
 // ------------------------------------------------------------------------------------------------
 
+ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient)
+{
+	struct local
+	{
+		// ------------------------------------------------------------------------------------------------
+
+		static ztVec2 getMinSize(ztGuiItem *item)
+		{
+			bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
+
+			ztVec2 min_size = ztVec2::zero;
+			ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+			while (entry) {
+				ztVec2 size = entry->item->size;
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					size = getMinSize(entry->item);
+				}
+
+				if (horz) {
+					min_size.x += size.x + entry->padding * 2;
+					min_size.y = zt_max(min_size.y, size.y + entry->padding * 2);
+				}
+				else {
+					min_size.x = zt_max(min_size.x, size.x + entry->padding * 2);
+					min_size.y += size.y + entry->padding * 2;
+				}
+
+				entry = entry->next;
+			}
+
+			return min_size;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_UPDATE(update)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+
+			if (item->parent == nullptr || ((item->sizer.size_to_parent && item->parent->size == item->size)) || (!item->sizer.size_to_parent && item->size.x == item->sizer.size[0] && item->size.y == item->sizer.size[1])) {
+				if (item->sizer.size[0] != -1 && item->sizer.size[1] != -1) {
+					return;
+				}
+			}
+
+			if (item->sizer.size_to_parent) {
+				item->sizer.size[0] = item->size.x = item->parent->size.x;
+				item->sizer.size[1] = item->size.y = item->parent->size.y;
+			}
+			else {
+				item->sizer.size[0] = item->size.x;
+				item->sizer.size[1] = item->size.y;
+			}
+
+			bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
+
+			r32 room_orient = horz ? item->sizer.size[0] : item->sizer.size[1];
+			r32 total_prop = 0;
+
+			int entry_count = 0;
+			ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+			while (entry) {
+				entry_count += 1;
+				if (entry->proportion == 0) {
+					// takes up only as much space as the item inside it
+					int padding_mult = 2;
+
+					if (entry->item->type == ztGuiItemType_Sizer) {
+						ztVec2 min_size = getMinSize(entry->item);
+						r32 space_needed = (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+						room_orient -= (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+					}
+					else {
+						r32 space_needed = (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
+						room_orient -= (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
+					}
+				}
+
+				total_prop += entry->proportion;
+				entry = entry->next;
+			}
+
+			r32 entry_pos_orient = horz ? item->sizer.size[0] / -2.f : item->sizer.size[1] / 2.f;
+			r32 entry_opp_orient = horz ? item->sizer.size[1] / 2.f : item->sizer.size[0] / -2.f;
+
+			entry = item->sizer.items;
+			while (entry) {
+				r32 entry_size_orient = 0;
+
+				ztVec2 item_size = (entry->item->type == ztGuiItemType_Sizer ? getMinSize(entry->item) : entry->item->size);
+
+				if (entry->proportion != 0) {
+					entry_size_orient = (entry->proportion / total_prop) * room_orient;
+				}
+				else {
+					entry_size_orient = (horz ? (item_size.x + entry->padding * 2) : (item_size.y + entry->padding * 2));
+				}
+				ztVec2 entry_size = ztVec2(horz ? entry_size_orient : item->sizer.size[0], horz ? item->sizer.size[1] : entry_size_orient);
+
+				if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
+					item_size.x = entry_size.x - entry->padding * 2;
+				}
+				if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Vert)) {
+					item_size.y = entry_size.y - entry->padding * 2;
+				}
+
+				item_size.x = zt_min(item_size.x, entry_size.x - entry->padding * 2);
+				item_size.y = zt_min(item_size.y, entry_size.y - entry->padding * 2);
+
+				entry->item->size = item_size;
+
+				ztVec2 entry_pos = ztVec2(horz ? entry_pos_orient + (entry->padding + item_size.x / 2) : entry_opp_orient + (entry->padding + item_size.x / 2),
+					                      horz ? entry_opp_orient - (entry->padding + item_size.y / 2) : entry_pos_orient - (entry->padding + item_size.y / 2));
+
+				entry->item->pos = entry_pos;
+
+				entry_pos_orient += horz ? (entry_size.x - entry->padding * 0) : -(entry_size.y - entry->padding * 0);
+				entry = entry->next;
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_CLEANUP(cleanup)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+			while (entry) {
+				auto *copy = entry;
+				entry = entry->next;
+				zt_freeArena(copy, gm->arena);
+			}
+			item->sizer.items = nullptr;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			*size = getMinSize(item);
+
+			if (min_size) *min_size = *size;
+		}
+	};
+
+
+	ztGuiManager *gm = zt_gui->gui_managers[zt_gui->active_gui_manager];
+	zt_returnValOnNull(gm, ztInvalidID);
+
+	ztGuiItemID item_id = ztInvalidID;
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_Sizer, 0, &item_id);
+	if (!item) return ztInvalidID;
+
+	item->sizer.orient = orient;
+	item->sizer.size[0] = item->sizer.size[1] = 0;
+	item->sizer.size_to_parent = false;
+	item->sizer.items = nullptr;
+
+	item->functions.cleanup = local::cleanup;
+	item->functions.update = local::update;
+	item->functions.best_size = local::best_size;
+	item->functions.user_data = gm;
+
+	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerAddItem(ztGuiItemID sizer_id, ztGuiItemID item_id, int proportion, r32 padding, i32 align_flags, i32 grow_direction)
+{
+	_zt_guiItemTypeFromIDReturnOnError(sizer, sizer_id, ztGuiItemType_Sizer);
+	_zt_guiManagerGetFromItem(gm, sizer_id);
+	_zt_guiManagerGetFromItem(gm_test, item_id);
+	zt_assert(gm == gm_test);
+
+	ztGuiItem::ztSizerItemEntry *entry = zt_mallocStructArena(ztGuiItem::ztSizerItemEntry, gm->arena);
+
+	_zt_guiItemFromID(item, item_id);
+
+	entry->item = item;
+	entry->proportion = proportion;
+	entry->padding = padding;
+	entry->align_flags = align_flags;
+	entry->grow_direction = grow_direction;
+	entry->next = nullptr;
+
+	zt_singleLinkAddToEnd(sizer->sizer.items, entry);
+
+	sizer->sizer.size[0] = sizer->sizer.size[1] = 0; // trigger recalc
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerAddStretcher(ztGuiItemID sizer_id, int proportion, r32 padding)
+{
+	_zt_guiManagerGetFromItem(gm, sizer_id);
+	ztGuiItemID stretcher_id = ztInvalidID;
+	ztGuiItem *stretcher = _zt_guiMakeItemBase(gm, sizer_id, ztGuiItemType_Custom, 0, &stretcher_id);
+
+	zt_guiSizerAddItem(sizer_id, stretcher_id, proportion, padding);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerSizeToParent(ztGuiItemID sizer_id, bool size_to_parent)
+{
+	_zt_guiItemTypeFromIDReturnOnError(sizer, sizer_id, ztGuiItemType_Sizer);
+	sizer->sizer.size_to_parent = size_to_parent;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiSizerRecalc(ztGuiItem *item)
+{
+	if (item->type == ztGuiItemType_Sizer) {
+		item->sizer.size[0] = item->sizer.size[1] = -1;
+	}
+
+	ztGuiItem *child = item->first_child;
+	while (child) {
+		zt_guiSizerRecalc(child->id);
+		child = child->sib_next;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerRecalc(ztGuiItemID item_id)
+{
+	_zt_guiItemFromID(item, item_id);
+	_zt_guiSizerRecalc(item);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiSizerRecalcImmediately(ztGuiItem *item)
+{
+	if (item->type == ztGuiItemType_Sizer) {
+		item->functions.update(item->id, 0, item->functions.user_data);
+	}
+
+	ztGuiItem *child = item->first_child;
+	while (child) {
+		_zt_guiSizerRecalcImmediately(child);
+		child = child->sib_next;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerRecalcImmediately(ztGuiItemID item_id)
+{
+	_zt_guiItemFromID(item, item_id);
+	_zt_guiSizerRecalc(item);
+	_zt_guiSizerRecalcImmediately(item);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiItemFree(ztGuiItemID item_id)
 {
 	_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
@@ -4488,8 +4808,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 
 	zt_guiItemSetSize(window_id, ztVec2(3.25f, .65f));
 
-	zt_guiItemSetAlign(text_id, ztAlign_Left);
-	zt_guiItemSetPosition(text_id, ztAlign_Left, ztAnchor_Left, ztVec2(3.f / zt_pixelsPerUnit(), 0));
+	zt_guiItemSetPosition(text_id, ztAlign_Right, ztAlign_Right, ztVec2(-26.f / zt_pixelsPerUnit(), 0));
 	zt_guiItemSetPosition(button_id, ztAlign_Right | ztAlign_Top, ztAnchor_Right | ztAnchor_Top, ztVec2(-3.f / zt_pixelsPerUnit(), -3.f / zt_pixelsPerUnit()));
 
 	ztGuiItemID update_id = ztInvalidID;
@@ -4535,6 +4854,7 @@ ztInternal void _zt_guiDebugRenderingDetails()
 
 	window_id = zt_guiMakeWindow(nullptr, ztGuiWindowFlags_AllowDrag);
 	text_id = zt_guiMakeStaticText(window_id, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls");
+	zt_guiItemSetAlign(text_id, ztAlign_Right);
 
 	ztGuiItemID button_id = zt_guiMakeButton(window_id, nullptr, ztGuiButtonFlags_NoBackground);
 	zt_guiButtonSetCallback(button_id, local::on_close);
@@ -4544,10 +4864,9 @@ ztInternal void _zt_guiDebugRenderingDetails()
 	ztSprite sprite = zt_spriteMake(gm->default_theme.sprite_panel.type == ztGuiThemeSpriteType_Sprite ? gm->default_theme.sprite_panel.s.tex : gm->default_theme.sprite_panel.sns.tex, ztPoint2(16, 64), ztPoint2(16, 16));
 	zt_guiButtonSetIcon(button_id, &sprite);
 
-	zt_guiItemSetSize(window_id, ztVec2(3.25f, 1.35f));
+	zt_guiItemSetSize(window_id, ztVec2(3.25f, 1.2f));
 
-	zt_guiItemSetAlign(text_id, ztAlign_Left);
-	zt_guiItemSetPosition(text_id, ztAlign_Left, ztAnchor_Left, ztVec2(3.f / zt_pixelsPerUnit(), 0));
+	zt_guiItemSetPosition(text_id, ztAlign_Right, ztAnchor_Right, ztVec2(-26.f / zt_pixelsPerUnit(), 0));
 	zt_guiItemSetPosition(button_id, ztAlign_Right | ztAlign_Top, ztAnchor_Right | ztAnchor_Top, ztVec2(-3.f / zt_pixelsPerUnit(), -3.f / zt_pixelsPerUnit()));
 
 	ztGuiItemID update_id = ztInvalidID;
@@ -4557,6 +4876,36 @@ ztInternal void _zt_guiDebugRenderingDetails()
 
 	zt_guiItemSetPosition(window_id, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, -.75f));
 }
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugConsole()
+{
+	static ztGuiItemID window_id = ztInvalidID;
+	static ztGuiItemID display_id = ztInvalidID;
+
+	if (window_id != ztInvalidID) {
+		zt_guiItemShow(window_id);
+		return;
+	}
+
+	window_id = zt_guiMakeWindow("Console", ztGuiWindowFlags_AllowDrag | ztGuiWindowFlags_AllowResize | ztGuiWindowFlags_ShowTitle);
+	zt_guiItemSetSize(window_id, ztVec2(10, 6));
+
+	ztGuiItemID display_container = zt_guiMakeScrollContainer(window_id);
+	display_id = zt_guiMakeStaticText(display_container, "Console", 1024 * 4);
+	zt_guiScrollContainerSetItem(display_container, display_id);
+
+	ztGuiItemID command_id = zt_guiMakeTextEdit(window_id, nullptr);
+
+	ztGuiItemID main_sizer = zt_guiMakeSizer(window_id, ztGuiItemOrient_Vert);
+	zt_guiSizerSizeToParent(main_sizer);
+
+	zt_guiSizerAddStretcher(main_sizer, 0, 16.f / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(main_sizer, display_container, 1, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(main_sizer, command_id, 0, 3 / zt_pixelsPerUnit(), 0, ztGuiItemOrient_Horz);
+}
+
 // ------------------------------------------------------------------------------------------------
 
 void zt_guiInitDebug(ztGuiManagerID gui_manager)
@@ -4567,6 +4916,7 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 	{
 		ztGuiDebugMenu_FpsDisplay,
 		ztGuiDebugMenu_RenderingDetails,
+		ztGuiDebugMenu_Console,
 	};
 
 	struct local
@@ -4587,6 +4937,10 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 				case ztGuiDebugMenu_RenderingDetails: {
 					_zt_guiDebugRenderingDetails();
 				} break;
+
+				case ztGuiDebugMenu_Console: {
+					_zt_guiDebugConsole();
+				} break;
 			};
 		}
 	};
@@ -4602,6 +4956,7 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 	menu_id = zt_guiMakeMenu();
 	zt_guiMenuAppend(menu_id, "FPS Display", ztGuiDebugMenu_FpsDisplay);
 	zt_guiMenuAppend(menu_id, "Rendering Details", ztGuiDebugMenu_RenderingDetails);
+	zt_guiMenuAppend(menu_id, "Console", ztGuiDebugMenu_Console);
 
 	zt_guiMenuSetCallback(menu_id, local::on_menu_item);
 
