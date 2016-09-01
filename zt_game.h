@@ -2308,7 +2308,7 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Period,             "Period",             '.',  '>', VK_OEM_PERIOD);
 	_zt_setKeyData(ztInputKeys_ForwardSlash,       "ForwardSlash",       '/',  '?', VK_OEM_2);
 	_zt_setKeyData(ztInputKeys_Tilda,              "Tilda",              '`',  '~', VK_OEM_3);
-	_zt_setKeyData(ztInputKeys_OpenBrace,          "OpenBrace",          '[',  '(', VK_OEM_4);
+	_zt_setKeyData(ztInputKeys_OpenBrace,          "OpenBrace",          '[',  '{', VK_OEM_4);
 	_zt_setKeyData(ztInputKeys_BackSlash,          "BackSlash",         '\\',  '|', VK_OEM_5);
 	_zt_setKeyData(ztInputKeys_CloseBrace,         "CloseBrace",         ']',  '}', VK_OEM_6);
 	_zt_setKeyData(ztInputKeys_Apos,               "Apos",              '\'', '\"', VK_OEM_7);
@@ -3045,6 +3045,7 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size)
 {
 	_zt_drawListCheck(draw_list);
+	zt_assert(size != ztVec2::zero);
 
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 

@@ -126,7 +126,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	if (!zt_drawListMake(&g_game->draw_list, 4096)) {
+	if (!zt_drawListMake(&g_game->draw_list, 1024 * 128)) {
 		zt_logCritical("Unable to initialize draw list");
 		return false;
 	}
@@ -166,7 +166,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
-	zt_fiz(1){
+	zt_fiz(0){
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
 		zt_guiItemSetSize(window, ztVec2(10, 7));
 		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
@@ -337,6 +337,11 @@ bool game_loop(r32 dt)
 
 	ztInputKeys_Enum input_keystrokes[16];
 	zt_inputGetKeyStrokes(input_keystrokes);
+
+	bool console_shown = false;
+	if (input[ztInputKeys_Tilda].justPressed()) {
+		zt_debugConsoleToggle(&console_shown);
+	}
 
 	zt_guiManagerUpdate(g_game->gui_manager, dt);
 
@@ -541,7 +546,6 @@ bool game_loop(r32 dt)
 			fullscreen = !fullscreen;
 		}
 	}
-
 
 	zt_assetManagerCheckForChanges(&g_game->asset_mgr);
 	return !input[ztInputKeys_Escape].justPressed();
