@@ -365,6 +365,7 @@ bool game_loop(r32 dt)
 		if (console_shown) {
 			if (zt_inputMouseIsLook()) {
 				zt_inputMouseLook(false);
+				zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
 			}
 			zt_guiManagerSetKeyboardFocus(g_game->gui_manager);
 		}

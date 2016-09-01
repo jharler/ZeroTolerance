@@ -480,7 +480,9 @@ void zt_guiScrollContainerSetScroll(ztGuiItemID scroll, ztGuiItemOrient_Enum ori
 int zt_guiTextEditGetValue(ztGuiItemID text, char *buffer, int buffer_len);
 void zt_guiTextEditSetValue(ztGuiItemID text, const char *value);
 void zt_guiTextEditSetSelection(ztGuiItemID text, int sel_beg, int sel_end);
+void zt_guiTextEditGetSelection(ztGuiItemID text, int *sel_beg, int *sel_end);
 void zt_guiTextEditSelectAll(ztGuiItemID text);
+int  zt_guiTextEditGetCursorPos(ztGuiItemID text);
 void zt_guiTextEditSetCursorPos(ztGuiItemID text, int cursor_pos);
 void zt_guiTextEditSetCallback(ztGuiItemID text, zt_guiTextEditKey_Func *on_key);
 
@@ -3931,6 +3933,7 @@ void zt_guiTextEditSetValue(ztGuiItemID text, const char *value)
 	zt_strCpy(item->textedit.text_buffer, zt_stringSize(item->textedit.text_buffer), value);
 
 	item->textedit.cursor_pos = 0;
+	item->textedit.select_beg = item->textedit.select_end = -1;
 	_zt_guiTextEditRecalcCursor(item);
 	_zt_guiTextEditAdjustViewForCursor(item);
 	_zt_guiTextEditCacheText(item);
@@ -3945,9 +3948,19 @@ void zt_guiTextEditSetSelection(ztGuiItemID text, int sel_beg, int sel_end)
 
 	item->textedit.select_beg = zt_clamp(sel_beg, 0, str_len);
 	item->textedit.select_end = zt_clamp(sel_end, 0, str_len);
-	item->textedit.cursor_pos = sel_end;
+	item->textedit.cursor_pos = zt_clamp(sel_end, 0, str_len);
 	_zt_guiTextEditRecalcCursor(item);
 	_zt_guiTextEditAdjustViewForCursor(item);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiTextEditGetSelection(ztGuiItemID text, int *sel_beg, int *sel_end)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, text, ztGuiItemType_TextEdit);
+
+	*sel_beg = item->textedit.select_beg;
+	*sel_end = item->textedit.select_end;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3956,6 +3969,14 @@ void zt_guiTextEditSelectAll(ztGuiItemID text)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, text, ztGuiItemType_TextEdit);
 	zt_guiTextEditSetSelection(item->id, 0, zt_strLen(item->textedit.text_buffer));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiTextEditGetCursorPos(ztGuiItemID text)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(item, text, ztGuiItemType_TextEdit, -1);
+	return item->textedit.cursor_pos;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5163,6 +5184,7 @@ ztInternal void _zt_guiDebugConsole()
 	static ztGuiItemID window_id = ztInvalidID;
 	static ztGuiItemID display_id = ztInvalidID;
 	static ztGuiItemID command_id = ztInvalidID;
+	static int last_tab_stop = 0;
 
 	if (window_id != ztInvalidID) {
 		zt_guiItemShow(window_id);
@@ -5264,6 +5286,71 @@ ztInternal void _zt_guiDebugConsole()
 					zt_guiTextEditSetCursorPos(command_id, 0);
 				}
 			}
+			if (input_keys[ztInputKeys_Tab].justPressedOrRepeated()) {
+				*should_process = false;
+
+				char command_buffer[256];
+				zt_guiTextEditGetValue(command_id, command_buffer, zt_elementsOf(command_buffer));
+
+				if (zt_strFindPos(command_buffer, " ", 0) != ztStrPosNotFound) {
+
+				}
+				else {
+					int cursor = zt_guiTextEditGetCursorPos(command_id);
+					char start_with[256];
+					zt_strCpy(start_with, zt_elementsOf(start_with), command_buffer, cursor);
+
+					int which_stop = 0;
+					auto *command = zt_gui->console_commands;
+					while (command) {
+						if (zt_strStartsWith(command->command, start_with)) {
+							if (++which_stop > last_tab_stop) {
+								break;
+							}
+						}
+						command = command->next;
+					}
+
+					if (command == nullptr && which_stop > 0) {
+						command = zt_gui->console_commands;
+						while (command) {
+							if (zt_strStartsWith(command->command, start_with)) {
+								which_stop = 1;
+								break;
+							}
+							command = command->next;
+						}
+					}
+
+					if (command != nullptr) {
+						zt_guiTextEditSetValue(command_id, command->command);
+						zt_guiTextEditSetSelection(command_id, cursor, cursor + 999999);
+						zt_guiTextEditSetCursorPos(command_id, cursor);
+						last_tab_stop = which_stop;
+					}
+				}
+				return;
+			}
+
+			zt_fiz(zt_elementsOf(input_key_strokes)) {
+				if (input_key_strokes[i] == ztInputKeys_Invalid) {
+					break;
+				}
+				if (input_keys[input_key_strokes[i]].display != 0) {
+					last_tab_stop = 0;
+				}
+			}
+		}
+
+		static void log_callback(ztLogMessageLevel_Enum level, const char * message)
+		{
+			switch (level)
+			{
+			case ztLogMessageLevel_Fatal: 
+			case ztLogMessageLevel_Critical: zt_debugConsoleLogError(message); break;
+
+			case ztLogMessageLevel_Info: zt_debugConsoleLogCommand(message); break;
+			}
 		}
 
 		static ZT_FUNC_DEBUG_CONSOLE_COMMAND(command_list)
@@ -5338,12 +5425,7 @@ ztInternal void _zt_guiDebugConsole()
 
 	zt_debugConsoleLogCommand("<color=00aa00ff>Welcome to the console.  Type 'help <<cmd>' for help.  Type 'list' for commands.</color>");
 
-	zt_debugConsoleLogUser("** This is a user message");
-	zt_debugConsoleLogCommand("** This is a command message");
-	zt_debugConsoleLogHelp("** This is a help message");
-	zt_debugConsoleLogWarning("** This is a warning message");
-	zt_debugConsoleLogError("** This is an error message");
-	zt_debugConsoleLogSystem("** This is a systme message");
+	zt_logAddCallback(local::log_callback, ztLogMessageLevel_Info);
 
 	zt_guiItemShow(window_id, false);
 }
