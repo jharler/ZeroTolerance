@@ -1756,6 +1756,10 @@ void zt_logFatal(const char *message, ...)
 
 // ------------------------------------------------------------------------------------------------
 
+#undef _zt_var_args
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level)
 {
 	zt_assert(_zt_logCallbacksCount < ZT_MAX_LOG_CALLBACKS);
@@ -3900,7 +3904,7 @@ ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
 		return string;
 	}
 
-	zt_stringFree(string);
+	zt_stringFree(string, arena);
 	return zt_stringMake(nsize, arena);
 }
 
