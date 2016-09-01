@@ -338,11 +338,6 @@ bool game_loop(r32 dt)
 	ztInputKeys_Enum input_keystrokes[16];
 	zt_inputGetKeyStrokes(input_keystrokes);
 
-	bool console_shown = false;
-	if (input[ztInputKeys_Tilda].justPressed()) {
-		zt_debugConsoleToggle(&console_shown);
-	}
-
 	zt_guiManagerUpdate(g_game->gui_manager, dt);
 
 	bool gui_input = false;
@@ -363,6 +358,18 @@ bool game_loop(r32 dt)
 			zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
 		}
 	}
+	bool console_shown = false;
+	if (input[ztInputKeys_Tilda].justPressed()) {
+		zt_debugConsoleToggle(&console_shown);
+
+		if (console_shown) {
+			if (zt_inputMouseIsLook()) {
+				zt_inputMouseLook(false);
+			}
+			zt_guiManagerSetKeyboardFocus(g_game->gui_manager);
+		}
+	}
+
 
 
 	static bool button_value = false;
@@ -397,11 +404,6 @@ bool game_loop(r32 dt)
 
 		zt_guiMenuPopupAtPosition(menu, zt_cameraOrthoScreenToWorld(&g_game->gui_camera, mouse->screen_x, mouse->screen_y));
 	}
-
-	int shader_switches = g_game->details->curr_frame.shader_switches;
-	int texture_switches = g_game->details->curr_frame.texture_switches;
-	int triangles = g_game->details->curr_frame.triangles_drawn;
-	int draw_calls = g_game->details->curr_frame.draw_calls;
 
 	{
 		{
@@ -472,33 +474,6 @@ bool game_loop(r32 dt)
 		}
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);
-
-		// display frame time
-		if (false){
-			static r32 total_time = 0;
-			total_time += dt;
-
-			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-			zt_strMakePrintf(fps, 1024, "%.4f us/f (%.4f)\n%.0f fps (%.0f) \ncamera: %.2f, %.2f, %.2f \n%.2f, %.2f, %.2f \n%.2f, %.2f, %.2f \nmouse: %d, %d \n %d tri sh (%d) tex (%d) dc (%d)", dt * 1000.f, (total_time / (r32)g_game->details->current_frame) * 1000.f, 1.f / dt, 1.f / (total_time / (r32)g_game->details->current_frame),
-				g_game->camera.position.x, g_game->camera.position.y, g_game->camera.position.z,
-				g_game->camera.rotation.x, g_game->camera.rotation.y, g_game->camera.rotation.z,
-				g_game->camera.direction.x, g_game->camera.direction.y, g_game->camera.direction.z,
-				mouse->screen_x, mouse->screen_y,
-				triangles, shader_switches, texture_switches, draw_calls);
-
-			ztVec2 pos = zt_cameraOrthoGetMaxExtent(&g_game->gui_camera);
-			//zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, fps, pos, ztAlign_Right, ztAnchor_Right|ztAnchor_Top);
-
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id, "This is a test string.", ztVec2(-pos.x, pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Top);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni, "ゼロ容認 零容忍", ztVec2(-pos.x, -pos.y), ztAlign_Left, ztAnchor_Left | ztAnchor_Bottom);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_uni2, "عدم التسامح", ztVec2(pos.x, -pos.y), ztAlign_Right, ztAnchor_Right | ztAnchor_Bottom);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, pos.y), ztAlign_Center, ztAnchor_Top);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "Bitmap Fonts Work Too! :-)", ztVec2(0, -pos.y), ztAlign_Center, ztAnchor_Bottom);
-
-			zt_drawListPopShader(&g_game->draw_list);
-		}
-
-		//zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 
 #if 1
 		zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);

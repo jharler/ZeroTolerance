@@ -300,6 +300,13 @@ enum ztGuiPanelFlags_Enum
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztGuiStaticTextFlags_Enum
+{
+	ztGuiStaticTextFlags_Fancy = (1 << 31),
+};
+
+// ------------------------------------------------------------------------------------------------
+
 enum ztGuiButtonFlags_Enum
 {
 	ztGuiButtonFlags_NoBackground = (1 << 0),
@@ -352,13 +359,14 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list);
 
 void zt_guiSetActiveManager(ztGuiManagerID gui_manager);
 
+void zt_guiManagerSetKeyboardFocus(ztGuiManagerID gui_manager, bool keyboard_focus = true);
 bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager);
 
 // ------------------------------------------------------------------------------------------------
 
 ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags = ztGuiWindowFlags_Default);
 ztGuiItemID zt_guiMakePanel(ztGuiItemID parent, i32 item_flags = 0);
-ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, i32 max_chars = 64);
+ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, i32 flags = 0, i32 max_chars = 64);
 ztGuiItemID zt_guiMakeButton(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
 ztGuiItemID zt_guiMakeToggleButton(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
 ztGuiItemID zt_guiMakeCheckbox(ztGuiItemID parent, const char *label, i32 flags = 0, bool *live_value = nullptr);
@@ -1222,6 +1230,12 @@ void zt_guiManagerFree(ztGuiManagerID gui_manager)
 		}
 	}
 
+	auto* command = zt_gui->console_commands;
+	while (command) {
+		auto* next = command->next;
+		zt_freeArena(command, zt_gui->arena);
+		command = next;
+	}
 	zt_freeArena(zt_gui, zt_gui->arena);
 	zt_gui = nullptr;
 }
@@ -1649,6 +1663,14 @@ void zt_guiSetActiveManager(ztGuiManagerID gui_manager)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_guiManagerSetKeyboardFocus(ztGuiManagerID gui_manager, bool keyboard_focus)
+{
+	_zt_guiManagerCheckAndGet(gm, gui_manager);
+	gm->keyboard_focus = keyboard_focus;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager)
 {
 	_zt_guiManagerCheckAndGet(gm, gui_manager);
@@ -1841,7 +1863,7 @@ ztGuiItemID zt_guiMakePanel(ztGuiItemID parent, i32 item_flags)
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_chars)
+ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, i32 flags, int max_chars)
 {
 	struct local
 	{
@@ -1851,7 +1873,7 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_
 
 			if (zt_bitIsSet(item->flags, ztGuiItemFlags_Dirty)) {
 				if (item->draw_list) {
-					ztVec2 ext = zt_fontGetExtents(theme->font, item->label);
+					ztVec2 ext = zt_bitIsSet(item->flags, ztGuiStaticTextFlags_Fancy) ? zt_fontGetExtentsFancy(theme->font, item->label) : zt_fontGetExtents(theme->font, item->label);
 					ztVec2 off = ztVec2::zero;
 
 					if (item->align_flags != 0) {
@@ -1863,11 +1885,22 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_
 
 					ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 					zt_drawListReset(item->draw_list);
-					zt_drawListAddText2D(item->draw_list, theme->font, item->label, off, item->align_flags, item->anchor_flags);
+					if (zt_bitIsSet(item->flags, ztGuiStaticTextFlags_Fancy)) {
+						zt_drawListAddFancyText2D(item->draw_list, theme->font, item->label, off, item->align_flags, item->anchor_flags);
+					}
+					else {
+						zt_drawListAddText2D(item->draw_list, theme->font, item->label, off, item->align_flags, item->anchor_flags);
+					}
 				}
 			}
 
 			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(offset + item->pos, 0));
+		}
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+			*size = zt_bitIsSet(item->flags, ztGuiStaticTextFlags_Fancy) ? zt_fontGetExtentsFancy(theme->font, item->label) : zt_fontGetExtents(theme->font, item->label);
 		}
 	};
 
@@ -1875,10 +1908,11 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_
 	zt_returnValOnNull(gm, ztInvalidID);
 
 	ztGuiItemID item_id = ztInvalidID;
-	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_StaticText, 0, &item_id, zt_max(zt_strLen(label), max_chars) * 2);
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_StaticText, flags, &item_id, zt_max(zt_strLen(label), max_chars) * 2);
 	if (!item) return ztInvalidID;
 
 	item->functions.render = local::render;
+	item->functions.best_size = local::best_size;
 	item->functions.user_data = gm;
 
 	zt_guiItemSetLabel(item_id, label);
@@ -1886,7 +1920,7 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, int max_
 	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 	zt_assert(theme);
 
-	item->size = zt_fontGetExtents(theme->font, label);
+	item->size = zt_bitIsSet(item->flags, ztGuiStaticTextFlags_Fancy) ? zt_fontGetExtentsFancy(theme->font, label) : zt_fontGetExtents(theme->font, label);
 
 	return item_id;
 }
@@ -5188,7 +5222,7 @@ ztInternal void _zt_guiDebugConsole()
 				ztToken tokens[16];
 				int tokens_count = zt_strTokenize(current_command->command, " ", tokens, zt_elementsOf(tokens));
 				if (tokens_count > 16) {
-					zt_debugConsoleLogError("Too many parameters");
+					zt_debugConsoleLogError("  Too many parameters");
 				}
 				else {
 					ztDebugConsoleParams(params);
@@ -5204,6 +5238,10 @@ ztInternal void _zt_guiDebugConsole()
 							break;
 						}
 						command = command->next;
+					}
+
+					if (command == nullptr) {
+						zt_debugConsoleLogWarning("  Command not found: %s", params[0]);
 					}
 				}
 
@@ -5230,11 +5268,11 @@ ztInternal void _zt_guiDebugConsole()
 
 		static ZT_FUNC_DEBUG_CONSOLE_COMMAND(command_list)
 		{
-			zt_debugConsoleLogSystem("Available commands:");
+			zt_debugConsoleLogCommand("  Available commands:");
 
 			auto *command = zt_gui->console_commands;
 			while (command) {
-				zt_debugConsoleLogSystem("  %s", command->command);
+				zt_debugConsoleLogCommand("    %s", command->command);
 				command = command->next;
 			}
 		}
@@ -5242,8 +5280,8 @@ ztInternal void _zt_guiDebugConsole()
 		static ZT_FUNC_DEBUG_CONSOLE_COMMAND(command_help)
 		{
 			if (params_count == 1 || zt_strEquals(params[1], "help")) {
-				zt_debugConsoleLogSystem("  Syntax: help <cmd>");
-				zt_debugConsoleLogSystem("  Type 'list' for a list of commands");
+				zt_debugConsoleLogHelp("  Syntax: help <<cmd>");
+				zt_debugConsoleLogHelp("  Type 'list' for a list of commands");
 			}
 			else {
 				char *help_cmd = params[1];
@@ -5257,7 +5295,7 @@ ztInternal void _zt_guiDebugConsole()
 					command = command->next;
 				}
 				if (command == nullptr) {
-					zt_debugConsoleLogError("  Invalid command: %s", help_cmd);
+					zt_debugConsoleLogWarning("  Command not found: %s", help_cmd);
 				}
 			}
 		}
@@ -5278,7 +5316,7 @@ ztInternal void _zt_guiDebugConsole()
 	zt_guiItemSetSize(window_id, ztVec2(10, 6));
 
 	ztGuiItemID display_container = zt_gui->console_display_container_id = zt_guiMakeScrollContainer(window_id, ztGuiScrollContainerFlags_ShowScrollVert);
-	zt_gui->console_display_id = display_id = zt_guiMakeStaticText(display_container, nullptr, zt_elementsOf(working_buffer));
+	zt_gui->console_display_id = display_id = zt_guiMakeStaticText(display_container, nullptr, ztGuiStaticTextFlags_Fancy, zt_elementsOf(working_buffer));
 	zt_guiScrollContainerSetItem(display_container, display_id);
 
 	zt_guiItemSetAlign(display_id, ztAlign_Left | ztAlign_Top);
@@ -5298,7 +5336,16 @@ ztInternal void _zt_guiDebugConsole()
 	zt_debugConsoleAddCommand("help", nullptr, local::command_help, local::command_help_auto);
 	zt_debugConsoleAddCommand("exit", "Quits the program", local::command_exit, nullptr);
 
-	zt_debugConsoleLogSystem("Welcome to the console.  Type 'help <cmd>' for help.  Type 'list' for commands.");
+	zt_debugConsoleLogCommand("<color=00aa00ff>Welcome to the console.  Type 'help <<cmd>' for help.  Type 'list' for commands.</color>");
+
+	zt_debugConsoleLogUser("** This is a user message");
+	zt_debugConsoleLogCommand("** This is a command message");
+	zt_debugConsoleLogHelp("** This is a help message");
+	zt_debugConsoleLogWarning("** This is a warning message");
+	zt_debugConsoleLogError("** This is an error message");
+	zt_debugConsoleLogSystem("** This is a systme message");
+
+	zt_guiItemShow(window_id, false);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5356,8 +5403,29 @@ void zt_debugConsoleRemoveCommand(const char *command)
 ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, const char *command)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, zt_gui->console_display_id, ztGuiItemType_StaticText);
+
+	char *color = nullptr;
+	switch (message_level)
+	{
+		case ztDebugConsoleLevel_User   : color = "b3b3b3ff"; break;
+		case ztDebugConsoleLevel_Command: color = nullptr; break;
+		case ztDebugConsoleLevel_Help   : color = "7f7ffeff"; break;
+		case ztDebugConsoleLevel_Warning: color = "cb8517ff"; break;
+		case ztDebugConsoleLevel_Error  : color = "cb4617ff"; break;
+		case ztDebugConsoleLevel_System : color = "b3ffb3ff"; break;
+	}
+
+	char lcl_command[1024];
+
+	if (color != nullptr) {
+		zt_strPrintf(lcl_command, zt_elementsOf(lcl_command), "<color=%s>%s</color>", color, command);
+	}
+	else {
+		zt_strPrintf(lcl_command, zt_elementsOf(lcl_command), "%s", command);
+	}
+
 	int str_len_label = zt_strLen(item->label);
-	int str_len = str_len_label + 2 + zt_strLen(command);
+	int str_len = str_len_label + 2 + zt_strLen(lcl_command);
 	int start = 0;
 
 	if (str_len > ZT_DEBUG_CONSOLE_BUFFER_SIZE) {
@@ -5374,7 +5442,7 @@ ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, c
 	if (str_len_label != 0) {
 		zt_strCpy((char*)zt_strMoveForward(buffer, str_len_label), 2, "\n");
 	}
-	zt_strCpy((char*)zt_strMoveForward(buffer, str_len_label + 1), str_len - (str_len_label + 1), command);
+	zt_strCpy((char*)zt_strMoveForward(buffer, str_len_label + 1), str_len - (str_len_label + 1), lcl_command);
 
 	zt_guiItemSetLabel(item->id, buffer);
 	zt_guiItemAutoSize(zt_gui->console_display_id);
@@ -5450,6 +5518,7 @@ void zt_debugConsoleToggle(bool *is_shown)
 	}
 	bool show = !zt_guiItemIsVisible(zt_gui->console_window_id);
 	zt_guiItemShow(zt_gui->console_window_id, show);
+	zt_guiTextEditSetValue(zt_gui->console_command_id, "");
 	zt_guiItemSetFocus(zt_gui->console_command_id);
 	if (is_shown) *is_shown = show;
 }
@@ -5516,6 +5585,7 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager)
 	_zt_guiDebugRenderingDetails();
 
 	zt_gui->console_window_id = ztInvalidID;
+	_zt_guiDebugConsole();
 }
 
 // ------------------------------------------------------------------------------------------------

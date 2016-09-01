@@ -967,6 +967,15 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len);
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 
+// fancy fonts allows colors to be added in the middle of text using the format:
+// "This text is <color=ff0000ff>red</color> text.
+// be sure to avoid spaces in the color specifier
+
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text);
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len);
+
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -2964,6 +2973,8 @@ bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color)
 
 bool zt_drawListPopColor(ztDrawList *draw_list)
 {
+	_zt_drawListCheck(draw_list);
+
 	int color_count = 0;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeColor && ++color_count == 2) {
@@ -2974,7 +2985,10 @@ bool zt_drawListPopColor(ztDrawList *draw_list)
 		}
 	}
 
-	return false;
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type = ztDrawCommandType_ChangeColor;
+	command->color = ztColor(1,1,1,1);
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6815,11 +6829,10 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 				current_row += 1;
 			}
 			else if (codepoint == ' ') {
-				total_width += font->space_width;
 				row_width += font->space_width;
 			}
 			else if (codepoint == '\t') {
-				total_width += font->space_width * 4; // TODO(josh): fix this
+				row_width += font->space_width * 4; // TODO(josh): fix this
 			}
 			continue;
 		}
@@ -6994,6 +7007,298 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	zt_drawListPopTexture(draw_list);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
+{
+	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+
+	if (text_len == 0) {
+		// we should return a valid height for empty lines
+		_zt_fontGetExtentsFancy(font_id, "A", 1, row, glyphs_idx, glyphs_size, width, height);
+		*width = 0;
+		return;
+	}
+
+	ztFont *font = &zt->fonts[font_id];
+
+	r32 total_width = 0;
+	r32 total_height = 0;
+	r32 row_width = 0;
+	r32 row_height = 0;
+
+	int current_row = 0;
+
+	bool in_format = false;
+	char format[128];
+	char *format_ptr = format;
+
+	zt_fiz(text_len) {
+		int glyph_idx = glyphs_idx[i];
+		char ch = (char)font->glyph_code_point[glyph_idx];
+		if (in_format) {
+			if (ch == '>') {
+				in_format = false;
+				*format_ptr = 0;
+				format_ptr = format;
+				continue;
+			}
+			else if (ch == '<') {
+				in_format = false;
+			}
+			else {
+				*format_ptr++ = ch;
+				zt_assert(format_ptr - format < zt_elementsOf(format));
+				continue;
+			}
+		}
+		else if (ch == '<') {
+			in_format = true;
+			continue;
+		}
+
+		if (glyph_idx < 0) {
+			if (row_height == 0) {
+				row_height = font->line_height;
+			}
+
+			i32 codepoint = zt_strCodepoint(text, i);
+			if (codepoint == '\n') {
+				if (current_row == row) {
+					*width = row_width;
+					*height = row_height;
+					return;
+				}
+				total_height += row_height + (font->line_spacing);
+				total_width = zt_max(total_width, row_width);
+				row_height = row_width = 0;
+				current_row += 1;
+			}
+			else if (codepoint == ' ') {
+				row_width += font->space_width;
+			}
+			else if (codepoint == '\t') {
+				row_width += font->space_width * 4; // TODO(josh): fix this
+			}
+			continue;
+		}
+
+		r32 x = font->glyphs[glyph_idx].x_adv;
+		r32 y = font->glyphs[glyph_idx].size.y;
+
+		row_width += x;
+		row_height = zt_max(row_height, y);
+	}
+	total_height += row_height;
+	total_width = zt_max(total_width, row_width);
+
+	if (row == current_row) {
+		*width = row_width;
+		*height = row_height;
+	}
+	else {
+		*width = total_width;
+		*height = total_height;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text)
+{
+	return zt_fontGetExtentsFancy(font_id, text, zt_strLen(text));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
+{
+	if (text == nullptr || text_len <= 0) {
+		return ztVec2::zero;
+	}
+
+	i32 glyphs_idx[1024 * 64];
+	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
+
+	ztVec2 result;
+	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags)
+{
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, align_flags, anchor_flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
+{
+	zt_returnOnNull(draw_list);
+	zt_returnOnNull(text);
+	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	if (text_len <= 0) return;
+
+	ztFont *font = &zt->fonts[font_id];
+
+	i32 glyphs_idx[1024 * 64];
+	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
+
+	r32 total_width = 0;
+	r32 total_height = 0;
+
+	int rows = _zt_fontGetRowCount(text, text_len);
+	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height);
+
+	r32 true_total_width = total_width;
+	r32 true_total_height = total_height;
+
+	ztVec2 size = ztVec2::zero; // TODO(josh): add support for setting area for font to fit to
+	if (size.x > total_width) total_width = size.x;
+	if (size.y > total_height) total_height = size.y;
+
+	ztVec2 position = pos;
+	if (zt_bitIsSet(anchor_flags, ztAnchor_Left)) { position.x += total_width / 2.f; }
+	else if (zt_bitIsSet(anchor_flags, ztAnchor_Right)) { position.x -= total_width / 2.f; }
+	if (zt_bitIsSet(anchor_flags, ztAnchor_Top)) { position.y -= total_height / 2.f; }
+	else if (zt_bitIsSet(anchor_flags, ztAnchor_Bottom)) { position.y += total_height / 1.f; }
+
+	r32 start_pos_y = (position.y + (true_total_height / 2)); // initially start out at the top left corner.  each row needs to subtract its height to get the proper start pos
+
+	if (zt_bitIsSet(align_flags, ztAlign_Top)) { start_pos_y += (total_height - true_total_height) / 2.f; }
+	else if (zt_bitIsSet(align_flags, ztAlign_Bottom)) { start_pos_y -= (total_height - true_total_height) / 2.f; }
+
+	zt_drawListPushTexture(draw_list, font->texture);
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	bool in_format = false;
+	char format[128];
+	char *format_ptr = format;
+
+	zt_drawListPushColor(draw_list, ztColor(1, 1, 1, 1));
+	int colors_pushed = 0;
+	for (int r = 0; r < rows; ++r) {
+		real32 row_width = 0;
+		real32 row_height = 0;
+		if (size.x == 0 && size.y == 0 && rows == 1) {
+			row_width = total_width;
+			row_height = total_height;
+		}
+		else {
+			_zt_fontGetExtentsFancy(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height);
+		}
+
+		int start_char = 0, length = 0;
+		_zt_fontGetRowInfo(text, text_len, r, &start_char, &length);
+
+		start_pos_y -= row_height;
+
+		r32 start_pos_x = position.x - (total_width / 2.f);
+
+		if (zt_bitIsSet(align_flags, ztAlign_Center)) {
+			start_pos_x = position.x - (row_width / 2.f);
+		}
+		else if (zt_bitIsSet(align_flags, ztAlign_Right)) {
+			start_pos_x = position.x + (total_width / 2.f - row_width);
+		}
+
+		real32 spacing = 0;
+
+		ztVec2 position;
+		ztVec2 units_size;
+		ztVec3 rotation = ztVec3::zero;
+
+		r32 scale_x = 1;
+		r32 scale_y = 1;
+
+		ztVec3 dl_pos[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+		ztVec2 dl_uvs[4];
+		ztVec3 dl_nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+		for (int i = start_char; i < start_char + length; ++i) {
+			int glyph_idx = glyphs_idx[i];
+
+			char ch = (char)font->glyph_code_point[glyph_idx];
+			if (in_format) {
+				if (ch == '>') {
+					in_format = false;
+					*format_ptr = 0;
+					format_ptr = format;
+
+					if (zt_strStartsWith(format, "color=") && zt_strLen(format) == 14) {
+						r32 r = zt_strToIntHex(format + 6, 2, 1) / 255.f;
+						r32 g = zt_strToIntHex(format + 8, 2, 1) / 255.f;
+						r32 b = zt_strToIntHex(format + 10, 2, 1) / 255.f;
+						r32 a = zt_strToIntHex(format + 12, 2, 1) / 255.f;
+						zt_drawListPushColor(draw_list, ztColor(r, g, b, a));
+						colors_pushed += 1;
+					}
+					else if (zt_strStartsWith(format, "/color")) {
+						zt_drawListPopColor(draw_list);
+						colors_pushed -= 1;
+					}
+
+					continue;
+				}
+				else if (ch == '<') {
+					in_format = false;
+				}
+				else {
+					*format_ptr++ = ch;
+					zt_assert(format_ptr - format < zt_elementsOf(format));
+					continue;
+				}
+			}
+			else if (ch == '<') {
+				in_format = true;
+				continue;
+			}
+
+			if (glyph_idx < 0) {
+				if (text[i] == ' ') {
+					start_pos_x += font->space_width * scale_x;
+				}
+				else if (text[i] == '\t') {
+					start_pos_x += font->space_width * 4 * scale_x; // TODO(josh): fix
+				}
+				continue;
+			}
+
+			ztFont::ztGlyph* glyph = &font->glyphs[glyph_idx];
+
+			units_size.x = glyph->size.x * scale_x;
+			units_size.y = glyph->size.y * scale_y;
+			row_height = zt_max(row_height, units_size.y);
+
+			position.x = glyph->offset.x + start_pos_x;
+			position.y = start_pos_y - glyph->offset.y;
+			zt_alignToPixel(&position.x, ppu);
+			zt_alignToPixel(&position.y, ppu);
+
+			// points in ccw order
+			dl_pos[0].x = position.x; dl_pos[1].x = position.x;                dl_pos[2].x = position.x + units_size.x; dl_pos[3].x = position.x + units_size.x;
+			dl_pos[0].y = position.y; dl_pos[1].y = position.y - units_size.y; dl_pos[2].y = position.y - units_size.y; dl_pos[3].y = position.y;
+
+			dl_uvs[0].x = glyph->tex_uv.x; dl_uvs[1].x = glyph->tex_uv.x; dl_uvs[2].x = glyph->tex_uv.z; dl_uvs[3].x = glyph->tex_uv.z;
+			dl_uvs[0].y = glyph->tex_uv.y; dl_uvs[1].y = glyph->tex_uv.w; dl_uvs[2].y = glyph->tex_uv.w; dl_uvs[3].y = glyph->tex_uv.y;
+
+			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+
+			start_pos_x += glyph->x_adv;
+		}
+
+		start_pos_y -= font->line_spacing * scale_y;
+	}
+	zt_fiz(colors_pushed) {
+		zt_drawListPopColor(draw_list);
+	}
+	zt_drawListPopColor(draw_list);
+
+	zt_drawListPopTexture(draw_list);
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
