@@ -1015,6 +1015,17 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 
 
 // ------------------------------------------------------------------------------------------------
+// collisions
+
+// rects have a center and a size
+// the LL functions use a rect with the x/y point being the lower left corner
+
+bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size);
+bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
+bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size);
+bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -8919,6 +8930,34 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 	}
 
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
+{
+	return zt_collisionPointInRect(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h)
+{
+	return zt_collisionPointInRectLL(p_x, p_y, rect_x - rect_w / 2.f, rect_y - rect_h / 2.f, rect_w, rect_h);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
+{
+	return zt_collisionPointInRectLL(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h)
+{
+	return !(p_x < rect_x || p_y < rect_y || p_x > rect_x + rect_w || p_y > rect_y + rect_h);
 }
 
 // ------------------------------------------------------------------------------------------------
