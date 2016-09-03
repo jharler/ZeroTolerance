@@ -2151,6 +2151,7 @@ ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label)
 			}
 
 			ztVec2 pos = offset + item->pos;
+			zt_alignToPixel(&pos, zt_pixelsPerUnit());
 			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(pos, 0));
 			zt_drawListPushColor(draw_list, ztVec4(0, 1, 1, 0));
 			zt_drawListAddEmptyRect(draw_list, pos, item->size);
@@ -2253,7 +2254,9 @@ ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, i32 flag
 				}
 			}
 
-			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(offset + item->pos, 0));
+			ztVec3 pos(offset + item->pos, 0);
+			zt_alignToPixel(&pos, zt_pixelsPerUnit());
+			zt_drawListAddDrawList(draw_list, item->draw_list, pos);
 		}
 
 		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
@@ -4201,8 +4204,9 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags,
 					sel_beg = idx_end_line + 1;
 				}
 			}
-
-			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(text_pos, 0));
+			ztVec3 dlpos(text_pos, 0);
+			zt_alignToPixel(&dlpos, zt_pixelsPerUnit());
+			zt_drawListAddDrawList(draw_list, item->draw_list, dlpos);
 			//ztVec2 text_size = zt_fontGetExtents(theme->font, item->textedit.text_buffer);
 			//zt_drawListAddText2D(draw_list, theme->font, item->textedit.text_buffer, text_pos, ztAlign_Left|ztAlign_Top, ztAnchor_Left|ztAnchor_Top);
 
