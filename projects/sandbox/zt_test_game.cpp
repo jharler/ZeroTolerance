@@ -166,74 +166,46 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
-	zt_fiz(0){
+	{
 		ztGuiItemID window = zt_guiMakeWindow("Test Window");
-		zt_guiItemSetSize(window, ztVec2(10, 7));
-		zt_guiItemSetPosition(window, i == 0 ? ztVec2(7.f + i, 0.f + i) : ztVec2(-7.f, 0.f));
+		zt_guiItemSetSize(window, ztVec2(5, 7));
+		zt_guiItemSetPosition(window, ztVec2(7.f, 0.f));
 
-		//zt_gui->gui_managers[0]->item_cache[window].debug_highlight = ztVec4(0, 1, 1, 1);
+		ztGuiItemID sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+		zt_guiSizerSizeToParent(sizer);
 
-		zt_strMakePrintf(text, 128, "This is window %d", i + 1);
-		ztGuiItemID text_id = zt_guiMakeStaticText(window, text);
-		zt_guiItemSetPosition(text_id, ztVec2(-3.75f, 2.25f));
-
-		zt_guiItemSetPosition(zt_guiMakeStaticText(window, "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\n[\\]^_abcdefghijklmnopqrstuvwxyz{|}~"), ztVec2(0, 2.75f));
-
-		ztGuiItemID button_id = zt_guiMakeButton(window, "Button", 0, &g_game->button_live_value);
-		zt_guiItemSetPosition(button_id, ztVec2(2.15f, -3.15f));
-
-		ztGuiItemID tbutton_id = zt_guiMakeToggleButton(window, "Toggle Button", 0);
-		zt_guiItemSetPosition(tbutton_id, ztVec2(3.85f, -3.15f));
-
-		ztGuiItemID ibutton_id = zt_guiMakeButton(window, "icon");
-		zt_guiItemSetPosition(ibutton_id, ztVec2(1, -2.15f));
-
-		ztSprite sprite = zt_spriteMake(zt_gui->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(1, 81), ztPoint2(21, 21));
-		zt_guiButtonSetIcon(ibutton_id, &sprite);
-		zt_guiItemSetSize(ibutton_id, ztVec2(1.25f, 1.25f));
-		zt_guiItemSetAlign(ibutton_id, ztAlign_Right);
-		zt_guiButtonSetTextPosition(ibutton_id, ztAlign_Bottom);
-
-		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", 0), ztVec2(2.25f, 2));
-		zt_guiItemSetPosition(zt_guiMakeCheckbox(window, "Checkbox", ztGuiCheckboxFlags_RightText), ztVec2(2.25f, 2.3f));
-		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", 0), ztVec2(3.75f, 2));
-		zt_guiItemSetPosition(zt_guiMakeRadioButton(window, "Radio", ztGuiRadioButtonFlags_RightText), ztVec2(3.75f, 2.3f));
-
-		g_game->slider_live_value = 0;
-		ztGuiItemID slider_id = zt_guiMakeSlider(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
-		zt_guiItemSetPosition(slider_id, i == 0 ? ztVec2(0, 1.75f) : ztVec2(4.75f, 0));
-		zt_guiItemSetSize(slider_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
-
-		ztGuiItemID scrollbar_id = zt_guiMakeScrollbar(window, i == 0 ? ztGuiItemOrient_Horz : ztGuiItemOrient_Vert, &g_game->slider_live_value);
-		zt_guiItemSetPosition(scrollbar_id, i == 0 ? ztVec2(0, 1.25f) : ztVec2(4.0f, 0));
-		zt_guiItemSetSize(scrollbar_id, i == 0 ? ztVec2(10, -1) : ztVec2(-1, 7));
-
-		struct local
 		{
-			static void on_pressed(ztGuiItemID item_id)
+			ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel");
+			zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
+
 			{
-				zt_logDebug("button pressed: %d", item_id);
+				ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
+				ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+				zt_guiSizerSizeToParent(sizer2);
+
+				ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some text.");
+				zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
+
+				zt_guiSizerAddItem(sizer2, zt_guiMakeCheckbox(sizer2, "A Checkbox"), 0, 3 / zt_pixelsPerUnit());
 			}
-		};
-		zt_guiButtonSetCallback(button_id, local::on_pressed);
-		zt_guiButtonSetCallback(tbutton_id, local::on_pressed);
-
-		ztGuiItemID scroll_container = zt_guiMakeScrollContainer(window);
-		zt_guiItemSetPosition(scroll_container, ztVec2(1, 0));
-		zt_guiItemSetSize(scroll_container, ztVec2(3, 1));
-		{
-			ztGuiItemID text = zt_guiMakeStaticText(scroll_container, "This is line number 1\nThis is line number 2\nThis is line number 3\nThis is line number 4\nThis is line number 5\n");
-			zt_guiScrollContainerSetItem(scroll_container, text);
 		}
-		
+		{
+			ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel 2");
+			zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
 
-		ztGuiItemID text_edit = zt_guiMakeTextEdit(window, "Testing\nTesting a really,' really, really long line of text.\nOne Two Three\nFour\nFive\nSix\nSeven\nEight\nNine\nTen\nEleven\nTwelve", ztGuiTextEditFlags_MultiLine);
-		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2));
-		zt_guiItemSetSize(text_edit, ztVec2(3, 1));
+			{
+				ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
+				ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+				zt_guiSizerSizeToParent(sizer2);
 
-		text_edit = zt_guiMakeTextEdit(window, "This is a test string");
-		zt_guiItemSetPosition(text_edit, ztVec2(-1.75f, -2.75f));
-		zt_guiItemSetSize(text_edit, ztVec2(3, -1));
+				ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some more text.");
+				zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
+
+				zt_guiSizerAddItem(sizer2, zt_guiMakeStaticText(sizer2, "A much longer line of text with\na new line in the middle of it."), 0, 3 / zt_pixelsPerUnit());
+
+			}
+		}
+		zt_guiSizerAddStretcher(sizer, 1);
 	}
 
 	{
@@ -371,40 +343,6 @@ bool game_loop(r32 dt)
 		}
 	}
 
-
-
-	static bool button_value = false;
-	if (button_value != g_game->button_live_value) {
-		button_value = g_game->button_live_value;
-		zt_logDebug("button_live_value changed");
-
-		static ztGuiItemID menu = ztInvalidID;
-		if (menu == ztInvalidID) {
-			menu = zt_guiMakeMenu();
-			zt_guiMenuAppend(menu, "Menu Item 1", 1);
-			zt_guiMenuAppend(menu, "Menu Item 2", 2);
-			zt_guiMenuAppend(menu, "Menu Item 3", 3);
-
-			ztSprite sprite = zt_spriteMake(zt_gui->gui_managers[g_game->gui_manager]->default_theme.sprite_button.normal.sns.tex, ztPoint2(84, 17), ztPoint2(8, 8));
-			zt_guiMenuAppend(menu, "Icon Menu Item", 4, &sprite);
-
-			ztGuiItemID submenu = zt_guiMakeMenu();
-			zt_guiMenuAppend(submenu, "Submenu Item 1", 4);
-			zt_guiMenuAppend(submenu, "Submenu Item 2", 5);
-
-
-			ztGuiItemID submenu2 = zt_guiMakeMenu();
-			zt_guiMenuAppend(submenu2, "Submenu 2 Item 1", 4);
-			zt_guiMenuAppend(submenu2, "Submenu 2 Item 2", 5);
-			zt_guiMenuAppendSubmenu(submenu2, "Recursive Submenu", menu);
-
-			zt_guiMenuAppendSubmenu(submenu, "Submenu", submenu2);
-
-			zt_guiMenuAppendSubmenu(menu, "Submenu", submenu);
-		}
-
-		zt_guiMenuPopupAtPosition(menu, zt_cameraOrthoScreenToWorld(&g_game->gui_camera, mouse->screen_x, mouse->screen_y));
-	}
 
 	{
 		{
