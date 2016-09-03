@@ -2546,7 +2546,7 @@ void zt_drawListFree(ztDrawList *draw_list)
 
 // ------------------------------------------------------------------------------------------------
 
-#define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if (draw_list->commands_count >= draw_list->commands_size) return false;
+#define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if (draw_list->commands_count >= draw_list->commands_size) { zt_assert(false && "ztDrawList command overflow"); return false; };
 
 // ------------------------------------------------------------------------------------------------
 
@@ -3975,6 +3975,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
 		}
+
 #endif // ZT_OPENGL
 	}
 	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
@@ -6044,7 +6045,8 @@ void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 	r32 abval = zt_abs(*val *ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 //	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
-	if (rem > .25f && rem < .75f) {
+	//if (rem >= .375f && rem <= .625f) {
+	if (rem >= .25f && rem < .75f) {
 		if (*val >= 0) {
 			*val = zt_convertToi32Floor((*val * ppu)) / ppu;
 			if (offset) *offset += rem / ppu;
@@ -6902,7 +6904,6 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
-	zt_returnOnNull(text);
 	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
 	if (text_len <= 0) return;
 
@@ -7531,54 +7532,62 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 		}
 	};
 
-	r32 center_add_x = 0, center_add_y = 0;
-	zt_alignToPixel(&upper_left.x, ppu, &center_add_x);
-	zt_alignToPixel(&upper_left.y, ppu, &center_add_y);
-	zt_alignToPixel(&upper_right.x, ppu, &center_add_x);
-	zt_alignToPixel(&upper_right.y, ppu, &center_add_y);
-	zt_alignToPixel(&lower_left.x, ppu, &center_add_x);
-	zt_alignToPixel(&lower_left.y, ppu, &center_add_y);
-	zt_alignToPixel(&lower_right.x, ppu, &center_add_x);
-	zt_alignToPixel(&lower_right.y, ppu, &center_add_y);
+	r32 ul_center_add_x = 0, ul_center_add_y = 0;
+	zt_alignToPixel(&upper_left.x, ppu, &ul_center_add_x);
+	zt_alignToPixel(&upper_left.y, ppu, &ul_center_add_y);
+
+	r32 ur_center_add_x = 0, ur_center_add_y = 0;
+	zt_alignToPixel(&upper_right.x, ppu, &ur_center_add_x);
+	zt_alignToPixel(&upper_right.y, ppu, &ur_center_add_y);
+
+	r32 ll_center_add_x = 0, ll_center_add_y = 0;
+	zt_alignToPixel(&lower_left.x, ppu, &ll_center_add_x);
+	zt_alignToPixel(&lower_left.y, ppu, &ll_center_add_y);
+
+	r32 lr_center_add_x = 0, lr_center_add_y = 0;
+	zt_alignToPixel(&lower_right.x, ppu, &lr_center_add_x);
+	zt_alignToPixel(&lower_right.y, ppu, &lr_center_add_y);
+
+	//center_add_x = center_add_y = 0;
 
 	zt_drawListPushTexture(draw_list, sns->tex);
 
 	// center
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, center.y, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) - center_add_x), size.y - ((sns->sz_n + sns->sz_s) - center_add_y)),
+										  ztVec2(size.x - ((sns->sz_e + sns->sz_w)), size.y - ((sns->sz_n + sns->sz_s))),
 										  sns->sp_c.xy, sns->sp_c.zw);
 	// west
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, center.y, 0),
-										  ztVec2(sns->sz_w * scale_corners.x, size.y - ((sns->sz_n + sns->sz_s) - center_add_y)),
+										  ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x, size.y - ((sns->sz_n + sns->sz_s) + ul_center_add_y)),
 										  sns->sp_w.xy, sns->sp_w.zw);
 	// east
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, center.y, 0),
-										  ztVec2(sns->sz_e * scale_corners.x, size.y - ((sns->sz_n + sns->sz_s) - center_add_y)),
+										  ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x, size.y - ((sns->sz_n + sns->sz_s) + ur_center_add_y)),
 										  sns->sp_e.xy, sns->sp_e.zw);
 	// north
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) - center_add_x), sns->sz_n * scale_corners.y),
+										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) + ul_center_add_x), sns->sz_n * scale_corners.y + ul_center_add_y),
 										  sns->sp_n.xy, sns->sp_n.zw);
 	// south
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) - center_add_x), sns->sz_s * scale_corners.y),
+										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) + ll_center_add_x), sns->sz_s * scale_corners.y + ll_center_add_y),
 										  sns->sp_s.xy, sns->sp_s.zw);
 
 	// north west corner sprite
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_w * scale_corners.x, sns->sz_n * scale_corners.y),
+										  ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x, sns->sz_n * scale_corners.y + ul_center_add_y),
 										  sns->sp_nw.xy, sns->sp_nw.zw);
 	// north east corner sprite
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, upper_right.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_e * scale_corners.x, sns->sz_n * scale_corners.y),
+										  ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x, sns->sz_n * scale_corners.y + ur_center_add_y),
 										  sns->sp_ne.xy, sns->sp_ne.zw);
 	// south west corner sprite
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_left.x + (sns->sz_w * scale_corners.x) / 2.f, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_w * scale_corners.x, sns->sz_s * scale_corners.y),
+										  ztVec2(sns->sz_w * scale_corners.x + ll_center_add_x, sns->sz_s * scale_corners.y + ll_center_add_y),
 										  sns->sp_sw.xy, sns->sp_sw.zw);
 	// south east corner sprite
 	zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_right.x - (sns->sz_e * scale_corners.x) / 2.f, lower_right.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_e * scale_corners.x, sns->sz_s * scale_corners.y),
+										  ztVec2(sns->sz_e * scale_corners.x + lr_center_add_x, sns->sz_s * scale_corners.y + lr_center_add_y),
 										  sns->sp_se.xy, sns->sp_se.zw);
 	zt_drawListPopTexture(draw_list);
 }
