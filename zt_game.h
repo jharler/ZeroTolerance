@@ -943,6 +943,8 @@ void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
 
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset = nullptr);
+void zt_alignToPixel(ztVec2 *val, r32 ppu);
+void zt_alignToPixel(ztVec3 *val, r32 ppu);
 
 // ------------------------------------------------------------------------------------------------
 // fonts
@@ -6056,6 +6058,23 @@ void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 			if (offset) *offset += (1.f - rem) / ppu;
 		}
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_alignToPixel(ztVec2 *val, r32 ppu)
+{
+	zt_alignToPixel(&val->x, ppu);
+	zt_alignToPixel(&val->y, ppu);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_alignToPixel(ztVec3 *val, r32 ppu)
+{
+	zt_alignToPixel(&val->x, ppu);
+	zt_alignToPixel(&val->y, ppu);
+	zt_alignToPixel(&val->z, ppu);
 }
 
 // ------------------------------------------------------------------------------------------------
