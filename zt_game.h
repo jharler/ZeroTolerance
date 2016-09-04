@@ -6652,7 +6652,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				x_adv_ttl += val;
 			}
 		}
-
 		if (*codepoint != -1) {
 			glyph->tex_uv.z += glyph->tex_uv.x;
 			glyph->tex_uv.w += glyph->tex_uv.y;
@@ -7400,13 +7399,14 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 
 	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
-	r32 pos_x = position.x, pos_y = position.y, ppu = zt_pixelsPerUnit();
-	zt_alignToPixel(&pos_x, ppu);
-	zt_alignToPixel(&pos_y, ppu);
+	r32 ppu = zt_pixelsPerUnit();
 
 	zt_fiz(4) {
-		pos[i].x += pos_x;
-		pos[i].y += pos_y;
+		pos[i].x += position.x;
+		pos[i].y += position.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
 	}
 
 	zt_drawListPushTexture(draw_list, sprite->tex);
