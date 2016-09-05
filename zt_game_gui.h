@@ -348,6 +348,8 @@ enum ztGuiScrollContainerFlags_Enum
 {
 	ztGuiScrollContainerFlags_ShowScrollVert = (1 << 31),
 	ztGuiScrollContainerFlags_ShowScrollHorz = (1 << 30),
+	ztGuiScrollContainerFlags_StretchVert    = (1 << 29),
+	ztGuiScrollContainerFlags_StretchHorz    = (1 << 28),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -381,6 +383,7 @@ bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager);
 // ------------------------------------------------------------------------------------------------
 
 ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags = ztGuiWindowFlags_Default);
+ztGuiItemID zt_guiMakeScrollWindow(const char *title, i32 scroll_dir, i32 flags = ztGuiWindowFlags_Default); // set the size of the content item
 ztGuiItemID zt_guiMakePanel(ztGuiItemID parent, i32 item_flags = 0);
 ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label);
 ztGuiItemID zt_guiMakeStaticText(ztGuiItemID parent, const char *label, i32 flags = 0, i32 max_chars = 64);
@@ -549,6 +552,7 @@ void zt_guiSizerAddItem(ztGuiItemID sizer, ztGuiItemID item_id, int proportion, 
 void zt_guiSizerAddStretcher(ztGuiItemID sizer, int proportion, r32 padding = 0);
 
 void zt_guiSizerSizeToParent(ztGuiItemID sizer, bool size_to_parent = true);
+void zt_guiSizerSizeParent(ztGuiItemID sizer, bool size_parent_x = true, bool size_parent_y = true);
 
 void zt_guiSizerRecalc(ztGuiItemID item);
 void zt_guiSizerRecalcImmediately(ztGuiItemID sizer);
@@ -798,6 +802,7 @@ struct ztGuiItem
 			ztSizerItemEntry *items;
 			r32 size[2];
 			bool size_to_parent;
+			bool size_parent_x, size_parent_y;
 		} sizer;
 	};
 };
@@ -1709,6 +1714,8 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 	zt_returnOnNull(draw_list);
 	_zt_guiManagerCheckAndGet(gm, gui_manager);
 
+//#define _zt_guiManagerRenderClipAreas
+
 	struct local
 	{
 		static void renderItem(ztGuiManager *gm, ztGuiItem *item, ztDrawList *draw_list, const ztVec2& offset)
@@ -1724,10 +1731,20 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 			bool clip = zt_bitIsSet(item->flags, ztGuiItemFlags_ClipContents);
 			if (clip) {
 				if (item->clip_area != ztVec4::zero) {
-					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					if defined(_zt_guiManagerRenderClipAreas)
+						zt_drawListPushColor(draw_list, ztVec4(1, 0, 0, .5f));
+						zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					else
+						zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					endif
 				}
 				else {
-					zt_drawListPushClipRegion(draw_list, pos, item->size);
+#					if defined(_zt_guiManagerRenderClipAreas)
+						zt_drawListPushColor(draw_list, ztVec4(0, 1, 0, .5f));
+						zt_drawListAddEmptyRect(draw_list, pos, item->size);
+#					else
+						zt_drawListPushClipRegion(draw_list, pos, item->size);
+#					endif
 				}
 			}
 
@@ -1737,24 +1754,38 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 
 			zt_bitRemove(item->flags, ztGuiItemFlags_Dirty);
 
-#if _DEBUG
-			if (item->debug_highlight != ztVec4::zero) {
-				zt_drawListPushColor(draw_list, item->debug_highlight);
-				zt_drawListAddEmptyRect(draw_list, pos, item->size);
-				zt_drawListPopColor(draw_list);
-			}
-#endif
+#			if _DEBUG
+				if (item->debug_highlight != ztVec4::zero) {
+					zt_drawListPushColor(draw_list, item->debug_highlight);
+					zt_drawListAddEmptyRect(draw_list, pos, item->size);
+					zt_drawListPopColor(draw_list);
+				}
+#			endif
 			if (!clip && zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren) ) {
 				clip = true;
 				if (item->clip_area != ztVec4::zero) {
-					zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					if defined(_zt_guiManagerRenderClipAreas)
+						zt_drawListPushColor(draw_list, ztVec4(1, 1, 0, 1));
+						zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					else
+						zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+#					endif
 				}
 				else {
-					zt_drawListPushClipRegion(draw_list, pos, item->size);
+#					if defined(_zt_guiManagerRenderClipAreas)
+						zt_drawListPushColor(draw_list, ztVec4(0, 1, 1, 1));
+						zt_drawListAddEmptyRect(draw_list, pos, item->size);
+#					else
+						zt_drawListPushClipRegion(draw_list, pos, item->size);
+#					endif
 				}
 			}
 			else if (clip && !zt_bitIsSet(item->flags, ztGuiItemFlags_ClipChildren)) {
-				zt_drawListPopClipRegion(draw_list);
+#				if defined(_zt_guiManagerRenderClipAreas)
+					zt_drawListPopColor(draw_list);
+#				else
+					zt_drawListPopClipRegion(draw_list);
+#				endif
 				clip = false;
 			}
 
@@ -1765,7 +1796,11 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 			}
 
 			if (clip) {
-				zt_drawListPopClipRegion(draw_list);
+#				if defined(_zt_guiManagerRenderClipAreas)
+					zt_drawListPopColor(draw_list);
+#				else
+					zt_drawListPopClipRegion(draw_list);
+#				endif
 			}
 		}
 	};
@@ -1776,6 +1811,11 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 		local::renderItem(gm, child, draw_list, ztVec2::zero);
 		child = child->sib_next;
 	}
+
+#	if defined(_zt_guiManagerRenderClipAreas)
+#		undef _zt_guiManagerRenderClipAreas
+#	endif
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1900,14 +1940,18 @@ ztInternal ztGuiItem *_zt_guiMakeItemBase(ztGuiManager *gm, ztGuiItemID parent, 
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztGuiWindowInternalFlags_Enum
+{
+	ztGuiWindowInternalFlags_Resizing = (1 << 31),
+	ztGuiWindowInternalFlags_Collapsed = (1 << 30),
+	ztGuiWindowInternalFlags_ScrollHorz = (1 << 29),
+	ztGuiWindowInternalFlags_ScrollVert = (1 << 28),
+};
+
+// ------------------------------------------------------------------------------------------------
+
 ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 {
-	enum ztGuiWindowInternalFlags_Enum
-	{
-		ztGuiWindowInternalFlags_Resizing = (1 << 31),
-		ztGuiWindowInternalFlags_Collapsed = (1 << 30),
-	};
-
 	struct local
 	{
 		static ZT_FUNC_GUI_ITEM_RENDER(render)
@@ -1963,8 +2007,8 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 						ztVec2 mpos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
 
 						ztVec2 resize_pos(pos.x + ((item->size.x / 2) - (theme->sprite_icon_resize.half_size.x + theme->padding)), pos.y - ((item->size.y / 2) - (theme->sprite_icon_resize.half_size.y + theme->padding)));
-
-						if (zt_collisionPointInRect(mpos, resize_pos, theme->sprite_icon_resize.half_size * ztVec2(2, 2))) {
+						ztVec2 resize_size(theme->sprite_icon_resize.half_size.x * 2 + theme->padding, theme->sprite_icon_resize.half_size.y * 2 + theme->padding);
+						if (zt_collisionPointInRect(mpos, resize_pos, resize_size)) {
 							item->window.flags |= ztGuiWindowInternalFlags_Resizing;
 							item->window.resize[0] = item->window.resize[1] = 0;
 							item->window.pos[0] = item->pos.x;
@@ -1985,7 +2029,7 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 				item->size.x = item->window.size[0] + item->window.resize[0];
 				item->size.y = item->window.size[1] - item->window.resize[1];
 
-				//zt_logDebug("resize: %.2f, %.2f", item->window.resize[0], item->window.resize[1]);
+				zt_guiSizerRecalcImmediately(item->id);
 				return result;
 			}
 			else {
@@ -2040,12 +2084,35 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 	if (zt_bitIsSet(flags, ztGuiWindowFlags_ShowTitle)) {
 		ztGuiItemID sizer_main = zt_guiMakeSizer(item_id, ztGuiItemOrient_Vert);
 		zt_guiSizerSizeToParent(sizer_main, true);
+		zt_debugOnly(zt_guiItemSetName(sizer_main, "Window Main Sizer"));
+		_zt_guiItemFromID(sizer_main_item, sizer_main);
+		sizer_main_item->debug_highlight = ztVec4::zero;
+
+		ztGuiItemID scroll_container = ztInvalidID;
+		if (zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollHorz) || zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollVert)) {
+			i32 sflags = (zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollHorz) ? ztGuiItemOrient_Horz : 0) |
+						 (zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollVert) ? ztGuiItemOrient_Vert : 0);
+
+			if (!zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollHorz)) sflags |= ztGuiScrollContainerFlags_StretchHorz;
+			if (!zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollVert)) sflags |= ztGuiScrollContainerFlags_StretchVert;
+
+			scroll_container = zt_guiMakeScrollContainer(sizer_main, sflags);
+		}
 
 		ztGuiItem *content = _zt_guiMakeItemBase(gm, sizer_main, ztGuiItemType_Panel, 0, &item->window.content_id);
+		zt_debugOnly(zt_guiItemSetName(item->window.content_id, "Window Content Panel"));
+
 		ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
 
 		zt_guiSizerAddStretcher(sizer_main, 0, theme->window_title_height / 2.f);
-		zt_guiSizerAddItem(sizer_main, item->window.content_id, 1, 3 / zt_pixelsPerUnit());
+
+		if (scroll_container != ztInvalidID) {
+			zt_guiScrollContainerSetItem(scroll_container, item->window.content_id);
+			zt_guiSizerAddItem(sizer_main, scroll_container, 1, 3 / zt_pixelsPerUnit());
+		}
+		else {
+			zt_guiSizerAddItem(sizer_main, item->window.content_id, 1, 3 / zt_pixelsPerUnit());
+		}
 
 		r32 diff = theme->window_title_height - ((theme->sprite_icon_close.half_size.y + theme->button_padding_h) * 2.f);
 		if (zt_bitIsSet(flags, ztGuiWindowFlags_AllowClose)) {
@@ -2078,6 +2145,16 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 	item->functions.input_mouse = local::inputMouse;
 
 	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItemID zt_guiMakeScrollWindow(const char *title, i32 scroll_dir, i32 flags)
+{
+	i32 scroll_flags = (zt_bitIsSet(scroll_dir, ztGuiItemOrient_Horz) ? ztGuiWindowInternalFlags_ScrollHorz : 0) |
+					   (zt_bitIsSet(scroll_dir, ztGuiItemOrient_Vert) ? ztGuiWindowInternalFlags_ScrollVert : 0);
+
+	return zt_guiMakeWindow(title, scroll_flags | flags);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2151,11 +2228,12 @@ ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label)
 					content_panel->size.y = size.y;
 					item->size.x = zt_max(item->size.x, size.x);
 					item->size.y = theme->collapsing_panel_header_h + size.y;
-					zt_guiSizerRecalcImmediately(content_panel->id);
 
 					content_panel->pos.x = 0;
 					content_panel->pos.y = -theme->collapsing_panel_header_h / 2.f;
 					zt_guiItemShow(item->collapsing_panel.content_panel_id);
+
+					//zt_guiSizerRecalcImmediately(content_panel->id);
 				}
 
 				zt_guiSizerRecalcImmediately(zt_guiItemGetTopLevelParent(item_id));
@@ -2191,9 +2269,26 @@ ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label)
 			zt_drawListAddEmptyRect(draw_list, pos, item->size);
 			zt_drawListPopColor(draw_list);
 
-			//pos.x += (item->size.x / -2.f) + button->size.x + theme->padding;
-			//pos.y += (item->size.y - theme->collapsing_panel_header_h) / 2.f;
-			//zt_drawListAddText2D(draw_list, theme->font, item->label, pos, ztAlign_Left, ztAnchor_Left);
+			pos.x += (item->size.x / -2.f) + button->size.x + theme->padding;
+			pos.y += (item->size.y - theme->collapsing_panel_header_h) / 2.f;
+			zt_drawListAddText2D(draw_list, theme->font, item->label, pos, ztAlign_Left, ztAnchor_Left);
+
+		}
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(bestSize)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+
+			ztVec2 ext = zt_fontGetExtents(theme->font, item->label);
+			ztVec2 m_size = ext;
+			m_size.x += theme->padding * 2;
+			m_size.y = zt_max(m_size.y, theme->collapsing_panel_header_h);
+
+			if (min_size) *min_size = m_size;
+			if (size) {
+				size->x = zt_max(size->x, m_size.x);
+				size->y = zt_max(size->y, m_size.y);
+			}
 		}
 
 		static  ZT_FUNC_GUI_BUTTON_PRESSED(onToggle)
@@ -2242,7 +2337,10 @@ ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label)
 
 	item->functions.update = local::update;
 	item->functions.render = local::render;
+	item->functions.best_size = local::bestSize;
 	item->functions.user_data = gm;
+
+	local::bestSize(item_id, nullptr, nullptr, &item->size, theme, gm);
 
 	return item_id;
 }
@@ -3424,10 +3522,13 @@ ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags)
 			}
 
 			ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+			ztGuiItem *contained = &gm->item_cache[item->scrolled_container.contained_item];
 
 			ztVec2 size = item->size;
 			ztVec2 pos = item->pos;
 			ztVec2 orig_pos = pos;
+			ztVec2 orig_size = contained->size;
+
 			_zt_guiScrollContainerCalcViewportSizePos(gm, item, &pos, &size);
 			item->scrolled_container.viewport_pos[0] = pos.x - orig_pos.x;
 			item->scrolled_container.viewport_pos[1] = pos.y - orig_pos.y;
@@ -3437,7 +3538,13 @@ ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags)
 			zt_guiItemSetSize(item->scrolled_container.viewport, size);
 			zt_guiItemSetPosition(item->scrolled_container.viewport, ztVec2(item->scrolled_container.viewport_pos[0], item->scrolled_container.viewport_pos[1]));
 
-			ztGuiItem *contained = &gm->item_cache[item->scrolled_container.contained_item];
+
+			if (zt_bitIsSet(item->flags, ztGuiScrollContainerFlags_StretchVert)) {
+				contained->size.y = size.y - theme->scroll_container_padding_y * 2;
+			}
+			if (zt_bitIsSet(item->flags, ztGuiScrollContainerFlags_StretchHorz)) {
+				contained->size.x = size.x - theme->scroll_container_padding_x * 2;
+			}
 
 			r32 horz_amt = (item->scrolled_container.scrollbar_horz == ztInvalidID || !zt_guiItemIsVisible(item->scrolled_container.scrollbar_horz) || !zt_guiItemIsEnabled(item->scrolled_container.scrollbar_horz)) ? 0 : item->scrolled_container.scroll_amt_horz;
 			r32 vert_amt = (item->scrolled_container.scrollbar_vert == ztInvalidID || !zt_guiItemIsVisible(item->scrolled_container.scrollbar_vert) || !zt_guiItemIsEnabled(item->scrolled_container.scrollbar_vert)) ? 0 : item->scrolled_container.scroll_amt_vert;
@@ -3445,9 +3552,12 @@ ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags)
 			contained->pos.x = (((size.x - contained->size.x) / -2.f) + theme->scroll_container_padding_x) - (horz_amt * ((contained->size.x - size.x) + theme->scroll_container_padding_x * 2));
 			contained->pos.y = (((size.y - contained->size.y) /  2.f) - theme->scroll_container_padding_y) + (vert_amt * ((contained->size.y - size.y) + theme->scroll_container_padding_y * 2));
 
-			pos = zt_guiItemPositionScreenToLocal(item->scrolled_container.contained_item, pos);
-			gm->item_cache[item->scrolled_container.contained_item].flags |= ztGuiItemFlags_ClipChildren;
-			gm->item_cache[item->scrolled_container.contained_item].clip_area = ztVec4(pos.x + item->pos.x, pos.y - item->pos.y, size.x - theme->scroll_container_padding_x * 2, size.y - theme->scroll_container_padding_y * 2);
+			gm->item_cache[item->scrolled_container.viewport].flags |= ztGuiItemFlags_ClipChildren;
+			gm->item_cache[item->scrolled_container.viewport].clip_area = ztVec4(0, 0, size.x - theme->scroll_container_padding_x * 2, size.y - theme->scroll_container_padding_y * 2);
+
+			if (contained->size != orig_size) {
+				zt_guiSizerRecalc(contained->id);
+			}
 		}
 
 		// ------------------------------------------------------------------------------------
@@ -3533,6 +3643,10 @@ ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags)
 	item->scrolled_container.viewport_pos[1] = 0;
 	item->scrolled_container.viewport_size[0] = 0;
 	item->scrolled_container.viewport_size[1] = 0;
+
+	zt_debugOnly(zt_guiItemSetName(item->scrolled_container.scrollbar_horz, "Horz Scrollbar"));
+	zt_debugOnly(zt_guiItemSetName(item->scrolled_container.scrollbar_vert, "Vert Scrollbar"));
+	zt_debugOnly(zt_guiItemSetName(item->scrolled_container.viewport, "Viewport"));
 
 	//zt_debugOnly(item->debug_highlight = ztVec4(1, 0, 0, 1));
 	//zt_debugOnly(gm->item_cache[item->scrolled_container.viewport].debug_highlight = ztVec4(0, 1, 0, 1));
@@ -4824,8 +4938,39 @@ ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient)
 				item->sizer.size[1] = item->size.y = item->parent->size.y;
 			}
 			else {
-				if (item->size == ztVec2::zero) {
+				if (item->size == ztVec2::zero && !item->sizer.size_parent_x && !item->sizer.size_parent_y) {
 					return;
+				}
+
+				if (item->sizer.size_parent_x || item->sizer.size_parent_y) {
+					ztVec2 min_size = _zt_guiSizerMinSize(item);
+
+					bool recalc = false;
+					if (item->sizer.size_parent_x) {
+						if (item->parent->size.x != min_size.x) {
+							item->size.x = item->parent->size.x = min_size.x;
+							recalc = true;
+						}
+					}
+					else {
+						item->size.x = item->parent->size.x;
+						recalc = true;
+					}
+
+					if (item->sizer.size_parent_y) {
+						if (item->parent->size.y != min_size.y) {
+							item->size.y = item->parent->size.y = min_size.y;
+							recalc = true;
+						}
+					}
+					else {
+						item->size.y = item->parent->size.y;
+						recalc = true;
+					}
+
+					if (recalc) {
+						zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(item->parent->id));
+					}
 				}
 
 				item->sizer.size[0] = item->size.x;
@@ -4939,6 +5084,7 @@ ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient)
 	item->sizer.orient = orient;
 	item->sizer.size[0] = item->sizer.size[1] = 0;
 	item->sizer.size_to_parent = false;
+	item->sizer.size_parent_x = item->sizer.size_parent_y = false;
 	item->sizer.items = nullptr;
 
 	item->functions.cleanup = local::cleanup;
@@ -4991,6 +5137,15 @@ void zt_guiSizerSizeToParent(ztGuiItemID sizer_id, bool size_to_parent)
 {
 	_zt_guiItemTypeFromIDReturnOnError(sizer, sizer_id, ztGuiItemType_Sizer);
 	sizer->sizer.size_to_parent = size_to_parent;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSizerSizeParent(ztGuiItemID sizer_id, bool size_parent_x, bool size_parent_y)
+{
+	_zt_guiItemTypeFromIDReturnOnError(sizer, sizer_id, ztGuiItemType_Sizer);
+	sizer->sizer.size_parent_x = size_parent_x;
+	sizer->sizer.size_parent_y = size_parent_y;
 }
 
 // ------------------------------------------------------------------------------------------------

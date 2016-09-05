@@ -167,45 +167,50 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
 	{
-		ztGuiItemID window = zt_guiMakeWindow("Test Window");
+		ztGuiItemID window = zt_guiMakeScrollWindow("Test Window", ztGuiItemOrient_Vert);
 		zt_guiItemSetSize(window, ztVec2(5, 7));
 		zt_guiItemSetPosition(window, ztVec2(7.f, 0.f));
 
 		ztGuiItemID sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
-		zt_guiSizerSizeToParent(sizer);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiItemSetName(sizer, "SizeParentSizer");
 
-		{
-			ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel");
-			zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
-
+		zt_fkz(4) {
 			{
-				ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
-				ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-				zt_guiSizerSizeToParent(sizer2);
+				ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel");
+				zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
 
-				ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some text.");
-				zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
+				{
+					ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
+					ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+					zt_guiSizerSizeToParent(sizer2);
 
-				zt_guiSizerAddItem(sizer2, zt_guiMakeCheckbox(sizer2, "A Checkbox"), 0, 3 / zt_pixelsPerUnit());
+					ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some text.");
+					zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
+
+					zt_guiSizerAddItem(sizer2, zt_guiMakeCheckbox(sizer2, "A Checkbox"), 0, 3 / zt_pixelsPerUnit());
+				}
 			}
-		}
-		{
-			ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel 2");
-			zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
-
 			{
-				ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
-				ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-				zt_guiSizerSizeToParent(sizer2);
+				ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel 2");
+				zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
 
-				ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some more text.");
-				zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
+				{
+					ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
+					ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+					zt_guiSizerSizeToParent(sizer2);
 
-				zt_guiSizerAddItem(sizer2, zt_guiMakeStaticText(sizer2, "A much longer line of text with\na new line in the middle of it."), 0, 3 / zt_pixelsPerUnit());
+					ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some more text.");
+					zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
 
+					zt_guiSizerAddItem(sizer2, zt_guiMakeStaticText(sizer2, "A much longer line of text with\na new line in the middle of it."), 0, 3 / zt_pixelsPerUnit());
+
+				}
 			}
 		}
 		zt_guiSizerAddStretcher(sizer, 1);
+
+		//zt_debugLogGuiHierarchy(window);
 	}
 
 	{
