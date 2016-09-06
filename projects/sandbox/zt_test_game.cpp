@@ -212,6 +212,30 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 		//zt_debugLogGuiHierarchy(window);
 	}
+	{
+		ztGuiItemID window = zt_guiMakeWindow("Tree Test");
+		zt_guiItemSetSize(window, ztVec2(5, 7));
+		zt_guiItemSetPosition(window, ztVec2(-7, 0));
+
+		ztGuiItemID content = zt_guiWindowGetContentParent(window);
+		ztGuiItemID sizer = zt_guiMakeSizer(content, ztGuiItemOrient_Vert);
+		zt_guiSizerSizeToParent(sizer);
+
+		ztGuiItemID tree = zt_guiMakeTree(sizer, 256);
+		zt_guiSizerAddItem(sizer, tree, 1, 3 / zt_pixelsPerUnit());
+
+		ztGuiTreeNodeID root = zt_guiTreeAppend(tree, "Root", nullptr);
+		zt_guiTreeAppend(tree, "Subitem 1", nullptr, root);
+		zt_guiTreeAppend(tree, "Subitem 2", nullptr, root);
+		ztGuiTreeNodeID subitem = zt_guiTreeAppend(tree, "Subitem 3", nullptr, root);
+		zt_guiTreeAppend(tree, "Sub-Subitem 1", nullptr, subitem);
+		zt_guiTreeAppend(tree, "Sub-Subitem 2x", nullptr, subitem);
+		zt_guiTreeAppend(tree, "Subitem 4", nullptr, root);
+
+		ztGuiTreeNodeID subitem2 = zt_guiTreeAppend(tree, zt_guiMakeButton(tree, "Button"), nullptr, root);
+		zt_guiTreeAppend(tree, "Button Subitem", nullptr, subitem2);
+		zt_guiTreeAppend(tree, "Subitem 5", nullptr, root);
+	}
 
 	{
 		zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png", game_details->user_path);

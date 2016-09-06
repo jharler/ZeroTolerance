@@ -146,10 +146,13 @@ struct ztGuiTheme
 	ztGuiThemeSprite       sprite_menu_submenu;
 	ztGuiThemeSprite       sprite_menu_check;
 
+	ztGuiThemeSprite       sprite_tree_background;
+	ztGuiThemeSprite       sprite_tree_highlight;
+
 	ztGuiThemeSprite       sprite_group;
 	ztGuiThemeSprite       sprite_slider;
-	ztGuiThemeSprite       sprite_tree_collapse;
-	ztGuiThemeSprite       sprite_tree_expand;
+	ztSprite               sprite_tree_collapse;
+	ztSprite               sprite_tree_expand;
 
 	ztSprite               sprite_icon_close;
 	ztSprite               sprite_icon_resize;
@@ -198,6 +201,7 @@ struct ztGuiTheme
 	r32 menu_submenu_icon_x;
 	r32 menu_submenu_icon_y;
 
+	r32 tree_indent;
 
 	r32 padding; // space around interior items
 	r32 spacing; // space between interior items
@@ -244,6 +248,7 @@ enum ztGuiItemFlags_Enum
 	ztGuiItemFlags_BringToFront     = (1<<6),
 	ztGuiItemFlags_Dirty            = (1<<7),
 	ztGuiItemFlags_Disabled         = (1<<8),
+	ztGuiItemFlags_Locked           = (1<<9),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -268,7 +273,7 @@ typedef ZT_FUNC_GUI_ITEM_INPUT_MOUSE(zt_guiItemInputMouse_Func);
 
 // ------------------------------------------------------------------------------------------------
 
-#define ZT_FUNC_GUI_BUTTON_PRESSED(name) void name(ztGuiItemID button_id)
+#define ZT_FUNC_GUI_BUTTON_PRESSED(name) void name(ztGuiItemID button_id, void *user_data)
 typedef ZT_FUNC_GUI_BUTTON_PRESSED(zt_guiButtonPressed_Func);
 
 #define ZT_FUNC_GUI_MENU_SELECTED(name) void name(ztGuiItemID menu_id, i32 menu_item)
@@ -396,9 +401,7 @@ ztGuiItemID zt_guiMakeScrollbar(ztGuiItemID parent, ztGuiItemOrient_Enum orient,
 ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags = 0);
 ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags = 0, i32 buffer_size = 1024);
 ztGuiItemID zt_guiMakeMenu();
-ztGuiItemID zt_guiMakeTab(ztGuiItemID parent);
-ztGuiItemID zt_guiMakeTree(ztGuiItemID parent);
-ztGuiItemID zt_guiMakeProgressBar(ztGuiItemID parent, ztGuiItemOrient_Enum orient);
+ztGuiItemID zt_guiMakeTree(ztGuiItemID parent, i32 max_items);
 
 ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient);
 
@@ -466,7 +469,7 @@ void zt_guiCollapsingPanelExpand(ztGuiItemID panel);
 // used for button and toggle button
 void zt_guiButtonSetIcon(ztGuiItemID button, ztSprite *icon);
 void zt_guiButtonSetTextPosition(ztGuiItemID button, i32 align_flags);
-void zt_guiButtonSetCallback(ztGuiItemID button, zt_guiButtonPressed_Func);
+void zt_guiButtonSetCallback(ztGuiItemID button, zt_guiButtonPressed_Func, void *user_data = nullptr);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -525,10 +528,6 @@ void zt_guiMenuPopupAtItem(ztGuiItemID menu, ztGuiItemID item, i32 align_flags, 
 void zt_guiMenuPopupAtPosition(ztGuiItemID menu, const ztVec2& pos);
 bool zt_guiMenuGetSelected(ztGuiItemID menu, i32 *selected_id);
 void zt_guiMenuSetCallback(ztGuiItemID menu, zt_guiMenuSelected_Func *on_selected);
-
-// ------------------------------------------------------------------------------------------------
-
-void zt_guiTabAddTab(ztGuiItemID tab, ztGuiItemID item, const char *tab_title, i32 flags = 0);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -692,6 +691,21 @@ struct ztGuiItem
 
 	// -------------------------------------------------
 
+	struct ztTreeItem
+	{
+		ztGuiTreeNodeID node_id;
+		bool expanded;
+		ztGuiItemID control_button_id;
+		ztGuiItemID item_id;
+		void *user_data;
+
+		ztTreeItem *first_child;
+		ztTreeItem *next;
+		ztTreeItem *parent;
+	};
+
+	// -------------------------------------------------
+
 	union {
 		struct {
 			i32 flags;
@@ -719,6 +733,7 @@ struct ztGuiItem
 			bool *live_value;
 			i32 flags;
 			zt_guiButtonPressed_Func *on_pressed;
+			void *on_pressed_user_data;
 			ztSprite *icon;
 			i32 text_pos;
 		} button;
@@ -804,6 +819,19 @@ struct ztGuiItem
 			bool size_to_parent;
 			bool size_parent_x, size_parent_y;
 		} sizer;
+
+		// -------------------------------------------------
+
+		struct {
+			ztGuiItemID container_id;
+			ztGuiItemID content_id;
+
+			ztTreeItem *root_item;
+			ztTreeItem *active_item;
+
+			ztGuiTreeNodeID last_id;
+			ztMemoryArena* arena;
+		} tree;
 	};
 };
 
@@ -1237,6 +1265,13 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 		gm->default_theme.sprite_icon_resize = zt_spriteMake(tex, ztPoint2(64, 64), ztPoint2(16, 16));
 		gm->default_theme.sprite_icon_collapse = zt_spriteMake(tex, ztPoint2(1, 52), ztPoint2(13, 13));
 		gm->default_theme.sprite_icon_expand = zt_spriteMake(tex, ztPoint2(14, 49), ztPoint2(13, 13));
+
+		gm->default_theme.sprite_tree_background = gm->default_theme.sprite_panel;
+		gm->default_theme.sprite_tree_highlight = gm->default_theme.sprite_menu_highlight;
+		gm->default_theme.sprite_tree_collapse = gm->default_theme.sprite_icon_collapse;
+		gm->default_theme.sprite_tree_expand = gm->default_theme.sprite_icon_expand;
+
+		gm->default_theme.tree_indent = 10 / ppu;
 #endif
 	}
 
@@ -2086,7 +2121,6 @@ ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags)
 		zt_guiSizerSizeToParent(sizer_main, true);
 		zt_debugOnly(zt_guiItemSetName(sizer_main, "Window Main Sizer"));
 		_zt_guiItemFromID(sizer_main_item, sizer_main);
-		sizer_main_item->debug_highlight = ztVec4::zero;
 
 		ztGuiItemID scroll_container = ztInvalidID;
 		if (zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollHorz) || zt_bitIsSet(flags, ztGuiWindowInternalFlags_ScrollVert)) {
@@ -2265,9 +2299,6 @@ ztGuiItemID zt_guiMakeCollapsingPanel(ztGuiItemID parent, const char *label)
 			ztVec2 pos = offset + item->pos;
 			zt_alignToPixel(&pos, zt_pixelsPerUnit());
 			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(pos, 0));
-			zt_drawListPushColor(draw_list, ztVec4(0, 1, 1, 0));
-			zt_drawListAddEmptyRect(draw_list, pos, item->size);
-			zt_drawListPopColor(draw_list);
 
 			pos.x += (item->size.x / -2.f) + button->size.x + theme->padding;
 			pos.y += (item->size.y - theme->collapsing_panel_header_h) / 2.f;
@@ -2469,7 +2500,7 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 						*item->button.live_value = value;
 					}
 					if (item->button.on_pressed) {
-						item->button.on_pressed(item_id);
+						item->button.on_pressed(item_id, item->button.on_pressed_user_data);
 					}
 					return true;
 				}
@@ -2806,13 +2837,14 @@ void zt_guiButtonSetTextPosition(ztGuiItemID button, i32 align_flags)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiButtonSetCallback(ztGuiItemID button, zt_guiButtonPressed_Func on_pressed)
+void zt_guiButtonSetCallback(ztGuiItemID button, zt_guiButtonPressed_Func on_pressed, void *user_data)
 {
 	_zt_guiItemFromID(item, button);
 	zt_returnOnNull(item);
 	zt_assert(item->type == ztGuiItemType_Button || item->type == ztGuiItemType_ToggleButton || item->type == ztGuiItemType_Checkbox || item->type == ztGuiItemType_RadioButton);
 
 	item->button.on_pressed = on_pressed;
+	item->button.on_pressed_user_data = user_data;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4888,6 +4920,485 @@ void zt_guiMenuSetCallback(ztGuiItemID menu, zt_guiMenuSelected_Func *on_selecte
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_guiTreeCalculateSize(ztGuiItem *item)
+{
+	_zt_guiItemFromID(content, item->tree.content_id);
+	content->size = ztVec2::zero;
+
+	struct local
+	{
+		static void hideAll(ztGuiItem::ztTreeItem *tree_entry)
+		{
+			zt_guiItemHide(tree_entry->control_button_id);
+			zt_guiItemHide(tree_entry->item_id);
+
+			ztGuiItem::ztTreeItem *child = tree_entry->first_child;
+			while (child) {
+				hideAll(child);
+				child = child->next;
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static void addToSize(ztGuiItem::ztTreeItem *tree_entry, ztGuiTheme *theme, ztVec2 *size, r32 indent_size, int *shown_items)
+		{
+			_zt_guiItemFromID(tree_item, tree_entry->item_id);
+
+			if (tree_item->size.x + indent_size > size->x) {
+				r32 icon_size = theme->sprite_tree_collapse.half_size.x * 2;
+				size->x = tree_item->size.x + indent_size + icon_size + theme->padding * 2;
+			}
+
+			size->y += tree_item->size.y;
+
+			shown_items += 1;
+
+			if (tree_entry->expanded) {
+				ztGuiItem::ztTreeItem *child = tree_entry->first_child;
+				while (child) {
+					addToSize(child, theme, size, indent_size + theme->tree_indent, shown_items);
+					child = child->next;
+				}
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static void reposition(ztGuiItem::ztTreeItem *tree_entry, ztGuiTheme *theme, r32 x, r32* y, r32 w, r32 indent_size)
+		{
+			_zt_guiItemFromID(tree_item, tree_entry->item_id);
+
+			tree_item->flags |= ztGuiItemFlags_Visible;
+			tree_item->pos.x = x + indent_size + (tree_item->size.x / 2);
+			tree_item->pos.y = *y - (tree_item->size.y / 2);
+
+			if (tree_entry->control_button_id != ztInvalidID && tree_entry->first_child != nullptr) {
+				_zt_guiItemFromID(button, tree_entry->control_button_id);
+				button->flags |= ztGuiItemFlags_Visible;
+				button->pos.x = x + theme->padding + indent_size - theme->tree_indent;
+				button->pos.y = *y - (button->size.y / 2);
+			}
+
+			*y -= tree_item->size.y;
+
+			if (tree_entry->expanded) {
+				ztGuiItem::ztTreeItem *child = tree_entry->first_child;
+				while (child) {
+					reposition(child, theme, x, y, w, indent_size + theme->tree_indent);
+					child = child->next;
+				}
+			}
+		}
+	};
+
+	ztGuiItem::ztTreeItem *child = item->tree.root_item->first_child;
+	while (child) {
+		local::hideAll(child);
+		child = child->next;
+	}
+
+	int shown_items = 0;
+	ztVec2 size = ztVec2::zero;
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item->id);
+	child = item->tree.root_item->first_child;
+	while (child) {
+		local::addToSize(child, theme, &size, 0, &shown_items);
+		child = child->next;
+	}
+
+	size.y += theme->scroll_container_padding_y * 2;
+
+	r32 x = theme->padding + size.x / -2;
+	r32 y = size.y / 2;
+
+	child = item->tree.root_item->first_child;
+	while (child) {
+		local::reposition(child, theme, x, &y, size.x, theme->tree_indent);
+		child = child->next;
+	}
+
+	content->size = size;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItemID zt_guiMakeTree(ztGuiItemID parent, i32 max_items)
+{
+	struct local
+	{
+		// ------------------------------------------------------------------------------------------------
+
+		static ztGuiItem::ztTreeItem *mouseIntersecting(ztGuiItem::ztTreeItem *root, ztVec2& mpos, ztVec2& pos, ztVec2& size)
+		{
+			if (root->item_id != ztInvalidID) {
+				_zt_guiItemFromID(item, root->item_id);
+
+				size.y = item->size.y;
+
+				if (zt_collisionPointInRect(mpos, pos, size)) {
+					return root;
+				}
+
+				pos.y -= size.y;
+
+				if (root->expanded == false) {
+					return nullptr;
+				}
+			}
+
+			ztGuiItem::ztTreeItem *child = root->first_child;
+			while (child) {
+				ztGuiItem::ztTreeItem *intersecting = mouseIntersecting(child, mpos, pos, size);
+				if (intersecting) {
+					return intersecting;
+				}
+				child = child->next;
+			}
+
+			return nullptr;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_INPUT_MOUSE(inputMouse)
+		{
+			_zt_guiItemAndManagerReturnValOnError(gm, item, item_id, false);
+
+			if (input_mouse->leftJustReleased() && item->tree.root_item->first_child) {
+				ztVec2 mpos = zt_cameraOrthoScreenToWorld(gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+				ztVec2 pos = zt_guiItemPositionLocalToScreen(item->tree.root_item->first_child->item_id, ztVec2::zero);
+
+				_zt_guiItemFromID(content, item->tree.content_id);
+				ztVec2 size(item->size.x, 0);
+
+				pos.x += content->size.x;
+
+				ztGuiItem::ztTreeItem *intersecting = mouseIntersecting(item->tree.root_item, mpos, pos, size);
+				if (intersecting) {
+					item->tree.active_item = intersecting;
+				}				
+			}
+
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_UPDATE(update)
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
+
+			if (zt_bitIsSet(item->flags, ztGuiItemFlags_Dirty)) {
+				_zt_guiTreeCalculateSize(item);
+
+				_zt_guiItemFromID(container, item->tree.container_id);
+				container->size = item->size;
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_RENDER(render)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+			ztVec2 pos = offset + item->pos;
+
+			zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_tree_background, pos, item->size);
+
+			if (item->tree.active_item != nullptr) {
+				bool visible = true;
+				ztGuiItem::ztTreeItem *parent = item->tree.active_item->parent;
+				while (parent) {
+					if (!parent->expanded) {
+						visible = false;
+						break;
+					}
+					parent = parent->parent;
+				}
+				if (visible) {
+					_zt_guiItemFromID(active, item->tree.active_item->item_id);
+					ztVec2 npos = zt_guiItemPositionLocalToScreen(active->id, ztVec2::zero);
+					zt_drawListAddGuiThemeSprite(draw_list, &theme->sprite_tree_highlight, npos, active->size);
+				}
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_CLEANUP(cleanup)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			zt_freeArena(item->tree.arena, gm->arena);
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(best_size)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+		}
+	};
+
+
+	ztGuiManager *gm = zt_gui->gui_managers[zt_gui->active_gui_manager];
+	zt_returnValOnNull(gm, ztInvalidID);
+
+	ztGuiItemID item_id = ztInvalidID;
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_Tree, ztGuiItemFlags_WantsFocus | ztGuiItemFlags_BringToFront, &item_id);
+	if (!item) return ztInvalidID;
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+
+	item->tree.container_id = zt_guiMakeScrollContainer(item_id);
+	item->tree.content_id = zt_guiMakePanel(parent, 0);
+	zt_guiScrollContainerSetItem(item->tree.container_id, item->tree.content_id);
+
+	item->tree.arena = zt_memMakeArena(max_items * zt_sizeof(ztGuiItem::ztTreeItem), gm->arena);
+	item->tree.last_id = -1;
+
+	item->tree.root_item = zt_mallocStructArena(ztGuiItem::ztTreeItem, item->tree.arena);
+	zt_memSet(item->tree.root_item, zt_sizeof(ztGuiItem::ztTreeItem), 0);
+	item->tree.root_item->expanded = true;
+	item->tree.root_item->node_id = ++item->tree.last_id;
+	item->tree.root_item->item_id = ztInvalidID;
+
+	item->functions.cleanup = local::cleanup;
+	item->functions.update = local::update;
+	item->functions.input_mouse = local::inputMouse;
+	item->functions.render = local::render;
+	item->functions.best_size = local::best_size;
+	item->functions.user_data = gm;
+
+	ztVec2 min_size;
+	local::best_size(item->id, &min_size, nullptr, &item->size, theme, gm);
+
+	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItemID tree_id, const char *item, void *user_data, ztGuiTreeNodeID parent_id)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, false);
+
+	ztGuiItemID item_id = zt_guiMakeStaticText(tree->tree.content_id, item);
+	ztGuiTreeNodeID result = zt_guiTreeAppend(tree_id, item_id, user_data, parent_id);
+	zt_logDebug("tree added '%s' (id: %d)", item, result);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem::ztTreeItem *_zt_guiTreeFindNode(ztGuiItem *tree, ztGuiItem::ztTreeItem *root, ztGuiTreeNodeID node_id)
+{
+	if (root->node_id == node_id) {
+		return root;
+	}
+
+	ztGuiItem::ztTreeItem *child = root->first_child;
+	while (child) {
+		ztGuiItem::ztTreeItem *result = _zt_guiTreeFindNode(tree, child, node_id);
+		if (result) return result;
+		child = child->next;
+	}
+
+	return nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItemID tree_id, ztGuiItemID item, void *user_data, ztGuiTreeNodeID parent_id)
+{
+	struct local
+	{
+		static bool toggleItem(ztGuiItem *tree, ztGuiItem::ztTreeItem *root, ztGuiItemID button_id)
+		{
+			if (root->control_button_id == button_id) {
+				root->expanded = !root->expanded;
+				tree->flags |= ztGuiItemFlags_Dirty;
+
+				ztGuiTheme *theme = zt_guiItemGetTheme(button_id);
+				zt_guiButtonSetIcon(button_id, root->expanded ? &theme->sprite_tree_collapse : &theme->sprite_tree_expand);
+				return true;
+			}
+			else {
+				ztGuiItem::ztTreeItem *child = root->first_child;
+				while (child) {
+					if (toggleItem(tree, child, button_id)) {
+						return true;
+					}
+					child = child->next;
+				}
+				return false;
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_BUTTON_PRESSED(onToggle)
+		{
+			ztGuiItem *tree = (ztGuiItem*)user_data;
+			toggleItem(tree, tree->tree.root_item, button_id);
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ztGuiItem::ztTreeItem *appendItem(ztGuiItem *tree, ztGuiItem::ztTreeItem *root, ztGuiTreeNodeID parent_node)
+		{
+			if (parent_node != ztInvalidID && parent_node != root->node_id) {
+				ztGuiItem::ztTreeItem *node = root->first_child;
+				while (node) {
+					auto *tree_item = appendItem(tree, node, parent_node);
+					if (tree_item) {
+						return tree_item;
+					}
+					node = node->next;
+				}
+				return nullptr;
+			}
+
+			ztGuiItem::ztTreeItem *tree_item = zt_mallocStructArena(ztGuiItem::ztTreeItem, tree->tree.arena);
+			zt_memSet(tree_item, zt_sizeof(ztGuiItem::ztTreeItem), 0);
+
+			tree_item->node_id = ++tree->tree.last_id;
+			tree_item->expanded = true;
+			tree_item->parent = root;
+			
+			tree_item->control_button_id = zt_guiMakeButton(tree->tree.content_id, nullptr, ztGuiButtonFlags_NoBackground | ztGuiButtonFlags_OnPressDip);
+
+			ztGuiTheme *theme = zt_guiItemGetTheme(tree->id);
+			zt_guiButtonSetIcon(tree_item->control_button_id, &theme->sprite_tree_collapse);
+			zt_guiButtonSetCallback(tree_item->control_button_id, local::onToggle, tree);
+
+			zt_singleLinkAddToEnd(root->first_child, tree_item);
+
+			return tree_item;
+		}
+	};
+
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, false);
+
+	zt_guiItemReparent(item, tree->tree.content_id);
+
+	ztGuiItem::ztTreeItem *tree_item = local::appendItem(tree, tree->tree.root_item, parent_id);
+	if (tree_item == nullptr) {
+		return ztInvalidID;
+	}
+
+	tree_item->item_id = item;
+	tree_item->user_data = user_data;
+
+	if (!zt_bitIsSet(tree->flags, ztGuiItemFlags_Locked)) {
+		_zt_guiTreeCalculateSize(tree);
+	}
+
+	return tree_item->node_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiTreeNodeID zt_guiTreeGetSelected(ztGuiItemID tree_id)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, ztInvalidID);
+	return tree->tree.active_item ? tree->tree.active_item->node_id : ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiTreeSetSelected(ztGuiItemID tree_id, ztGuiTreeNodeID node)
+{
+	struct local
+	{
+		static bool findAndSelect(ztGuiItem *tree, ztGuiItem::ztTreeItem *tree_item, ztGuiTreeNodeID node)
+		{
+			if (tree_item->item_id == node) {
+				tree->tree.active_item = tree_item;
+				return true;
+			}
+
+			ztGuiItem::ztTreeItem *child = tree_item->first_child;
+			while (child) {
+				if (findAndSelect(tree, child, node)) {
+					return true;
+				}
+				child = child->next;
+			}
+
+			return false;
+		}
+	};
+	_zt_guiItemTypeFromIDReturnOnError(tree, tree_id, ztGuiItemType_Tree);
+	local::findAndSelect(tree, tree->tree.root_item, node);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiTreeNodeID zt_guiTreeGetRoot(ztGuiItemID tree_id)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, ztInvalidID);
+	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItemID zt_guiTreeGetNodeItem(ztGuiItemID tree_id, ztGuiTreeNodeID node)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, ztInvalidID);
+
+	ztGuiItem::ztTreeItem *tree_item = _zt_guiTreeFindNode(tree, tree->tree.root_item, node);
+	return tree_item ? tree_item->item_id : ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void *zt_guiTreeGetNodeUserData(ztGuiItemID tree_id, ztGuiTreeNodeID node)
+{
+	_zt_guiItemTypeFromIDReturnValOnError(tree, tree_id, ztGuiItemType_Tree, nullptr);
+
+	ztGuiItem::ztTreeItem *tree_item = _zt_guiTreeFindNode(tree, tree->tree.root_item, node);
+	return tree_item ? tree_item->user_data : nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiTreeClear(ztGuiItemID tree_id)
+{
+	_zt_guiItemTypeFromIDReturnOnError(tree, tree_id, ztGuiItemType_Tree);
+
+	struct local
+	{
+		static void clear(ztMemoryArena *arena, ztGuiItem::ztTreeItem *tree_item)
+		{
+			if (tree_item->control_button_id != ztInvalidID) {
+				zt_guiItemFree(tree_item->control_button_id);
+			}
+			if (tree_item->item_id != ztInvalidID) {
+				zt_guiItemFree(tree_item->item_id);
+			}
+
+			ztGuiItem::ztTreeItem *child = tree_item->first_child;
+			while (child) {
+				clear(arena, child);
+				child = child->next;
+			}
+
+			if (tree_item->parent) { // don't clear the root item, we need it for later
+				zt_freeArena(tree_item, arena);
+			}
+		}
+	};
+
+	local::clear(tree->tree.arena, tree->tree.root_item);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 {
 	bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
@@ -5582,12 +6093,18 @@ ztGuiTheme *zt_guiItemGetTheme(ztGuiItemID item_id)
 
 void zt_guiItemLock(ztGuiItemID item_id)
 {
+	_zt_guiItemFromID(item, item_id);
+	zt_returnOnNull(item);
+	item->flags |= ztGuiItemFlags_Locked;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_guiItemUnlock(ztGuiItemID item_id)
 {
+	_zt_guiItemFromID(item, item_id);
+	zt_returnOnNull(item);
+	zt_bitRemove(item->flags, ztGuiItemFlags_Locked);
 }
 
 // ------------------------------------------------------------------------------------------------
