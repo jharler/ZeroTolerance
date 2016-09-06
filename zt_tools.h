@@ -658,6 +658,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size);
 void zt_memFree(ztMemoryArena *arena, void *data);
 
+void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory);
+
 #define zt_memAlloc(arena, size) zt_memAllocFromArena(arena, size, __FILE__, __LINE__)
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug); // logs details including unfreed allocations
@@ -1912,6 +1914,22 @@ void zt_memFreeArena(ztMemoryArena *arena)
 		free(arena);
 #endif
 
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
+{
+	arena->current_used = 0;
+	arena->peak_used = 0;
+	arena->alloc_cnt = 0;
+	arena->free_cnt = 0;
+	arena->latest = nullptr;
+	arena->freed_allocs = 0;
+
+	if (wipe_memory) {
+		zt_memSet(arena->memory, arena->total_size, 0);
 	}
 }
 
