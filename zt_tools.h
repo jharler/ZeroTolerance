@@ -66,6 +66,9 @@
 
 #if defined(_MSC_VER)
 #	define ZT_COMPILER_MSVC
+#	if defined(_DEBUG)
+#		define ZT_DEBUG
+#	endif
 #	if defined(_WIN32)
 #		define ZT_WIN32
 #	elif defined(_WIN64)
@@ -127,7 +130,7 @@
 #define zt_elementsOf(native_array)	((int)(sizeof(native_array) / sizeof((native_array)[0])))
 #define zt_sizeof(type) ((i32)sizeof(type))
 
-#if _DEBUG
+#if defined(ZT_DEBUG)
 #define zt_debugOnly(code)	code
 #define zt_releaseOnly(code)
 #else
@@ -663,6 +666,7 @@ void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory);
 #define zt_memAlloc(arena, size) zt_memAllocFromArena(arena, size, __FILE__, __LINE__)
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug); // logs details including unfreed allocations
+bool zt_memArenaValidate(ztMemoryArena *arena);
 
 // some systems will use the global arena stack to determine if it should use a memory arena
 // note it's possible to push a null arena onto the stack to cause these systems to use malloc/free (or whatever default you set)
@@ -1937,7 +1941,7 @@ void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
 
 void zt_memValidateArena(ztMemoryArena *arena)
 {
-#if _DEBUG
+#if defined(ZT_DEBUG)
 	{
 		// the list of allocations need to be in ascending memory location order, test for that
 		auto *prev = arena->latest;
@@ -1998,19 +2002,25 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		while (alloc) {
 			if (alloc->freed == 1 && bytes <= alloc->length) {
 				i32 remaining = alloc->length - (zt_sizeof(ztMemoryArena::allocation) + bytes);
-				if (remaining > zt_sizeof(ztMemoryArena::allocation)) {
+				if (remaining > (zt_sizeof(ztMemoryArena::allocation) + 4)) {
 					ztMemoryArena::allocation *original = alloc;
-					original->length = remaining - zt_sizeof(ztMemoryArena::allocation);
+					original->length = remaining - (zt_sizeof(ztMemoryArena::allocation) + 4);
 					zt_debugOnly(original->file = nullptr);
 					zt_debugOnly(original->file_line = 0);
 
-					ztMemoryArena::allocation *inserted = (ztMemoryArena::allocation *)((byte *)original->start + original->length);
+					byte *end_of_mem = (byte*)original->start + original->length;
+					zt_fiz(4) *end_of_mem++ = 0xcd;
+
+					ztMemoryArena::allocation *inserted = (ztMemoryArena::allocation *)((byte *)original->start + original->length + 4);
 					inserted->magic[0] = 'M';
 					inserted->magic[1] = 'R';
 					inserted->magic[2] = 'E';
 					inserted->arena = arena;
 					inserted->start = (byte *)inserted + zt_sizeof(ztMemoryArena::allocation);
 					inserted->length = bytes;
+
+					end_of_mem = (byte*)inserted->start + inserted->length;
+					zt_fiz(4) *end_of_mem++ = 0xcd;
 
 					zt_debugOnly(inserted->file = nullptr);
 					zt_debugOnly(inserted->file_line = 0);
@@ -2052,7 +2062,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		}
 	}
 
-	byte* next = arena->latest ? (byte*)arena->latest->start + arena->latest->length : arena->memory;
+	byte* next = arena->latest ? (byte*)arena->latest->start + arena->latest->length + 4 : arena->memory;
 	zt_assert((next - arena->memory) + zt_sizeof(ztMemoryArena::allocation) + bytes <= arena->total_size);
 
 	if ((next - arena->memory) + zt_sizeof(ztMemoryArena::allocation) + bytes > arena->total_size) {
@@ -2071,12 +2081,15 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	allocation->alloc_idx = arena->alloc_cnt++;
 	allocation->arena = arena;
 
+	byte *end_of_mem = (byte*)allocation->start + allocation->length;
+	zt_fiz(4) *end_of_mem++ = 0xcd;
+	
 	zt_debugOnly(allocation->file = nullptr);
 	zt_debugOnly(allocation->file_line = 0);
 
 	arena->latest = allocation;
 
-	arena->current_used += allocation->length + zt_sizeof(ztMemoryArena::allocation);
+	arena->current_used += allocation->length + (zt_sizeof(ztMemoryArena::allocation) + 4);
 	arena->peak_used = zt_max(arena->peak_used, arena->current_used);
 
 	zt_debugOnly(zt_memSet(allocation->start, allocation->length, 0));
@@ -2128,6 +2141,10 @@ void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 				return nullptr;
 			}
 			allocation->length = size;
+
+			byte *end_of_mem = (byte*)allocation->start + allocation->length;
+			zt_fiz(4) *end_of_mem++ = 0xcd;
+
 			return data;
 		}
 		else {
@@ -2162,7 +2179,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 	zt_assert(allocation >= (ztMemoryArena::allocation*)arena->memory && allocation <= (ztMemoryArena::allocation*)(arena->memory + arena->total_size));
 
 	zt_debugOnly(zt_memSet((void*)allocation->start, 1, allocation->length));
-	arena->current_used -= allocation->length + zt_sizeof(ztMemoryArena::allocation);
+	arena->current_used -= allocation->length + (zt_sizeof(ztMemoryArena::allocation) + 4);
 
 	allocation->freed = 1;
 
@@ -2184,7 +2201,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 			auto* next = allocation->next;
 			while (next) {
 				if (next->freed == 1) {
-					next->length += allocation->length + zt_sizeof(ztMemoryArena::allocation);
+					next->length += allocation->length + (zt_sizeof(ztMemoryArena::allocation) + 4);
 					if (prev) {
 						prev->next = next;
 					}
@@ -2230,6 +2247,27 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 	if (arena->alloc_cnt != arena->free_cnt) {
 		zt_logMessage(log_level, "memory(%s): alloc/free count mismatch: %d/%d", name, arena->alloc_cnt, arena->free_cnt);
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_memArenaValidate(ztMemoryArena *arena)
+{
+	ztMemoryArena::allocation *alloc = arena->latest;
+	while (alloc != nullptr) {
+		if (alloc->freed == 0) {
+			byte *end_of_mem = (byte*)alloc->start + alloc->length;
+			zt_fiz(4) {
+				if (*end_of_mem++ != 0xcd) {
+					zt_assert(false);
+					return false;
+				}
+			}
+		}
+		alloc = alloc->next;
+	}
+
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
