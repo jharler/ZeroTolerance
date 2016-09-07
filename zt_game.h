@@ -872,6 +872,9 @@ struct ztDrawList
 	i32 flags;
 
 	ztMemoryArena *arena;
+
+	zt_debugOnly(int active_shaders);
+	zt_debugOnly(int active_textures);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -913,6 +916,9 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 bool zt_drawListPopClipRegion(ztDrawList *draw_list);
 bool zt_drawListPushDrawFlags(ztDrawList *draw_list, i32 flags);
 bool zt_drawListPopDrawFlags(ztDrawList *draw_list);
+
+ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list);
+
 
 void zt_drawListReset(ztDrawList *draw_list);
 
@@ -2526,6 +2532,8 @@ bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemor
 	draw_list->flags = flags;
 	draw_list->arena = arena;
 
+	zt_debugOnly(draw_list->active_shaders = draw_list->active_textures = 0);
+
 	zt_logDebug("draw_list size: %d bytes (%d)", zt_sizeof(ztDrawCommand) * max_commands, zt_sizeof(ztDrawCommand));
 
 	return true;
@@ -2549,6 +2557,9 @@ void zt_drawListFree(ztDrawList *draw_list)
 // ------------------------------------------------------------------------------------------------
 
 #define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if (draw_list->commands_count >= draw_list->commands_size) { zt_assert(false && "ztDrawList command overflow"); return false; };
+
+#define _zt_drawListVerifyShader(draw_list) zt_debugOnly(zt_assert(draw_list->active_shaders > 0))
+#define _zt_drawListVerifyTexture(draw_list) zt_debugOnly(zt_assert(draw_list->active_textures > 0))
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2672,7 +2683,9 @@ bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4])
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3])
 {
 	_zt_drawListCheck(draw_list);
-	auto *command = & draw_list->commands[draw_list->commands_count++];
+	_zt_drawListVerifyTexture(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_Triangle;
 	
@@ -2687,6 +2700,8 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4)
 {
+	_zt_drawListVerifyTexture(draw_list);
+
 	{
 		_zt_drawListCheck(draw_list);
 		auto *command = &draw_list->commands[draw_list->commands_count++];
@@ -2731,6 +2746,8 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztV
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4])
 {
+	_zt_drawListVerifyTexture(draw_list);
+
 	zt_fjz(2) {
 		_zt_drawListCheck(draw_list);
 		auto *command = & draw_list->commands[draw_list->commands_count++];
@@ -2786,6 +2803,8 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const zt
 bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, i32 flags)
 {
 	_zt_drawListCheck(draw_list);
+	_zt_drawListVerifyTexture(draw_list);
+
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_Billboard;
@@ -2802,6 +2821,8 @@ bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const
 
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count, const ztVec2 uvs[4], const ztVec3 normals[4])
 {
+	_zt_drawListVerifyTexture(draw_list);
+
 	zt_fjz(count - 2) {
 		_zt_drawListCheck(draw_list);
 		auto *command = & draw_list->commands[draw_list->commands_count++];
@@ -2829,6 +2850,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count,
 bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale)
 {
 	_zt_drawListCheck(draw_list);
+
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_Mesh;
@@ -2929,6 +2951,7 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox)
 {
 	_zt_drawListCheck(draw_list);
+
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_Skybox;
@@ -2948,6 +2971,8 @@ bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 	command->type = ztDrawCommandType_ChangeShader;
 	command->shader = shader;
 
+	zt_debugOnly(draw_list->active_shaders++);
+
 	return true;
 }
 
@@ -2961,11 +2986,28 @@ bool zt_drawListPopShader(ztDrawList *draw_list)
 			auto *command = &draw_list->commands[draw_list->commands_count++];
 			command->type = ztDrawCommandType_ChangeShader;
 			command->shader = draw_list->commands[i].shader;
+
+			zt_debugOnly(draw_list->active_shaders--);
 			return true;
 		}
 	}
 
 	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list)
+{
+	_zt_drawListVerifyShader(draw_list);
+
+	zt_fizr(draw_list->commands_count - 1) {
+		if (draw_list->commands[i].type == ztDrawCommandType_ChangeShader) {
+			return draw_list->commands[i].shader;
+		}
+	}
+
+	return ztInvalidID;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3009,12 +3051,15 @@ bool zt_drawListPopColor(ztDrawList *draw_list)
 bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 {
 	_zt_drawListCheck(draw_list);
+	//_zt_drawListVerifyShader(draw_list);
 
 	auto *command = & draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_ChangeTexture;
 	command->texture[0] = tex_id;
 	command->texture_count = 1;
+
+	zt_debugOnly(draw_list->active_textures++);
 
 	return true;
 }
@@ -3024,6 +3069,7 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex_count)
 {
 	_zt_drawListCheck(draw_list);
+	//_zt_drawListVerifyShader(draw_list);
 
 	auto *command = & draw_list->commands[draw_list->commands_count++];
 
@@ -3037,6 +3083,8 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 		command->texture[i] = tex_ids[i];
 	}
 	command->texture_count = tex_count;
+
+	zt_debugOnly(draw_list->active_textures++);
 
 	return true;
 }
@@ -3052,6 +3100,8 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 			command->type = ztDrawCommandType_ChangeTexture;
 			zt_fjz(draw_list->commands[i].texture_count) command->texture[j] = draw_list->commands[i].texture[j];
 			command->texture_count = draw_list->commands[i].texture_count;
+
+			zt_debugOnly(draw_list->active_textures--);
 			return true;
 		}
 	}
@@ -3064,6 +3114,7 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 	command->type = ztDrawCommandType_ChangeTexture;
 	command->texture_count = 0;
 
+	zt_debugOnly(draw_list->active_textures--);
 	return false;
 }
 
@@ -3105,6 +3156,7 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 void zt_drawListReset(ztDrawList *draw_list)
 {
 	draw_list->commands_count = 0;
+	zt_debugOnly(draw_list->active_shaders = draw_list->active_textures = 0);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3514,7 +3566,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	zt_fiz(draw_lists_count) {
 		ztDrawList *draw_list = draw_lists[i];
 		if (!zt_bitIsSet(draw_list->flags, ztDrawListFlags_NoReset)) {
-			draw_list->commands_count = 0;
+			zt_drawListReset(draw_list);
 		}
 	}
 
@@ -3803,9 +3855,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							if (curr_clip_region) {
 								r32 ppu = zt_pixelsPerUnit();
 								ztPoint2 pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
-
-								int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
-								int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
+								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
+								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
 								zt_glCallAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
 							}
@@ -6044,6 +6095,7 @@ void zt_textureFree(ztTextureID texture_id)
 
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 {
+#if 1
 	r32 abval = zt_abs(*val *ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 //	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
@@ -6058,6 +6110,14 @@ void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 			if (offset) *offset += (1.f - rem) / ppu;
 		}
 	}
+#else
+	r32 abval = zt_abs(*val * ppu);
+	r32 rem = abval - zt_convertToi32Floor(abval);
+
+	r32 nval = zt_convertToi32Floor(((*val) * ppu)) / ppu;
+	if(offset) *offset = rem / ppu;
+	*val = nval;
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6274,8 +6334,12 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, const ztVec2& pos)
 
 	r32 ppu = (r32)zt->win_game_settings[0].pixels_per_unit;
 	ztVec2 diff = pos - camera->position.xy;
-	return ztPoint2(zt_convertToi32Floor((diff.x + ((camera->width / ppu) / 2.f)) * ppu),
-					zt_convertToi32Floor((((camera->height / ppu) / 2) + diff.y) * ppu));
+
+	r32 x = (diff.x + ((camera->width / ppu) / 2.f)) * ppu;
+	r32 y = (((camera->height / ppu) / 2) + diff.y) * ppu;
+
+	return ztPoint2(x < 0 ? zt_convertToi32Floor(x) : zt_convertToi32Ceil(x),
+					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7167,7 +7231,6 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
-	zt_returnOnNull(text);
 	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
 	if (text_len <= 0) return;
 
@@ -7258,11 +7321,12 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 					*format_ptr = 0;
 					format_ptr = format;
 
-					if (zt_strStartsWith(format, "color=") && zt_strLen(format) == 14) {
+					int str_len = zt_strLen(format);
+					if (zt_strStartsWith(format, "color=") && (str_len == 12 || str_len == 14) ) {
 						r32 r = zt_strToIntHex(format + 6, 2, 1) / 255.f;
 						r32 g = zt_strToIntHex(format + 8, 2, 1) / 255.f;
 						r32 b = zt_strToIntHex(format + 10, 2, 1) / 255.f;
-						r32 a = zt_strToIntHex(format + 12, 2, 1) / 255.f;
+						r32 a = str_len == 12 ? 1 : (zt_strToIntHex(format + 12, 2, 1) / 255.f);
 						zt_drawListPushColor(draw_list, ztColor(r, g, b, a));
 						colors_pushed += 1;
 					}
@@ -7525,9 +7589,14 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztPoint2 tex_pos, ztPo
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size)
+void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& cpos, const ztVec2& csize)
 {
 	r32 ppu = zt_pixelsPerUnit();
+
+	ztVec2 pos = cpos;
+//	zt_alignToPixel(&pos, ppu);
+	ztVec2 size = csize;
+//	zt_alignToPixel(&size, ppu);
 
 	ztVec2 upper_left (pos.x - size.x / 2.f, pos.y + size.y / 2.f);
 	ztVec2 upper_right(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
@@ -7539,6 +7608,7 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
 	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
 
+#if 0
 	struct local
 	{
 		static void fix(r32 *val, r32 *offset, r32 ppu)
@@ -7552,63 +7622,84 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	};
 
 	r32 ul_center_add_x = 0, ul_center_add_y = 0;
-	zt_alignToPixel(&upper_left.x, ppu, &ul_center_add_x);
-	zt_alignToPixel(&upper_left.y, ppu, &ul_center_add_y);
+	//zt_alignToPixel(&upper_left.x, ppu, &ul_center_add_x);
+	//zt_alignToPixel(&upper_left.y, ppu, &ul_center_add_y);
 
 	r32 ur_center_add_x = 0, ur_center_add_y = 0;
-	zt_alignToPixel(&upper_right.x, ppu, &ur_center_add_x);
-	zt_alignToPixel(&upper_right.y, ppu, &ur_center_add_y);
+	//zt_alignToPixel(&upper_right.x, ppu, &ur_center_add_x);
+	//zt_alignToPixel(&upper_right.y, ppu, &ur_center_add_y);
 
 	r32 ll_center_add_x = 0, ll_center_add_y = 0;
-	zt_alignToPixel(&lower_left.x, ppu, &ll_center_add_x);
-	zt_alignToPixel(&lower_left.y, ppu, &ll_center_add_y);
+	//zt_alignToPixel(&lower_left.x, ppu, &ll_center_add_x);
+	//zt_alignToPixel(&lower_left.y, ppu, &ll_center_add_y);
 
 	r32 lr_center_add_x = 0, lr_center_add_y = 0;
-	zt_alignToPixel(&lower_right.x, ppu, &lr_center_add_x);
-	zt_alignToPixel(&lower_right.y, ppu, &lr_center_add_y);
+	//zt_alignToPixel(&lower_right.x, ppu, &lr_center_add_x);
+	//zt_alignToPixel(&lower_right.y, ppu, &lr_center_add_y);
 
-	//center_add_x = center_add_y = 0;
+	//ul_center_add_x = ul_center_add_y = ur_center_add_x = ur_center_add_y = ll_center_add_x = ll_center_add_y = lr_center_add_x = lr_center_add_y = 0;
 
 	zt_drawListPushTexture(draw_list, sns->tex);
 
-	// center
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, center.y, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w)), size.y - ((sns->sz_n + sns->sz_s))),
-										  sns->sp_c.xy, sns->sp_c.zw);
-	// west
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, center.y, 0),
-										  ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x, size.y - ((sns->sz_n + sns->sz_s) + ul_center_add_y)),
-										  sns->sp_w.xy, sns->sp_w.zw);
-	// east
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, center.y, 0),
-										  ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x, size.y - ((sns->sz_n + sns->sz_s) + ur_center_add_y)),
-										  sns->sp_e.xy, sns->sp_e.zw);
-	// north
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) + ul_center_add_x), sns->sz_n * scale_corners.y + ul_center_add_y),
-										  sns->sp_n.xy, sns->sp_n.zw);
-	// south
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(size.x - ((sns->sz_e + sns->sz_w) + ll_center_add_x), sns->sz_s * scale_corners.y + ll_center_add_y),
-										  sns->sp_s.xy, sns->sp_s.zw);
+	/* center */ zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x,                                            center.y,                                           0), ztVec2(size.x - ((sns->sz_e + sns->sz_w)),                         size.y - ((sns->sz_n + sns->sz_s))),                   sns->sp_c.xy, sns->sp_c.zw);
+	/* west   */ zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f,  center.y,                                           0), ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x,              size.y - ((sns->sz_n + sns->sz_s) + ul_center_add_y)), sns->sp_w.xy, sns->sp_w.zw);
+	/* east   */ zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, center.y,                                           0), ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x,              size.y - ((sns->sz_n + sns->sz_s) + ur_center_add_y)), sns->sp_e.xy, sns->sp_e.zw);
+	/* north  */ zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x,                                            upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0), ztVec2(size.x - ((sns->sz_e + sns->sz_w) + (ul_center_add_x * 2)), sns->sz_n * scale_corners.y + ul_center_add_y),        sns->sp_n.xy, sns->sp_n.zw);
+	/* south  */ zt_drawListAddFilledRect2D(draw_list, ztVec3(center.x,                                            lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0), ztVec2(size.x - ((sns->sz_e + sns->sz_w) + (ll_center_add_x * 2)), sns->sz_s * scale_corners.y + ll_center_add_y),        sns->sp_s.xy, sns->sp_s.zw);
 
-	// north west corner sprite
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x, sns->sz_n * scale_corners.y + ul_center_add_y),
-										  sns->sp_nw.xy, sns->sp_nw.zw);
-	// north east corner sprite
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, upper_right.y - (sns->sz_n * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x, sns->sz_n * scale_corners.y + ur_center_add_y),
-										  sns->sp_ne.xy, sns->sp_ne.zw);
-	// south west corner sprite
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_left.x + (sns->sz_w * scale_corners.x) / 2.f, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_w * scale_corners.x + ll_center_add_x, sns->sz_s * scale_corners.y + ll_center_add_y),
-										  sns->sp_sw.xy, sns->sp_sw.zw);
-	// south east corner sprite
-	zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_right.x - (sns->sz_e * scale_corners.x) / 2.f, lower_right.y + (sns->sz_s * scale_corners.y) / 2.f, 0),
-										  ztVec2(sns->sz_e * scale_corners.x + lr_center_add_x, sns->sz_s * scale_corners.y + lr_center_add_y),
-										  sns->sp_se.xy, sns->sp_se.zw);
+	/* north west */ zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0), ztVec2(sns->sz_w * scale_corners.x + ul_center_add_x, sns->sz_n * scale_corners.y + ul_center_add_y), sns->sp_nw.xy, sns->sp_nw.zw);
+	/* north east */ zt_drawListAddFilledRect2D(draw_list, ztVec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, upper_right.y - (sns->sz_n * scale_corners.y) / 2.f, 0), ztVec2(sns->sz_e * scale_corners.x + ur_center_add_x, sns->sz_n * scale_corners.y + ur_center_add_y), sns->sp_ne.xy, sns->sp_ne.zw);
+	/* south west */ zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_left.x + (sns->sz_w * scale_corners.x) / 2.f, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0), ztVec2(sns->sz_w * scale_corners.x + ll_center_add_x, sns->sz_s * scale_corners.y + ll_center_add_y), sns->sp_sw.xy, sns->sp_sw.zw);
+	/* south east */ zt_drawListAddFilledRect2D(draw_list, ztVec3(lower_right.x - (sns->sz_e * scale_corners.x) / 2.f, lower_right.y + (sns->sz_s * scale_corners.y) / 2.f, 0), ztVec2(sns->sz_e * scale_corners.x + lr_center_add_x, sns->sz_s * scale_corners.y + lr_center_add_y), sns->sp_se.xy, sns->sp_se.zw);
+
 	zt_drawListPopTexture(draw_list);
+#else
+
+	ztVec3 pos_nw[] = {
+		ztVec3(upper_left.x,                               upper_left.y, 0),
+		ztVec3(upper_left.x,                               upper_left.y - sns->sz_n * scale_corners.y, 0),
+		ztVec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y, 0),
+		ztVec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y, 0)
+	};
+	ztVec3 pos_ne[] = {
+		ztVec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y, 0),
+		ztVec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y, 0),
+		ztVec3(upper_right.x,                               upper_right.y - sns->sz_n * scale_corners.y, 0),
+		ztVec3(upper_right.x,                               upper_right.y, 0)
+	};
+	ztVec3 pos_sw[] = {
+		ztVec3(lower_left.x,                               lower_left.y + sns->sz_s * scale_corners.y, 0),
+		ztVec3(lower_left.x,                               lower_left.y, 0),
+		ztVec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y, 0),
+		ztVec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y, 0)
+	};
+	ztVec3 pos_se[] = {
+		ztVec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y, 0),
+		ztVec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y, 0),
+		ztVec3(lower_right.x,                               lower_right.y, 0),
+		ztVec3(lower_right.x,                               lower_right.y + sns->sz_s * scale_corners.y, 0)
+	};
+
+	zt_fiz(4) {
+		zt_alignToPixel(&pos_nw[i], ppu);
+		zt_alignToPixel(&pos_ne[i], ppu);
+		zt_alignToPixel(&pos_sw[i], ppu);
+		zt_alignToPixel(&pos_se[i], ppu);
+	}
+
+	zt_drawListPushTexture(draw_list, sns->tex);
+	/* center     */ zt_drawListAddFilledQuad(draw_list, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, ztVec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, ztVec2(sns->sp_c.z, sns->sp_c.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* west       */ zt_drawListAddFilledQuad(draw_list, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, ztVec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, ztVec2(sns->sp_w.z, sns->sp_w.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* east       */ zt_drawListAddFilledQuad(draw_list, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, ztVec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, ztVec2(sns->sp_e.z, sns->sp_e.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* north      */ zt_drawListAddFilledQuad(draw_list, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, ztVec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, ztVec2(sns->sp_n.z, sns->sp_n.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south      */ zt_drawListAddFilledQuad(draw_list, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, ztVec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, ztVec2(sns->sp_s.z, sns->sp_s.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+
+	/* north west */ zt_drawListAddFilledQuad(draw_list, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, ztVec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, ztVec2(sns->sp_nw.z, sns->sp_nw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* north east */ zt_drawListAddFilledQuad(draw_list, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, ztVec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, ztVec2(sns->sp_ne.z, sns->sp_ne.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south west */ zt_drawListAddFilledQuad(draw_list, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, ztVec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, ztVec2(sns->sp_sw.z, sns->sp_sw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south east */ zt_drawListAddFilledQuad(draw_list, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, ztVec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, ztVec2(sns->sp_se.z, sns->sp_se.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	zt_drawListPopTexture(draw_list);
+#endif
 }
 
 
