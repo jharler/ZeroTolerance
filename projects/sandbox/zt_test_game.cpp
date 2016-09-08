@@ -166,7 +166,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
-	{
+	if(true){
 		ztGuiItemID window = zt_guiMakeScrollWindow("Test Window", ztGuiItemOrient_Vert);
 		zt_guiItemSetSize(window, ztVec2(5, 7));
 		zt_guiItemSetPosition(window, ztVec2(7.f, 0.f));
@@ -189,6 +189,17 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 					zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
 
 					zt_guiSizerAddItem(sizer2, zt_guiMakeCheckbox(sizer2, "A Checkbox"), 0, 3 / zt_pixelsPerUnit());
+
+					ztGuiItemID combo = zt_guiMakeComboBox(sizer2, 8);
+					zt_guiSizerAddItem(sizer2, combo, 0, 3 / zt_pixelsPerUnit());
+
+					const char *contents[] = {
+						"Item 1",
+						"Item 2",
+						"Item 3",
+						"Item 4",
+					};
+					zt_guiComboBoxSetContents(combo, contents, zt_elementsOf(contents), 1);
 				}
 			}
 			{
@@ -212,7 +223,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 		//zt_debugLogGuiHierarchy(window);
 	}
-	{
+	if (false){
 		ztGuiItemID window = zt_guiMakeWindow("Tree Test");
 		zt_guiItemSetSize(window, ztVec2(5, 7));
 		zt_guiItemSetPosition(window, ztVec2(-7, 0));
@@ -281,7 +292,6 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 			zt_free(data);
 		}
 	}
-
 
 	return true;
 }
@@ -490,6 +500,12 @@ bool game_loop(r32 dt)
 		}
 	}
 
+	if (input[ztInputKeys_M].justPressed()) {
+		ztVec2 mpos = zt_cameraOrthoScreenToWorld(&g_game->gui_camera, mouse->screen_x, mouse->screen_y);
+		zt_logDebug("mouse pos: %d, %d (%.4f, %.4f)", mouse->screen_x, mouse->screen_y, mpos.x, mpos.y);
+	}
+
+	//zt_memArenaValidate(zt_memGetGlobalArena());
 	zt_assetManagerCheckForChanges(&g_game->asset_mgr);
 	return !input[ztInputKeys_Escape].justPressed();
 }
