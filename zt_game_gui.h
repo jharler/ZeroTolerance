@@ -73,6 +73,7 @@ typedef i32 ztGuiTreeNodeID;
 
 enum ztGuiThemeSpriteType_Enum
 {
+	ztGuiThemeSpriteType_Invalid,
 	ztGuiThemeSpriteType_SpriteNineSlice,
 	ztGuiThemeSpriteType_Sprite,
 };
@@ -272,6 +273,7 @@ struct ztGuiTheme
 	_ztGIT(ztGuiItemType_Tab            ) \
 	_ztGIT(ztGuiItemType_Tree           ) \
 	_ztGIT(ztGuiItemType_ComboBox       ) \
+	_ztGIT(ztGuiItemType_SpriteDisplay  ) \
 	_ztGIT(ztGuiItemType_ProgressBar    ) \
 	_ztGIT(ztGuiItemType_Sizer          ) \
 	_ztGIT(ztGuiItemType_Custom         )
@@ -349,6 +351,9 @@ typedef ZT_FUNC_GUI_TEXTEDIT_KEY(zt_guiTextEditKey_Func);
 
 #define ZT_FUNC_GUI_TREE_ITEM_SELECTED(name) void name(ztGuiItemID tree_id, ztGuiTreeNodeID node_id, void *user_data)
 typedef ZT_FUNC_GUI_TREE_ITEM_SELECTED(zt_guiTreeItemSelected_Func);
+
+#define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(name) void name(ztGuiItemID combobox_id, int selected, void *user_data)
+typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(zt_guiComboBoxItemSelected_Func);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -471,6 +476,7 @@ ztGuiItemID zt_guiMakeTextEdit(ztGuiItemID parent, const char *value, i32 flags 
 ztGuiItemID zt_guiMakeMenu();
 ztGuiItemID zt_guiMakeTree(ztGuiItemID parent, i32 max_items);
 ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items);
+ztGuiItemID zt_guiMakeSpriteDisplay(ztGuiItemID parent, ztGuiThemeSprite *sprite);
 
 ztGuiItemID zt_guiMakeSizer(ztGuiItemID parent, ztGuiItemOrient_Enum orient);
 
@@ -612,6 +618,20 @@ void *zt_guiTreeGetNodeUserData(ztGuiItemID tree, ztGuiTreeNodeID node);
 void zt_guiTreeSetCallback(ztGuiItemID tree, zt_guiTreeItemSelected_Func on_item_sel, void *user_data);
 
 void zt_guiTreeClear(ztGuiItemID tree);
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiComboBoxSetContents(ztGuiItemID combobox_id, const char **contents, int contents_count, int active);
+void zt_guiComboBoxClear(ztGuiItemID combobox_id);
+void zt_guiComboBoxAppend(ztGuiItemID combobox_id, const char *content);
+int zt_guiComboBoxGetSelected(ztGuiItemID combobox_id);
+int zt_guiComboBoxGetItemCount(ztGuiItemID combobox_id);
+int zt_guiComboBoxGetItemText(ztGuiItemID combobox_id, int index, char* buffer, int buffer_len);
+void zt_guiComboBoxSetCallback(ztGuiItemID combobox_id, zt_guiComboBoxItemSelected_Func *on_item_sel, void *user_data);
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -914,7 +934,14 @@ struct ztGuiItem
 			int contents_size;
 			int contents_count;
 			int selected;
+
+			zt_guiComboBoxItemSelected_Func *on_selected;
+			void *on_selected_user_data;
 		} combobox;
+
+		struct {
+			ztGuiThemeSprite* sprite;
+		} sprite_display;
 	};
 };
 
@@ -1875,7 +1902,7 @@ void zt_drawListAddGuiThemeButtonSprite(ztDrawList *draw_list, ztGuiThemeButtonS
 ztVec2 zt_guiThemeSpriteGetSize(ztGuiThemeSprite *sprite)
 {
 	if (sprite->type == ztGuiThemeSpriteType_Sprite) {
-		return ztVec2(sprite->s.half_size.x * 2.f, sprite->s.half_size.y * .2f);
+		return ztVec2(sprite->s.half_size.x * 2.f, sprite->s.half_size.y * 2.f);
 	}
 	else {
 		return ztVec2(sprite->sns.sp_w.x + sprite->sns.sp_e.x, sprite->sns.sp_n.y + sprite->sns.sp_s.y);
@@ -5605,10 +5632,12 @@ ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items)
 			}
 			else if (input_mouse->leftJustReleased()) {
 				if (!zt_bitIsSet(item->flags, ztGuiComboBoxInternalFlags_IgnorePopup)) {
-					_zt_guiItemFromID(menu, item->combobox.popup_id);
-					menu->size.x = item->size.x;
+					if (item->combobox.popup_id != ztInvalidID) {
+						_zt_guiItemFromID(menu, item->combobox.popup_id);
+						menu->size.x = item->size.x;
 
-					zt_guiMenuPopupAtItem(item->combobox.popup_id, item_id, ztAlign_Left | ztAlign_Bottom);
+						zt_guiMenuPopupAtItem(item->combobox.popup_id, item_id, ztAlign_Left | ztAlign_Bottom);
+					}
 				}
 				else zt_bitRemove(item->flags, ztGuiComboBoxInternalFlags_IgnorePopup);
 			}
@@ -5625,11 +5654,17 @@ ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items)
 			if (input_keys[ztInputKeys_Up].justPressedOrRepeated()) {
 				if (item->combobox.selected > 0) {
 					item->combobox.selected -= 1;
+					if (item->combobox.on_selected) {
+						item->combobox.on_selected(item_id, item->combobox.selected, item->combobox.on_selected_user_data);
+					}
 				}
 			}
 			if (input_keys[ztInputKeys_Down].justPressedOrRepeated()) {
 				if (item->combobox.selected < item->combobox.contents_count - 1) {
 					item->combobox.selected += 1;
+					if (item->combobox.on_selected) {
+						item->combobox.on_selected(item_id, item->combobox.selected, item->combobox.on_selected_user_data);
+					}
 				}
 			}
 
@@ -5659,7 +5694,7 @@ ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items)
 			zt_drawListAddGuiThemeButtonSprite(draw_list, &theme->sprite_combobox_button, pos, ztVec2(theme->combobox_button_size_x, theme->combobox_size_y), highlighted, pressed);
 
 			if (item->combobox.selected >= 0 && item->combobox.selected < item->combobox.contents_count) {
-				pos.x = offset.x + (item->size.x / -2.f + theme->padding);
+				pos.x = (offset.x + item->pos.x) + (item->size.x / -2.f + theme->padding);
 				zt_drawListAddFancyText2D(draw_list, theme->font, item->combobox.contents[item->combobox.selected], pos, ztAlign_Left, ztAnchor_Left);
 			}
 		}
@@ -5705,6 +5740,8 @@ ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items)
 	item->combobox.contents = zt_mallocStructArrayArena(ztString, max_items, gm->arena);
 	item->combobox.contents_size = max_items;
 	item->combobox.contents_count = 0;
+	item->combobox.on_selected = nullptr;
+	item->combobox.on_selected_user_data = nullptr;
 
 	zt_fiz(max_items) {
 		item->combobox.contents[i] = zt_stringMake(128, gm->arena);
@@ -5730,18 +5767,21 @@ ztGuiItemID zt_guiMakeComboBox(ztGuiItemID parent, i32 max_items)
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal ZT_FUNC_GUI_MENU_SELECTED(_zt_guiComboBoxMenuSelected)
+{
+	_zt_guiItemAndManagerReturnOnError(gm, item, menu_id);
+	ztGuiItem *combo = (ztGuiItem*)user_data;
+	combo->combobox.selected = menu_item;
+
+	if (combo->combobox.on_selected) {
+		combo->combobox.on_selected(combo->id, combo->combobox.selected, combo->combobox.on_selected_user_data);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiComboBoxSetContents(ztGuiItemID combobox_id, const char **contents, int contents_count, int active)
 {
-	struct local
-	{
-		static ZT_FUNC_GUI_MENU_SELECTED(menuSelected)
-		{
-			_zt_guiItemAndManagerReturnOnError(gm, item, menu_id);
-			ztGuiItem *combo = (ztGuiItem*)user_data;
-			combo->combobox.selected = menu_item;
-		}
-	};
-
 	_zt_guiItemTypeFromIDReturnOnError(item, combobox_id, ztGuiItemType_ComboBox);
 	_zt_guiManagerGetFromItem(gm, item->id);
 
@@ -5749,7 +5789,7 @@ void zt_guiComboBoxSetContents(ztGuiItemID combobox_id, const char **contents, i
 		zt_guiItemFree(item->combobox.popup_id);
 	}
 	item->combobox.popup_id = zt_guiMakeMenu();
-	zt_guiMenuSetCallback(item->combobox.popup_id, local::menuSelected);
+	zt_guiMenuSetCallback(item->combobox.popup_id, _zt_guiComboBoxMenuSelected);
 
 	item->combobox.contents_count = zt_min(contents_count, item->combobox.contents_size);
 	zt_fiz(item->combobox.contents_count) {
@@ -5759,6 +5799,43 @@ void zt_guiComboBoxSetContents(ztGuiItemID combobox_id, const char **contents, i
 	}
 
 	item->combobox.selected = zt_clamp(active, 0, item->combobox.contents_count - 1);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiComboBoxClear(ztGuiItemID combobox_id)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, combobox_id, ztGuiItemType_ComboBox);
+	item->combobox.contents_count = 0;
+	item->combobox.selected = -1;
+
+	if (item->combobox.popup_id != ztInvalidID) {
+		zt_guiItemFree(item->combobox.popup_id);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiComboBoxAppend(ztGuiItemID combobox_id, const char *content)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, combobox_id, ztGuiItemType_ComboBox);
+	zt_assert(item->combobox.contents_count < item->combobox.contents_size);
+
+	if (item->combobox.contents_count == 0) {
+		if (item->combobox.popup_id != ztInvalidID) {
+			zt_guiItemFree(item->combobox.popup_id);
+		}
+		item->combobox.popup_id = zt_guiMakeMenu();
+		zt_guiMenuSetCallback(item->combobox.popup_id, _zt_guiComboBoxMenuSelected);
+		item->combobox.selected = 0;
+	}
+	
+	int idx = item->combobox.contents_count;
+	item->combobox.contents_count += 1;
+
+	_zt_guiManagerGetFromItem(gm, combobox_id);
+	zt_stringOverwrite(item->combobox.contents[idx], content, gm->arena);
+	zt_guiMenuAppend(item->combobox.popup_id, content, idx, item);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5786,6 +5863,91 @@ int zt_guiComboBoxGetItemText(ztGuiItemID combobox_id, int index, char* buffer, 
 		return zt_strCpy(buffer, buffer_len, item->combobox.contents[index]);
 	}
 	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiComboBoxSetCallback(ztGuiItemID combobox_id, zt_guiComboBoxItemSelected_Func *on_item_sel, void *user_data)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, combobox_id, ztGuiItemType_ComboBox);
+	item->combobox.on_selected = on_item_sel;
+	item->combobox.on_selected_user_data = user_data;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItemID zt_guiMakeSpriteDisplay(ztGuiItemID parent, ztGuiThemeSprite *sprite)
+{
+	struct local
+	{
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_RENDER(render)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+			ztVec2 pos = offset + item->pos;
+
+			zt_drawListAddGuiThemeSprite(draw_list, item->sprite_display.sprite, pos, item->size);
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_CLEANUP(cleanup)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			zt_freeArena(item->sprite_display.sprite, gm->arena);
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ZT_FUNC_GUI_ITEM_BEST_SIZE(bestSize)
+		{
+			ztGuiManager *gm = (ztGuiManager *)user_data;
+			ztGuiItem *item = &gm->item_cache[item_id];
+
+			*size = zt_guiThemeSpriteGetSize(item->sprite_display.sprite);
+		}
+	};
+
+
+	ztGuiManager *gm = zt_gui->gui_managers[zt_gui->active_gui_manager];
+	zt_returnValOnNull(gm, ztInvalidID);
+
+	ztGuiItemID item_id = ztInvalidID;
+	ztGuiItem *item = _zt_guiMakeItemBase(gm, parent, ztGuiItemType_SpriteDisplay, ztGuiItemFlags_WantsFocus, &item_id);
+	if (!item) return ztInvalidID;
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item_id);
+
+	item->sprite_display.sprite = zt_mallocStructArena(ztGuiThemeSprite, gm->arena);
+	if (sprite) {
+		*item->sprite_display.sprite = *sprite;
+	}
+	else {
+		item->sprite_display.sprite->type = ztGuiThemeSpriteType_Invalid;
+	}
+
+
+	item->functions.render = local::render;
+	item->functions.cleanup = local::cleanup;
+	item->functions.best_size = local::bestSize;
+	item->functions.user_data = gm;
+
+	ztVec2 min_size;
+	local::bestSize(item->id, &min_size, nullptr, &item->size, theme, gm);
+
+	return item_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite)
+{
+	_zt_guiItemTypeFromIDReturnOnError(item, item_id, ztGuiItemType_SpriteDisplay);
+	*item->sprite_display.sprite = *sprite;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7346,18 +7508,85 @@ ztInternal void _zt_guiDebugGuiHierarchy()
 ztInternal void _zt_guiDebugTextureViewer()
 {
 	static ztGuiItemID window_id = ztInvalidID;
-
+	static ztGuiItemID dropdown_id = ztInvalidID;
+	static ztGuiItemID display_id = ztInvalidID;
 
 	if (window_id != ztInvalidID) {
 		zt_guiItemShow(window_id);
 		return;
 	}
 
+	struct local
+	{
+		static void refresh()
+		{
+			_zt_guiItemAndManagerReturnOnError(gm, item, dropdown_id);
+
+			zt_guiComboBoxClear(dropdown_id);
+
+			zt_fiz(zt->textures_count) {
+				bool render_tex = false;
+				switch (zt_currentRenderer())
+				{
+				case ztRenderer_OpenGL: zt_openGLSupport(render_tex = zt->textures[i].gl_fbo != 0); break;
+				case ztRenderer_DirectX: zt_directxSupport(render_tex = zt->textures[i].dx_render_target_view != nullptr); break;
+				}
+				zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s", i, zt->textures[i].width, zt->textures[i].height, (render_tex ? "(render texture)" : ""));
+				zt_guiComboBoxAppend(dropdown_id, buffer);
+			}
+		}
+
+		static void loadTexture(ztTextureID tex_id)
+		{
+			ztGuiThemeSprite sprite;
+			sprite.type = ztGuiThemeSpriteType_Sprite;
+			sprite.s = zt_spriteMake(tex_id, ztPoint2(0, 0), ztPoint2(zt->textures[tex_id].width, zt->textures[tex_id].height));
+
+			zt_guiSpriteDisplaySetSprite(display_id, &sprite);
+			zt_guiItemAutoSize(display_id);
+		}
+
+		static ZT_FUNC_GUI_BUTTON_PRESSED(onRefresh)
+		{
+			refresh();
+		}
+
+		static ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(onComboBox)
+		{
+			loadTexture(selected);
+		}
+	};
+
 	window_id = zt_guiMakeWindow("Texture Viewer", ztGuiWindowFlags_AllowDrag | ztGuiWindowFlags_AllowResize | ztGuiWindowFlags_ShowTitle | ztGuiWindowFlags_AllowClose | ztGuiWindowFlags_AllowCollapse | ztGuiWindowFlags_CloseHides);
-	zt_guiItemSetSize(window_id, ztVec2(16, 9));
+	zt_guiItemSetSize(window_id, ztVec2(16, 16));
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(window_id);
 
+	ztGuiItemID sizer_id = zt_guiMakeSizer(zt_guiWindowGetContentParent(window_id), ztGuiItemOrient_Vert);
+	{
+		zt_guiSizerSizeToParent(sizer_id);
+
+		ztGuiItemID sizer_top_id = zt_guiMakeSizer(sizer_id, ztGuiItemOrient_Horz);
+		{
+			zt_guiSizerAddItem(sizer_id, sizer_top_id, 0, 0);
+
+			dropdown_id = zt_guiMakeComboBox(sizer_top_id, zt_elementsOf(zt->textures));
+			zt_guiItemSetSize(dropdown_id, ztVec2(6, -1));
+			zt_guiSizerAddItem(sizer_top_id, dropdown_id, 0, 3 / zt_pixelsPerUnit(), ztAlign_Top, ztGuiItemOrient_Horz);
+			zt_guiComboBoxSetCallback(dropdown_id, local::onComboBox, nullptr);
+
+			ztGuiItemID button_id = zt_guiMakeButton(sizer_top_id, "Refresh");
+			zt_guiSizerAddItem(sizer_top_id, button_id, 0, 3 / zt_pixelsPerUnit());
+		}
+
+		ztGuiItemID scroll_id = zt_guiMakeScrollContainer(sizer_id);
+		display_id = zt_guiMakeSpriteDisplay(scroll_id, nullptr);
+		zt_guiScrollContainerSetItem(scroll_id, display_id);
+
+		zt_guiSizerAddItem(sizer_id, scroll_id, 1, 3 / zt_pixelsPerUnit());
+	}
+
+	local::refresh();
 }
 
 // ------------------------------------------------------------------------------------------------
