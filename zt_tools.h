@@ -93,7 +93,7 @@
 #		if defined(ZT_WIN32)
 			typedef unsigned int size_t;
 #		else
-			typedef unsigned long long size_t;
+typedef unsigned long long size_t;
 #		endif
 #	endif
 #else 
@@ -126,14 +126,21 @@
 // ------------------------------------------------------------------------------------------------
 // useful macros
 
-#define zt_assert(cond)	if(!(cond)) zt_assert_raw(#cond, __FILE__, __LINE__)
 #define zt_elementsOf(native_array)	((int)(sizeof(native_array) / sizeof((native_array)[0])))
 #define zt_sizeof(type) ((i32)sizeof(type))
 
 #if defined(ZT_DEBUG)
+#define zt_assert(cond)	                       if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#define zt_assertReturnOnFail(cond)            if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
+#define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
+
 #define zt_debugOnly(code)	code
 #define zt_releaseOnly(code)
 #else
+#define zt_assert(cond)
+#define zt_assertReturnOnFail(cond)            if(!(cond)) { return; }
+#define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { return (retval); }
+
 #define zt_debugOnly(code)
 #define zt_releaseOnly(code)	code
 #endif
