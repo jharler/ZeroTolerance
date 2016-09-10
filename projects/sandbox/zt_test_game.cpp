@@ -46,7 +46,7 @@ struct ztGame
 
 	ztCamera camera, gui_camera;
 
-	ztShaderID shader_id;
+	ztShaderID shader_id, shader_id_lit;
 	ztTextureID tex_id_crate;
 	ztFontID font_id;
 	ztFontID font_id_uni;
@@ -63,6 +63,10 @@ struct ztGame
 	ztMeshID box, plane, rock, cube;
 
 	ztTextureID render_tex, cube_map;
+
+	ztScene *scene;
+	ztModel *model_boxes[12];
+	ztModel *model_plane;
 };
 
 
@@ -85,7 +89,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -122,6 +126,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->shader_id = zt_shaderMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "shaders/shader_simple.zts"));
 	if (g_game->shader_id == ztInvalidID) {
+		zt_logCritical("Unable to load game shader");
+		return false;
+	}
+
+	g_game->shader_id_lit = zt_shaderMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "shaders/shader_lit.zts"));
+	if (g_game->shader_id_lit == ztInvalidID) {
 		zt_logCritical("Unable to load game shader");
 		return false;
 	}
@@ -166,7 +176,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 
-	if(true){
+	if(false){
 		ztGuiItemID window = zt_guiMakeScrollWindow("Test Window", ztGuiItemOrient_Vert);
 		zt_guiItemSetSize(window, ztVec2(5, 7));
 		zt_guiItemSetPosition(window, ztVec2(7.f, 0.f));
@@ -293,6 +303,25 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 	}
 
+	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
+
+	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
+		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+
+		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
+		g_game->model_boxes[i]->transform.position.x = zt_cos(angle) * 3.5f;
+		g_game->model_boxes[i]->transform.position.z = zt_sin(angle) * 3.5f;
+		g_game->model_boxes[i]->transform.position.y = .5f + ((r32)i * .25f);
+
+		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
+	}
+
+	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, g_game->shader_id, nullptr, 0);
+
+	zt_sceneAddModel(g_game->scene, g_game->model_plane);
+
+	zt_shaderSetVariableVec3(g_game->shader_id_lit, "light_pos", ztVec3(0, 10, 0));
+
 	return true;
 }
 
@@ -316,6 +345,12 @@ void game_screenChange(ztGameSettings *game_settings)
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
+	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
+		zt_modelFree(g_game->model_boxes[i]);
+	}
+
+	zt_sceneFree(g_game->scene);
+
 	zt_guiManagerFree(g_game->gui_manager);
 
 	zt_textureFree(g_game->render_tex);
@@ -332,6 +367,7 @@ void game_cleanup()
 	zt_textureFree(g_game->tex_id_crate);
 	zt_drawListFree(&g_game->draw_list);
 	zt_shaderFree(g_game->shader_id);
+	zt_shaderFree(g_game->shader_id_lit);
 
 	zt_assetManagerFree(&g_game->asset_mgr);
 	zt_memDumpArena(g_game->asset_arena, "asset memory");
@@ -382,8 +418,11 @@ bool game_loop(r32 dt)
 		}
 	}
 
+	zt_sceneCull(g_game->scene, &g_game->camera);
+	zt_sceneRender(g_game->scene, &g_game->camera, ztColor(0,0,0,1));
 
 	{
+#if 0
 		{
 			static r32 osc = 0;
 			osc += dt * 2.f;
@@ -453,6 +492,8 @@ bool game_loop(r32 dt)
 
 		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);
 
+#endif
+
 #if 1
 		zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
 		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list);
@@ -460,10 +501,10 @@ bool game_loop(r32 dt)
 
 		if (zt_inputMouseIsLook()){
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(-1, 0, 0), ztVec3(1, 0, 0));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(-.5f, 0, 0), ztVec3(.5f, 0, 0));
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, -1, 0), ztVec3(0, 1, 0));
+			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, -.5f, 0), ztVec3(0, .5f, 0));
 
 			//zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 			//zt_drawListAddPoint(&g_game->draw_list, ztVec3(2, 2, 2));

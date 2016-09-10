@@ -545,6 +545,15 @@ typedef i32 ztShaderID;
 ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
 void zt_shaderFree(ztShaderID shader_id);
 
+void zt_shaderBegin(ztShaderID shader_id);
+void zt_shaderEnd(ztShaderID shader_id);
+
+// --------------------------------------------------------
+// sets shader variables "model", "projection" and "view"
+void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view);
+void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model);
+
+
 // ------------------------------------------------------------------------------------------------
 
 enum ztShaderVariable_Enum
@@ -559,10 +568,49 @@ enum ztShaderVariable_Enum
 	ztShaderVariable_Mat3,
 	ztShaderVariable_Mat4,
 	ztShaderVariable_Tex,
+	ztShaderVariable_TexCube,
 
 	ztShaderVariable_MAX,
 };
 
+// ------------------------------------------------------------------------------------------------
+
+#ifndef ZT_SHADER_MAX_VARIABLES
+#define ZT_SHADER_MAX_VARIABLES		16
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztShaderVariableValues
+{
+	struct Variable
+	{
+		ztShaderVariable_Enum type;
+		char name[64];
+
+		union {
+			r32 val_float;
+			i32 val_int;
+			r32 val_vec2[2];
+			r32 val_vec3[3];
+			r32 val_vec4[4];
+			r32 val_mat3[9];
+			r32 val_mat4[16];
+			i32 val_tex;
+		};
+	};
+
+	Variable variables[ZT_SHADER_MAX_VARIABLES];
+	int variables_count;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars);
+void zt_shaderSetVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars);
+void zt_shaderApplyVariables(ztShaderID shader_id);
+
+// ------------------------------------------------------------------------------------------------
 
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value);
@@ -574,6 +622,17 @@ void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const 
 void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12]);
 void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id);
 
+// ------------------------------------------------------------------------------------------------
+
+bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type);
+void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value);
+void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value);
+void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value);
+void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value);
+void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value);
+void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value);
+void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]);
+void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -684,6 +743,7 @@ ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 dep
 
 ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
+void zt_meshRender(ztMeshID mesh_id);
 
 // ------------------------------------------------------------------------------------------------
 // transform
@@ -933,6 +993,143 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
 
 // ------------------------------------------------------------------------------------------------
+// lighting
+
+//enum ztLightType_Enum
+//{
+//	ztLightType_Directional,
+//	ztLightType_Spot,
+//	ztLightType_Area,
+//};
+//
+//// ------------------------------------------------------------------------------------------------
+//
+//struct ztLight
+//{
+//	ztLightType_Enum type;
+//
+//	ztVec3 position;
+//	r32 intensity;
+//	bool casts_shadows;
+//	ztColor color;
+//
+//	union {
+//		struct {
+//			ztVec3 direction;
+//		} directional;
+//
+//		struct {
+//			ztVec3 direction;
+//		} spot;
+//	};
+//};
+//
+//// ------------------------------------------------------------------------------------------------
+//
+//ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+//ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+//ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+
+
+// ------------------------------------------------------------------------------------------------
+// skybox
+
+//ztMeshID zt_skyboxGetSkyboxMesh();
+
+
+// ------------------------------------------------------------------------------------------------
+// models
+
+enum ztModelFlags_Enum
+{
+	ztModelFlags_NoFaceCull   = (1<<1),
+	ztModelFlags_Translucent  = (1<<2),
+	ztModelFlags_CastsShadows = (1<<3),
+
+	// toggled and used internally:
+	ztSceneModelFlags_Culled  = (1<<4),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztModel
+{
+	ztMeshID mesh_id;
+	ztTransform transform;
+	i32 flags;
+
+	ztShaderID shader;
+	ztShaderVariableValues *shader_vars;
+
+	ztModel *first_child;
+	ztModel *next;
+	ztModel *parent;
+
+	ztMemoryArena *arena;
+
+	ztMat4 calculated_mat;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+void zt_modelFree(ztModel *model);
+
+
+// ------------------------------------------------------------------------------------------------
+// scenes
+
+//struct ztSceneLight
+//{
+//	ztLight light;
+//	ztTextureID shadow_map;
+//};
+//
+//// ------------------------------------------------------------------------------------------------
+//
+//ztSceneLight zt_sceneLightMake(ztLight *light, r32 shadow_map_size);
+//void zt_sceneLightFree(ztSceneLight *scene_light);
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztScene
+{
+	struct ModelInfo
+	{
+		ztModel *model;
+		bool has_translucent;
+		r32 dist_from_cam;
+	};
+
+	ModelInfo *models;
+	int models_count;
+	int models_size;
+
+	ztMemoryArena *arena;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztScene *zt_sceneMake(ztMemoryArena *arena, int models_count = 1024);
+void zt_sceneFree(ztScene *scene);
+
+//ztSceneItemID zt_sceneAddLight(ztScene *scene, ztLight *light);
+
+void zt_sceneAddModel(ztScene *scene, ztModel *model);
+void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
+
+// --------------------------------------------------------
+// Cull models and lights based on camera view
+void zt_sceneCull(ztScene *scene, ztCamera *camera);
+
+// --------------------------------------------------------
+// Generate shadow maps for non-culled lights
+//void zt_sceneLighting(ztScene *scene);
+
+void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color);
+
+
+// ------------------------------------------------------------------------------------------------
 // renderer functions
 
 bool zt_rendererSupported(ztRenderer_Enum renderer);
@@ -943,6 +1140,20 @@ bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i
 
 void zt_rendererClear(r32 r, r32 g, r32 b, r32 a);
 void zt_rendererClear(ztVec4 clr);
+
+enum ztRendererDepthTestFunction_Enum
+{
+	ztRendererDepthTestFunction_Never,
+	ztRendererDepthTestFunction_Less,
+	ztRendererDepthTestFunction_LessEqual,
+	ztRendererDepthTestFunction_Equal,
+	ztRendererDepthTestFunction_Greater,
+	ztRendererDepthTestFunction_NotEqual,
+	ztRendererDepthTestFunction_GreaterEqual,
+	ztRendererDepthTestFunction_Always,
+};
+
+void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function);
 
 void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
@@ -1130,6 +1341,17 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_TEXTURE_CUBE_MAP 0x8513
 #define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8515
 #define GL_TEXTURE_WRAP_R 0x8072
+#define GL_ACTIVE_UNIFORMS 0x8B86
+#define GL_FLOAT_VEC2 0x8B50
+#define GL_FLOAT_VEC3 0x8B51
+#define GL_FLOAT_VEC4 0x8B52
+#define GL_BOOL 0x8B56
+#define GL_FLOAT_MAT2 0x8B5A
+#define GL_FLOAT_MAT3 0x8B5B
+#define GL_FLOAT_MAT4 0x8B5C
+#define GL_SAMPLER_2D 0x8B5E
+#define GL_SAMPLER_CUBE 0x8B60
+
 
 // function prototypes we need
 #define ZTGL_WINAPI	__stdcall
@@ -1155,6 +1377,9 @@ typedef void      (ZTGL_WINAPI *ztgl_glVertexAttribPointer_Func) (GLuint index, 
 typedef void      (ZTGL_WINAPI *ztgl_glEnableVertexAttribArray_Func) (GLuint index);
 typedef GLint     (ZTGL_WINAPI *ztgl_glGetUniformLocation_Func) (GLuint program, const GLchar* name);
 typedef void      (ZTGL_WINAPI *ztgl_glUniformMatrix4fv_Func) (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
+typedef void      (ZTGL_WINAPI *ztgl_glUniform1fv_Func) (GLint location, GLsizei count, const GLfloat* value);
+typedef void      (ZTGL_WINAPI *ztgl_glUniform2fv_Func) (GLint location, GLsizei count, const GLfloat* value);
+typedef void      (ZTGL_WINAPI *ztgl_glUniform3fv_Func) (GLint location, GLsizei count, const GLfloat* value);
 typedef void      (ZTGL_WINAPI *ztgl_glUniform4fv_Func) (GLint location, GLsizei count, const GLfloat* value);
 typedef void      (ZTGL_WINAPI *ztgl_glGenBuffers_Func) (GLsizei n, GLuint* buffers);
 typedef void      (ZTGL_WINAPI *ztgl_glBindBuffer_Func) (GLenum target, GLuint buffer);
@@ -1178,6 +1403,9 @@ typedef void      (ZTGL_WINAPI *ztgl_glRenderbufferStorageMultisample_Func) (GLe
 typedef void      (ZTGL_WINAPI *ztgl_glFramebufferRenderbuffer_Func) (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 typedef void      (ZTGL_WINAPI *ztgl_glTexImage2DMultisample_Func) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 typedef void      (ZTGL_WINAPI *ztgl_glBlitFramebuffer_Func) (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+typedef void      (ZTGL_WINAPI *ztgl_glGetActiveUniform_Func) (GLuint program, GLuint index, GLsizei maxLength, GLsizei* length, GLint* size, GLenum* type, GLchar* name);
+typedef void      (ZTGL_WINAPI *ztgl_glGetUniformfv_Func) (GLuint program, GLint location, GLfloat* params);
+typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint location, GLint* params);
 
 struct ztOpenGL
 {
@@ -1202,6 +1430,9 @@ struct ztOpenGL
 	ztgl_glEnableVertexAttribArray_Func        glEnableVertexAttribArray;
 	ztgl_glGetUniformLocation_Func             glGetUniformLocation;
 	ztgl_glUniformMatrix4fv_Func               glUniformMatrix4fv;
+	ztgl_glUniform1fv_Func                     glUniform1fv;
+	ztgl_glUniform2fv_Func                     glUniform2fv;
+	ztgl_glUniform3fv_Func                     glUniform3fv;
 	ztgl_glUniform4fv_Func                     glUniform4fv;
 	ztgl_glGenBuffers_Func                     glGenBuffers;
 	ztgl_glBindBuffer_Func                     glBindBuffer;
@@ -1225,6 +1456,9 @@ struct ztOpenGL
 	ztgl_glFramebufferRenderbuffer_Func        glFramebufferRenderbuffer;
 	ztgl_glTexImage2DMultisample_Func          glTexImage2DMultisample;
 	ztgl_glBlitFramebuffer_Func                glBlitFramebuffer;
+	ztgl_glGetActiveUniform_Func               glGetActiveUniform;
+	ztgl_glGetUniformfv_Func                   glGetUniformfv;
+	ztgl_glGetUniformiv_Func                   glGetUniformiv;
 };
 
 ztOpenGL zt_gl = {};
@@ -1254,6 +1488,9 @@ ztInternal void _zt_glLoadFunctions()
 	zt_loadFunc(glEnableVertexAttribArray);
 	zt_loadFunc(glGetUniformLocation);
 	zt_loadFunc(glUniformMatrix4fv);
+	zt_loadFunc(glUniform1fv);
+	zt_loadFunc(glUniform2fv);
+	zt_loadFunc(glUniform3fv);
 	zt_loadFunc(glUniform4fv);
 	zt_loadFunc(glGenBuffers);
 	zt_loadFunc(glBindBuffer);
@@ -1277,6 +1514,9 @@ ztInternal void _zt_glLoadFunctions()
 	zt_loadFunc(glFramebufferRenderbuffer);
 	zt_loadFunc(glTexImage2DMultisample);
 	zt_loadFunc(glBlitFramebuffer);
+	zt_loadFunc(glGetActiveUniform);
+	zt_loadFunc(glGetUniformfv);
+	zt_loadFunc(glGetUniformiv);
 
 #undef zt_loadFunc
 }
@@ -1301,6 +1541,9 @@ ztInternal void _zt_glLoadFunctions()
 #define glEnableVertexAttribArray        zt_gl.glEnableVertexAttribArray
 #define glGetUniformLocation             zt_gl.glGetUniformLocation
 #define glUniformMatrix4fv               zt_gl.glUniformMatrix4fv
+#define glUniform1fv                     zt_gl.glUniform1fv
+#define glUniform2fv                     zt_gl.glUniform2fv
+#define glUniform3fv                     zt_gl.glUniform3fv
 #define glUniform4fv                     zt_gl.glUniform4fv
 #define glGenBuffers                     zt_gl.glGenBuffers
 #define glBindBuffer                     zt_gl.glBindBuffer
@@ -1324,6 +1567,9 @@ ztInternal void _zt_glLoadFunctions()
 #define glFramebufferRenderbuffer        zt_gl.glFramebufferRenderbuffer
 #define glTexImage2DMultisample          zt_gl.glTexImage2DMultisample
 #define glBlitFramebuffer                zt_gl.glBlitFramebuffer
+#define glGetActiveUniform               zt_gl.glGetActiveUniform
+#define glGetUniformfv                   zt_gl.glGetUniformfv
+#define glGetUniformiv                   zt_gl.glGetUniformiv
 
 bool zt_glCheckAndReportError(const char *function);
 i32 zt_glClearErrors();
@@ -1437,7 +1683,6 @@ enum ztShaderLoadType_Enum
 
 // ------------------------------------------------------------------------------------------------
 
-#define ztShaderMaxVariables	32
 #define ztShaderMaxShaders		64
 #define ztShaderMaxDxCbuffers	 8
 
@@ -1471,27 +1716,10 @@ struct ztShader
 		};
 	};
 
-	struct variable
-	{
-		ztShaderVariable_Enum type;
-		char name[64];
+	ztShaderVariableValues variables;
 
-		union {
-			r32 val_float;
-			i32 val_int;
-			r32 val_vec2[2];
-			r32 val_vec3[3];
-			r32 val_vec4[4];
-			r32 val_mat3[9];
-			r32 val_mat4[16];
-			i32 val_tex;
-		};
-
-		zt_directxSupport(i32 dx_offset);
-	};
-
-	variable variables[ztShaderMaxVariables];
-	int variable_count;
+	zt_openGLSupport(GLint gl_locations[ZT_SHADER_MAX_VARIABLES]);
+	zt_directxSupport(int dx_offsets[ZT_SHADER_MAX_VARIABLES]);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -3179,14 +3407,64 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 #define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 48)
 
 // ------------------------------------------------------------------------------------------------
-#
-void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
+
+ztInternal void _ztgl_texturePrepareRenderTarget(ztTextureID render_target_id)
+{
+#ifdef ZT_OPENGL
+	zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo));
+	zt_glCallAndReportOnErrorFast(glViewport(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height));
+
+	real32 realw = (zt->textures[render_target_id].width / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+	real32 realh = (zt->textures[render_target_id].height / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+
+	zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+	zt_glCallAndReportOnErrorFast(glLoadIdentity());
+	zt_glCallAndReportOnErrorFast(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0));
+	zt_glCallAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
+	zt_glCallAndReportOnErrorFast(glEnable(GL_BLEND));
+	zt_glCallAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+	glEnable(GL_MULTISAMPLE);
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _ztgl_textureCommitRenderTarget(ztTextureID render_target_id)
+{
+#ifdef ZT_OPENGL
+	glDisable(GL_MULTISAMPLE);
+
+	if (zt->textures[render_target_id].gl_dbo != 0) {
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[render_target_id].gl_rb);
+
+		glBlitFramebuffer(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height, 0, zt->textures[render_target_id].height, zt->textures[render_target_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
+
+	_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_rendererCheckToResetStats()
 {
 	if (zt->last_drawn_frame != zt->game_details.current_frame) {
 		zt->game_details.prev_frame = zt->game_details.curr_frame;
 		zt->game_details.curr_frame.shader_switches = zt->game_details.curr_frame.texture_switches = zt->game_details.curr_frame.triangles_drawn = zt->game_details.curr_frame.draw_calls = 0;
 		zt->last_drawn_frame = zt->game_details.current_frame;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
+{
+	_zt_rendererCheckToResetStats();
 
 	zt_returnOnNull(camera);
 	zt_returnOnNull(draw_lists);
@@ -3198,6 +3476,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear) && render_target_id == ztInvalidID) {
 		zt_rendererClear(clear);
 	}
+
+#if 0
+	zt_fiz(draw_lists_count) {
+		ztDrawList *draw_list = draw_lists[i];
+
+
+	}
+#else
 
 	byte *mem = zt->renderer_memory;
 	i32 mem_left = zt->renderer_memory_size;
@@ -3611,23 +3897,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
-			zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo));
-			zt_glCallAndReportOnErrorFast(glViewport(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height));
-
-			real32 realw = (zt->textures[render_target_id].width / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
-			real32 realh = (zt->textures[render_target_id].height / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
-
-			zt_glCallAndReportOnErrorFast(glClearColor(clear.r, clear.g, clear.b, clear.a));
-
-			zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
-			zt_glCallAndReportOnErrorFast(glLoadIdentity());
-			zt_glCallAndReportOnErrorFast(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0));
-			zt_glCallAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
-			zt_glCallAndReportOnErrorFast(glEnable(GL_BLEND));
-			zt_glCallAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-			glEnable(GL_MULTISAMPLE);
-
+			_ztgl_texturePrepareRenderTarget(render_target_id);
 			zt_rendererClear(clear);
 		}
 
@@ -4014,26 +4284,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (render_target_id != ztInvalidID) {
-			glDisable(GL_MULTISAMPLE);
-
-			if (zt->textures[render_target_id].gl_dbo!= 0) {
-				glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo);
-				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[render_target_id].gl_rb);
-
-				glBlitFramebuffer(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height, 0, zt->textures[render_target_id].height, zt->textures[render_target_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-				glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-			}
-
-			_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+			_ztgl_textureCommitRenderTarget(render_target_id);
 		}
 
 #endif // ZT_OPENGL
 	}
 	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
-		void _zt_shaderApplyShaderVarsDirectX(ztShaderID shader_id);
 
 		if (render_target_id != ztInvalidID) {
 			D3D11_VIEWPORT viewport;
@@ -4086,7 +4343,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
 			if (shader_id != ztInvalidID) {
-				_zt_shaderApplyShaderVarsDirectX(shader_id);
+				zt_shaderApplyVariables(shader_id);
 
 				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
 				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
@@ -4097,8 +4354,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				dxView.values[3] = dxView.values[7] = dxView.values[11] = 0;
 				dxView.values[15] = 1;
 
-				zt_shaderSetVariableMat4(shader_id, "view", dxView);
-				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "view", dxView);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "projection", dxProj);
+				zt_shaderApplyVariables(shader_id);
 
 				zt->game_details.curr_frame.shader_switches += 1;
 				{
@@ -4146,9 +4404,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
 
-				zt_shaderSetVariableMat4(shader_id, "model", dxMod);
-				zt_shaderSetVariableMat4(shader_id, "view", dxView);
-				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "model", dxMod);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "view", dxView);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "projection", dxProj);
+				zt_shaderApplyVariables(shader_id);
 			}
 			else {
 				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
@@ -4161,10 +4420,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
 
-				zt_shaderSetVariableMat4(shader_id, "model", dxMod);
-				zt_shaderSetVariableMat4(shader_id, "view", dxView);
-				zt_shaderSetVariableMat4(shader_id, "projection", dxProj);
-
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "model", dxMod);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "view", dxView);
+				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "projection", dxProj);
+				zt_shaderApplyVariables(shader_id);
 				// set color
 			}
 
@@ -4204,7 +4463,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							{
 								case ztDrawCommandType_Billboard:
 								case ztDrawCommandType_Triangle: {
-									_zt_shaderApplyShaderVarsDirectX(active_shader);
+									zt_shaderApplyVariables(active_shader);
 
 									// copy the vertices into the buffer
 									D3D11_MAPPED_SUBRESOURCE ms;
@@ -4228,7 +4487,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 								case ztDrawCommandType_Line:
 								case ztDrawCommandType_Point: {
-									_zt_shaderApplyShaderVarsDirectX(active_shader);
+									zt_shaderApplyVariables(active_shader);
 
 									// copy the vertices into the buffer
 									D3D11_MAPPED_SUBRESOURCE ms;
@@ -4314,9 +4573,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								model = model * scale;
 							}
 							model.transpose();
-							zt_shaderSetVariableMat4(shader_id, "model", model.values);
-
-							_zt_shaderApplyShaderVarsDirectX(shader_id);
+							zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "model", model.values);
+							zt_shaderApplyVariables(shader_id);
 
 							ztTextureID texture_id = mesh->materials.materials[ztMaterialType_Diffuse].tex_id;
 							zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &zt->textures[texture_id].dx_shader_resource_view);
@@ -4460,6 +4718,200 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 #endif // ZT_DIRECTX
 	}
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ztModel *model = zt_mallocStructArena(ztModel, arena);
+	model->arena = arena;
+	model->mesh_id = mesh_id;
+	model->flags = 0;
+	model->shader = shader;
+	model->shader_vars = shader_vars;
+	model->transform.position = ztVec3::zero;
+	model->transform.rotation = ztVec3::zero;
+	model->transform.scale = ztVec3::one;
+	model->next = nullptr;
+	model->first_child = nullptr;
+	model->parent = parent;
+	if (parent) {
+		zt_singleLinkAddToEnd(parent, model);
+	}
+
+	return model;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_modelFree(ztModel *model)
+{
+	if (model == nullptr) {
+		return;
+	}
+
+	ztModel *child = model->first_child;
+	while (child) {
+		zt_modelFree(child);
+		child = child->next;
+	}
+
+	zt_freeArena(model, model->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztScene *zt_sceneMake(ztMemoryArena *arena, int models_count)
+{
+	ztScene *scene = zt_mallocStructArena(ztScene, arena);
+	scene->models = zt_mallocStructArray(ztScene::ModelInfo, models_count);
+	scene->models_count = 0;
+	scene->models_size = models_count;
+	scene->arena = arena;
+
+	return scene;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneFree(ztScene *scene)
+{
+	if (scene == nullptr) {
+		return;
+	}
+
+	zt_freeArena(scene->models, scene->arena);
+	zt_freeArena(scene, scene->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneAddModel(ztScene *scene, ztModel *model)
+{
+	zt_returnOnNull(scene);
+	zt_returnOnNull(model);
+
+	if (scene->models_count == scene->models_size) {
+		zt_assert(false);
+		return;
+	}
+
+#if defined(ZT_DEBUG)
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model == model) {
+			zt_assert(false); // the same model instance can't be added twice
+		}
+	}
+#endif
+
+	// TODO: sort according to shader
+	int idx = scene->models_count++;
+	scene->models[idx].model = model;
+	scene->models[idx].dist_from_cam = 0;
+	scene->models[idx].has_translucent = false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
+{
+	zt_returnOnNull(scene);
+	zt_returnOnNull(model);
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model == model) {
+			for (int j = i; j < scene->models_count - 1; ++j) {
+				scene->models[j] = scene->models[j + 1];
+			}
+			scene->models_count -= 1;
+			return;
+		}
+	}
+
+	zt_assert(false); // should not be removing a model that doesn't exist in the scene
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneCull(ztScene *scene, ztCamera *camera)
+{
+	struct local
+	{
+		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
+		{
+			model->calculated_mat = parent_mat->getTranslate(model->transform.position);
+			model->calculated_mat.rotateEuler(model->transform.rotation);
+
+			if (model->transform.scale != ztVec3::one) {
+				ztMat4 scale = ztMat4::identity;
+				scale.scale(model->transform.scale);
+				model->calculated_mat = model->calculated_mat * scale;
+			}
+
+			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
+				calculateModel(child, &model->calculated_mat);
+			}
+		}
+	};
+
+	zt_fiz(scene->models_count) {
+		local::calculateModel(scene->models[i].model, &ztMat4::identity);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color)
+{
+	_zt_rendererCheckToResetStats();
+
+	zt_rendererClear(color);
+	zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
+
+	struct local
+	{
+		static void renderModel(ztModel *model, ztCamera *camera, ztShaderID shader, ztShaderVariableValues **shader_vars)
+		{
+			if (model->shader_vars != *shader_vars) {
+				zt_shaderSetVariables(shader, model->shader_vars);
+				zt_shaderSetCameraMatrices(shader, camera->mat_proj, camera->mat_view);
+				*shader_vars = model->shader_vars;
+			}
+
+			zt_shaderSetModelMatrices(shader, model->calculated_mat);
+			zt_meshRender(model->mesh_id);
+
+			ztModel *child = model->first_child;
+			while (child) {
+				renderModel(child, camera, shader, shader_vars);
+				child = child->next;
+			}
+		}
+	};
+
+	ztShaderID shader = ztInvalidID;
+	ztShaderVariableValues *shader_vars = nullptr;
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model->shader != shader) {
+			if (shader != ztInvalidID) {
+				zt_shaderEnd(shader);
+			}
+			shader = scene->models[i].model->shader;
+			zt_shaderBegin(shader);
+			shader_vars = nullptr;
+
+			zt_shaderSetCameraMatrices(shader, camera->mat_proj, camera->mat_view);
+		}
+
+		local::renderModel(scene->models[i].model, camera, shader, &shader_vars);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4516,6 +4968,54 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 void zt_rendererClear(ztVec4 clr)
 {
 	return zt_rendererClear(clr.r, clr.g, clr.b, clr.a);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function)
+{
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			if (!depth_test) {
+				glDisable(GL_DEPTH_TEST);
+			}
+			else {
+				glEnable(GL_DEPTH_TEST);
+
+				switch (function)
+				{
+					case ztRendererDepthTestFunction_Never       : glDepthFunc(GL_NEVER); break;
+					case ztRendererDepthTestFunction_Less        : glDepthFunc(GL_LESS); break;
+					case ztRendererDepthTestFunction_LessEqual   : glDepthFunc(GL_LEQUAL); break;
+					case ztRendererDepthTestFunction_Equal       : glDepthFunc(GL_LEQUAL); break;
+					case ztRendererDepthTestFunction_Greater     : glDepthFunc(GL_GREATER); break;
+					case ztRendererDepthTestFunction_NotEqual    : glDepthFunc(GL_NOTEQUAL); break;
+					case ztRendererDepthTestFunction_GreaterEqual: glDepthFunc(GL_GEQUAL); break;
+					case ztRendererDepthTestFunction_Always      : glDepthFunc(GL_ALWAYS); break;
+				}
+				
+			}
+#			endif
+		} break;
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			switch (function)
+			{
+				// TODO: Need stencil states for all the functions
+				case ztRendererDepthTestFunction_Never       : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_Less        : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_LessEqual   : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_Equal       : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_Greater     : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_NotEqual    : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_GreaterEqual: zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_Always      : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+			}
+#			endif
+		} break;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4801,7 +5301,56 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		shader->gl_frag_id = frag;
 		shader->gl_geo_id = geom;
 		shader->gl_program_id = program;
-		shader->variable_count = 0;
+		shader->variables.variables_count = 0;
+
+		// extract shader variables
+		char varname[64];
+		int uniform_count = 0;
+		glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count);
+
+		zt_fiz(uniform_count) {
+			int len = 0, size = 0;
+			GLenum type = 0;
+			glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
+
+			ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
+			switch(type)
+			{
+				case GL_FLOAT       : var_type = ztShaderVariable_Float; break;
+				case GL_FLOAT_VEC2  : var_type = ztShaderVariable_Vec2; break;
+				case GL_FLOAT_VEC3  : var_type = ztShaderVariable_Vec3; break;
+				case GL_FLOAT_VEC4  : var_type = ztShaderVariable_Vec4; break;
+				case GL_INT         : var_type = ztShaderVariable_Int; break;
+				case GL_FLOAT_MAT3  : var_type = ztShaderVariable_Mat3; break;
+				case GL_FLOAT_MAT4  : var_type = ztShaderVariable_Mat4; break;
+				case GL_SAMPLER_2D  : var_type = ztShaderVariable_Tex; break;
+				case GL_SAMPLER_CUBE: var_type = ztShaderVariable_TexCube; break;
+			}
+
+			if (var_type == ztShaderVariable_Invalid) {
+				zt_logDebug("Unsupported shader variable type in variable %s", varname);
+			}
+			else {
+				int idx = shader->variables.variables_count++;
+				shader->variables.variables[idx].type = var_type;
+				zt_strCpy(shader->variables.variables[idx].name, zt_elementsOf(shader->variables.variables[idx].name), varname);
+
+				shader->gl_locations[idx] = glGetUniformLocation(program, varname);
+
+				switch(var_type)
+				{
+					case ztShaderVariable_Float  : glGetUniformfv(program, shader->gl_locations[idx], &shader->variables.variables[idx].val_float); break;
+					case ztShaderVariable_Int    : glGetUniformiv(program, shader->gl_locations[idx], &shader->variables.variables[idx].val_int); break;
+					case ztShaderVariable_Vec2   : glGetUniformfv(program, shader->gl_locations[idx],  shader->variables.variables[idx].val_vec2); break;
+					case ztShaderVariable_Vec3   : glGetUniformfv(program, shader->gl_locations[idx],  shader->variables.variables[idx].val_vec3); break;
+					case ztShaderVariable_Vec4   : glGetUniformfv(program, shader->gl_locations[idx],  shader->variables.variables[idx].val_vec4); break;
+					case ztShaderVariable_Mat3   : glGetUniformfv(program, shader->gl_locations[idx],  shader->variables.variables[idx].val_mat3); break;
+					case ztShaderVariable_Mat4   : glGetUniformfv(program, shader->gl_locations[idx],  shader->variables.variables[idx].val_mat4); break;
+					case ztShaderVariable_Tex    : shader->variables.variables[idx].val_tex = 0; break;
+					case ztShaderVariable_TexCube: shader->variables.variables[idx].val_tex = 0; break;
+				}
+			}
+		}
 #else
 		error = "OpenGL has been disabled in the library.";
 		goto on_error;
@@ -4881,7 +5430,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 		ztShader* shader = &zt->shaders[shader_id];
 		shader->renderer = ztRenderer_DirectX;
-		shader->variable_count = 0;
+		shader->variables.variables_count = 0;
 
 		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateVertexShader(vert->GetBufferPointer(), vert->GetBufferSize(), NULL, &shader->dx_vert));
 		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreatePixelShader(frag->GetBufferPointer(), frag->GetBufferSize(), NULL, &shader->dx_frag));
@@ -4899,7 +5448,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (reflection) {
 				D3D11_SHADER_DESC shader_desc;
 				if (SUCCEEDED(reflection->GetDesc(&shader_desc))) {
-					D3D11_INPUT_ELEMENT_DESC layouts[ztShaderMaxVariables];
+					D3D11_INPUT_ELEMENT_DESC layouts[ZT_SHADER_MAX_VARIABLES];
 					int layouts_count = 0;
 					i32 bytes_offset = 0;
 					if (k == 0) {
@@ -4948,15 +5497,15 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 							D3D11_SHADER_INPUT_BIND_DESC ibdesc;
 							reflection->GetResourceBindingDesc(i, &ibdesc);
 
-							int idx = shader->variable_count++;
-							zt_strCpy(shader->variables[idx].name, zt_sizeof(shader->variables[idx].name), ibdesc.Name);
-							shader->variables[idx].type = ztShaderVariable_Invalid;
+							int idx = shader->variables.variables_count++;
+							zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), ibdesc.Name);
+							shader->variables.variables[idx].type = ztShaderVariable_Invalid;
 
 							switch (ibdesc.Type)
 							{
 								case D3D_SIT_TEXTURE: {
-									shader->variables[idx].type = ztShaderVariable_Tex;
-									shader->variables[idx].dx_offset = -1;
+									shader->variables.variables[idx].type = ztShaderVariable_Tex;
+									shader->dx_offsets[idx] = -1;
 								} break;
 							}
 						}
@@ -4968,7 +5517,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 					bytes_offset = 0;
 					zt_assert(shader_desc.ConstantBuffers <= 1); // we don't currently support more than one
-					zt_fiz(zt_min(ztShaderMaxVariables, (i32)shader_desc.ConstantBuffers)) {
+					zt_fiz(zt_min(ZT_SHADER_MAX_VARIABLES, (i32)shader_desc.ConstantBuffers)) {
 						u32 register_idx = 0;
 						ID3D11ShaderReflectionConstantBuffer *buffer = reflection->GetConstantBufferByIndex(i);
 						if (!buffer) {
@@ -4999,10 +5548,10 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 							D3D11_SHADER_VARIABLE_DESC vdesc;
 							variable->GetDesc(&vdesc);
 
-							if (shader->variable_count < ztShaderMaxVariables) {
-								int idx = shader->variable_count++;
-								zt_strCpy(shader->variables[idx].name, zt_sizeof(shader->variables[idx].name), vdesc.Name);
-								shader->variables[idx].type = ztShaderVariable_Invalid;
+							if (shader->variables.variables_count < ZT_SHADER_MAX_VARIABLES) {
+								int idx = shader->variables.variables_count++;
+								zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), vdesc.Name);
+								shader->variables.variables[idx].type = ztShaderVariable_Invalid;
 
 								ID3D11ShaderReflectionType* type = variable->GetType();
 								D3D11_SHADER_TYPE_DESC tdesc;
@@ -5011,27 +5560,27 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 								switch (tdesc.Class)
 								{
 									case D3D_SVC_SCALAR: {
-										if (tdesc.Type == D3D_SVT_FLOAT) { shader->variables[idx].type = ztShaderVariable_Float; }
-										else if (tdesc.Type == D3D_SVT_INT) { shader->variables[idx].type = ztShaderVariable_Int; }
+										if (tdesc.Type == D3D_SVT_FLOAT) { shader->variables.variables[idx].type = ztShaderVariable_Float; }
+										else if (tdesc.Type == D3D_SVT_INT) { shader->variables.variables[idx].type = ztShaderVariable_Int; }
 									} break;
 
 									case D3D_SVC_VECTOR: {
 										if (tdesc.Type == D3D_SVT_FLOAT) {
-											if (tdesc.Rows == 1 && tdesc.Columns == 4) { shader->variables[idx].type = ztShaderVariable_Vec4; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 3) { shader->variables[idx].type = ztShaderVariable_Vec3; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables[idx].type = ztShaderVariable_Vec2; }
+											if (tdesc.Rows == 1 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Vec4; }
+											else if (tdesc.Rows == 1 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Vec3; }
+											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; }
 										}
 									} break;
 
 									case D3D_SVC_MATRIX_COLUMNS: {
 										if (tdesc.Type == D3D_SVT_FLOAT) {
-											if (tdesc.Rows == 4 && tdesc.Columns == 4) { shader->variables[idx].type = ztShaderVariable_Mat4; }
-											else if (tdesc.Rows == 3 && tdesc.Columns == 3) { shader->variables[idx].type = ztShaderVariable_Mat3; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables[idx].type = ztShaderVariable_Vec2; }
+											if (tdesc.Rows == 4 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Mat4; *((ztMat4*)shader->variables.variables[idx].val_mat4) = ztMat4::identity; }
+											else if (tdesc.Rows == 3 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Mat3; }
+											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; }
 										}
 									} break;
 								}
-								shader->variables[idx].dx_offset = vdesc.StartOffset;
+								shader->dx_offsets[idx] = vdesc.StartOffset;
 							}
 						}
 
@@ -5207,14 +5756,219 @@ void zt_shaderFree(ztShaderID shader_id)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type)
+void zt_shaderBegin(ztShaderID shader_id)
 {
-	if (shader_id < 0 || shader_id >= zt->shaders_count)
-		return false;
+	zt->game_details.curr_frame.shader_switches += 1;
 
-	zt_fiz(zt->shaders[shader_id].variable_count) {
-		if (zt_strEquals(zt->shaders[shader_id].variables[i].name, variable)) {
-			if (type) *type = zt->shaders[shader_id].variables[i].type;
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			zt_glCallAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
+			zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+			zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
+#			endif
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderEnd(ztShaderID shader_id)
+{
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			zt_glCallAndReportOnErrorFast(glUseProgram(0));
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			zt->win_details[0].dx_context->VSSetShader(NULL, NULL, NULL);
+			zt->win_details[0].dx_context->PSSetShader(NULL, NULL, NULL);
+#			endif
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view)
+{
+	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "view", view);
+	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "projection", projection);
+	zt_shaderApplyVariables(shader_id);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model)
+{
+	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, "model", model);
+	zt_shaderApplyVariables(shader_id);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
+{
+	zt_returnOnNull(shader_vars);
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt->shaders_count);
+
+	zt_memCpy(shader_vars, zt_sizeof(ztShaderVariableValues), &zt->shaders[shader_id].variables, zt_sizeof(ztShaderVariableValues));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
+{
+	zt_returnOnNull(shader_vars);
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt->shaders_count);
+
+	ztShaderVariableValues *shader = &zt->shaders[shader_id].variables;
+
+#if defined(ZT_DEBUG)
+	// validate that the shader variables match up
+	zt_assertReturnOnFail(shader->variables_count == shader_vars->variables_count);
+	zt_fiz(shader->variables_count) {
+		zt_assertReturnOnFail(shader->variables[i].type == shader_vars->variables[i].type);
+		zt_assertReturnOnFail(zt_strEquals(shader->variables[i].name, shader_vars->variables[i].name));
+	}
+#endif
+
+	zt_memCpy(&shader->variables, zt_sizeof(ztShaderVariableValues), shader_vars, zt_sizeof(ztShaderVariableValues));
+	zt_shaderApplyVariables(shader_id);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderApplyVariables(ztShaderID shader_id)
+{
+	ztShaderVariableValues *shader = &zt->shaders[shader_id].variables;
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			if (shader->variables_count) {
+				zt_fiz(shader->variables_count) {
+					GLint location = zt->shaders[shader_id].gl_locations[i];
+					ztShaderVariableValues::Variable *val = &shader->variables[i];
+
+					switch (val->type)
+					{
+						case ztShaderVariable_Float: glUniform1fv(location, 1, &val->val_float); break;
+						case ztShaderVariable_Int: glUniform1i(location, val->val_int); break;
+						case ztShaderVariable_Vec2: glUniform2fv(location, 1, val->val_vec2); break;
+						case ztShaderVariable_Vec3: glUniform3fv(location, 1, val->val_vec3); break;
+						case ztShaderVariable_Vec4: glUniform4fv(location, 1, val->val_vec4); break;
+						case ztShaderVariable_Mat3: glUniformMatrix4fv(location, 1, GL_FALSE, val->val_mat3); break;
+						case ztShaderVariable_Mat4: glUniformMatrix4fv(location, 1, GL_FALSE, val->val_mat4); break;
+						case ztShaderVariable_Tex: glUniform1i(location, val->val_tex); break;
+						case ztShaderVariable_TexCube: glUniform1i(location, val->val_tex); break;
+					}
+				}
+			}
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			// populate cbuffer data
+			if (shader->variables_count) {
+				zt_fiz(zt->shaders[shader_id].dx_cbuffers_count) {
+					i32 cbuffer_idx = i;
+
+					byte cbuffer_data[1024 * 4];
+					i32 cbuffer_pos = 0;
+					i32 last_offset = -1;
+					while (true) {
+						i32 lowest_idx = -1;
+						i32 lowest_val = 9999;
+						zt_fiz(shader->variables_count) {
+							if (zt->shaders[shader_id].dx_offsets[i] < lowest_val && zt->shaders[shader_id].dx_offsets[i] > last_offset) {
+								lowest_idx = i;
+								lowest_val = zt->shaders[shader_id].dx_offsets[i];
+							}
+						}
+						if (lowest_idx == -1) {
+							break;
+						}
+
+						i32 size = 0;
+						r32 data[16];
+						zt_memCpy(data, zt_sizeof(r32) * 16, &zt->shaders[shader_id].variables.variables[lowest_idx].val_float, zt_sizeof(r32) * 16);
+
+						switch (zt->shaders[shader_id].variables.variables[lowest_idx].type)
+						{
+							case ztShaderVariable_Float: size = zt_sizeof(r32); break;
+							case ztShaderVariable_Int: size = zt_sizeof(i32); break;
+							case ztShaderVariable_Vec2: size = zt_sizeof(r32) * 2; break;
+							case ztShaderVariable_Vec3: size = zt_sizeof(r32) * 3; break;
+							case ztShaderVariable_Vec4: size = zt_sizeof(r32) * 4; break;
+							case ztShaderVariable_Mat3: {
+								size = zt_sizeof(r32) * 9;
+								r32 *sdata = zt->shaders[shader_id].variables.variables[lowest_idx].val_mat3;
+								data[1] = sdata[3];
+								data[2] = sdata[6];
+								data[3] = sdata[1];
+								data[5] = sdata[7];
+								data[6] = sdata[2];
+								data[7] = sdata[5];
+							} break;
+							case ztShaderVariable_Mat4: {
+								size = zt_sizeof(r32) * 16;
+								((ztMat4*)data)->transpose();
+							} break;
+							case ztShaderVariable_Tex: size = zt_sizeof(i32); break;
+							case ztShaderVariable_TexCube: size = zt_sizeof(i32); break;
+						}
+
+						zt_memCpy(cbuffer_data + cbuffer_pos, size, data, size);
+
+						last_offset = cbuffer_pos;
+						cbuffer_pos += size;
+					}
+					//ms.pData = cbuffer_data;
+
+					//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->shaders[shader_id].dx_cbuffers[cbuffer_idx], NULL));
+					zt->win_details[0].dx_context->UpdateSubresource(zt->shaders[shader_id].dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
+					zt->win_details[0].dx_context->VSSetConstantBuffers(0, 1, &zt->shaders[shader_id].dx_cbuffers[cbuffer_idx]);
+					zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
+					//zt->win_details[0].dx_context->PSSetConstantBuffers(0, 1, &zt->shaders[shader_id].dx_cbuffers[cbuffer_idx]);
+				}
+			}
+#			endif
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type)
+{
+	zt_returnValOnNull(shader_vars, false);
+	zt_returnValOnNull(variable, false);
+
+	zt_fiz(shader_vars->variables_count) {
+		if (zt_strEquals(shader_vars->variables[i].name, variable)) {
+			if (type) *type = shader_vars->variables[i].type;
 			return true;
 		}
 	}
@@ -5224,96 +5978,171 @@ bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVa
 
 // ------------------------------------------------------------------------------------------------
 
-#define _zt_shaderCheck(shader_id, shader_type) \
-	if (shader_id < 0 || shader_id >= zt->shaders_count) { zt_assert(false); return; }\
+#define _zt_shaderCheck(shader_vars, shader_type) \
 	int idx = -1; \
-	zt_fiz(zt->shaders[shader_id].variable_count) { \
-		if (zt_strEquals(zt->shaders[shader_id].variables[i].name, variable)) {\
+	zt_fiz(shader_vars->variables_count) { \
+		if (zt_strEquals(shader_vars->variables[i].name, variable)) {\
 			idx = i; break; \
 		} \
 	} \
 	if (idx == -1) { zt_assert(false); return; } \
-	if (zt->shaders[shader_id].variables[idx].type != shader_type) { \
+	if (shader_vars->variables[idx].type != shader_type) { \
 		zt_assert(false); return; \
 	}
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Float);
+	shader_vars->variables[idx].val_float = value;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Int);
+	shader_vars->variables[idx].val_int = value;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Vec2);
+	shader_vars->variables[idx].val_vec2[0] = value.values[0];
+	shader_vars->variables[idx].val_vec2[1] = value.values[1];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Vec3);
+	shader_vars->variables[idx].val_vec3[0] = value.values[0];
+	shader_vars->variables[idx].val_vec3[1] = value.values[1];
+	shader_vars->variables[idx].val_vec3[2] = value.values[2];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Vec4);
+	shader_vars->variables[idx].val_vec4[0] = value.values[0];
+	shader_vars->variables[idx].val_vec4[1] = value.values[1];
+	shader_vars->variables[idx].val_vec4[2] = value.values[2];
+	shader_vars->variables[idx].val_vec4[3] = value.values[3];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Mat4);
+	zt_fiz(zt_elementsOf(value.values)) {
+		shader_vars->variables[idx].val_mat4[i] = value.values[i];
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12])
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Mat3);
+	zt_fiz(12) {
+		shader_vars->variables[idx].val_mat3[i] = value[i];
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, ztTextureID texture)
+{
+	_zt_shaderCheck(shader_vars, ztShaderVariable_Tex);
+	shader_vars->variables[idx].val_tex = texture;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+#undef _zt_shaderCheck
+
+#define _zt_shaderCheck(shader_id) \
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt->shaders_count); \
+	ztShaderVariableValues *shader_vars = &zt->shaders[shader_id].variables;
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type)
+{
+	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt->shaders_count, false);
+	return zt_shaderHasVariable(&zt->shaders[shader_id].variables, variable, type);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Float);
-	zt->shaders[shader_id].variables[idx].val_float = value;
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableFloat(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableInt(ztShaderID shader_id, const char *variable, i32 value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Int);
-	zt->shaders[shader_id].variables[idx].val_int = value;
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableInt(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableVec2(ztShaderID shader_id, const char *variable, const ztVec2& value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Vec2);
-	zt->shaders[shader_id].variables[idx].val_vec2[0] = value.values[0];
-	zt->shaders[shader_id].variables[idx].val_vec2[1] = value.values[1];
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableVec2(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const ztVec3& value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Vec3);
-	zt->shaders[shader_id].variables[idx].val_vec3[0] = value.values[0];
-	zt->shaders[shader_id].variables[idx].val_vec3[1] = value.values[1];
-	zt->shaders[shader_id].variables[idx].val_vec3[2] = value.values[2];
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableVec3(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4& value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Vec4);
-	zt->shaders[shader_id].variables[idx].val_vec4[0] = value.values[0];
-	zt->shaders[shader_id].variables[idx].val_vec4[1] = value.values[1];
-	zt->shaders[shader_id].variables[idx].val_vec4[2] = value.values[2];
-	zt->shaders[shader_id].variables[idx].val_vec4[3] = value.values[3];
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableVec4(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const ztMat4& value)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Mat4);
-	zt_fiz(zt_elementsOf(value.values)) {
-		zt->shaders[shader_id].variables[idx].val_mat4[i] = value.values[i];
-	}
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableMat4(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12])
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Mat3);
-	zt_fiz(12) {
-		zt->shaders[shader_id].variables[idx].val_mat3[i] = value[i];
-	}
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableMat3(shader_vars, variable, value);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, ztTextureID texture)
+void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id)
 {
-	_zt_shaderCheck(shader_id, ztShaderVariable_Tex);
-	zt->shaders[shader_id].variables[idx].val_tex = texture;
+	_zt_shaderCheck(shader_id);
+	zt_shaderSetVariableTex(shader_vars, variable, texture_id);
 }
-
-// ------------------------------------------------------------------------------------------------
-
-#undef _zt_shaderCheck
 
 // ------------------------------------------------------------------------------------------------
 
@@ -5325,64 +6154,6 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 
 	return ztInvalidID;
 }
-
-// ------------------------------------------------------------------------------------------------
-
-#if defined(ZT_DIRECTX)
-void _zt_shaderApplyShaderVarsDirectX(ztShaderID shader_id)
-{
-	if (shader_id != ztInvalidID) {
-		// populate cbuffer data
-		if (zt->shaders[shader_id].variable_count) {
-			zt_fiz(zt->shaders[shader_id].dx_cbuffers_count) {
-				i32 cbuffer_idx = i;
-
-				byte cbuffer_data[1024 * 4];
-				i32 cbuffer_pos = 0;
-				i32 last_offset = -1;
-				while (true) {
-					i32 lowest_idx = -1;
-					i32 lowest_val = 9999;
-					zt_fiz(zt->shaders[shader_id].variable_count) {
-						if (zt->shaders[shader_id].variables[i].dx_offset < lowest_val && zt->shaders[shader_id].variables[i].dx_offset > last_offset) {
-							lowest_idx = i;
-							lowest_val = zt->shaders[shader_id].variables[i].dx_offset;
-						}
-					}
-					if (lowest_idx == -1) {
-						break;
-					}
-
-					i32 size = 0;
-					switch (zt->shaders[shader_id].variables[lowest_idx].type)
-					{
-					case ztShaderVariable_Float: size = zt_sizeof(r32); break;
-					case ztShaderVariable_Int: size = zt_sizeof(i32); break;
-					case ztShaderVariable_Vec2: size = zt_sizeof(r32) * 2; break;
-					case ztShaderVariable_Vec3: size = zt_sizeof(r32) * 3; break;
-					case ztShaderVariable_Vec4: size = zt_sizeof(r32) * 4; break;
-					case ztShaderVariable_Mat3: size = zt_sizeof(r32) * 9; break;
-					case ztShaderVariable_Mat4: size = zt_sizeof(r32) * 16; break;
-					case ztShaderVariable_Tex: size = zt_sizeof(i32); break;
-					}
-
-					zt_memCpy(cbuffer_data + cbuffer_pos, size, &zt->shaders[shader_id].variables[lowest_idx].val_float, size);
-
-					last_offset = cbuffer_pos;
-					cbuffer_pos += size;
-				}
-				//ms.pData = cbuffer_data;
-
-				//zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Unmap(zt->shaders[shader_id].dx_cbuffers[cbuffer_idx], NULL));
-				zt->win_details[0].dx_context->UpdateSubresource(zt->shaders[shader_id].dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
-				zt->win_details[0].dx_context->VSSetConstantBuffers(0, 1, &zt->shaders[shader_id].dx_cbuffers[cbuffer_idx]);
-				zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
-				//zt->win_details[0].dx_context->PSSetConstantBuffers(0, 1, &zt->shaders[shader_id].dx_cbuffers[cbuffer_idx]);
-			}
-		}
-	}
-}
-#endif // ZT_DIRECTX
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -8369,6 +9140,61 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 	zt_free(data);
 
 	return mesh;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_meshRender(ztMeshID mesh_id)
+{
+	ztMesh *mesh = &zt->meshes[mesh_id];
+	zt->game_details.curr_frame.triangles_drawn += mesh->triangles;
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+			zt_fiz(zt_elementsOf(mesh->materials.materials)) {
+				if (mesh->materials.materials[i].tex_id != ztInvalidID) {
+					zt->game_details.curr_frame.texture_switches += 1;
+					zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
+					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[mesh->materials.materials[i].tex_id].gl_texid));
+				}
+			}
+
+			zt_glCallAndReportOnErrorFast(glBindVertexArray(mesh->gl_vao));
+			zt_glCallAndReportOnErrorFast(glDrawElements(GL_TRIANGLES, mesh->indices, GL_UNSIGNED_INT, 0));
+			zt_glCallAndReportOnErrorFast(glBindVertexArray(0));
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+
+			zt->game_details.curr_frame.texture_switches += 1;
+			ztTextureID texture_id = mesh->materials.materials[ztMaterialType_Diffuse].tex_id;
+			zt->win_details[0].dx_context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
+			zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
+			float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+			zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
+
+			UINT stride = mesh->dx_stride, offset = 0;
+			zt->win_details[0].dx_context->IASetIndexBuffer(mesh->dx_buff_idx, DXGI_FORMAT_R32_UINT, 0);
+			zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &mesh->dx_buff_vert, &stride, &offset);
+			zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			zt->win_details[0].dx_context->DrawIndexed(mesh->indices, 0, 0);
+
+#			endif
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
