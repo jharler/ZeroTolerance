@@ -31,3 +31,8 @@ Probably not, unless I need it too.  If you want a feature, feel free to add it.
 #### Special Thanks
 
 This library is inspired by the single file libraries by Sean Barrett.  Inspiration has also been drawn from Casey Muratori's Handmade Hero video series as well as Shawn McGrath's programming streams.
+
+
+#### Who are you?
+
+My name is Joshua Harler.  I've been developing in C++ for over 20 years now, mostly in the business sector, but the desire to make games is what first sparked my interested in the beginning.  I released my first game back in 1997, which was an awful breakout clone, but it got close to 1000 downloads and I received some nice comments about it.  A few years back, 2011 or so, an addiction to Minecraft and (shamefully) Candy Crush Saga, led me back into game development.  I jumped into using Unity and spent several months, off and on, developing a match 3 game.  I also joined my first Ludum Dare and had a blast.  I started learning more about game design and development and after hitting limitations of Unity, decided to shed the training wheels and really dig into the nitty gritty of engine work, which ultimately led to this library.
