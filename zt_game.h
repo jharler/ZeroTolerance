@@ -2389,6 +2389,7 @@ ztInternal bool _zt_dxToggleFullscreen(ztWindowDetails *win_details, ztGameSetti
 bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_details);
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details);
+
 // ------------------------------------------------------------------------------------------------
 
 #define _zt_setKeyData(code, name, display, shift_display, mapping) zt->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
@@ -7797,7 +7798,7 @@ ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int 
 	*start_char = 0;
 	*length = 0;
 	zt_fiz(text_len) {
-		i32 codepoint;
+		i32 codepoint = 0;
 		text = zt_strCodepoint(text, &codepoint);
 		if (codepoint == '\n') {
 			current_row += 1;
@@ -7826,7 +7827,7 @@ ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, in
 	}
 
 	zt_fiz(text_len) {
-		i32 codepoint;
+		i32 codepoint = 0;
 		text = zt_strCodepoint(text, &codepoint);
 		glyphs_idx[i] = -1;
 		zt_fjz(font->glyph_count) {
@@ -8085,7 +8086,14 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 
 	zt_fiz(text_len) {
 		int glyph_idx = glyphs_idx[i];
-		char ch = (char)font->glyph_code_point[glyph_idx];
+		char ch;
+		if (glyph_idx < 0) {
+			ch = (char)zt_strCodepoint(text, i);
+		}
+		else {
+			ch = (char)font->glyph_code_point[glyph_idx];
+		}
+
 		if (in_format) {
 			if (ch == '>') {
 				in_format = false;
@@ -8112,8 +8120,7 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 				row_height = font->line_height;
 			}
 
-			i32 codepoint = zt_strCodepoint(text, i);
-			if (codepoint == '\n') {
+			if (ch == '\n') {
 				if (current_row == row) {
 					*width = row_width;
 					*height = row_height;
@@ -8124,10 +8131,10 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 				row_height = row_width = 0;
 				current_row += 1;
 			}
-			else if (codepoint == ' ') {
+			else if (ch == ' ') {
 				row_width += font->space_width;
 			}
-			else if (codepoint == '\t') {
+			else if (ch == '\t') {
 				row_width += font->space_width * 4; // TODO(josh): fix this
 			}
 			continue;
@@ -8229,6 +8236,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 
 	zt_drawListPushColor(draw_list, ztColor(1, 1, 1, 1));
 	int colors_pushed = 0;
+
 	for (int r = 0; r < rows; ++r) {
 		real32 row_width = 0;
 		real32 row_height = 0;
@@ -8269,8 +8277,15 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 
 		for (int i = start_char; i < start_char + length; ++i) {
 			int glyph_idx = glyphs_idx[i];
+			char ch;
 
-			char ch = (char)font->glyph_code_point[glyph_idx];
+			if (glyph_idx < 0) {
+				ch = (char)zt_strCodepoint(text, i);
+			}
+			else {
+				ch = (char)font->glyph_code_point[glyph_idx];
+			}
+
 			if (in_format) {
 				if (ch == '>') {
 					in_format = false;
@@ -8308,10 +8323,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			}
 
 			if (glyph_idx < 0) {
-				if (text[i] == ' ') {
+				if (ch == ' ') {
 					start_pos_x += font->space_width * scale_x;
 				}
-				else if (text[i] == '\t') {
+				else if (ch == '\t') {
 					start_pos_x += font->space_width * 4 * scale_x; // TODO(josh): fix
 				}
 				continue;
