@@ -890,6 +890,7 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size);
 i32 zt_fileGetAppPath(char *buffer, int buffer_size);
 i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name);
 i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
+void zt_fileSetCurrentPath(const char *path);
 
 bool zt_fileExists(const char *file_name);
 bool zt_fileDelete(const char *file_name);
@@ -911,7 +912,7 @@ ztInline bool zt_fileRead(ztFile *file, u64 *value)		{ return zt_sizeof(*value) 
 ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
 ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
 
-i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size);
+i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size);
 ztInline bool zt_fileWrite(ztFile *file, i8 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
 ztInline bool zt_fileWrite(ztFile *file, i16 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
 ztInline bool zt_fileWrite(ztFile *file, i32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
@@ -1114,6 +1115,13 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 
 bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long);
 bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size);
+
+
+// ------------------------------------------------------------------------------------------------
+// external processes
+
+int zt_processRun(const char *command);
+int zt_processRun(const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written = nullptr);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1680,6 +1688,7 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 
 #if defined(ZT_COMPILER_MSVC)
 #	include <windows.h>
+#	include <WinBase.h>
 #	include <shlobj.h>
 #endif
 
@@ -2115,7 +2124,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line)
 {
 	void *result = zt_memAllocFromArena(arena, size);
-	if (result) {
+	if (result && arena) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
 		zt_debugOnly(allocation->file = file);
 		zt_debugOnly(allocation->file_line = file_line);
@@ -2652,12 +2661,13 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 /*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
 {
-	r32 m[16] = {
-		2.f / (right - left), 0,                    0,                       -(right + left) / (right - left),
-		0,                    2.f / (top - bottom), 0,                       -(top + bottom) / (top - bottom),
-		0,                    0,                    -2.f / (far_z - near_z), -(far_z + near_z) / (far_z - near_z),
-		0,                    0,                    0,                       1.f
-	};
+	r32 m[16] = { 0 };
+	m[ztMat4_Row0Col0] =  2.f / (right - left);
+	m[ztMat4_Row1Col1] =  2.f / (top - bottom);
+	m[ztMat4_Row2Col2] = -2.f / (far_z - near_z);
+	m[ztMat4_Row2Col3] = -near_z / (far_z - near_z);
+	m[ztMat4_Row3Col3] = 1;
+
 	return ztMat4(m);
 }
 
@@ -4262,6 +4272,15 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_fileSetCurrentPath(const char *path)
+{
+#if defined(ZT_WINDOWS)
+	SetCurrentDirectoryA(path);
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_fileExists(const char *file_name)
 {
 #if defined(ZT_WINDOWS)
@@ -4424,7 +4443,7 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_fileWrite(ztFile *file, void *buffer, i32 buffer_size)
+i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 {
 	zt_returnValOnNull(file, 0);
 	zt_returnValOnNull(buffer, 0);
@@ -5618,6 +5637,97 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 		}
 	}
 	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+int zt_processRun(const char *command)
+{
+	return zt_processRun(command, nullptr, 0, nullptr);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_processRun(const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written)
+{
+#	if defined(ZT_WINDOWS)
+
+	HANDLE pipe_read, pipe_write;
+
+	SECURITY_ATTRIBUTES sec_attr = { sizeof(SECURITY_ATTRIBUTES) };
+	sec_attr.bInheritHandle = TRUE;   //Pipe handles are inherited by child process.
+	sec_attr.lpSecurityDescriptor = NULL;
+
+	// Create a pipe to get results from child's stdout.
+	if (!CreatePipe(&pipe_read, &pipe_write, &sec_attr, 0)) {
+		return -100;
+	}
+
+	STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+	si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.hStdOutput = pipe_write;
+	si.hStdError = pipe_write;
+	si.wShowWindow = SW_HIDE;       // Prevents cmd window from flashing. Requires STARTF_USESHOWWINDOW in dwFlags.
+
+	PROCESS_INFORMATION pi = { 0 };
+
+	#pragma push_macro("GetEnvironmentStrings")
+	#undef GetEnvironmentStrings
+	char *curr_env = GetEnvironmentStrings();
+	#pragma pop_macro("GetEnvironmentStrings")
+
+	if (FALSE == CreateProcessA(NULL, (LPSTR)command, NULL, NULL, TRUE, CREATE_NEW_CONSOLE, curr_env, NULL, &si, &pi))
+	{
+		CloseHandle(pipe_write);
+		CloseHandle(pipe_read);
+		return -200;
+	}
+
+	bool process_ended = false;
+	while(!process_ended) {
+		// Give some timeslice (50ms), so we won't waste 100% cpu.
+		process_ended = WaitForSingleObject(pi.hProcess, 50) == WAIT_OBJECT_0;
+
+		// Even if process exited - we continue reading, if there is some data available over pipe.
+		while (true) {
+			char buffer[1024];
+			DWORD read = 0, avail = 0;
+
+			if (!PeekNamedPipe(pipe_read, NULL, 0, NULL, &avail, NULL)) {
+				break;
+			}
+
+			if (avail == 0) { // no data available, return
+				break;
+			}
+
+			if (!ReadFile(pipe_read, buffer, zt_min(zt_sizeof(buffer) - 1, avail), &read, NULL) || !read) {
+				// error, the child process might ended
+				break;
+			}
+
+			buffer[read] = 0;
+			zt_strCpy(output_buffer, output_buffer_size, buffer, read);
+			output_buffer += read;
+			output_buffer_size -= read;
+			if (output_buffer_written) *output_buffer_written += read;
+		}
+	}
+
+	DWORD result = 0;
+	GetExitCodeProcess(pi.hProcess, &result);
+
+	CloseHandle(pipe_write);
+	CloseHandle(pipe_read);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+
+	return result;
+	#else
+#		error zt_processRun needs an implementation for this platform
+#	endif
 }
 
 // ------------------------------------------------------------------------------------------------
