@@ -1,23 +1,17 @@
 /**************************************************************************************************
  ** file: zt_game.h v 0.00 (active initial development)
  **
- ** This library is in the public domain.  Do with it what you will.  No waranty implied.
+ ** This software is dual-licensed to the public domain and under the following
+ ** license: you are granted a perpetual, irrevocable license to copy, modify,
+ ** publish, and distribute this file as you see fit.
  **
- ** There is no guarantee that this code works as intended.  Use it at your own risk.
+ ** No warranty is offered or implied.  Use this at your own risk.
  **
  **************************************************************************************************
    
-    Zero Tolerance Game Library
+	Zero Tolerance Game Library
    
-    Single header library collection of powerful and easy to use utilities.  The goal is to be able
-    to use this header file to easily create programs with access to a wide variety of useful tools.
-
-	The game library is geared towards containing game-specific utilities.  zt_tools.h is required,
-	so this technically isn't a single header library, but all the game stuff is in the single file,
-	so I say it counts.  I may embed zt_tools.h at some point once both libraries have matured a bit.
-   
-    Be sure that #define ZT_GAME_IMPLEMENTATION is used in one cpp file before including this
-    header file:
+	In exactly one c/cpp source file of your project, you must:
 
 		#define ZT_GAME_IMPLEMENTATION
 		#include "zt_game.h"
@@ -73,18 +67,6 @@
 
 	ZT_GAME_NO_ALTF4
 		This will disable ALT+F4 closing the window and exiting the game
-
- **************************************************************************************************
-
-	What's with the name "Zero Tolerance?"
-		I chose the name because my goal is to have a zero tolerance policy for slow, bloated
-		software, slow compile times, and long development time.  I want this library to be
-		fast in execution, fast in compile times and fast and easy to use.
-
-	Special Thanks
-		This library is inspired by the single file libraries by Sean Barrett.  Inspiration has
-		also been drawn from Casey Muratori's Handmade Hero video series as well as Shawn
-		McGrath's programming streams.
 
  **************************************************************************************************/
 
