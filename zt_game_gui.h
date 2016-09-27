@@ -1,5 +1,5 @@
 /**************************************************************************************************
- ** file: zt_game.h v 0.00 (active initial development)
+ ** file: zt_game_gui.h v 0.00 (active initial development)
  **
  ** This software is dual-licensed to the public domain and under the following
  ** license: you are granted a perpetual, irrevocable license to copy, modify,
