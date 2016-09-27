@@ -15,8 +15,9 @@
 #define ZT_GAME_IMPLEMENTATION
 #define ZT_GAME_GUI_IMPLEMENTATION
 
+//#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
-//#define ZT_OPENGL_DIAGNOSE
+#define ZT_OPENGL_DIAGNOSE
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -67,29 +68,40 @@ struct ztGame
 	ztScene *scene;
 	ztModel *model_boxes[12];
 	ztModel *model_plane;
+	ztModel *model_light;
+	ztLight directional_light;
 };
 
 
 // variables ======================================================================================
 
 ztGame *g_game = nullptr;
-
+ztFile g_log;
 
 // private functions ==============================================================================
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_logCallback(ztLogMessageLevel_Enum level, const char * message)
+{
+	zt_fileWrite(&g_log, message, zt_strSize(message) - 1);
+	zt_fileWrite(&g_log, "\n", 1);
+}
+
 // functions ======================================================================================
 
 bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 {
+	zt_fileOpen(&g_log, "log.txt", ztFileOpenMethod_WriteOver);
+	zt_logAddCallback(zt_logCallback, ztLogMessageLevel_Verbose);
+
 	zt_strMakePrintf(ini_file, ztFileMaxPath, "%s%csettings.cfg", details->user_path, ztFilePathSeparator);
 	settings->memory = zt_iniFileGetValue(ini_file, "general", "app_memory", (i32)zt_megabytes(64));
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -306,21 +318,28 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
-		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 
 		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
 		g_game->model_boxes[i]->transform.position.x = zt_cos(angle) * 3.5f;
 		g_game->model_boxes[i]->transform.position.z = zt_sin(angle) * 3.5f;
-		g_game->model_boxes[i]->transform.position.y = .5f + ((r32)i * .25f);
+		g_game->model_boxes[i]->transform.position.y = .5f + ((r32)i * .75f);
 
 		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
 	}
 
-	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, g_game->shader_id, nullptr, 0);
-
+	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
 
-	zt_shaderSetVariableVec3(g_game->shader_id_lit, "light_pos", ztVec3(0, 10, 0));
+	g_game->model_light = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_Unlit), nullptr, 0);
+	zt_sceneAddModel(g_game->scene, g_game->model_light);
+
+	g_game->model_light->transform.position = ztVec3(0, 0, 0);
+	g_game->model_light->transform.scale = ztVec3(.5f, .5f, .5f);
+
+	g_game->directional_light = zt_lightMakeDirectional(g_game->model_light->transform.position, ztVec3::zero);
+	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
+	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
 
 	return true;
 }
@@ -330,15 +349,18 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 void game_screenChange(ztGameSettings *game_settings)
 {
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
-	
-	zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f);
-	zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f);
 
-	g_game->camera.position = ztVec3(0, 1.8f, 1);
-	g_game->camera.rotation = ztVec3(270, 0, 0);
+
+	if (g_game->details->current_frame == 1) {
+		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f, ztVec3(9, 10, 8), ztVec3(230, -30, 0));
+		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, ztVec3(0, 0, 0));
+	}
+	else {
+		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f, g_game->camera.position, g_game->camera.rotation);
+		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, g_game->gui_camera.position);
+	}
+
 	zt_cameraRecalcMatrices(&g_game->camera);
-
-	g_game->gui_camera.position = ztVec3(0, 0, 0);
 	zt_cameraRecalcMatrices(&g_game->gui_camera);
 }
 
@@ -373,6 +395,9 @@ void game_cleanup()
 	zt_memDumpArena(g_game->asset_arena, "asset memory");
 	zt_memFreeArena(g_game->asset_arena);
 	zt_free(g_game);
+
+	zt_logRemoveCallback(zt_logCallback);
+	zt_fileClose(&g_log);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -418,7 +443,30 @@ bool game_loop(r32 dt)
 		}
 	}
 
+	{
+		static bool moving = true;
+		if (input[ztInputKeys_P].justPressed()) {
+			moving = !moving;
+		}
+
+		if (moving) {
+			const r32 slice = (ztMathPi2 / 5);
+			static r32 angle = 0;
+
+			angle += slice * dt;
+
+			g_game->model_light->transform.position.x = zt_cos(angle) * 5.5f;
+			g_game->model_light->transform.position.z = zt_sin(angle) * 5.5f;
+			g_game->model_light->transform.position.y = 10;
+			g_game->directional_light.position = g_game->model_light->transform.position;
+
+			zt_shaderSetVariableVec3(g_game->shader_id_lit, "light_pos", g_game->model_light->transform.position);
+		}
+	}
+
 	zt_sceneCull(g_game->scene, &g_game->camera);
+	//g_game->directional_light.position = g_game->camera.position;
+	zt_sceneLighting(g_game->scene);
 	zt_sceneRender(g_game->scene, &g_game->camera, ztColor(0,0,0,1));
 
 	{
