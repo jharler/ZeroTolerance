@@ -29,6 +29,7 @@ cloc*
 *.log
 *.pdb
 
+**/log.txt
 
 # =========================
 # Operating System Files
