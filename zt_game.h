@@ -638,8 +638,13 @@ void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *va
 
 enum ztShaderDefault_Enum
 {
-	ztShaderDefault_Solid,
+	ztShaderDefault_Solid,		// no textures
+	ztShaderDefault_Unlit,		// diffuse
+	ztShaderDefault_Lit,		// diffuse
+	ztShaderDefault_LitShadow,	// diffuse, shadow map
+
 	ztShaderDefault_Skybox,
+	ztShaderDefault_ShadowDirectional,
 
 	ztShaderDefault_MAX,
 };
@@ -680,8 +685,10 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
 
-
 void zt_textureFree(ztTextureID texture_id);
+
+void zt_textureRenderTargetPrepare(ztTextureID texture_id);
+void zt_textureRenderTargetCommit(ztTextureID texture_id);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -743,7 +750,7 @@ ztMeshID zt_meshMakePrimativePlane(ztMaterialList *materials, r32 width, r32 dep
 
 ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
-void zt_meshRender(ztMeshID mesh_id);
+void zt_meshRender(ztMeshID mesh_id, ztTextureID *additional_tex = nullptr, int additional_tex_count = 0);
 
 // ------------------------------------------------------------------------------------------------
 // transform
@@ -798,8 +805,8 @@ struct ztCamera
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z);
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z);
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztVec3& rotation = ztVec3::zero);
 
 void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
 void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
@@ -995,40 +1002,31 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 // ------------------------------------------------------------------------------------------------
 // lighting
 
-//enum ztLightType_Enum
-//{
-//	ztLightType_Directional,
-//	ztLightType_Spot,
-//	ztLightType_Area,
-//};
-//
-//// ------------------------------------------------------------------------------------------------
-//
-//struct ztLight
-//{
-//	ztLightType_Enum type;
-//
-//	ztVec3 position;
-//	r32 intensity;
-//	bool casts_shadows;
-//	ztColor color;
-//
-//	union {
-//		struct {
-//			ztVec3 direction;
-//		} directional;
-//
-//		struct {
-//			ztVec3 direction;
-//		} spot;
-//	};
-//};
-//
-//// ------------------------------------------------------------------------------------------------
-//
-//ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-//ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-//ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+enum ztLightType_Enum
+{
+	ztLightType_Directional,
+	ztLightType_Spot,
+	ztLightType_Area,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztLight
+{
+	ztLightType_Enum type;
+
+	ztVec3 position;
+	ztVec3 direction;
+	r32 intensity;
+	bool casts_shadows;
+	ztColor color;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1079,19 +1077,6 @@ void zt_modelFree(ztModel *model);
 // ------------------------------------------------------------------------------------------------
 // scenes
 
-//struct ztSceneLight
-//{
-//	ztLight light;
-//	ztTextureID shadow_map;
-//};
-//
-//// ------------------------------------------------------------------------------------------------
-//
-//ztSceneLight zt_sceneLightMake(ztLight *light, r32 shadow_map_size);
-//void zt_sceneLightFree(ztSceneLight *scene_light);
-
-// ------------------------------------------------------------------------------------------------
-
 struct ztScene
 {
 	struct ModelInfo
@@ -1105,7 +1090,16 @@ struct ztScene
 	int models_count;
 	int models_size;
 
+	struct LightInfo
+	{
+		ztLight *light;
+	};
+
+	LightInfo directional_light;
+
 	ztMemoryArena *arena;
+
+	ztTextureID tex_directional_shadow_map;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1113,7 +1107,7 @@ struct ztScene
 ztScene *zt_sceneMake(ztMemoryArena *arena, int models_count = 1024);
 void zt_sceneFree(ztScene *scene);
 
-//ztSceneItemID zt_sceneAddLight(ztScene *scene, ztLight *light);
+void zt_sceneAddLight(ztScene *scene, ztLight *light);
 
 void zt_sceneAddModel(ztScene *scene, ztModel *model);
 void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
@@ -1124,7 +1118,7 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera);
 
 // --------------------------------------------------------
 // Generate shadow maps for non-culled lights
-//void zt_sceneLighting(ztScene *scene);
+void zt_sceneLighting(ztScene *scene);
 
 void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color);
 
@@ -1645,6 +1639,9 @@ struct ztWindowDetails
 	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_disabled);
 	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_enabled_leq);
 	zt_directxSupport(ID3D11Buffer *dx_skybox_buff_vert);
+
+	zt_directxSupport(ID3D11RenderTargetView *dx_active_render_target);
+	zt_directxSupport(ID3D11DepthStencilView* dx_active_render_target_depth_stencil_view);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2353,11 +2350,20 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 
 ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
+	"shader-unlit",
+	"shader-lit",
+	"shader-litshadow",
 	"shader-skybox",
+	"shader-shadowdirectional"
 };
+
 ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n	uniform vec3 light_pos;\n	uniform vec3 view_pos;\n\n	float specularCalculation(vec3 light_dir)\n	{\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		return pow(max(dot(fs_in.normal, halfway_dir), 0.0), 64.0);\n	}\n	\n	void main()\n	{\n		vec3 clr = texture(tex_diffuse, fs_in.tex_coord).rgb * fs_in.color.rgb;\n		vec3 light_color = vec3(1,1,1);\n        \n		vec3 ambient = 0.25 * clr;\n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, fs_in.normal), 0.0);\n		vec3 diffuse = diff * light_color;\n        \n		vec3 specular = specularCalculation(light_dir) * light_color;\n\n		vec3 lighting = (ambient + (diffuse + specular)) * clr;\n        \n		frag_color = vec4(lighting, 1.0f);// * color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	Texture2D tex_shadow_map_dir;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n	};\n\n\n	float specularCalculation(FragmentInputType input, float3 light_dir)\n	{\n		// not sure why this doesn't work... the math is identical to the OpenGL version which works\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec = pow(max(dot(input.normal, halfway_dir), 0.0), 64.0);\n		//return spec;\n		return 0;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		float3 light_color = float3(1,1,1);\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, input.normal), 0);\n		float3 diffuse = diff * light_color;\n		\n		float3 specular = specularCalculation(input, light_dir) * light_color;\n		\n		float3 ambient = color.xyz * 0.25;\n		float3 lighting = (ambient + (diffuse + specular)) * color.xyz;\n		\n		return float4(lighting, 1.0f);\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n	uniform sampler2D tex_shadow_map_dir;\n	uniform vec3 light_pos;\n	uniform vec3 view_pos;\n\n	float shadowCalculation(vec3 light_dir)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		\n		//float closest_depth = texture(tex_shadow_map_dir, proj_coords.xy).r;\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(fs_in.normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(tex_shadow_map_dir, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(tex_shadow_map_dir, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir)\n	{\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		return pow(max(dot(fs_in.normal, halfway_dir), 0.0), 64.0);\n	}\n	\n	void main()\n	{\n		vec3 clr = texture(tex_diffuse, fs_in.tex_coord).rgb * fs_in.color.rgb;\n		vec3 light_color = vec3(1,1,1);\n        \n		vec3 ambient = 0.25 * clr;\n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, fs_in.normal), 0.0);\n		vec3 diffuse = diff * light_color;\n        \n		vec3 specular = specularCalculation(light_dir) * light_color;\n\n		float shadow = shadowCalculation(light_dir);\n		vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * clr;\n        \n		frag_color = vec4(lighting, 1.0f);// * color;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n	};\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	Texture2D tex_shadow_map_dir;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n	};\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;\n		\n		\n		float current_depth = input.frag_pos_light_space.z;\n		//float current_depth = proj_coords.z;\n		\n		float3 normal = normalize(input.normal);\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		tex_shadow_map_dir.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = tex_shadow_map_dir.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				//shadow += (1 - (pcf_depth - bias));//current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir)\n	{\n		// not sure why this doesn't work... the math is identical to the OpenGL version which works\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec = pow(max(dot(input.normal, halfway_dir), 0.0), 64.0);\n		//return spec;\n		return 0;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		float3 light_color = float3(1,1,1);\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, input.normal), 0);\n		float3 diffuse = diff * light_color;\n		\n		float3 specular = specularCalculation(input, light_dir) * light_color;\n		float shadow = shadowCalculation(input, light_dir);\n		\n		float3 ambient = color.xyz * 0.25;\n		float3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color.xyz;\n		\n		return float4(lighting, 1.0f);\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -3408,49 +3414,6 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal void _ztgl_texturePrepareRenderTarget(ztTextureID render_target_id)
-{
-#ifdef ZT_OPENGL
-	zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo));
-	zt_glCallAndReportOnErrorFast(glViewport(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height));
-
-	real32 realw = (zt->textures[render_target_id].width / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
-	real32 realh = (zt->textures[render_target_id].height / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
-
-	zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
-	zt_glCallAndReportOnErrorFast(glLoadIdentity());
-	zt_glCallAndReportOnErrorFast(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0));
-	zt_glCallAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
-	zt_glCallAndReportOnErrorFast(glEnable(GL_BLEND));
-	zt_glCallAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-	glEnable(GL_MULTISAMPLE);
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal void _ztgl_textureCommitRenderTarget(ztTextureID render_target_id)
-{
-#ifdef ZT_OPENGL
-	glDisable(GL_MULTISAMPLE);
-
-	if (zt->textures[render_target_id].gl_dbo != 0) {
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[render_target_id].gl_fbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[render_target_id].gl_rb);
-
-		glBlitFramebuffer(0, 0, zt->textures[render_target_id].width, zt->textures[render_target_id].height, 0, zt->textures[render_target_id].height, zt->textures[render_target_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	}
-
-	_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-
 ztInternal void _zt_rendererCheckToResetStats()
 {
 	if (zt->last_drawn_frame != zt->game_details.current_frame) {
@@ -3897,7 +3860,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
-			_ztgl_texturePrepareRenderTarget(render_target_id);
+			zt_textureRenderTargetPrepare(render_target_id);
 			zt_rendererClear(clear);
 		}
 
@@ -4284,7 +4247,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (render_target_id != ztInvalidID) {
-			_ztgl_textureCommitRenderTarget(render_target_id);
+			zt_textureRenderTargetCommit(render_target_id);
 		}
 
 #endif // ZT_OPENGL
@@ -4293,23 +4256,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 #if defined(ZT_DIRECTX)
 
 		if (render_target_id != ztInvalidID) {
-			D3D11_VIEWPORT viewport;
-			ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-			viewport.TopLeftX = 0;
-			viewport.TopLeftY = 0;
-			viewport.MinDepth = 0;
-			viewport.MaxDepth = 1;
-
-			viewport.Width = (r32)zt->textures[render_target_id].width;
-			viewport.Height = (r32)zt->textures[render_target_id].height;
-
-			zt->win_details[0].dx_context->RSSetViewports(1, &viewport);
-
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->textures[render_target_id].dx_render_target_view, zt->textures[render_target_id].dx_depth_stencil_view);
-
-			zt->win_details[0].dx_context->ClearRenderTargetView(zt->textures[render_target_id].dx_render_target_view, clear.values);
-			zt->win_details[0].dx_context->ClearDepthStencilView(zt->textures[render_target_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+			zt_textureRenderTargetPrepare(render_target_id);
 		}
 
 		if (skybox != ztInvalidID) {
@@ -4699,6 +4646,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (cmp_tex->command) {
 					// unbind texture?
+					ID3D11ShaderResourceView *srvnull = nullptr;
+					ID3D11SamplerState *ssnull = nullptr;
+					zt_fiz(cmp_tex->command->texture_count) {
+						zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
+						zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
+					}
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -4713,8 +4666,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (render_target_id != ztInvalidID) {
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->win_details[0].dx_backbuffer, zt->win_details[0].dx_depth_stencil_view);
-			_zt_dxSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+			zt_textureRenderTargetCommit(render_target_id);
 		}
 #endif // ZT_DIRECTX
 	}
@@ -4725,12 +4677,58 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity, bool casts_shadows, const ztColor& color)
+{
+	ztLight result;
+	result.type = ztLightType_Directional;
+	result.position = pos;
+	result.direction = dir;
+	result.intensity = intensity;
+	result.casts_shadows = casts_shadows;
+	result.color = color;
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity, bool casts_shadows, const ztColor& color)
+{
+	ztLight result;
+	result.type = ztLightType_Spot;
+	result.position = pos;
+	result.direction = dir;
+	result.intensity = intensity;
+	result.casts_shadows = casts_shadows;
+	result.color = color;
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, const ztColor& color)
+{
+	ztLight result;
+	result.type = ztLightType_Area;
+	result.position = pos;
+	result.direction = ztVec3::zero;
+	result.intensity = intensity;
+	result.casts_shadows = casts_shadows;
+	result.color = color;
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
 	ztModel *model = zt_mallocStructArena(ztModel, arena);
 	model->arena = arena;
 	model->mesh_id = mesh_id;
-	model->flags = 0;
+	model->flags = flags;
 	model->shader = shader;
 	model->shader_vars = shader_vars;
 	model->transform.position = ztVec3::zero;
@@ -4775,6 +4773,10 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int models_count)
 	scene->models_size = models_count;
 	scene->arena = arena;
 
+	scene->directional_light.light = nullptr;
+	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(2048, 2048, ztTextureFlags_DepthMap);
+
+
 	return scene;
 }
 
@@ -4786,8 +4788,22 @@ void zt_sceneFree(ztScene *scene)
 		return;
 	}
 
+	zt_textureFree(scene->tex_directional_shadow_map);
+
 	zt_freeArena(scene->models, scene->arena);
 	zt_freeArena(scene, scene->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneAddLight(ztScene *scene, ztLight *light)
+{
+	zt_returnOnNull(scene);
+	zt_returnOnNull(light);
+
+	if (light->type == ztLightType_Directional) {
+		scene->directional_light.light = light;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4867,6 +4883,68 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera)
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_sceneRenderModel(ztModel *model, ztCamera *camera, ztShaderID shader, ztShaderVariableValues **shader_vars, i32 match_flags, ztTextureID *add_tex, int add_tex_count)
+{
+	if (camera && model->shader_vars != *shader_vars) {
+		zt_shaderSetVariables(shader, model->shader_vars);
+		zt_shaderSetCameraMatrices(shader, camera->mat_proj, camera->mat_view);
+		*shader_vars = model->shader_vars;
+	}
+
+	if (match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) {
+		zt_shaderSetModelMatrices(shader, model->calculated_mat);
+		zt_meshRender(model->mesh_id, add_tex, add_tex_count);
+	}
+
+	ztModel *child = model->first_child;
+	while (child) {
+		_zt_sceneRenderModel(child, camera, shader, shader_vars, match_flags, add_tex, add_tex_count);
+		child = child->next;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light)
+{
+	ztMat4 mat_proj = ztMat4::makeOrthoProjection(-10, 10, 10, -10, 1.f, 60.f);
+	ztMat4 mat_view = ztMat4::identity.getLookAt(light->position, ztVec3::zero);
+
+	return mat_proj * mat_view;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneLighting(ztScene *scene)
+{
+	if (scene->directional_light.light) {
+		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light);
+
+		_zt_rendererCheckToResetStats();
+
+		zt_textureRenderTargetPrepare(scene->tex_directional_shadow_map);
+		zt_rendererClear(ztVec4(1, 1, 1, 1));
+		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
+
+		ztShaderID shader = zt_shaderGetDefault(ztShaderDefault_ShadowDirectional);
+		zt_shaderBegin(shader);
+
+		zt_shaderSetVariableMat4(shader, "light_matrix", light_mat);
+		zt_shaderApplyVariables(shader);
+		ztShaderVariableValues *shader_vars = nullptr;
+
+		zt_fiz(scene->models_count) {
+			_zt_sceneRenderModel(scene->models[i].model, nullptr, shader, &shader_vars, ztModelFlags_CastsShadows, nullptr, 0);
+		}
+
+		zt_shaderEnd(shader);
+
+		zt_textureRenderTargetCommit(scene->tex_directional_shadow_map);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color)
 {
 	_zt_rendererCheckToResetStats();
@@ -4874,29 +4952,16 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color)
 	zt_rendererClear(color);
 	zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
 
-	struct local
-	{
-		static void renderModel(ztModel *model, ztCamera *camera, ztShaderID shader, ztShaderVariableValues **shader_vars)
-		{
-			if (model->shader_vars != *shader_vars) {
-				zt_shaderSetVariables(shader, model->shader_vars);
-				zt_shaderSetCameraMatrices(shader, camera->mat_proj, camera->mat_view);
-				*shader_vars = model->shader_vars;
-			}
-
-			zt_shaderSetModelMatrices(shader, model->calculated_mat);
-			zt_meshRender(model->mesh_id);
-
-			ztModel *child = model->first_child;
-			while (child) {
-				renderModel(child, camera, shader, shader_vars);
-				child = child->next;
-			}
-		}
-	};
-
 	ztShaderID shader = ztInvalidID;
 	ztShaderVariableValues *shader_vars = nullptr;
+
+	ztMat4 light_mat;
+	if (scene->directional_light.light) {
+		light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light);
+	}
+	else {
+		light_mat = ztMat4::identity;
+	}
 
 	zt_fiz(scene->models_count) {
 		if (scene->models[i].model->shader != shader) {
@@ -4907,10 +4972,16 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, const ztColor& color)
 			zt_shaderBegin(shader);
 			shader_vars = nullptr;
 
+			if (scene->directional_light.light) {
+				zt_shaderSetVariableMat4(shader, "light_matrix", light_mat);
+				zt_shaderSetVariableVec3(shader, "light_pos", scene->directional_light.light->position);
+				zt_shaderSetVariableVec3(shader, "view_pos", camera->position);
+				zt_shaderSetVariableTex(shader, "tex_shadow_map_dir", 1);
+			}
 			zt_shaderSetCameraMatrices(shader, camera->mat_proj, camera->mat_view);
 		}
 
-		local::renderModel(scene->models[i].model, camera, shader, &shader_vars);
+		_zt_sceneRenderModel(scene->models[i].model, camera, shader, &shader_vars, 0, &scene->tex_directional_shadow_map, 1);
 	}
 }
 
@@ -4956,8 +5027,8 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 #if defined(ZT_DIRECTX)
 			auto* win_details = &zt->win_details[0];
 			r32 color[4] = {r, g, b, a};
-			win_details->dx_context->ClearRenderTargetView(win_details->dx_backbuffer, color);
-			win_details->dx_context->ClearDepthStencilView(win_details->dx_depth_stencil_view, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
+			win_details->dx_context->ClearRenderTargetView(win_details->dx_active_render_target, color);
+			win_details->dx_context->ClearDepthStencilView(win_details->dx_active_render_target_depth_stencil_view, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 #endif
 		} break;
 	}
@@ -4989,7 +5060,7 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 					case ztRendererDepthTestFunction_Never       : glDepthFunc(GL_NEVER); break;
 					case ztRendererDepthTestFunction_Less        : glDepthFunc(GL_LESS); break;
 					case ztRendererDepthTestFunction_LessEqual   : glDepthFunc(GL_LEQUAL); break;
-					case ztRendererDepthTestFunction_Equal       : glDepthFunc(GL_LEQUAL); break;
+					case ztRendererDepthTestFunction_Equal       : glDepthFunc(GL_EQUAL); break;
 					case ztRendererDepthTestFunction_Greater     : glDepthFunc(GL_GREATER); break;
 					case ztRendererDepthTestFunction_NotEqual    : glDepthFunc(GL_NOTEQUAL); break;
 					case ztRendererDepthTestFunction_GreaterEqual: glDepthFunc(GL_GEQUAL); break;
@@ -5119,6 +5190,11 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 {
 	ztShaderID shader_id = ztInvalidID;
 
+	ztShaderVariableValues var_values;
+	if (replace != ztInvalidID) {
+		zt_shaderPopulateVariables(replace, &var_values);
+	}
+	
 	char data[1024 * 64];
 	zt_assert(data_len < sizeof(data));
 	zt_strCpy(data, sizeof(data), data_in, data_len);
@@ -5430,7 +5506,6 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 		ztShader* shader = &zt->shaders[shader_id];
 		shader->renderer = ztRenderer_DirectX;
-		shader->variables.variables_count = 0;
 
 		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateVertexShader(vert->GetBufferPointer(), vert->GetBufferSize(), NULL, &shader->dx_vert));
 		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreatePixelShader(frag->GetBufferPointer(), frag->GetBufferSize(), NULL, &shader->dx_frag));
@@ -5624,6 +5699,17 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 #endif // ZT_DIRECTX
 	}
 
+	if (replace != ztInvalidID && shader_id != ztInvalidID) {
+		ztShader *shader = &zt->shaders[shader_id];
+		zt_fjz(shader->variables.variables_count) {
+			zt_fiz(var_values.variables_count) {
+				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
+					zt_memCpy(&shader->variables.variables[j], zt_sizeof(ztShaderVariableValues::Variable), &var_values.variables[i], zt_sizeof(ztShaderVariableValues::Variable));
+					break;
+				}
+			}
+		}
+	}
 	return shader_id;
 
 on_error:
@@ -5985,9 +6071,9 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *varia
 			idx = i; break; \
 		} \
 	} \
-	if (idx == -1) { zt_assert(false); return; } \
+	if (idx == -1) { return; } \
 	if (shader_vars->variables[idx].type != shader_type) { \
-		zt_assert(false); return; \
+		return; \
 	}
 
 // ------------------------------------------------------------------------------------------------
@@ -6218,29 +6304,27 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 			static bool makeRenderTarget(GLuint *tex_id, GLuint *frame_buffer_id, GLuint *depth_buffer_id, GLuint *resolve_buffer_id, GLuint *render_target_id, i32 width, i32 height, i32 flags)
 			{
 				zt_glCallAndReturnValOnError(glGenFramebuffers(1, frame_buffer_id), false);
-				zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
 
 				if (zt_bitIsSet(flags, ztTextureFlags_DepthMap)) {
 					zt_glCallAndReturnValOnError(glGenTextures(1, tex_id), false);
-					zt_glCallAndReturnValOnError(glActiveTexture(GL_TEXTURE0), false);
+					//zt_glCallAndReturnValOnError(glActiveTexture(GL_TEXTURE0), false);
 					zt_glCallAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, *tex_id), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
-
-					zt_glCallAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, *tex_id, 0), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER), false);
-					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER), false);
+					zt_glCallAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL), false);
 					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
 					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR), false);
-					GLfloat border_color[] = { 1.0, 1.0, 1.0, 1.0 };
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
+					zt_glCallAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+					GLfloat border_color[] = { 1.f, 1.f, 1.f, 1.f };
 					zt_glCallAndReturnValOnError(glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color), false);
-					zt_glCallAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL), false);
+
+					zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
+					zt_glCallAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, *tex_id, 0), false);
 					zt_glCallAndReturnValOnError(glDrawBuffer(GL_NONE), false);
 					zt_glCallAndReturnValOnError(glReadBuffer(GL_NONE), false);
 				}
 				else {
+					zt_glCallAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
+
 					zt_glCallAndReturnValOnError(glGenRenderbuffers(1, depth_buffer_id), false);
 					zt_glCallAndReturnValOnError(glBindRenderbuffer(GL_RENDERBUFFER, *depth_buffer_id), false);
 					zt_glCallAndReturnValOnError(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, width, height), false);
@@ -6864,6 +6948,125 @@ void zt_textureFree(ztTextureID texture_id)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_textureRenderTargetPrepare(ztTextureID texture_id)
+{
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			zt_glCallAndReportOnErrorFast(glViewport(0, 0, zt->textures[texture_id].width, zt->textures[texture_id].height));
+			zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, zt->textures[texture_id].gl_fbo));
+
+			real32 realw = (zt->textures[texture_id].width / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+			real32 realh = (zt->textures[texture_id].height / (r32)zt->win_game_settings[0].pixels_per_unit) / 2.f;
+
+			zt_glCallAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+			zt_glCallAndReportOnErrorFast(glLoadIdentity());
+			zt_glCallAndReportOnErrorFast(glOrtho(-realw, realw, -realh, realh, -100.0, 100.0));
+			zt_glCallAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
+			zt_glCallAndReportOnErrorFast(glEnable(GL_BLEND));
+			zt_glCallAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+
+			glEnable(GL_MULTISAMPLE);
+
+			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
+				glClear(GL_DEPTH_BUFFER_BIT);
+				glCullFace(GL_FRONT);
+			}
+#			endif
+		} break;
+
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+
+			ID3D11RenderTargetView *rtvnull = nullptr;
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, NULL);
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->textures[texture_id].dx_render_target_view, zt->textures[texture_id].dx_depth_stencil_view);
+
+			//zt->win_details[0].dx_context->ClearRenderTargetView(zt->textures[texture_id].dx_render_target_view, clear.values);
+			zt->win_details[0].dx_context->ClearDepthStencilView(zt->textures[texture_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+			zt->win_details[0].dx_active_render_target = zt->textures[texture_id].dx_render_target_view;
+			zt->win_details[0].dx_active_render_target_depth_stencil_view = zt->textures[texture_id].dx_depth_stencil_view;
+
+			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
+				zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none);
+			}
+
+			D3D11_VIEWPORT viewport;
+			ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+
+			viewport.TopLeftX = 0;
+			viewport.TopLeftY = 0;
+			viewport.MinDepth = 0;
+			viewport.MaxDepth = 1;
+
+			viewport.Width = (r32)zt->textures[texture_id].width;
+			viewport.Height = (r32)zt->textures[texture_id].height;
+
+			zt->win_details[0].dx_context->RSSetViewports(1, &viewport);
+			D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = (i32)viewport.Width; rect.bottom = (i32)viewport.Height;
+			zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
+
+#			endif
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_textureRenderTargetCommit(ztTextureID texture_id)
+{
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			zt_glCallAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+
+			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
+				glCullFace(GL_BACK);
+			}
+
+			glDisable(GL_MULTISAMPLE);
+
+			if (zt->textures[texture_id].gl_dbo != 0) {
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[texture_id].gl_fbo);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[texture_id].gl_rb);
+
+				glBlitFramebuffer(0, 0, zt->textures[texture_id].width, zt->textures[texture_id].height, 0, zt->textures[texture_id].height, zt->textures[texture_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+
+			_zt_glSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+#			endif
+		} break;
+
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
+				zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
+			}
+
+			ID3D11RenderTargetView *rtvnull = nullptr;
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, NULL);
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->win_details[0].dx_backbuffer, zt->win_details[0].dx_depth_stencil_view);
+			zt->win_details[0].dx_active_render_target = zt->win_details[0].dx_backbuffer;
+			zt->win_details[0].dx_active_render_target_depth_stencil_view = zt->win_details[0].dx_depth_stencil_view;
+
+			_zt_dxSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
+			D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_details[0].screen_w; rect.bottom = zt->win_details[0].screen_h;
+			zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
+#			endif
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 {
 #if 1
@@ -6912,7 +7115,7 @@ void zt_alignToPixel(ztVec3 *val, r32 ppu)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z)
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position)
 {
 	zt_returnOnNull(camera);
 
@@ -6924,7 +7127,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	camera->zoom = 1;
 	camera->near_z = near_z;
 	camera->far_z = far_z;
-	camera->position = ztVec3::zero;
+	camera->position = position;
 
 	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
 	r32 aspect_h = native_w > native_h ? 1.f : native_h / (r32)native_w;
@@ -6939,7 +7142,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z)
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position, const ztVec3& rotation)
 {
 	zt_returnOnNull(camera);
 
@@ -6949,8 +7152,8 @@ void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 ne
 	camera->fov = fov;
 	camera->near_z = near_z;
 	camera->far_z = far_z;
-	camera->position = ztVec3::zero;
-	camera->rotation = ztVec3::zero;
+	camera->position = position;
+	camera->rotation = rotation;
 	camera->direction = ztVec3::zero;
 
 	camera->mat_proj = ztMat4::makePerspectiveProjection(fov, (r32)width, (r32)height, near_z, far_z);
@@ -9144,22 +9347,34 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_meshRender(ztMeshID mesh_id)
+void zt_meshRender(ztMeshID mesh_id, ztTextureID *additional_tex, int additional_tex_count)
 {
 	ztMesh *mesh = &zt->meshes[mesh_id];
 	zt->game_details.curr_frame.triangles_drawn += mesh->triangles;
+	zt->game_details.curr_frame.draw_calls += 1;
 
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 
+			int tex_count = 0;
 			glBindTexture(GL_TEXTURE_2D, 0);
 			zt_fiz(zt_elementsOf(mesh->materials.materials)) {
 				if (mesh->materials.materials[i].tex_id != ztInvalidID) {
 					zt->game_details.curr_frame.texture_switches += 1;
-					zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + i));
+					zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count));
 					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[mesh->materials.materials[i].tex_id].gl_texid));
+					tex_count += 1;
+				}
+			}
+
+			zt_fiz(additional_tex_count) {
+				if (additional_tex[i] != ztInvalidID) {
+					zt->game_details.curr_frame.texture_switches += 1;
+					zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count));
+					zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[additional_tex[i]].gl_texid));
+					tex_count += 1;
 				}
 			}
 
@@ -9175,10 +9390,26 @@ void zt_meshRender(ztMeshID mesh_id)
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 
-			zt->game_details.curr_frame.texture_switches += 1;
-			ztTextureID texture_id = mesh->materials.materials[ztMaterialType_Diffuse].tex_id;
-			zt->win_details[0].dx_context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
-			zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
+			int tex_count = 0;
+			zt_fiz(zt_elementsOf(mesh->materials.materials)) {
+				if (mesh->materials.materials[i].tex_id != ztInvalidID) {
+					zt->game_details.curr_frame.texture_switches += 1;
+					ztTextureID texture_id = mesh->materials.materials[i].tex_id;
+					zt->win_details[0].dx_context->PSSetShaderResources(tex_count, 1, &zt->textures[texture_id].dx_shader_resource_view);
+					zt->win_details[0].dx_context->PSSetSamplers(tex_count, 1, &zt->textures[texture_id].dx_sampler_state);
+					tex_count += 1;
+				}
+			}
+
+			zt_fiz(additional_tex_count) {
+				if (additional_tex[i] != ztInvalidID) {
+					zt->game_details.curr_frame.texture_switches += 1;
+					zt->win_details[0].dx_context->PSSetShaderResources(tex_count, 1, &zt->textures[additional_tex[i]].dx_shader_resource_view);
+					zt->win_details[0].dx_context->PSSetSamplers(tex_count, 1, &zt->textures[additional_tex[i]].dx_sampler_state);
+					tex_count += 1;
+				}
+			}
+
 			float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
 			zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
 
@@ -9187,6 +9418,13 @@ void zt_meshRender(ztMeshID mesh_id)
 			zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &mesh->dx_buff_vert, &stride, &offset);
 			zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			zt->win_details[0].dx_context->DrawIndexed(mesh->indices, 0, 0);
+
+			ID3D11ShaderResourceView *srvnull = nullptr;
+			ID3D11SamplerState *ssnull = nullptr;
+			zt_fiz(tex_count) {
+				zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
+				zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
+			}
 
 #			endif
 		} break;
@@ -9703,6 +9941,11 @@ ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *
 	zt_logInfo("DirectX: Setting context back buffer");
 	win_details->dx_context->OMSetRenderTargets(1, &win_details->dx_backbuffer, win_details->dx_depth_stencil_view);
 
+
+	win_details->dx_active_render_target = win_details->dx_backbuffer;
+	win_details->dx_active_render_target_depth_stencil_view = win_details->dx_depth_stencil_view;
+
+
 	D3D11_DEPTH_STENCIL_DESC dssdesc;
 	dssdesc.DepthEnable = true;
 	dssdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -10092,7 +10335,7 @@ int main(int argc, char **argv)
 	zt->game_details.app_path = app_path;
 	zt->game_details.user_path = user_path;
 
-	zt->game_details.current_frame = 0;
+	zt->game_details.current_frame = 1;
 
 	ztGameSettings *game_settings = &zt->win_game_settings[0];
 	zt->win_count += 1;
@@ -10167,8 +10410,6 @@ int main(int argc, char **argv)
 	}
 
 	do {
-		++zt->game_details.current_frame;
-
 		if (mouse_look != zt->input_mouse_look) {
 			mouse_look = zt->input_mouse_look;
 			if (mouse_look) {
@@ -10220,6 +10461,7 @@ int main(int argc, char **argv)
 		_zt_inputClearState(false);
 		_zt_win_processMessages();
 
+		++zt->game_details.current_frame;
 	} while (!zt->quit_requested);
 
 	_zt_callFuncCleanup();

@@ -7205,7 +7205,7 @@ ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, c
 		case ztDebugConsoleLevel_System : color = "b3ffb3ff"; break;
 	}
 
-	char lcl_command[1024];
+	char lcl_command[1024 * 4];
 
 	if (color != nullptr) {
 		zt_strPrintf(lcl_command, zt_elementsOf(lcl_command), "<color=%s>%s</color>", color, command);
@@ -7536,6 +7536,8 @@ ztInternal void _zt_guiDebugTextureViewer()
 			}
 		}
 
+		// ------------------------------------------------------------------------------------------------
+
 		static void loadTexture(ztTextureID tex_id)
 		{
 			ztGuiThemeSprite sprite;
@@ -7546,10 +7548,14 @@ ztInternal void _zt_guiDebugTextureViewer()
 			zt_guiItemAutoSize(display_id);
 		}
 
+		// ------------------------------------------------------------------------------------------------
+
 		static ZT_FUNC_GUI_BUTTON_PRESSED(onRefresh)
 		{
 			refresh();
 		}
+
+		// ------------------------------------------------------------------------------------------------
 
 		static ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(onComboBox)
 		{
