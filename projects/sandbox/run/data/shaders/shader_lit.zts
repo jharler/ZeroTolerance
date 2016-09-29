@@ -25,7 +25,7 @@ Anything outside of < < [ ] > > will be ignored
 	{
 		gl_Position = projection * view * model * vec4(position, 1.0);
 		vs_out.frag_pos = vec3(model * vec4(position, 1.0));
-		vs_out.normal = transpose(inverse(mat3(model))) * normal;
+		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);
 		vs_out.tex_coord = tex_coord;
 		vs_out.color = color;
 		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);
@@ -45,45 +45,65 @@ Anything outside of < < [ ] > > will be ignored
 		vec4 frag_pos_light_space;
 	} fs_in;
 
-	uniform sampler2D tex_diffuse;
+	uniform sampler2D diffuse_tex;
+	uniform sampler2D specular_tex;
+	uniform sampler2D normal_tex;
+	uniform sampler2D shadowmap_directional_tex;
+	uniform vec4 diffuse_color;
+	uniform vec4 specular_color;
+	uniform float shininess;
+	
 	uniform vec3 light_pos;
-
-	void main()
+	uniform vec3 view_pos;
+	
+	float shadowCalculation(vec3 light_dir)
 	{
-		vec3 clr = texture(tex_diffuse, fs_in.tex_coord).rgb * fs_in.color.rgb;
-		vec3 normal = normalize(fs_in.normal);
-		vec3 light_color = vec3(1);
-        
-		vec3 ambient = 0.75 * clr;
-		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);
-		float diff = max(dot(light_dir, normal), 0.0);
-		vec3 diffuse = diff * light_color;
-        
-		//vec3 view_dir = normalize(view_pos - fs_in.frag_pos);
-		//float spec = 0.0;
-		//vec3 halfway_dir = normalize(light_dir + view_dir);
-		//spec = pow(max(dot(normal, halfway_dir), 0.0), 64.0);
-		vec3 specular = vec3(0,0,0);//spec * light_color;
-        
 		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;
 		proj_coords = proj_coords * 0.5 + 0.5;
-		float shadow = 0;
-		//if(proj_coords.z <= 1.0) {
-		//	float bias = 0.00;//025;
-		//	float current_depth = proj_coords.z;
-		//	vec2 texel_size = 1.0 / textureSize(tex_shadow_map, 0);
-		//	const int samples = 3;
-		//	for(int x = -samples; x <= samples; ++x) {
-		//		for(int y = -samples; y <= samples; ++y) {
-		//			float closest_depth = texture(tex_shadow_map, proj_coords.xy + vec2(x,y) * texel_size).r;
-		//			shadow += current_depth - bias > closest_depth ? 1.0 : 0.0f;
-		//		}
-		//	}
-		//	shadow /= (samples * 2 + 1) * (samples * 2 + 1);
-		//}
-		vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * clr;
+		
+		//float closest_depth = texture(shadowmap_directional_tex, proj_coords.xy).r;
+		float current_depth = proj_coords.z;
+		
+		float bias = 0;//max(0.05 * (1.0 - dot(fs_in.normal, light_dir)), 0.005);
+		
+		float shadow = 0.0;
+		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);
+		
+		const int samples = 3;
+		for(int x = -samples; x <= samples; ++x) {
+			for(int y = -samples; y <= samples; ++y) {
+				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;
+				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;
+			}
+		}
+		shadow /= (samples * 2 + 1) * (samples * 2 + 1);
+		return shadow;
+	}
+	
+	float specularCalculation(vec3 light_dir)
+	{
+		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);
+		vec3 halfway_dir = normalize(light_dir + view_dir);
+		float spec_value = texture(specular_tex, fs_in.tex_coord).r;
+		return pow(max(dot(fs_in.normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;
+	}
+	
+	void main()
+	{
+		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color;
+		vec4 light_color = vec4(1,1,1,1);
         
-		frag_color = vec4(lighting, 1.0f);// * color;
+		vec4 ambient = 0.25 * clr;
+		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);
+		float diff = max(dot(light_dir, fs_in.normal), 0.0);
+		vec4 diffuse = diff * light_color * diffuse_color;
+     
+		vec4 specular = specularCalculation(light_dir) * light_color * specular_color;
+
+		float shadow = shadowCalculation(light_dir);
+		vec4 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * clr;
+        
+		frag_color = vec4(lighting.xyz, 1);
 	};
 ]>>
 
@@ -96,6 +116,7 @@ Anything outside of < < [ ] > > will be ignored
 		matrix projection;
 		matrix light_matrix;
 		float3 light_pos;
+		float3 view_pos;
 	};
 
 	struct VertexInputType
@@ -112,8 +133,10 @@ Anything outside of < < [ ] > > will be ignored
 		float3 normal : NORMAL;
 		float2 tex_coord : TEXCOORD0;
 		float4 color : COLOR0;
-		float4 frag_pos_light_space : POSITION0;
-		float4 light_pos : POSITION1;
+		float4 frag_pos : POSITION0;
+		float4 frag_pos_light_space : POSITION1;
+		float4 light_pos : POSITION2;
+		float4 view_pos : POSITION3;
 	};
 
 
@@ -125,11 +148,18 @@ Anything outside of < < [ ] > > will be ignored
 		output.position = mul(output.position, view);
 		output.position = mul(output.position, projection);
 		
+		
 		output.tex_coord = input.tex_coord;
 		output.color = input.color;
-		output.frag_pos_light_space = mul(light_matrix, output.position);
-		output.normal = input.normal;
+		output.frag_pos = float4(mul(position4, model).xyz, 1);
+		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);
+
+		//output.normal = mul(transpose(model), float4(input.normal, 0)).xyz;
+		//output.normal = mul(float4(input.normal, 0), transpose(model)).xyz;
+		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));
+
 		output.light_pos = float4(light_pos, 1);
+		output.view_pos = float4(view_pos, 1);
 		
 		return output;
 	}
@@ -137,8 +167,18 @@ Anything outside of < < [ ] > > will be ignored
 
 <<[hlsl_fs, fragmentShader]>>
 <<[
-	Texture2D tex_diffuse;
+	Texture2D diffuse_tex;
+	Texture2D specular_tex;
+	Texture2D normal_tex;
+	Texture2D shadowmap_directional_tex;
 	SamplerState sample_type;
+
+	cbuffer VariableBuffer : register(b0)
+	{
+		float4 diffuse_color;
+		float4 specular_color;
+		float  shininess;
+	};
 
 	struct FragmentInputType
 	{
@@ -146,28 +186,67 @@ Anything outside of < < [ ] > > will be ignored
 		float3 normal : NORMAL;
 		float2 tex_coord : TEXCOORD0;
 		float4 color : COLOR0;
-		float4 frag_pos_light_space : POSITION0;
-		float4 light_pos : POSITION1;
+		float4 frag_pos : POSITION0;
+		float4 frag_pos_light_space : POSITION1;
+		float4 light_pos : POSITION2;
+		float4 view_pos : POSITION3;
 	};
 
 
-	float4 fragmentShader(FragmentInputType input) : SV_TARGET
+	float shadowCalculation(FragmentInputType input, float3 light_dir)
 	{
-		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;
-		float3 normal = normalize(input.normal);
-		float3 light_color = float3(.5,1,.5);
-		
-		float3 ambient = color.xyz * 0.75;
-		float3 light_dir = input.light_pos.xyz;//normalize(input.light_pos.xyz - input.position.xyz);
-		float diff = max(dot(light_dir, normal), 0);
-		float3 diffuse = diff * light_color;
-		
-		float3 specular = float3(0,0,0);
-		
 		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;
 		proj_coords = proj_coords * 0.5 + 0.5;
-		float shadow = 0;
+		proj_coords.y = 1 - proj_coords.y;
 		
+		
+		float current_depth = input.frag_pos_light_space.z;
+		//float current_depth = proj_coords.z;
+		
+		float3 normal = normalize(input.normal);
+		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);
+		
+		float shadow = 0.0;
+		uint tex_w = 0, tex_h = 0;
+		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);
+		float2 texel_size = 1.0 / float2(tex_w, tex_h);
+		
+		const int samples = 3;
+		for(int x = -samples; x <= samples; ++x) {
+			for(int y = -samples; y <= samples; ++y) {
+				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;
+				//shadow += (1 - (pcf_depth - bias));//current_depth - bias > pcf_depth ? 1.0 : 0.0f;
+				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;
+			}
+		}
+		shadow /= (samples * 2 + 1) * (samples * 2 + 1);
+		return shadow;
+	}
+	
+	float specularCalculation(FragmentInputType input, float3 light_dir)
+	{
+		// not sure why this doesn't work... the math is identical to the OpenGL version which works
+		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;
+		float3 halfway_dir = normalize(light_dir + view_dir);
+		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;
+		float spec = pow(max(dot(input.normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;
+		// return spec;
+		return 0;
+	}
+
+	float4 fragmentShader(FragmentInputType input) : SV_TARGET
+	{
+		float4 color = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color;
+		float3 light_color = float3(1,1,1);
+		
+		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;
+		float diff = max(dot(light_dir, input.normal), 0);
+		float3 diffuse = diff * light_color * diffuse_color.rgb;
+		
+		float3 specular = 0;//specularCalculation(input, light_dir) * light_color * specular_color.rgb;
+		float shadow = shadowCalculation(input, light_dir);
+		
+		float3 ambient = color.xyz * 0.25;
 		float3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color.xyz;
 		
 		return float4(lighting, 1.0f);

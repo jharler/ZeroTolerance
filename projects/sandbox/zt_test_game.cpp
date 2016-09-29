@@ -14,10 +14,11 @@
 #define ZT_TOOLS_IMPLEMENTATION
 #define ZT_GAME_IMPLEMENTATION
 #define ZT_GAME_GUI_IMPLEMENTATION
+//#define ZT_SHADER_LOG_INVALID_ACCESS
 
 //#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
-#define ZT_OPENGL_DIAGNOSE
+#define ZT_OPENGL_DEBUGGING
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -48,28 +49,22 @@ struct ztGame
 	ztCamera camera, gui_camera;
 
 	ztShaderID shader_id, shader_id_lit;
-	ztTextureID tex_id_crate;
-	ztFontID font_id;
-	ztFontID font_id_uni;
-	ztFontID font_id_uni2;
-	ztFontID font_id_bmp;
+	ztTextureID tex_id_floor, tex_id_floor_spec, tex_id_crate, tex_id_crate_spec, tex_skybox;
 
 	ztDrawList draw_list;
 
 	ztGuiManagerID gui_manager;
-	ztTextureID gui_tex;
-	bool button_live_value;
-	r32 slider_live_value;
 
-	ztMeshID box, plane, rock, cube;
-
-	ztTextureID render_tex, cube_map;
+	ztMeshID plane, cube;
 
 	ztScene *scene;
 	ztModel *model_boxes[12];
 	ztModel *model_plane;
 	ztModel *model_light;
 	ztLight directional_light;
+
+	ztMaterialList material_boxes;
+	ztMaterialList material_plane;
 };
 
 
@@ -86,6 +81,54 @@ void zt_logCallback(ztLogMessageLevel_Enum level, const char * message)
 {
 	zt_fileWrite(&g_log, message, zt_strSize(message) - 1);
 	zt_fileWrite(&g_log, "\n", 1);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void makePngCpp(ztGameDetails* game_details)
+{
+	zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png", game_details->user_path);
+	zt_strMakePrintf(gui_cpp, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png.cpp", game_details->user_path);
+	if (!zt_fileExists(gui_cpp) && zt_fileExists(gui_tex)) {
+		i32 size = 0;
+		byte *data = (byte*)zt_readEntireFile(gui_tex, &size);
+
+		ztFile file;
+		if (zt_fileOpen(&file, gui_cpp, ztFileOpenMethod_WriteOver)) {
+			char *func_header =
+				"byte *zt_loadGuiPng(i32 *size) {\n"
+				"	byte data[] = {\n\t\t";
+			char *func_footer =
+				"};\n"
+				"	*size = zt_sizeof(data);\n"
+				"	byte *result = zt_mallocStructArray(byte, *size);\n"
+				"	zt_memCpy(result, *size, data, *size);\n"
+				"	return result;\n"
+				"}";
+
+			zt_fileWrite(&file, func_header, zt_strSize(func_header) - 1);
+
+			char buff[32];
+			zt_fiz(size) {
+				if (i == 0) {
+					zt_strPrintf(buff, zt_sizeof(buff), "0x%02x", data[i]);
+				}
+				else if (i % 1000 == 0){
+					zt_strPrintf(buff, zt_sizeof(buff), ",\n\t\t0x%02x", data[i]);
+				}
+				else {
+					zt_strPrintf(buff, zt_sizeof(buff), ",0x%02x", data[i]);
+				}
+
+				zt_fileWrite(&file, buff, zt_strSize(buff) - 1);
+			}
+
+			zt_fileWrite(&file, func_footer, zt_strSize(func_footer) - 1);
+			zt_fileClose(&file);
+		}
+
+		zt_free(data);
+	}
 }
 
 // functions ======================================================================================
@@ -153,172 +196,34 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"));
-	if (g_game->tex_id_crate == ztInvalidID) {
-		return false;
-	}
-
-	//g_game->font_id = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\arial.ttf", 20);
-	g_game->font_id = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\courbd.ttf", 20);
-	if (g_game->font_id == ztInvalidID) {
-		return false;
-	}
-
-	g_game->font_id_uni = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\DengXian.ttf", 60, "ゼロ容認 零容忍");
-	g_game->font_id_uni2 = zt_fontMakeFromTrueTypeFile("C:\\Windows\\Fonts\\arialbd.ttf", 60, "عدم التسامح");
-	g_game->font_id_bmp = zt_fontMakeFromBmpFontAsset(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "fonts/bmp_font.fnt"));
+	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"));
+	if (g_game->tex_id_crate == ztInvalidID) return false;
+	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"));
+	if (g_game->tex_id_crate_spec == ztInvalidID) return false;
+	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"));
+	if (g_game->tex_id_floor == ztInvalidID) return false;
+	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"));
+	if (g_game->tex_id_floor_spec == ztInvalidID) return false;
+	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
+	if (g_game->tex_skybox == ztInvalidID) return false;
 
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
-
 	zt_guiInitDebug(g_game->gui_manager);
 
-	g_game->gui_tex = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/gui.png"));
-	if (g_game->gui_tex == ztInvalidID) {
-		return false;
-	}
+	g_game->material_plane = zt_materialListMake(g_game->tex_id_floor, ztVec4::one, 0, g_game->tex_id_floor_spec);
+	g_game->material_plane.shininess = 0.25f;
 
-	
-	ztMaterialList materials = zt_materialListMake(g_game->tex_id_crate);
-	g_game->box = zt_meshMakePrimativeBox(&materials, 1, 1, 1, ztMeshFlags_OwnsMaterials);
-	g_game->plane = zt_meshMakePrimativePlane(&materials, 10, 10, 10, 10);
-	//g_game->rock = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/rock.obj"), nullptr);
+	g_game->material_boxes = zt_materialListMake(g_game->tex_id_crate, ztVec4::one, 0, g_game->tex_id_crate_spec);
+	g_game->material_boxes.shininess = 1.f;
+
+	g_game->plane = zt_meshMakePrimativePlane(10, 10, 10, 10);
 	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
-
-	g_game->render_tex = zt_textureMakeRenderTarget(1024, 1024);
-
-	g_game->cube_map = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
-
-	if(false){
-		ztGuiItemID window = zt_guiMakeScrollWindow("Test Window", ztGuiItemOrient_Vert);
-		zt_guiItemSetSize(window, ztVec2(5, 7));
-		zt_guiItemSetPosition(window, ztVec2(7.f, 0.f));
-
-		ztGuiItemID sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
-		zt_guiSizerSizeParent(sizer, false, true);
-		zt_guiItemSetName(sizer, "SizeParentSizer");
-
-		zt_fkz(4) {
-			{
-				ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel");
-				zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
-
-				{
-					ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
-					ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-					zt_guiSizerSizeToParent(sizer2);
-
-					ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some text.");
-					zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
-
-					zt_guiSizerAddItem(sizer2, zt_guiMakeCheckbox(sizer2, "A Checkbox"), 0, 3 / zt_pixelsPerUnit());
-
-					ztGuiItemID combo = zt_guiMakeComboBox(sizer2, 8);
-					zt_guiSizerAddItem(sizer2, combo, 0, 3 / zt_pixelsPerUnit());
-
-					const char *contents[] = {
-						"Item 1",
-						"Item 2",
-						"Item 3",
-						"Item 4",
-					};
-					zt_guiComboBoxSetContents(combo, contents, zt_elementsOf(contents), 1);
-				}
-			}
-			{
-				ztGuiItemID header = zt_guiMakeCollapsingPanel(sizer, "Collapsing Panel 2");
-				zt_guiSizerAddItem(sizer, header, 0, 3 / zt_pixelsPerUnit());
-
-				{
-					ztGuiItemID panel = zt_guiCollapsingPanelGetContentParent(header);
-					ztGuiItemID sizer2 = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-					zt_guiSizerSizeToParent(sizer2);
-
-					ztGuiItemID stattext = zt_guiMakeStaticText(sizer2, "Some more text.");
-					zt_guiSizerAddItem(sizer2, stattext, 0, 3 / zt_pixelsPerUnit());
-
-					zt_guiSizerAddItem(sizer2, zt_guiMakeStaticText(sizer2, "A much longer line of text with\na new line in the middle of it."), 0, 3 / zt_pixelsPerUnit());
-
-				}
-			}
-		}
-		zt_guiSizerAddStretcher(sizer, 1);
-
-		//zt_debugLogGuiHierarchy(window);
-	}
-	if (false){
-		ztGuiItemID window = zt_guiMakeWindow("Tree Test");
-		zt_guiItemSetSize(window, ztVec2(5, 7));
-		zt_guiItemSetPosition(window, ztVec2(-7, 0));
-
-		ztGuiItemID content = zt_guiWindowGetContentParent(window);
-		ztGuiItemID sizer = zt_guiMakeSizer(content, ztGuiItemOrient_Vert);
-		zt_guiSizerSizeToParent(sizer);
-
-		ztGuiItemID tree = zt_guiMakeTree(sizer, 256);
-		zt_guiSizerAddItem(sizer, tree, 1, 3 / zt_pixelsPerUnit());
-
-		ztGuiTreeNodeID root = zt_guiTreeAppend(tree, "Root", nullptr);
-		zt_guiTreeAppend(tree, "Subitem 1", nullptr, root);
-		zt_guiTreeAppend(tree, "Subitem 2", nullptr, root);
-		ztGuiTreeNodeID subitem = zt_guiTreeAppend(tree, "Subitem 3", nullptr, root);
-		zt_guiTreeAppend(tree, "Sub-Subitem 1", nullptr, subitem);
-		zt_guiTreeAppend(tree, "Sub-Subitem 2x", nullptr, subitem);
-		zt_guiTreeAppend(tree, "Subitem 4", nullptr, root);
-
-		ztGuiTreeNodeID subitem2 = zt_guiTreeAppend(tree, zt_guiMakeButton(tree, "Button"), nullptr, root);
-		zt_guiTreeAppend(tree, "Button Subitem", nullptr, subitem2);
-		zt_guiTreeAppend(tree, "Subitem 5", nullptr, root);
-	}
-
-	{
-		zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png", game_details->user_path);
-		zt_strMakePrintf(gui_cpp, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png.cpp", game_details->user_path);
-		if (!zt_fileExists(gui_cpp) && zt_fileExists(gui_tex)) {
-			i32 size = 0;
-			byte *data = (byte*)zt_readEntireFile(gui_tex, &size);
-
-			ztFile file;
-			if (zt_fileOpen(&file, gui_cpp, ztFileOpenMethod_WriteOver)) {
-				char *func_header =
-					"byte *zt_loadGuiPng(i32 *size) {\n"
-					"	byte data[] = {\n\t\t";
-				char *func_footer =
-					"};\n"
-					"	*size = zt_sizeof(data);\n"
-					"	byte *result = zt_mallocStructArray(byte, *size);\n"
-					"	zt_memCpy(result, *size, data, *size);\n"
-					"	return result;\n"
-					"}";
-
-				zt_fileWrite(&file, func_header, zt_strSize(func_header) - 1);
-
-				char buff[32];
-				zt_fiz(size) {
-					if (i == 0) {
-						zt_strPrintf(buff, zt_sizeof(buff), "0x%02x", data[i]);
-					}
-					else if (i % 1000 == 0){
-						zt_strPrintf(buff, zt_sizeof(buff), ",\n\t\t0x%02x", data[i]);
-					}
-					else {
-						zt_strPrintf(buff, zt_sizeof(buff), ",0x%02x", data[i]);
-					}
-
-					zt_fileWrite(&file, buff, zt_strSize(buff) - 1);
-				}
-
-				zt_fileWrite(&file, func_footer, zt_strSize(func_footer) - 1);
-				zt_fileClose(&file);
-			}
-
-			zt_free(data);
-		}
-	}
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
-		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
+		//g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
+		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
 
 		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
 		g_game->model_boxes[i]->transform.position.x = zt_cos(angle) * 3.5f;
@@ -328,10 +233,11 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
 	}
 
-	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
+	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
+	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, g_game->shader_id_lit, nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
 
-	g_game->model_light = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_Unlit), nullptr, 0);
+	g_game->model_light = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_light);
 
 	g_game->model_light->transform.position = ztVec3(0, 0, 0);
@@ -341,6 +247,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
 
+	makePngCpp(game_details);
 	return true;
 }
 
@@ -349,7 +256,6 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 void game_screenChange(ztGameSettings *game_settings)
 {
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
-
 
 	if (g_game->details->current_frame == 1) {
 		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f, ztVec3(9, 10, 8), ztVec3(230, -30, 0));
@@ -370,23 +276,20 @@ void game_cleanup()
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
 		zt_modelFree(g_game->model_boxes[i]);
 	}
+	zt_modelFree(g_game->model_plane);
+	zt_modelFree(g_game->model_light);
 
 	zt_sceneFree(g_game->scene);
 
 	zt_guiManagerFree(g_game->gui_manager);
 
-	zt_textureFree(g_game->render_tex);
-
 	zt_meshFree(g_game->cube);
-	zt_meshFree(g_game->rock);
-	zt_meshFree(g_game->box);
 	zt_meshFree(g_game->plane);
 
-	zt_fontFree(g_game->font_id_bmp);
-	zt_fontFree(g_game->font_id_uni2);
-	zt_fontFree(g_game->font_id_uni);
-	zt_fontFree(g_game->font_id);
 	zt_textureFree(g_game->tex_id_crate);
+	zt_textureFree(g_game->tex_id_floor);
+	zt_textureFree(g_game->tex_skybox);
+
 	zt_drawListFree(&g_game->draw_list);
 	zt_shaderFree(g_game->shader_id);
 	zt_shaderFree(g_game->shader_id_lit);
@@ -458,16 +361,22 @@ bool game_loop(r32 dt)
 			g_game->model_light->transform.position.x = zt_cos(angle) * 5.5f;
 			g_game->model_light->transform.position.z = zt_sin(angle) * 5.5f;
 			g_game->model_light->transform.position.y = 10;
+
+			g_game->model_light->transform.rotation.y += 360 * dt;
+			if (g_game->model_light->transform.rotation.y > 360) {
+				g_game->model_light->transform.rotation.y -= 360;
+			}
+
 			g_game->directional_light.position = g_game->model_light->transform.position;
 
 			zt_shaderSetVariableVec3(g_game->shader_id_lit, "light_pos", g_game->model_light->transform.position);
 		}
 	}
 
+	zt_rendererClear(ztVec4(0, 0, 0, 0));
 	zt_sceneCull(g_game->scene, &g_game->camera);
-	//g_game->directional_light.position = g_game->camera.position;
 	zt_sceneLighting(g_game->scene);
-	zt_sceneRender(g_game->scene, &g_game->camera, ztColor(0,0,0,1));
+	zt_sceneRender(g_game->scene, &g_game->camera);
 
 	{
 #if 0
