@@ -440,10 +440,10 @@ enum ztAssetManagerType_Enum
 	ztAssetManagerType_AudioWAV,
 
 	ztAssetManagerType_Shader,
-
 	ztAssetManagerType_Font,
 
 	ztAssetManagerType_MeshOBJ,
+	ztAssetManagerType_Material,
 
 	ztAssetManagerType_MAX,
 };
@@ -511,6 +511,7 @@ bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash);
 bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash);
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID same_location_as);
 i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id);
 bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size);
 
@@ -697,8 +698,10 @@ enum ztMaterialFlags_Enum
 
 // ------------------------------------------------------------------------------------------------
 
-struct ztMaterialList
+struct ztMaterial
 {
+	char name[64]; // used when loading from files
+
 	ztTextureID diffuse_tex;
 	ztVec4 diffuse_color;
 	i32 diffuse_flags;
@@ -724,14 +727,18 @@ struct ztMaterialList
 };
 
 
-ztMaterialList zt_materialListMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4& diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
-								   ztTextureID specular_tex = ztInvalidID, const ztVec4& specular_color = ztVec4::one, i32 specular_flags = 0,
-								   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0, r32 shininess = 0.5f);
-void zt_materialListFree(ztMaterialList *material_list);
+ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4& diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
+						   ztTextureID specular_tex = ztInvalidID, const ztVec4& specular_color = ztVec4::one, i32 specular_flags = 0,
+						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0, r32 shininess = 0.5f);
 
-bool zt_materialListIsEmpty(ztMaterialList *material_list);
+int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size);
+int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int materials_arr_size);
 
-void zt_materialListPrepare(ztMaterialList *material_list, ztShaderID shader, ztTextureID *additional_tex = nullptr, char ** additional_tex_names = nullptr, int additional_tex_count = 0);
+void zt_materialFree(ztMaterial *material);
+
+bool zt_materialIsEmpty(ztMaterial *material);
+
+void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex = nullptr, char ** additional_tex_names = nullptr, int additional_tex_count = 0);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -747,7 +754,7 @@ void zt_meshFree(ztMeshID mesh_id);
 ztMeshID zt_meshMakePrimativeBox(r32 width, r32 height, r32 depth);
 ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w = 1, int grid_d = 1);
 
-ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
+int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
 void zt_meshRender(ztMeshID mesh_id);
 
@@ -1064,7 +1071,7 @@ struct ztModel
 	ztShaderID shader;
 	ztShaderVariableValues *shader_vars;
 
-	ztMaterialList materials;
+	ztMaterial material;
 
 	ztModel *first_child;
 	ztModel *next;
@@ -1077,7 +1084,7 @@ struct ztModel
 
 // ------------------------------------------------------------------------------------------------
 
-ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterialList *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 void zt_modelFree(ztModel *model);
 
 
@@ -2021,6 +2028,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 		else if (zt_striEndsWith(token, ".ttf")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
 		else if (zt_striEndsWith(token, ".fnt")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
 		else if (zt_striEndsWith(token, ".obj")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshOBJ;
+		else if (zt_striEndsWith(token, ".mtl")) asset_mgr->asset_type[i] = ztAssetManagerType_Material;
 		else asset_mgr->asset_type[i] = ztAssetManagerType_Unknown;
 
 		asset_mgr->asset_data[i] = nullptr;
@@ -2142,6 +2150,26 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash)
 
 // ------------------------------------------------------------------------------------------------
 
+ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID same_location_as)
+{
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+
+	if (same_location_as == ztInvalidID) {
+		return zt_assetLoad(asset_mgr, asset);
+	}
+	int pos_path = zt_strFindLastPos(asset_mgr->asset_name[same_location_as], "/");
+	if (pos_path == ztStrPosNotFound) {
+		return zt_assetLoad(asset_mgr, asset);
+	}
+
+	char asset_path[1024];
+	zt_strCpy(asset_path, zt_elementsOf(asset_path), asset_mgr->asset_name[same_location_as], pos_path);
+
+	zt_strMakePrintf(asset_name, 2048, "%s/%s", asset_path, asset);
+	return zt_assetLoad(asset_mgr, asset_name);
+}
+
+// ------------------------------------------------------------------------------------------------
 i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	zt_returnValOnNull(asset_mgr, 0);
@@ -4743,13 +4771,13 @@ ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, c
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterialList *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
 	zt_assertReturnValOnFail(shader >= 0 && shader < zt->shaders_count, nullptr);
 
-	if (materials && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDiffuse ) && zt_shaderHasVariable(shader, materials->diffuse_tex_override  ? materials->diffuse_tex_override  : "diffuse_tex" , nullptr)) flags |= ztModelFlags_ShaderSupportsDiffuse;
-	if (materials && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsSpecular) && zt_shaderHasVariable(shader, materials->specular_tex_override ? materials->specular_tex_override : "specular_tex", nullptr)) flags |= ztModelFlags_ShaderSupportsSpecular;
-	if (materials && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsNormal  ) && zt_shaderHasVariable(shader, materials->normal_tex_override   ? materials->normal_tex_override   : "normal_tex"  , nullptr)) flags |= ztModelFlags_ShaderSupportsNormal;
+	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDiffuse ) && zt_shaderHasVariable(shader, material->diffuse_tex_override  ? material->diffuse_tex_override  : "diffuse_tex" , nullptr)) flags |= ztModelFlags_ShaderSupportsDiffuse;
+	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsSpecular) && zt_shaderHasVariable(shader, material->specular_tex_override ? material->specular_tex_override : "specular_tex", nullptr)) flags |= ztModelFlags_ShaderSupportsSpecular;
+	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsNormal  ) && zt_shaderHasVariable(shader, material->normal_tex_override   ? material->normal_tex_override   : "normal_tex"  , nullptr)) flags |= ztModelFlags_ShaderSupportsNormal;
 
 	if (!zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDirectionalLight) && shader < ztShaderDefault_MAX && zt_shaderHasVariable(shader, "light_matrix", nullptr)) flags |= ztModelFlags_ShaderSupportsDirectionalLight;
 
@@ -4759,7 +4787,7 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterialList *ma
 	model->flags = flags;
 	model->shader = shader;
 	model->shader_vars = shader_vars;
-	model->materials = materials ? *materials : zt_materialListMake();
+	model->material = material ? *material : zt_materialMake();
 	model->transform.position = ztVec3::zero;
 	model->transform.rotation = ztVec3::zero;
 	model->transform.scale = ztVec3::one;
@@ -5007,10 +5035,10 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 
 			if (shader_supports_lights) {
 				char *shadowmap_directional_tex = "shadowmap_directional_tex";
-				zt_materialListPrepare(&model->materials, *active_shader, &scene->tex_directional_shadow_map, &shadowmap_directional_tex, 1);
+				zt_materialPrepare(&model->material, *active_shader, &scene->tex_directional_shadow_map, &shadowmap_directional_tex, 1);
 			}
 			else {
-				zt_materialListPrepare(&model->materials, *active_shader);
+				zt_materialPrepare(&model->material, *active_shader);
 			}
 
 			zt_shaderSetModelMatrices(*active_shader, model->calculated_mat);
@@ -8802,11 +8830,13 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztMaterialList zt_materialListMake(ztTextureID diffuse_tex, const ztVec4& diffuse_color, i32 diffuse_flags,
-								   ztTextureID specular_tex, const ztVec4& specular_color, i32 specular_flags,
-								   ztTextureID normal_tex, i32 normal_flags, r32 shininess)
+ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4& diffuse_color, i32 diffuse_flags,
+						   ztTextureID specular_tex, const ztVec4& specular_color, i32 specular_flags,
+						   ztTextureID normal_tex, i32 normal_flags, r32 shininess)
 {
-	ztMaterialList result;
+	ztMaterial result;
+
+	result.name[0] = 0;
 
 	result.diffuse_tex = diffuse_tex;
 	result.diffuse_color = diffuse_color;
@@ -8835,45 +8865,223 @@ ztMaterialList zt_materialListMake(ztTextureID diffuse_tex, const ztVec4& diffus
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_materialListFree(ztMaterialList *material_list)
+ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMaterial *materials_arr, int materials_arr_size, ztAssetManager *asset_mgr, ztAssetID asset_id, char *file_name)
 {
-	zt_returnOnNull(material_list);
+	zt_returnValOnNull(data, 0);
 
-	if (zt_bitIsSet(material_list->diffuse_flags, ztMaterialFlags_OwnsTexture)) {
-		zt_textureFree(material_list->diffuse_tex);
+	int lines = zt_strTokenize(data, "\r\n", nullptr, 0, ztStrTokenizeFlags_TrimWhitespace);
+
+	ztToken *tokens = zt_mallocStructArray(ztToken, lines);
+	zt_strTokenize(data, "\r\n", tokens, lines, ztStrTokenizeFlags_TrimWhitespace);
+
+	int curr_mtl_idx = -1;
+	ztMaterial *curr_mtl = nullptr;
+
+	zt_fiz(lines) {
+		char line[1024];
+		zt_strCpy(line, zt_elementsOf(line), data + tokens[i].beg, tokens[i].len);
+
+		if (line[0] == '#') continue;
+
+		if (zt_strStartsWith(line, "newmtl")) {
+			curr_mtl_idx += 1;
+
+			curr_mtl = curr_mtl_idx < materials_arr_size ? &materials_arr[curr_mtl_idx] : nullptr;
+			if (curr_mtl) {
+				*curr_mtl = zt_materialMake();
+
+				int space = zt_strFindPos(line, " ", 0);
+				if (space != ztStrPosNotFound) {
+					zt_strCpy(curr_mtl->name, zt_elementsOf(curr_mtl->name), line + space + 1);
+				}
+			}
+		}
+		else if (curr_mtl != nullptr) {
+			struct local
+			{
+				static ztVec4 parseReflectivity(char *line)
+				{
+					ztVec4 result = ztVec4::one;
+					ztToken tokens[3];
+					if (zt_strTokenize(line, " ", tokens, zt_elementsOf(tokens)) == 3) {
+						result.r = zt_strToReal32(line + tokens[0].beg, tokens[0].len, 1);
+						result.g = zt_strToReal32(line + tokens[1].beg, tokens[1].len, 1);
+						result.b = zt_strToReal32(line + tokens[2].beg, tokens[2].len, 1);
+					}
+					// should support spectral curve and CIEXYZ color space
+					return result;
+				}
+
+				static r32 parseValue(char *line)
+				{
+					return zt_strToReal32(line, 0);
+				}
+
+				static ztTextureID parseTexture(char *line, ztAssetManager *asset_mgr, ztAssetID asset_id, char *file_name)
+				{
+					char *file = line + zt_strFindLastPos(line, " ") + 1;
+
+					if (asset_mgr) {
+						ztAssetID tex_asset_id = zt_assetLoad(asset_mgr, file, asset_id);
+						if (tex_asset_id != ztInvalidID) {
+							return zt_textureMake(asset_mgr, tex_asset_id, ztTextureFlags_Flip);
+						}
+					}
+					else {
+						char tex_file_name[ztFileMaxPath];
+						zt_fileGetFileInOtherFileDirectory(tex_file_name, ztFileMaxPath, file, file_name);
+						return zt_textureMakeFromFile(tex_file_name, ztTextureFlags_Flip);
+					}
+					return ztInvalidID;
+				}
+			};
+			if (zt_strStartsWith(line, "Ka ")) {	// ambient reflectivity
+			}
+			else if (zt_strStartsWith(line, "Kd ")) {	// diffuse reflectivity
+				curr_mtl->diffuse_color = local::parseReflectivity(line + 3);
+			}
+			else if (zt_strStartsWith(line, "Ks ")) {	// specular reflectivity
+				curr_mtl->specular_color = local::parseReflectivity(line + 3);
+			}
+			else if (zt_strStartsWith(line, "Ni ")) {	// optical density
+			}
+			else if (zt_strStartsWith(line, "Ns ")) {	// specular exponent
+				curr_mtl->shininess = local::parseValue(line) / 1000.f;
+			}
+			else if (zt_strStartsWith(line, "d ")) {	// dissolve
+			}
+			else if (zt_strStartsWith(line, "illum ")) { // illumination model
+			}
+			else if (zt_strStartsWith(line, "sharpness ")) {	// sharpness of reflections
+			}
+			else if (zt_strStartsWith(line, "map_Ka ")) {
+			}
+			else if (zt_strStartsWith(line, "map_Kd ")) {
+				curr_mtl->diffuse_tex = local::parseTexture(line, asset_mgr, asset_id, file_name);
+			}
+			else if (zt_strStartsWith(line, "map_Ks ")) {
+				curr_mtl->specular_tex = local::parseTexture(line, asset_mgr, asset_id, file_name);
+			}
+			else if (zt_strStartsWith(line, "map_Ns ")) {
+				curr_mtl->normal_tex = local::parseTexture(line, asset_mgr, asset_id, file_name);
+			}
+			else if (zt_strStartsWith(line, "map_d ")) {
+			}
+			else if (zt_strStartsWith(line, "disp ")) {
+			}
+			else if (zt_strStartsWith(line, "decal ")) {
+			}
+			else if (zt_strStartsWith(line, "bump ")) {
+			}
+			else if (zt_strStartsWith(line, "refl ")) {
+			}
+		}
 	}
-	material_list->diffuse_tex = ztInvalidID;
-	material_list->diffuse_flags = 0;
-	material_list->diffuse_color = ztVec4::one;
-	material_list->diffuse_tex_override = nullptr;
-	material_list->diffuse_color_override = nullptr;
 
-	if (zt_bitIsSet(material_list->specular_flags, ztMaterialFlags_OwnsTexture)) {
-		zt_textureFree(material_list->specular_tex);
-	}
-	material_list->specular_tex = ztInvalidID;
-	material_list->specular_flags = 0;
-	material_list->specular_color = ztVec4::one;
-	material_list->specular_tex_override = nullptr;
-	material_list->specular_color_override = nullptr;
+	zt_free(tokens);
 
-	if (zt_bitIsSet(material_list->normal_flags, ztMaterialFlags_OwnsTexture)) {
-		zt_textureFree(material_list->normal_tex);
-	}
-	material_list->normal_tex = ztInvalidID;
-	material_list->normal_flags = 0;
-	material_list->normal_tex_override = nullptr;
-
-	material_list->shininess_override = nullptr;
+	return curr_mtl_idx + 1;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_materialListIsEmpty(ztMaterialList *material_list)
+int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size)
 {
-	if (material_list->diffuse_tex != ztInvalidID || material_list->diffuse_color != ztVec4::one ||
-		material_list->specular_tex != ztInvalidID || material_list->specular_color != ztVec4::one ||
-		material_list->normal_tex != ztInvalidID) {
+	zt_returnValOnNull(asset_mgr, 0);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_Material) {
+		zt_logCritical("Asset is not a material: %s", asset_mgr->asset_name[asset_id]);
+		return 0;
+	}
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		zt_logCritical("Unable to determine asset size: %s", asset_mgr->asset_name[asset_id]);
+		return 0;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if (!data) {
+		zt_logCritical("Unable to allocate memory: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
+		return 0;
+	}
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		zt_logCritical("Unable to load asset contents: %s", asset_mgr->asset_name[asset_id]);
+		zt_free(data);
+		return 0;
+	}
+
+	int result = _zt_materialLoadFromFileDataBase(data, size, materials_arr, materials_arr_size, asset_mgr, asset_id, nullptr);
+	zt_free(data);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int materials_arr_size)
+{
+	int size = zt_fileSize(file_name);
+	if (size <= 0) {
+		zt_logCritical("Unable to determine size of file: %s", file_name);
+		return 0;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if (!data) {
+		zt_logCritical("Unable to allocate memory: %s (%d bytes)", file_name, size);
+		return 0;
+	}
+
+	zt_readEntireFile(file_name, data, size);
+
+	int result = _zt_materialLoadFromFileDataBase(data, size, materials_arr, materials_arr_size, nullptr, ztInvalidID, file_name);
+	zt_free(data);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_materialFree(ztMaterial *material)
+{
+	zt_returnOnNull(material);
+
+	if (zt_bitIsSet(material->diffuse_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->diffuse_tex);
+	}
+	material->diffuse_tex = ztInvalidID;
+	material->diffuse_flags = 0;
+	material->diffuse_color = ztVec4::one;
+	material->diffuse_tex_override = nullptr;
+	material->diffuse_color_override = nullptr;
+
+	if (zt_bitIsSet(material->specular_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->specular_tex);
+	}
+	material->specular_tex = ztInvalidID;
+	material->specular_flags = 0;
+	material->specular_color = ztVec4::one;
+	material->specular_tex_override = nullptr;
+	material->specular_color_override = nullptr;
+
+	if (zt_bitIsSet(material->normal_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->normal_tex);
+	}
+	material->normal_tex = ztInvalidID;
+	material->normal_flags = 0;
+	material->normal_tex_override = nullptr;
+
+	material->shininess_override = nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_materialIsEmpty(ztMaterial *material)
+{
+	if (material->diffuse_tex != ztInvalidID || material->diffuse_color != ztVec4::one ||
+		material->specular_tex != ztInvalidID || material->specular_color != ztVec4::one ||
+		material->normal_tex != ztInvalidID) {
 		return false;
 	}
 
@@ -8882,7 +9090,7 @@ bool zt_materialListIsEmpty(ztMaterialList *material_list)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_materialListPrepare(ztMaterialList *materials, ztShaderID shader, ztTextureID *additional_tex, char ** additional_tex_names, int additional_tex_count)
+void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex, char ** additional_tex_names, int additional_tex_count)
 {
 	switch (zt_currentRenderer())
 	{
@@ -8891,24 +9099,23 @@ void zt_materialListPrepare(ztMaterialList *materials, ztShaderID shader, ztText
 
 			int tex_count = 0;
 			glBindTexture(GL_TEXTURE_2D, 0);
-			if(materials->diffuse_tex != ztInvalidID) {
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, materials->diffuse_tex_override ? materials->diffuse_tex_override : "diffuse_tex", tex_count);
-				zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
-				zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[materials->diffuse_tex].gl_texid));
-			}
-			if(materials->specular_tex != ztInvalidID) {
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, materials->specular_tex_override ? materials->specular_tex_override : "specular_tex", tex_count);
-				zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
-				zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[materials->specular_tex].gl_texid));
-			}
-			if(materials->normal_tex != ztInvalidID) {
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, materials->normal_tex_override ? materials->normal_tex_override : "normal_tex", tex_count);
-				zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
-				zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[materials->normal_tex].gl_texid));
-			}
+			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
+			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : "diffuse_tex", tex_count);
+			zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
+			zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[diffuse_tex].gl_texid));
+
+			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
+			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : "specular_tex", tex_count);
+			zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
+			zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[specular_tex].gl_texid));
+
+			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
+			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : "normal_tex", tex_count);
+			zt_glCallAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + tex_count++));
+			zt_glCallAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, zt->textures[normal_tex].gl_texid));
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
@@ -8953,36 +9160,32 @@ void zt_materialListPrepare(ztMaterialList *materials, ztShaderID shader, ztText
 				zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
 			}
 
-			int max_slot = 0;
-			if(materials->diffuse_tex != ztInvalidID) {
-				ztTextureID texture_id = materials->diffuse_tex;
-				int slot = DirectX::getVariableSlot(shader, materials->diffuse_tex_override ? materials->diffuse_tex_override : "diffuse_tex");
-				if(slot >= 0) {
-					if(slot > max_slot) max_slot = slot;
-					zt->game_details.curr_frame.texture_switches += 1;
-					zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[texture_id].dx_shader_resource_view);
-					zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[texture_id].dx_sampler_state);
-				}
+			int slot = 0, max_slot = 0;
+			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
+			slot = DirectX::getVariableSlot(shader, material->diffuse_tex_override ? material->diffuse_tex_override : "diffuse_tex");
+			if(slot >= 0) {
+				if(slot > max_slot) max_slot = slot;
+				zt->game_details.curr_frame.texture_switches += 1;
+				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[diffuse_tex].dx_shader_resource_view);
+				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[diffuse_tex].dx_sampler_state);
 			}
-			if(materials->specular_tex != ztInvalidID) {
-				ztTextureID texture_id = materials->specular_tex;
-				int slot = DirectX::getVariableSlot(shader, materials->specular_tex_override ? materials->specular_tex_override : "specular_tex");
-				if(slot >= 0) {
-					if(slot > max_slot) max_slot = slot;
-					zt->game_details.curr_frame.texture_switches += 1;
-					zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[texture_id].dx_shader_resource_view);
-					zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[texture_id].dx_sampler_state);
-				}
+
+			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
+			slot = DirectX::getVariableSlot(shader, material->specular_tex_override ? material->specular_tex_override : "specular_tex");
+			if(slot >= 0) {
+				if(slot > max_slot) max_slot = slot;
+				zt->game_details.curr_frame.texture_switches += 1;
+				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[specular_tex].dx_shader_resource_view);
+				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[specular_tex].dx_sampler_state);
 			}
-			if(materials->normal_tex != ztInvalidID) {
-				ztTextureID texture_id = materials->normal_tex;
-				int slot = DirectX::getVariableSlot(shader, materials->normal_tex_override ? materials->normal_tex_override : "normal_tex");
-				if(slot >= 0) {
-					if(slot > max_slot) max_slot = slot;
-					zt->game_details.curr_frame.texture_switches += 1;
-					zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[texture_id].dx_shader_resource_view);
-					zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[texture_id].dx_sampler_state);
-				}
+
+			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
+			slot = DirectX::getVariableSlot(shader, material->normal_tex_override ? material->normal_tex_override : "normal_tex");
+			if(slot >= 0) {
+				if(slot > max_slot) max_slot = slot;
+				zt->game_details.curr_frame.texture_switches += 1;
+				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[normal_tex].dx_shader_resource_view);
+				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[normal_tex].dx_sampler_state);
 			}
 
 			zt_fiz(additional_tex_count) {
@@ -9008,9 +9211,9 @@ void zt_materialListPrepare(ztMaterialList *materials, ztShaderID shader, ztText
 		}
 	}
 
-	zt_shaderSetVariableVec4(shader, materials->diffuse_color_override ? materials->diffuse_color_override : "diffuse_color", materials->diffuse_color);
-	zt_shaderSetVariableVec4(shader, materials->specular_color_override ? materials->specular_color_override : "specular_color", materials->specular_color);
-	zt_shaderSetVariableFloat(shader, materials->shininess_override ? materials->shininess_override : "shininess", materials->shininess);
+	zt_shaderSetVariableVec4(shader, material->diffuse_color_override ? material->diffuse_color_override : "diffuse_color", material->diffuse_color);
+	zt_shaderSetVariableVec4(shader, material->specular_color_override ? material->specular_color_override : "specular_color", material->specular_color);
+	zt_shaderSetVariableFloat(shader, material->shininess_override ? material->shininess_override : "shininess", material->shininess);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9019,15 +9222,18 @@ void zt_materialListPrepare(ztMaterialList *materials, ztShaderID shader, ztText
 
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count)
 {
+#	pragma pack(push, 1)
 	struct ztVertex
 	{
 		ztVec3 pos;
 		ztVec2 uv;
 		ztVec3 normals;
 		ztVec4 colors;
+		ztVec4 tangent;
+		ztVec4 bitangent;
 	};
+#	pragma pack(pop)
 
-	ztVertex *vertices = zt_mallocStructArray(ztVertex, vert_count);
 
 	u32* t_indices = nullptr;
 	if (indices_count == 0) {
@@ -9037,6 +9243,8 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 		zt_fiz(indices_count) indices[i] = i;
 	}
+
+	ztVertex *vertices = zt_mallocStructArray(ztVertex, indices_count);
 
 	ztVec3 *t_normals = nullptr;
 	if (normals == nullptr) {
@@ -9063,12 +9271,36 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		normals = t_normals;
 	}
 
-	int vidx = 0;
-	zt_fiz(vert_count) {
-		vertices[i].pos = verts[i];
-		vertices[i].uv = uvs == nullptr ? ztVec2::zero : uvs[i];
-		vertices[i].normals = normals[i];
+	zt_fiz(indices_count) {
+		vertices[i].pos = verts[indices[i]];
+		vertices[i].uv = uvs == nullptr ? ztVec2::zero : uvs[indices[i]];
+		vertices[i].normals = normals[indices[i]];
 		vertices[i].colors = ztVec4::one;
+		indices[i] = i;
+	}
+
+	int triangles = indices_count / 3;
+	int idx = 0;
+	zt_fiz(triangles) {
+		ztVertex& v1 = vertices[idx++];
+		ztVertex& v2 = vertices[idx++];
+		ztVertex& v3 = vertices[idx++];
+
+		ztVec3 edge1 = v2.pos - v1.pos;
+		ztVec3 edge2 = v3.pos - v1.pos;
+		ztVec2 duv1 = v2.uv - v1.uv;
+		ztVec2 duv2 = v3.uv - v1.uv;
+
+		r32 f = 1.f / (duv2.x * duv1.y - duv1.x * duv2.y);
+
+		ztVec3 tangent  (f * ( duv2.y * edge1.x - duv1.y * edge2.x), f * ( duv2.y * edge1.y - duv1.y * edge2.y), f * ( duv2.y * edge1.z - duv1.y * edge2.z));
+		ztVec3 bitangent(f * (-duv2.x * edge1.x + duv1.x * edge2.x), f * (-duv2.x * edge1.y + duv1.x * edge2.y), f * (-duv2.x * edge1.z + duv1.x * edge2.z));
+
+		tangent.normalize();
+		bitangent.normalize();
+
+		v1.tangent = v2.tangent = v3.tangent = ztVec4(tangent, 0);
+		v1.bitangent = v2.bitangent = v3.bitangent = ztVec4(bitangent, 0);
 	}
 
 	zt_assert(zt->meshes_count < zt_elementsOf(zt->meshes));
@@ -9096,7 +9328,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 			zt_glCallAndReportOnError(glBindVertexArray(mesh->gl_vao));
 			{
 				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, mesh->gl_vbo));
-				zt_glCallAndReportOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * zt_sizeof(ztVertex), vertices, GL_STATIC_DRAW));
+				zt_glCallAndReportOnError(glBufferData(GL_ARRAY_BUFFER, indices_count * zt_sizeof(ztVertex), vertices, GL_STATIC_DRAW));
 
 				zt_glCallAndReportOnError(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gl_ebo));
 				zt_glCallAndReportOnError(glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(GLuint), indices, GL_STATIC_DRAW));
@@ -9109,6 +9341,10 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 				zt_glCallAndReportOnError(glEnableVertexAttribArray(2));
 				zt_glCallAndReportOnError(glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(8 * sizeof(GLfloat))));
 				zt_glCallAndReportOnError(glEnableVertexAttribArray(3));
+				zt_glCallAndReportOnError(glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(12 * sizeof(GLfloat))));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(4));
+				zt_glCallAndReportOnError(glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, zt_sizeof(ztVertex), (GLvoid*)(16 * sizeof(GLfloat))));
+				zt_glCallAndReportOnError(glEnableVertexAttribArray(5));
 
 				zt_glCallAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
 			}
@@ -9150,7 +9386,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 			ZeroMemory(&vb, sizeof(vb));
 
 			vb.Usage = D3D11_USAGE_DEFAULT;
-			vb.ByteWidth = zt_sizeof(ztVertex) * vert_count;
+			vb.ByteWidth = zt_sizeof(ztVertex) * indices_count;
 			vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 			vb.CPUAccessFlags = 0;
 
@@ -9317,17 +9553,14 @@ ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w, int grid_d)
 
 // ------------------------------------------------------------------------------------------------
 
-ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterialList *materials, const ztVec3& scale, const ztVec3& offset)
+//ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *material, const ztVec3& scale, const ztVec3& offset)
+int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_MeshOBJ) {
 		return ztInvalidID;
-	}
-
-	if (materials) {
-		*materials = zt_materialListMake();
 	}
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
@@ -9364,6 +9597,9 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 		tokens_count = zt_min(tokens_count, lines + 1);
 	}
 
+	ztMaterial *mats = nullptr;
+	int mats_count = 0;
+
 	int verts_count = 0;
 	int normals_count = 0;
 	int tex_coords_count = 0;
@@ -9374,17 +9610,15 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 	ztToken l_tokens[128], i_tokens[128];
 
 	bool first_face_entry = true;
-	int group_idx = 0;
-
 	zt_fiz(tokens_count) {
 		if (tokens[i].len <= 2) continue;
 
 		char* line = data + tokens[i].beg;
 
 		if (line[0] == 'v' && line[1] == ' ') verts_count += 1;
-		if (line[0] == 'v' && line[1] == 'n' && line[2] == ' ') normals_count += 1;
-		if (line[0] == 'v' && line[1] == 't' && line[2] == ' ') tex_coords_count += 1;
-		if (line[0] == 'f' && line[1] == ' ') {
+		else if (line[0] == 'v' && line[1] == 'n' && line[2] == ' ') normals_count += 1;
+		else if (line[0] == 'v' && line[1] == 't' && line[2] == ' ') tex_coords_count += 1;
+		else if (line[0] == 'f' && line[1] == ' ') {
 			int f_tokens = zt_strTokenize(line, tokens[i].len, " ", l_tokens, zt_elementsOf(l_tokens), 0);
 			if (f_tokens < 4) {
 				zt_assert(false);
@@ -9403,12 +9637,29 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 				}
 			}
 		}
-		//if (line[0] == 'g' && line[1] == ' ') {
-		//	group_idx += 1;
-		//	if (group_idx > 1) {
-		//		break;
-		//	}
-		//}
+		else if (line[0] == 'g' && line[1] == ' ') {
+			break; // new group, no more vertices
+		}
+		else if (zt_strStartsWith(line, "mtllib ")) {
+			char mtl_name[128];
+			zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + 7, tokens[i].len - 7);
+
+			ztAssetID mtl_asset_id = zt_assetLoad(asset_mgr, mtl_name, asset_id);
+			if (mtl_asset_id != ztInvalidID) {
+				mats_count = zt_materialLoad(asset_mgr, mtl_asset_id, nullptr, 0);
+				if(mats_count) {
+					mats = zt_mallocStructArray(ztMaterial, mats_count);
+					zt_fiz(mats_count) {
+						mats[i] = zt_materialMake();
+					}
+
+					zt_materialLoad(asset_mgr, mtl_asset_id, mats, mats_count);
+				}
+			}
+			else {
+				zt_logCritical("Unable to locate material file '%s' while loading OBJ '%s'", mtl_name, asset_mgr->asset_name[asset_id]);
+			}
+		}
 	}
 
 	struct local
@@ -9427,6 +9678,40 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 			strncpy_s(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
 
 			return zt_strToInt(src + token.beg, token.len, 0);
+		}
+
+		static ztMeshID applyToMesh(bool has_norm_indices, bool has_uv_indices, int indices_idx, int verts_idx, ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, u32 *uv_indices, u32 *normal_indices, u32 *indices, int indices_count)
+		{
+			if (has_norm_indices || has_uv_indices) {
+				// we need to redo the vert/normal/uv arrays
+				ztVec3* new_verts = zt_mallocStructArray(ztVec3, indices_idx);
+				ztVec2* new_uvs = has_uv_indices ? zt_mallocStructArray(ztVec2, indices_idx) : nullptr;
+				ztVec3* new_normals = has_norm_indices ? zt_mallocStructArray(ztVec3, indices_idx) : nullptr;
+
+				for (int i = 0; i < indices_idx; ++i) {
+					new_verts[i] = verts[indices[i]];
+					if (new_uvs) {
+						new_uvs[i] = uvs[uv_indices[i]];
+					}
+					if (new_normals) {
+						new_normals[i] = normals[normal_indices[i]];
+					}
+				}
+
+				zt_logDebug("obj contains %d triangles", indices_idx / 3);
+
+				ztMeshID mesh = zt_meshMake(new_verts, new_uvs, new_normals, indices_idx, nullptr, 0);
+
+				zt_free(new_normals);
+				zt_free(new_uvs);
+				zt_free(new_verts);
+
+				return mesh;
+			}
+			else {
+				zt_logDebug("obj contains %d triangles", indices_idx / 3);
+				return zt_meshMake(verts, uvs, normals, verts_idx, indices, indices_count);
+			}
 		}
 	};
 
@@ -9448,7 +9733,10 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 	int uvs_idx = 0;
 	int indices_idx = 0;
 
-	group_idx = 0;
+	int group_idx = 0;
+
+	ztMeshID *curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
+	ztMaterial *curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
 
 	bool failed = false;
 	for (int i = 0; i < tokens_count && !failed; ++i) {
@@ -9464,8 +9752,8 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 				failed = true;
 			}
 			else {
-				verts[verts_idx  ].x = offset.x + (scale.x * local::parseReal(line, l_tokens[1]));
-				verts[verts_idx  ].y = offset.y + (scale.y * local::parseReal(line, l_tokens[2]));
+				verts[verts_idx].x = offset.x + (scale.x * local::parseReal(line, l_tokens[1]));
+				verts[verts_idx].y = offset.y + (scale.y * local::parseReal(line, l_tokens[2]));
 				verts[verts_idx++].z = offset.z + (scale.z * local::parseReal(line, l_tokens[3]));
 			}
 		}
@@ -9474,8 +9762,8 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 				failed = true;
 			}
 			else {
-				normals[normals_idx  ].x = local::parseReal(line, l_tokens[1]);
-				normals[normals_idx  ].y = local::parseReal(line, l_tokens[2]);
+				normals[normals_idx].x = local::parseReal(line, l_tokens[1]);
+				normals[normals_idx].y = local::parseReal(line, l_tokens[2]);
 				normals[normals_idx++].z = local::parseReal(line, l_tokens[3]);
 			}
 		}
@@ -9484,7 +9772,7 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 				failed = true;
 			}
 			else {
-				uvs[uvs_idx  ].x = local::parseReal(line, l_tokens[1]);
+				uvs[uvs_idx].x = local::parseReal(line, l_tokens[1]);
 				uvs[uvs_idx++].y = local::parseReal(line, l_tokens[2]);
 			}
 		}
@@ -9506,8 +9794,8 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 					switch (i_tokens_count)
 					{
 						case 3: {	// vertex / uv / normal
-							norm_indexes[indexes_idx  ] = local::parseInt(i_token_str, i_tokens[2]) - 1;
-							uv_indexes  [indexes_idx  ] = local::parseInt(i_token_str, i_tokens[1]) - 1;
+							norm_indexes[indexes_idx] = local::parseInt(i_token_str, i_tokens[2]) - 1;
+							uv_indexes[indexes_idx] = local::parseInt(i_token_str, i_tokens[1]) - 1;
 							vert_indexes[indexes_idx++] = local::parseInt(i_token_str, i_tokens[0]) - 1;
 						} break;
 
@@ -9527,10 +9815,10 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 					}
 				}
 
-				#define _zt_assignIndexesToIndices(INDEX_IDX) \
-								if (has_norm_indices) { normal_indices[indices_idx] = norm_indexes[INDEX_IDX]; } \
-								if (has_uv_indices) { uv_indices[indices_idx] = uv_indexes[INDEX_IDX]; } \
-								indices[indices_idx++] = vert_indexes[INDEX_IDX];
+#					define _zt_assignIndexesToIndices(INDEX_IDX) \
+					if (has_norm_indices) { normal_indices[indices_idx] = norm_indexes[INDEX_IDX]; } \
+					if (has_uv_indices) { uv_indices[indices_idx] = uv_indexes[INDEX_IDX]; } \
+					indices[indices_idx++] = vert_indexes[INDEX_IDX];
 
 				for (int i = 0; i < triangles; ++i) {
 					_zt_assignIndexesToIndices(0);
@@ -9538,18 +9826,38 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 					_zt_assignIndexesToIndices(2 + i);
 				}
 
-				#undef _zt_assignIndexesToIndices
+#					undef _zt_assignIndexesToIndices
 			}
 		}
+		else if (line[0] == 'g' && line[1] == ' ') {
+
+			if(curr_mesh_id) {
+				*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
+				indices_idx = 0;
+			}
+			group_idx += 1;
+			curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
+			curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
+		}
 		else if (tokens[i].len > 8) {
-			if (zt_strStartsWith(line, "usemtl") && l_tokens_count > 1 && materials != nullptr) {
-				if (zt_materialListIsEmpty(materials)) {
-					char mtl_name[128];
-					zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + l_tokens[1].beg, l_tokens[1].len);
-					
+			if (zt_strStartsWith(line, "usemtl") && l_tokens_count > 1) {
+				char mtl_name[128];
+				zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + l_tokens[1].beg, l_tokens[1].len);
+
+				zt_fkz(mats_count) {
+					if(zt_strEquals(mats[k].name, mtl_name)) {
+						if(curr_mat) {
+							*curr_mat = mats[k];
+						}
+						break;
+					}
+				}
+
+				/*if (zt_materialIsEmpty(material)) {
+
 					char mtl_name_path[ztFileMaxPath];
 					bool found_file = true;
-					
+
 					zt_strCpy(mtl_name_path, zt_elementsOf(mtl_name_path), asset_mgr->asset_name[asset_id]);
 					int pos = zt_strFindLastPos(mtl_name_path, "/");
 					if (pos != ztStrPosNotFound) {
@@ -9565,50 +9873,17 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 							found_file = false;
 						}
 					}
-					
+
 					if (found_file) {
-						*materials = zt_materialListMake(zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, asset_hash), ztTextureFlags_MipMaps|ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture);
+						*material = zt_materialMake(zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, asset_hash), ztTextureFlags_MipMaps | ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture);
 					}
-				}
+				}*/
 			}
 		}
-		//if (line[0] == 'g' && line[1] == ' ') {
-		//	group_idx += 1;
-		//	if (group_idx > 1) {
-		//		break;
-		//	}
-		//}
 	}
 
-	ztMeshID mesh = ztInvalidID;
-
-	if (has_norm_indices || has_uv_indices) {
-		// we need to redo the vert/normal/uv arrays
-		ztVec3* new_verts = zt_mallocStructArray(ztVec3, indices_idx);
-		ztVec2* new_uvs = has_uv_indices ? zt_mallocStructArray(ztVec2, indices_idx) : nullptr;
-		ztVec3* new_normals = has_norm_indices ? zt_mallocStructArray(ztVec3, indices_idx) : nullptr;
-
-		for (int i = 0; i < indices_idx; ++i) {
-			new_verts[i] = verts[indices[i]];
-			if (new_uvs) {
-				new_uvs[i] = uvs[uv_indices[i]];
-			}
-			if (new_normals) {
-				new_normals[i] = normals[normal_indices[i]];
-			}
-		}
-
-		zt_logDebug("obj contains %d triangles", indices_idx / 3);
-		
-		mesh = zt_meshMake(new_verts, new_uvs, new_normals, indices_idx, nullptr, 0);
-
-		zt_free(new_normals);
-		zt_free(new_uvs);
-		zt_free(new_verts);
-	}
-	else {
-		zt_logDebug("obj contains %d triangles", indices_idx / 3);
-		mesh = zt_meshMake(verts, uvs, normals, verts_idx, indices, indices_count);
+	if(curr_mesh_id) {
+		*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
 	}
 
 	zt_free(indices);
@@ -9621,7 +9896,7 @@ ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMateria
 	zt_free(tokens);
 	zt_free(data);
 
-	return mesh;
+	return group_idx;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -10637,6 +10912,13 @@ int main(int argc, char **argv)
 		}
 	}
 
+	// make a simple white texture to use as a default
+	{
+		ztTextureID white_tex = zt_textureMakeRenderTarget(8, 8);
+		zt_textureRenderTargetPrepare(white_tex);
+		zt_rendererClear(ztVec4::one);
+		zt_textureRenderTargetCommit(white_tex);
+	}
 
 	if (!_zt_callFuncInit(&zt->game_details, game_settings))
 		return 1;

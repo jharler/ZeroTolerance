@@ -870,13 +870,15 @@ i32 zt_fileGetFileExt(ztFile *file, char *buffer, int buffer_size);		// file ext
 
 i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size);	// full path only, file name not included
 i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size);	// file name only, no path details
-i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size);		// file extension only
+i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size);	// file extension only
 
 i32 zt_fileGetAppBin(char *buffer, int buffer_size);
 i32 zt_fileGetAppPath(char *buffer, int buffer_size);
 i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name);
 i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
 void zt_fileSetCurrentPath(const char *path);
+
+i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
 
 bool zt_fileExists(const char *file_name);
 bool zt_fileDelete(const char *file_name);
@@ -4263,6 +4265,27 @@ void zt_fileSetCurrentPath(const char *path)
 #if defined(ZT_WINDOWS)
 	SetCurrentDirectoryA(path);
 #endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path)
+{
+	int posEnd = zt_strFindLastPos(other_file_full_path, ztFilePathSeparatorStr);
+	if (posEnd == ztStrPosNotFound) {
+		posEnd = zt_strFindLastPos(other_file_full_path, "/");
+		if (posEnd == ztStrPosNotFound) {
+			posEnd = zt_strFindLastPos(other_file_full_path, "\\");
+		}
+	}
+	if (posEnd == ztStrPosNotFound) {
+		return zt_strCpy(buffer, buffer_size, file_only);
+	}
+
+	char path_only[ztFileMaxPath];
+	zt_strCpy(path_only, ztFileMaxPath, other_file_full_path, posEnd + 1);
+
+	return zt_strPrintf(buffer, buffer_size, "%s%s", path_only, file_only);
 }
 
 // ------------------------------------------------------------------------------------------------

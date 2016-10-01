@@ -49,7 +49,7 @@ struct ztGame
 	ztCamera camera, gui_camera;
 
 	ztShaderID shader_id, shader_id_lit;
-	ztTextureID tex_id_floor, tex_id_floor_spec, tex_id_crate, tex_id_crate_spec, tex_skybox;
+	ztTextureID tex_id_floor, tex_id_floor_spec, tex_id_floor_norm, tex_id_crate, tex_id_crate_spec, tex_id_crate_norm, tex_skybox;
 
 	ztDrawList draw_list;
 
@@ -63,8 +63,8 @@ struct ztGame
 	ztModel *model_light;
 	ztLight directional_light;
 
-	ztMaterialList material_boxes;
-	ztMaterialList material_plane;
+	ztMaterial material_boxes;
+	ztMaterial material_plane;
 };
 
 
@@ -139,7 +139,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	zt_logAddCallback(zt_logCallback, ztLogMessageLevel_Verbose);
 
 	zt_strMakePrintf(ini_file, ztFileMaxPath, "%s%csettings.cfg", details->user_path, ztFilePathSeparator);
-	settings->memory = zt_iniFileGetValue(ini_file, "general", "app_memory", (i32)zt_megabytes(64));
+	settings->memory = zt_iniFileGetValue(ini_file, "general", "app_memory", (i32)zt_megabytes(128));
 
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
@@ -171,7 +171,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->details = game_details;
 	g_game->settings = game_settings;
 
-	g_game->asset_arena = zt_memMakeArena(zt_megabytes(32), zt_memGetGlobalArena());
+	g_game->asset_arena = zt_memMakeArena(zt_megabytes(64), zt_memGetGlobalArena());
 	zt_strMakePrintf(data_path, ztFileMaxPath, "%s%crun%cdata", game_details->user_path, ztFilePathSeparator, ztFilePathSeparator);
 
 	if (!zt_assetManagerLoadDirectory(&g_game->asset_mgr, data_path, g_game->asset_arena)) {
@@ -196,34 +196,52 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"));
+	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"), ztTextureFlags_Flip);
 	if (g_game->tex_id_crate == ztInvalidID) return false;
-	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"));
+	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"), ztTextureFlags_Flip);
 	if (g_game->tex_id_crate_spec == ztInvalidID) return false;
-	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"));
+	g_game->tex_id_crate_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_n.png"), ztTextureFlags_Flip);
+	if (g_game->tex_id_crate_norm == ztInvalidID) return false;
+	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"), ztTextureFlags_Flip);
 	if (g_game->tex_id_floor == ztInvalidID) return false;
-	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"));
+	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"), ztTextureFlags_Flip);
 	if (g_game->tex_id_floor_spec == ztInvalidID) return false;
+	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), ztTextureFlags_Flip);
+	if (g_game->tex_id_floor_norm == ztInvalidID) return false;
 	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 	if (g_game->tex_skybox == ztInvalidID) return false;
 
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 	zt_guiInitDebug(g_game->gui_manager);
 
-	g_game->material_plane = zt_materialListMake(g_game->tex_id_floor, ztVec4::one, 0, g_game->tex_id_floor_spec);
+
+	ztMeshID mesh_chair = ztInvalidID;
+	ztMaterial mat_chair = zt_materialMake();
+
+	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3::one, ztVec3(2, 3, 0));
+	
+	g_game->material_plane = zt_materialMake(g_game->tex_id_floor, ztVec4::one, 0, g_game->tex_id_floor_spec, ztVec4::one, 0, g_game->tex_id_floor_norm);
 	g_game->material_plane.shininess = 0.25f;
 
-	g_game->material_boxes = zt_materialListMake(g_game->tex_id_crate, ztVec4::one, 0, g_game->tex_id_crate_spec);
+	g_game->material_boxes = zt_materialMake(g_game->tex_id_crate, ztVec4::one, 0, g_game->tex_id_crate_spec, ztVec4::one, 0, g_game->tex_id_crate_norm);
 	g_game->material_boxes.shininess = 1.f;
 
-	g_game->plane = zt_meshMakePrimativePlane(10, 10, 10, 10);
-	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
+	g_game->plane = zt_meshMakePrimativePlane(20, 20, 5, 5);
+//	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
+	g_game->cube = zt_meshMakePrimativeBox(1, 1, 1);
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
+	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows));
+
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
-		//g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
-		g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+		if (i == 0) {
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+		}
+		else {
+			//g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+		}
 
 		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
 		g_game->model_boxes[i]->transform.position.x = zt_cos(angle) * 3.5f;
@@ -233,6 +251,15 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
 	}
 
+	/*
+	ztMaterial mat = zt_materialMake(zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_texture.png"), ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture,
+									 zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_texture_s.png"), ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture,
+									 zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_texture_n.png"), ztTextureFlags_Flip), ztMaterialFlags_OwnsTexture);
+	ztMeshID mesh = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_control_mesh.obj"), nullptr);
+	ztModel *model = zt_modelMake(zt_memGetGlobalArena(), mesh, &mat, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+	model->transform.position.y = 1;
+	zt_sceneAddModel(g_game->scene, model);
+	*/
 	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
 	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, g_game->shader_id_lit, nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
@@ -370,6 +397,20 @@ bool game_loop(r32 dt)
 			g_game->directional_light.position = g_game->model_light->transform.position;
 
 			zt_shaderSetVariableVec3(g_game->shader_id_lit, "light_pos", g_game->model_light->transform.position);
+		}
+
+		if (moving) {
+			const r32 slice = (ztMathPi2 / 5);
+			static r32 angle = 0;
+
+			angle += slice * dt;
+
+			zt_fiz(2) {
+				g_game->model_boxes[i]->transform.rotation.y += 90 * dt;
+				if (g_game->model_boxes[i]->transform.rotation.y > 360) {
+					g_game->model_boxes[i]->transform.rotation.y -= 360;
+				}
+			}
 		}
 	}
 
