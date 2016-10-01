@@ -1171,6 +1171,15 @@ enum ztRendererDepthTestFunction_Enum
 
 void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function);
 
+enum ztRendererFaceCulling_Enum
+{
+	ztRendererFaceCulling_CullBack,
+	ztRendererFaceCulling_CullFront,
+	ztRendererFaceCulling_CullNone,
+};
+
+void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling);
+
 void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
@@ -4795,7 +4804,7 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	model->first_child = nullptr;
 	model->parent = parent;
 	if (parent) {
-		zt_singleLinkAddToEnd(parent, model);
+		zt_singleLinkAddToEnd(parent->first_child, model);
 	}
 
 	return model;
@@ -4921,7 +4930,7 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera)
 	{
 		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
 		{
-			model->calculated_mat = parent_mat->getTranslate(model->transform.position);
+			model->calculated_mat = ztMat4::identity.getTranslate(model->transform.position);
 
 			if (model->transform.rotation != ztVec3::zero) {
 				model->calculated_mat.rotateEuler(model->transform.rotation);
@@ -4932,6 +4941,8 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera)
 				scale.scale(model->transform.scale);
 				model->calculated_mat = model->calculated_mat * scale;
 			}
+
+			model->calculated_mat = model->calculated_mat * (*parent_mat);
 
 			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
 				calculateModel(child, &model->calculated_mat);
@@ -4964,7 +4975,17 @@ void zt_sceneLighting(ztScene *scene)
 		{
 			if (match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) {
 				zt_shaderSetModelMatrices(shader, model->calculated_mat);
+
+				bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
+				if (changed_cull) {
+					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+				}
+
 				zt_meshRender(model->mesh_id);
+
+				if (changed_cull) {
+					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+				}
 			}
 
 			ztModel *child = model->first_child;
@@ -5042,7 +5063,17 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 			}
 
 			zt_shaderSetModelMatrices(*active_shader, model->calculated_mat);
+
+			bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
+			if (changed_cull) {
+				zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+			}
+
 			zt_meshRender(model->mesh_id);
+
+			if (changed_cull) {
+				zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+			}
 
 			ztModel *child = model->first_child;
 			while (child) {
@@ -5175,6 +5206,37 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 #			endif
 		} break;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
+{
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			switch (culling)
+			{
+				case ztRendererFaceCulling_CullBack : zt_glCallAndReportOnErrorFast(glEnable(GL_CULL_FACE)); zt_glCallAndReportOnErrorFast(glCullFace(GL_BACK)); break;
+				case ztRendererFaceCulling_CullFront: zt_glCallAndReportOnErrorFast(glEnable(GL_CULL_FACE)); zt_glCallAndReportOnErrorFast(glCullFace(GL_FRONT)); break;
+				case ztRendererFaceCulling_CullNone : zt_glCallAndReportOnErrorFast(glDisable(GL_CULL_FACE)); break;
+			}
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			switch (culling)
+			{
+				case ztRendererFaceCulling_CullBack : zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw); break;
+				case ztRendererFaceCulling_CullFront: zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_cw); break;
+				case ztRendererFaceCulling_CullNone : zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none); break;
+			}
+#			endif
+		} break;
+	}
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9553,7 +9615,6 @@ ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w, int grid_d)
 
 // ------------------------------------------------------------------------------------------------
 
-//ztMeshID zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *material, const ztVec3& scale, const ztVec3& offset)
 int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
@@ -9581,6 +9642,20 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 		zt_logCritical("Unable to load asset contents");
 		zt_free(data);
 		return ztInvalidID;
+	}
+
+	{
+		bool has_cr = zt_strFindPos(data, zt_min(1024, size), "\r", 1) != ztStrPosNotFound;
+		char *end_search = has_cr ? "\\\r" : "\\n";
+		int replace_chars = has_cr ? 3 : 2;
+
+		zt_fiz(size - replace_chars) {
+			if (data[i] == end_search[0] && data[i+1] == end_search[1]) {
+				data[i] = ' ';
+				data[i+1] = ' ';
+				if(has_cr) data[i+2] = ' ';
+			}
+		}
 	}
 
 	int lines = 0;
@@ -9638,9 +9713,9 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 			}
 		}
 		else if (line[0] == 'g' && line[1] == ' ') {
-			break; // new group, no more vertices
+			//break;
 		}
-		else if (zt_strStartsWith(line, "mtllib ")) {
+		else if (zt_strStartsWith(line, tokens[i].len, "mtllib ", 7)) {
 			char mtl_name[128];
 			zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + 7, tokens[i].len - 7);
 
@@ -9738,6 +9813,11 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 	ztMeshID *curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
 	ztMaterial *curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
 
+	if (curr_mat) {
+		*curr_mat = zt_materialMake();
+	}
+
+	// first time around, get the verts/normals/uvs
 	bool failed = false;
 	for (int i = 0; i < tokens_count && !failed; ++i) {
 		if (tokens[i].len <= 2) continue;
@@ -9776,7 +9856,19 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 				uvs[uvs_idx++].y = local::parseReal(line, l_tokens[2]);
 			}
 		}
-		else if (line[0] == 'f' && line[1] == ' ') {
+	}
+
+	// second time around, populate the groups
+	failed = false;
+	for (int i = 0; i < tokens_count && !failed; ++i) {
+		if (tokens[i].len <= 2) continue;
+		char* line = data + tokens[i].beg;
+
+		if (line[0] == '#') continue;
+
+		int l_tokens_count = zt_strTokenize(line, tokens[i].len, " ", l_tokens, zt_elementsOf(l_tokens), 0);
+
+		if (line[0] == 'f' && line[1] == ' ') {
 			if (l_tokens_count < 4) {
 				failed = true;
 			}
@@ -9815,7 +9907,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 					}
 				}
 
-#					define _zt_assignIndexesToIndices(INDEX_IDX) \
+#				define _zt_assignIndexesToIndices(INDEX_IDX) \
 					if (has_norm_indices) { normal_indices[indices_idx] = norm_indexes[INDEX_IDX]; } \
 					if (has_uv_indices) { uv_indices[indices_idx] = uv_indexes[INDEX_IDX]; } \
 					indices[indices_idx++] = vert_indexes[INDEX_IDX];
@@ -9826,62 +9918,40 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 					_zt_assignIndexesToIndices(2 + i);
 				}
 
-#					undef _zt_assignIndexesToIndices
+#				undef _zt_assignIndexesToIndices
 			}
 		}
 		else if (line[0] == 'g' && line[1] == ' ') {
+			if (indices_idx != 0) {
+				if (curr_mesh_id) {
+					*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
+					indices_idx = 0;
+				}
+				group_idx += 1;
+				curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
+				curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
 
-			if(curr_mesh_id) {
-				*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
-				indices_idx = 0;
+				if (curr_mat) {
+					*curr_mat = zt_materialMake();
+				}
 			}
-			group_idx += 1;
-			curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
-			curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
 		}
 		else if (tokens[i].len > 8) {
-			if (zt_strStartsWith(line, "usemtl") && l_tokens_count > 1) {
+			if (zt_strStartsWith(line, tokens[i].len, "usemtl ", 7) && l_tokens_count > 1) {
 				char mtl_name[128];
 				zt_strCpy(mtl_name, zt_elementsOf(mtl_name), line + l_tokens[1].beg, l_tokens[1].len);
 
 				zt_fkz(mats_count) {
-					if(zt_strEquals(mats[k].name, mtl_name)) {
-						if(curr_mat) {
+					if (zt_strEquals(mats[k].name, mtl_name)) {
+						if (curr_mat) {
 							*curr_mat = mats[k];
 						}
 						break;
 					}
 				}
-
-				/*if (zt_materialIsEmpty(material)) {
-
-					char mtl_name_path[ztFileMaxPath];
-					bool found_file = true;
-
-					zt_strCpy(mtl_name_path, zt_elementsOf(mtl_name_path), asset_mgr->asset_name[asset_id]);
-					int pos = zt_strFindLastPos(mtl_name_path, "/");
-					if (pos != ztStrPosNotFound) {
-						mtl_name_path[pos] = 0;
-					}
-
-					// check for "mtl_name".png
-					zt_strMakePrintf(mtl_name_file, ztFileMaxPath, "%s/%s.png", mtl_name_path, mtl_name);
-					i32 asset_hash = -1;
-					if (!zt_assetFileExistsAsAsset(asset_mgr, mtl_name_file, &asset_hash)) {
-						zt_strPrintf(mtl_name_file, zt_elementsOf(mtl_name_file), "%s/%s_d.png", mtl_name_path, mtl_name);
-						if (!zt_assetFileExistsAsAsset(asset_mgr, mtl_name_file, &asset_hash)) {
-							found_file = false;
-						}
-					}
-
-					if (found_file) {
-						*material = zt_materialMake(zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, asset_hash), ztTextureFlags_MipMaps | ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture);
-					}
-				}*/
 			}
 		}
 	}
-
 	if(curr_mesh_id) {
 		*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
 	}
