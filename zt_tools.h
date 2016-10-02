@@ -1118,6 +1118,22 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 r64 zt_getTime(); // seconds since app started
 void zt_sleep(r32 seconds);
 
+class ztBlockProfiler
+{
+public:
+	ztBlockProfiler(char *_block_name, ztLogMessageLevel_Enum _log_level = ztLogMessageLevel_Verbose) : block_name(_block_name), log_level(_log_level) {
+		time_beg = zt_getTime();
+	}
+
+	~ztBlockProfiler() {
+		zt_logMessage(log_level, "%s took %f ms to execute", block_name, (r32)(zt_getTime() - time_beg) * 1000.f);
+	}
+
+	char *block_name;
+	ztLogMessageLevel_Enum log_level;
+	r64 time_beg;
+};
+
 
 // ------------------------------------------------------------------------------------------------
 // linked lists
@@ -3705,7 +3721,8 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 	int whitespace_run = 0;
 	int t_idx = 0;
 
-	ztToken* ctok = t_idx < results_count ? &results[t_idx] : nullptr;
+	ztToken dummy_token;
+	ztToken* ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
 	if (ctok) {
 		ctok->beg = 0;
 		ctok->len = 0;
@@ -3723,7 +3740,7 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 				else 
 					t_idx += 1;
 
-				ctok = t_idx < results_count ? &results[t_idx] : nullptr;
+				ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
 				if (ctok) {
 					ctok->beg = i + 1;
 					ctok->len = 0;
@@ -3739,7 +3756,7 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 					if (!ctok || ctok->len != 0)
 						t_idx += 1;
 
-					ctok = t_idx < results_count ? &results[t_idx] : nullptr;
+					ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
 					if (ctok) {
 						ctok->beg = i + (keep_quotes ? 0 : 1);
 						ctok->len = keep_quotes ? 1 : 0;
@@ -3762,14 +3779,14 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 
 						if (!ctok || ctok->len != 0)
 							t_idx += 1;
-						ctok = t_idx < results_count ? &results[t_idx] : nullptr;
+						ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
 						if (include_tokens) {
 							if (ctok) {
 								ctok->beg = i;
 								ctok->len = 1;
 							}
 							t_idx += 1;
-							ctok = t_idx < results_count ? &results[t_idx] : nullptr;
+							ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
 						}
 						if (ctok) {
 							ctok->beg = i + 1;
