@@ -18,7 +18,7 @@
 
 //#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
-#define ZT_OPENGL_DEBUGGING
+//#define ZT_OPENGL_DEBUGGING
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -166,6 +166,8 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 
 bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 {
+	ztBlockProfiler bp_tex("game_init");
+
 	g_game = zt_mallocStruct(ztGame);
 	*g_game = {};
 	g_game->details = game_details;
@@ -217,8 +219,11 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	ztMeshID mesh_chair = ztInvalidID;
 	ztMaterial mat_chair = zt_materialMake();
-
 	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3::one, ztVec3(2, 3, 0));
+
+	ztMeshID mesh_droid[2];
+	ztMaterial mat_droid[2];
+	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/droid/attack_droid.obj"), mesh_droid, mat_droid, 2, ztVec3(.2f, .2f, .2f), ztVec3(0, 0, 0));
 	
 	g_game->material_plane = zt_materialMake(g_game->tex_id_floor, ztVec4::one, 0, g_game->tex_id_floor_spec, ztVec4::one, 0, g_game->tex_id_floor_norm);
 	g_game->material_plane.shininess = 0.25f;
@@ -232,15 +237,26 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
-	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows));
+	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows));
+
+	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_LitShadow);// zt_shaderGetDefault(ztShaderDefault_Lit);
+	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows);
+	zt_fiz(1) {
+		zt_modelMake(zt_memGetGlobalArena(), mesh_droid[i + 1], &mat_droid[i + 1], droid_shader, nullptr, ztModelFlags_CastsShadows, model_droid);
+	}
+	zt_sceneAddModel(g_game->scene, model_droid);
+	model_droid->transform.position.x = -4;
+	model_droid->transform.position.z = -6;
+	model_droid->transform.rotation.y = 45;
+
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
 		if (i == 0) {
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 		}
 		else {
 			//g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, g_game->shader_id_lit, nullptr, ztModelFlags_CastsShadows);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 		}
 
 		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
@@ -250,6 +266,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
 	}
+
+	ztModel *model_center = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
+	model_center->transform.scale = ztVec3(.15f, .15f, .15f);
+	zt_sceneAddModel(g_game->scene, model_center);
 
 	/*
 	ztMaterial mat = zt_materialMake(zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_texture.png"), ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture,
@@ -261,7 +281,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	zt_sceneAddModel(g_game->scene, model);
 	*/
 	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
-	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, g_game->shader_id_lit, nullptr, 0);
+	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
 
 	g_game->model_light = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
@@ -300,12 +320,7 @@ void game_screenChange(ztGameSettings *game_settings)
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
-	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
-		zt_modelFree(g_game->model_boxes[i]);
-	}
-	zt_modelFree(g_game->model_plane);
-	zt_modelFree(g_game->model_light);
-
+	zt_sceneFreeAllModels(g_game->scene);
 	zt_sceneFree(g_game->scene);
 
 	zt_guiManagerFree(g_game->gui_manager);
