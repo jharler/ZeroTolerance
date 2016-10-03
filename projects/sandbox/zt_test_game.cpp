@@ -239,7 +239,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows));
 
-	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_LitShadow);// zt_shaderGetDefault(ztShaderDefault_Lit);
+	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
 	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows);
 	zt_fiz(1) {
 		zt_modelMake(zt_memGetGlobalArena(), mesh_droid[i + 1], &mat_droid[i + 1], droid_shader, nullptr, ztModelFlags_CastsShadows, model_droid);
@@ -290,9 +290,32 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->model_light->transform.position = ztVec3(0, 0, 0);
 	g_game->model_light->transform.scale = ztVec3(.5f, .5f, .5f);
 
-	g_game->directional_light = zt_lightMakeDirectional(g_game->model_light->transform.position, ztVec3::zero);
+	g_game->directional_light = zt_lightMakeDirectional(g_game->model_light->transform.position, ztVec3::zero, 1, .05f);
 	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
+
+
+	{
+		ztGuiItemID slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
+		zt_guiItemSetSize(slider, ztVec2(3, .3f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);
+
+		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.intensity);
+		zt_guiItemSetSize(slider, ztVec2(3, .3f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.4f));
+
+		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.r);
+		zt_guiItemSetSize(slider, ztVec2(1, .3f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.8f));
+
+		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.g);
+		zt_guiItemSetSize(slider, ztVec2(1, .3f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(1, -.8f));
+
+		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.b);
+		zt_guiItemSetSize(slider, ztVec2(1, .3f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(2, -.8f));
+	}
 
 	makePngCpp(game_details);
 	return true;
