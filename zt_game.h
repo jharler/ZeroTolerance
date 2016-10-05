@@ -560,7 +560,7 @@ enum ztShaderVariable_Enum
 // ------------------------------------------------------------------------------------------------
 
 #ifndef ZT_SHADER_MAX_VARIABLES
-#define ZT_SHADER_MAX_VARIABLES		32
+#define ZT_SHADER_MAX_VARIABLES		128
 #endif
 
 // ------------------------------------------------------------------------------------------------
@@ -811,6 +811,33 @@ struct ztCamera
 
 // ------------------------------------------------------------------------------------------------
 
+struct ztFrustum
+{
+	union {
+		struct{
+			ztVec3 points[8];
+		};
+
+		struct {
+			ztVec3 near_rect[4];
+			ztVec3 far_rect[4];
+		};
+
+		struct {
+			ztVec3 near_nw;
+			ztVec3 near_ne;
+			ztVec3 near_se;
+			ztVec3 near_sw;
+			ztVec3 far_nw;
+			ztVec3 far_ne;
+			ztVec3 far_se;
+			ztVec3 far_sw;
+		};
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
 void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztVec3& rotation = ztVec3::zero);
 
@@ -828,6 +855,8 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
 ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, const ztVec2& pos);
 
 void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
+
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -975,6 +1004,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, int count,
 bool zt_drawListAddMesh(ztDrawList *draw_list, ztMeshID mesh_id, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3& offset = ztVec3::zero);
 
+bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum);
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
 bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox);
 
@@ -1101,6 +1131,12 @@ enum ztSceneModelFlags_Enum
 
 // ------------------------------------------------------------------------------------------------
 
+#ifndef ZT_SCENE_MAX_LIGHTS
+#define ZT_SCENE_MAX_LIGHTS	4
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztScene
 {
 	struct ModelInfo
@@ -1120,6 +1156,7 @@ struct ztScene
 	};
 
 	LightInfo directional_light;
+	LightInfo lights[ZT_SCENE_MAX_LIGHTS];
 
 	ztMemoryArena *arena;
 
@@ -1143,7 +1180,7 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera);
 
 // --------------------------------------------------------
 // Generate shadow maps for non-culled lights
-void zt_sceneLighting(ztScene *scene);
+void zt_sceneLighting(ztScene *scene, ztCamera *camera);
 
 void zt_sceneRender(ztScene *scene, ztCamera *camera);
 
@@ -1715,8 +1752,14 @@ enum ztShaderLoadType_Enum
 
 // ------------------------------------------------------------------------------------------------
 
-#define ztShaderMaxShaders		64
-#define ztShaderMaxDxCbuffers	 8
+#ifndef ZT_MAX_SHADERS
+#define ZT_MAX_SHADERS		64
+#endif
+
+#ifndef ZT_SHADER_MAX_DX_CBUFFERS
+#define ZT_SHADER_MAX_DX_CBUFFERS	 8
+#endif
+
 
 struct ztShader
 {
@@ -1728,7 +1771,8 @@ struct ztShader
 	ID3D11VertexShader *dx_vert;
 	ID3D11PixelShader *dx_frag;
 	ID3D11InputLayout *dx_layout;
-	ID3D11Buffer *dx_cbuffers[ztShaderMaxDxCbuffers];
+	ID3D11Buffer *dx_cbuffers[ZT_SHADER_MAX_DX_CBUFFERS];
+	int dx_cbuffers_shader[ZT_SHADER_MAX_DX_CBUFFERS];
 	i32 dx_cbuffers_count;
 #endif
 
@@ -1751,8 +1795,14 @@ struct ztShader
 	ztShaderVariableValues variables;
 
 	zt_openGLSupport(GLint gl_locations[ZT_SHADER_MAX_VARIABLES]);
-	zt_directxSupport(int dx_offsets[ZT_SHADER_MAX_VARIABLES]);
-	zt_directxSupport(int dx_cbuffer_shader[ZT_SHADER_MAX_VARIABLES]);
+
+	struct DxInfo
+	{
+		int cbuffer;
+		int offset;
+		int shader;
+	};
+	zt_directxSupport(DxInfo dx_info[ZT_SHADER_MAX_VARIABLES]);
 
 	int textures_bound;
 };
@@ -1896,7 +1946,7 @@ struct ztGameGlobals
 
 	// ----------------------
 
-	ztShader shaders[ztShaderMaxShaders];
+	ztShader shaders[ZT_MAX_SHADERS];
 	i32 shaders_count = 0;
 
 	ztShaderID default_shader_solid = 0;
@@ -2417,8 +2467,8 @@ ztInternal const char *_zt_default_shaders_names[] = {
 ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		vec3 normal = normalCalculation();\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		vec4 lighting = (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 normal = normalCalculation(input);\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float  diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		float4 lighting = (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n		\n		return float4(lighting.xyz, 1.0f);\n	}\n]>>",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		vec3 normal = normalCalculation();\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		vec4 lighting = (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;\n		\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 normal = normalCalculation(input);\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		float4 lighting = (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n		\n		return float4(lighting.xyz, 1.0f);\n	}\n]>>",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
 };
@@ -3206,6 +3256,28 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 		zt_assert(false);
 		return false;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
+{
+	if(!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->near_ne)) return false;
+	if(!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->near_se)) return false;
+	if(!zt_drawListAddLine(draw_list, frustum->near_se, frustum->near_sw)) return false;
+	if(!zt_drawListAddLine(draw_list, frustum->near_sw, frustum->near_nw)) return false;
+
+	if (!zt_drawListAddLine(draw_list, frustum->far_nw, frustum->far_ne)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->far_ne, frustum->far_se)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->far_se, frustum->far_sw)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->far_sw, frustum->far_nw)) return false;
+
+	if (!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->far_nw)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->far_ne)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_se, frustum->far_se)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_sw, frustum->far_sw)) return false;
+
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4846,7 +4918,11 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models)
 	scene->arena = arena;
 
 	scene->directional_light.light = nullptr;
-	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(2048, 2048, ztTextureFlags_DepthMap);
+	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(4096, 4096, ztTextureFlags_DepthMap);
+
+	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
+		scene->lights[i].light = nullptr;
+	}
 
 	return scene;
 }
@@ -4885,6 +4961,14 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light)
 
 	if (light->type == ztLightType_Directional) {
 		scene->directional_light.light = light;
+	}
+	else {
+		zt_fiz(ZT_SCENE_MAX_LIGHTS) {
+			if (scene->lights[i].light == nullptr) {
+				scene->lights[i].light = light;
+				break;
+			}
+		}
 	}
 }
 
@@ -4973,17 +5057,33 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light)
+ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera)
 {
-	ztMat4 mat_proj = ztMat4::makeOrthoProjection(-10, 10, 10, -10, 1.f, 60.f);
 	ztMat4 mat_view = ztMat4::identity.getLookAt(light->position, ztVec3::zero);
+
+	ztFrustum frustum = zt_cameraCalcViewFrustum(camera);
+
+	ztVec3 min = frustum.points[0];
+	ztVec3 max = frustum.points[0];
+
+	for(int i = 1; i < zt_elementsOf(frustum.points); ++i) {
+		ztVec3 point = mat_view * frustum.points[i];
+		min.x = zt_min(min.x, point.x);
+		min.y = zt_min(min.y, point.y);
+		min.z = zt_min(min.z, point.z);
+		max.x = zt_max(max.x, point.x);
+		max.y = zt_max(max.y, point.y);
+		max.z = zt_max(max.z, point.z);
+	}
+
+	ztMat4 mat_proj = ztMat4::makeOrthoProjection(min.x, max.x, max.y, min.y, .1f, .1f + (max.z - min.z));
 
 	return mat_proj * mat_view;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_sceneLighting(ztScene *scene)
+void zt_sceneLighting(ztScene *scene, ztCamera *camera)
 {
 	struct local
 	{
@@ -5013,7 +5113,7 @@ void zt_sceneLighting(ztScene *scene)
 	};
 
 	if (scene->directional_light.light) {
-		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light);
+		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light, camera);
 
 		_zt_rendererCheckToResetStats();
 
@@ -5055,13 +5155,35 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 				*active_shader = model->shader;
 				zt_shaderBegin(*active_shader);
 
-				if (shader_supports_lights && scene->directional_light.light) {
-					zt_shaderSetVariableMat4(*active_shader, "light_matrix", *light_mat);
-					zt_shaderSetVariableVec3(*active_shader, "light_pos", scene->directional_light.light->position);
-					zt_shaderSetVariableFloat(*active_shader, "light_ambient", scene->directional_light.light->ambient);
-					zt_shaderSetVariableFloat(*active_shader, "light_intensity", scene->directional_light.light->intensity);
-					zt_shaderSetVariableVec4(*active_shader, "light_color", scene->directional_light.light->color);
-					zt_shaderSetVariableVec3(*active_shader, "view_pos", camera->position);
+				if (shader_supports_lights) {
+					if (scene->directional_light.light) {
+						zt_shaderSetVariableMat4(*active_shader, "light_matrix", *light_mat);
+						zt_shaderSetVariableVec3(*active_shader, "light_pos", scene->directional_light.light->position);
+						zt_shaderSetVariableFloat(*active_shader, "light_ambient", scene->directional_light.light->ambient);
+						zt_shaderSetVariableFloat(*active_shader, "light_intensity", scene->directional_light.light->intensity);
+						zt_shaderSetVariableVec4(*active_shader, "light_color", scene->directional_light.light->color);
+						zt_shaderSetVariableVec3(*active_shader, "view_pos", camera->position);
+					}
+					
+					int lights = 0;
+					zt_fiz(ZT_SCENE_MAX_LIGHTS) {
+						if (scene->lights[i].light != 0) {
+							char varname[128];
+
+							zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].ambient_color", i);
+							zt_shaderSetVariableVec3(*active_shader, varname, scene->lights[i].light->color.rgb);
+
+							zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].intensity", i);
+							zt_shaderSetVariableFloat(*active_shader, varname, scene->lights[i].light->intensity);
+
+							zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].pos", i);
+							zt_shaderSetVariableVec3(*active_shader, varname, scene->lights[i].light->position);
+
+							lights += 1;
+						}
+					}
+
+					zt_shaderSetVariableInt(*active_shader, "point_lights_count", lights);
 				}
 
 				zt_shaderSetCameraMatrices(*active_shader, camera->mat_proj, camera->mat_view);
@@ -5112,7 +5234,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 
 	ztMat4 light_mat;
 	if (scene->directional_light.light) {
-		light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light);
+		light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light, camera);
 	}
 	else {
 		light_mat = ztMat4::identity;
@@ -5558,6 +5680,8 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			GLenum type = 0;
 			glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
 
+			zt_logVerbose("shader [%s] variable: %s", name, varname);
+
 			ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
 			switch(type)
 			{
@@ -5749,8 +5873,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 							{
 								case D3D_SIT_TEXTURE: {
 									shader->variables.variables[idx].type = ztShaderVariable_Tex;
-									shader->dx_offsets[idx] = -1;
-									shader->dx_cbuffer_shader[idx] = -1;
+									shader->dx_info[idx].cbuffer = -1;
+									shader->dx_info[idx].offset = -1;
+									shader->dx_info[idx].shader = -1;
 								} break;
 							}
 						}
@@ -5761,7 +5886,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 					}
 
 					bytes_offset = 0;
-					zt_assert(shader_desc.ConstantBuffers <= 1); // we don't currently support more than one
+					//zt_assert(shader_desc.ConstantBuffers <= 1); // we don't currently support more than one
 					zt_fiz(zt_min(ZT_SHADER_MAX_VARIABLES, (i32)shader_desc.ConstantBuffers)) {
 						u32 register_idx = 0;
 						ID3D11ShaderReflectionConstantBuffer *buffer = reflection->GetConstantBufferByIndex(i);
@@ -5794,39 +5919,92 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 							variable->GetDesc(&vdesc);
 
 							if (shader->variables.variables_count < ZT_SHADER_MAX_VARIABLES) {
-								int idx = shader->variables.variables_count++;
-								zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), vdesc.Name);
-								shader->variables.variables[idx].type = ztShaderVariable_Invalid;
+								struct local
+								{
+									static int processReflectionType(int which_shader, int cbuffer, ztShader *shader, ID3D11ShaderReflectionType *type, D3D11_SHADER_VARIABLE_DESC *vdesc, const char *element_name, int element_struct_size)
+									{
+										D3D11_SHADER_TYPE_DESC tdesc;
+										type->GetDesc(&tdesc);
+
+										if (tdesc.Class == D3D_SVC_STRUCT) {
+											int offset = vdesc->StartOffset;
+											zt_fkz(tdesc.Elements) {
+												zt_fiz(tdesc.Members) {
+													ID3D11ShaderReflectionType *mtype = type->GetMemberTypeByIndex(i);
+													const char *name = type->GetMemberTypeName(i);
+													zt_strMakePrintf(var_name, 256, "%s[%d].%s", vdesc->Name, k, name);
+													offset += processReflectionType(which_shader, cbuffer, shader, mtype, vdesc, var_name, offset);
+												}
+											}
+										}
+										else {
+											int idx = shader->variables.variables_count++;
+											if (element_name) {
+												zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), element_name);
+											}
+											else {
+												zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), vdesc->Name);
+											}
+											shader->variables.variables[idx].type = ztShaderVariable_Invalid;
+
+											int size = 0;
+											switch (tdesc.Class)
+											{
+												case D3D_SVC_SCALAR: {
+													if (tdesc.Type == D3D_SVT_FLOAT) { shader->variables.variables[idx].type = ztShaderVariable_Float; size = 4; }
+													else if (tdesc.Type == D3D_SVT_INT) { shader->variables.variables[idx].type = ztShaderVariable_Int; size = 4; }
+												} break;
+
+												case D3D_SVC_VECTOR: {
+													if (tdesc.Type == D3D_SVT_FLOAT) {
+														if (tdesc.Rows == 1 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Vec4; size = 16; }
+														else if (tdesc.Rows == 1 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Vec3; size = 12; }
+														else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; size = 8; }
+													}
+												} break;
+
+												case D3D_SVC_MATRIX_COLUMNS: {
+													if (tdesc.Type == D3D_SVT_FLOAT) {
+														if (tdesc.Rows == 4 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Mat4; *((ztMat4*)shader->variables.variables[idx].val_mat4) = ztMat4::identity; size = 64; }
+														else if (tdesc.Rows == 3 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Mat3; size = 36; }
+														else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; size = 8; }
+													}
+												} break;
+
+												default: {
+													shader->variables.variables_count--;
+													return 0;
+												} break;
+											}
+
+
+											int size_add = 0;
+											if(element_struct_size != 0) {
+												if( 16 - (element_struct_size % 16) < size) {
+													size_add = 16 - (element_struct_size % 16);
+													element_struct_size += size_add;
+												}
+											}
+											//while(size % 16 != 0) {
+											//	size += 1;
+											//}
+
+
+											shader->dx_info[idx].offset = element_struct_size == 0 ? vdesc->StartOffset : element_struct_size;
+											shader->dx_info[idx].shader = which_shader;
+											shader->dx_info[idx].cbuffer = cbuffer;
+
+											zt_logDebug("shader variable: %s (size %d, offset %d)", shader->variables.variables[idx].name, size, shader->dx_info[idx].offset);
+
+											return size + size_add;
+										}
+
+										return 0;
+									}
+								};
 
 								ID3D11ShaderReflectionType* type = variable->GetType();
-								D3D11_SHADER_TYPE_DESC tdesc;
-								type->GetDesc(&tdesc);
-
-								switch (tdesc.Class)
-								{
-									case D3D_SVC_SCALAR: {
-										if (tdesc.Type == D3D_SVT_FLOAT) { shader->variables.variables[idx].type = ztShaderVariable_Float; }
-										else if (tdesc.Type == D3D_SVT_INT) { shader->variables.variables[idx].type = ztShaderVariable_Int; }
-									} break;
-
-									case D3D_SVC_VECTOR: {
-										if (tdesc.Type == D3D_SVT_FLOAT) {
-											if (tdesc.Rows == 1 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Vec4; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Vec3; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; }
-										}
-									} break;
-
-									case D3D_SVC_MATRIX_COLUMNS: {
-										if (tdesc.Type == D3D_SVT_FLOAT) {
-											if (tdesc.Rows == 4 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Mat4; *((ztMat4*)shader->variables.variables[idx].val_mat4) = ztMat4::identity; }
-											else if (tdesc.Rows == 3 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Mat3; }
-											else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; }
-										}
-									} break;
-								}
-								shader->dx_offsets[idx] = vdesc.StartOffset;
-								shader->dx_cbuffer_shader[idx] = k;
+								local::processReflectionType(k, shader->dx_cbuffers_count, shader, type, &vdesc, nullptr, 0);
 							}
 						}
 
@@ -5845,8 +6023,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 						cbbd.CPUAccessFlags = 0;// D3D11_CPU_ACCESS_WRITE;
 						cbbd.MiscFlags = 0;
 
-						zt_logDebug("DirectX: Creating constant buffer of size %d", size);
+						zt_logDebug("[%s] DirectX: Creating constant buffer of size %d", name, size);
 
+						shader->dx_cbuffers_shader[shader->dx_cbuffers_count] = k;
 						zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateBuffer(&cbbd, NULL, &shader->dx_cbuffers[shader->dx_cbuffers_count++]));
 					}
 				}
@@ -6164,16 +6343,18 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 				zt->win_details[0].dx_context->VSSetConstantBuffers(0, 0, NULL);
 				zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
 
+				int cbuffer_count[2] = { 0 };
+
 				zt_fkz(shader->dx_cbuffers_count) {
 					i32 cbuffer_idx = k;
 					byte cbuffer_data[1024 * 4];
 
 					zt_fiz(shader_vars->variables_count) {
-						if(shader->dx_cbuffer_shader[i] != cbuffer_idx) {
+						if(shader->dx_info[i].cbuffer != cbuffer_idx) {
 							continue;
 						}
 
-						int cbuffer_pos = shader->dx_offsets[i];
+						int cbuffer_pos = shader->dx_info[i].offset;
 
 						i32 size = 0;
 						r32 data[16];
@@ -6190,10 +6371,6 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 							case ztShaderVariable_Vec4: {
 								size = zt_sizeof(r32) * 4;
 								r32 *sdata = shader_vars->variables[i].val_vec4;
-								//data[0] = sdata[3];
-								//data[1] = sdata[0];
-								//data[2] = sdata[1];
-								//data[3] = sdata[2];
 							} break;
 							case ztShaderVariable_Mat3: {
 								size = zt_sizeof(r32) * 9;
@@ -6216,14 +6393,18 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 						zt_memCpy(cbuffer_data + cbuffer_pos, size, data, size);
 					}
 
+					cbuffer_count[shader->dx_cbuffers_shader[cbuffer_idx]] += 1;
+
 					zt->win_details[0].dx_context->UpdateSubresource(shader->dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
-					if (k == 0) {
-						zt->win_details[0].dx_context->VSSetConstantBuffers(0, 1, &shader->dx_cbuffers[cbuffer_idx]);
+					int slot = cbuffer_count[shader->dx_cbuffers_shader[cbuffer_idx]] - 1;
+					if (shader->dx_cbuffers_shader[cbuffer_idx] == 0) {
+						zt->win_details[0].dx_context->VSSetConstantBuffers(slot, 1, &shader->dx_cbuffers[cbuffer_idx]);
 					}
 					else {
-						zt->win_details[0].dx_context->PSSetConstantBuffers(0, 1, &shader->dx_cbuffers[cbuffer_idx]);
+						zt->win_details[0].dx_context->PSSetConstantBuffers(slot, 1, &shader->dx_cbuffers[cbuffer_idx]);
 					}
 				}
+	
 			}
 #			endif
 		} break;
@@ -7605,6 +7786,39 @@ void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztI
 	if (cam_moved) {
 		zt_cameraRecalcMatrices(camera);
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera)
+{
+	ztVec3 near_center(0, 0, -camera->near_z);
+	ztVec3 far_center(0, 0, -camera->far_z);
+
+	r32 near_half_height = zt_tan(camera->fov / 2.f) * camera->near_z;
+	r32 far_half_height = zt_tan(camera->fov / 2.f) * camera->far_z;
+
+	r32 aspect = (r32)camera->width / (r32)camera->height;
+
+	r32 near_half_width = near_half_height * aspect;
+	r32 far_half_width = far_half_height * aspect;
+	
+	ztFrustum results;
+	results.near_nw = ztVec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
+	results.near_ne = ztVec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
+	results.near_se = ztVec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
+	results.near_sw = ztVec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
+
+	results.far_nw = ztVec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
+	results.far_ne = ztVec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
+	results.far_se = ztVec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
+	results.far_sw = ztVec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
+
+	zt_fiz(8) {
+		results.points[i] = camera->mat_view.getInverse() * results.points[i];
+	}
+
+	return results;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9235,7 +9449,7 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 					ztShader *shader = &zt->shaders[shader_id];
 					int tex_count = 0;
 					zt_fiz(shader->variables.variables_count) {
-						if (shader->dx_cbuffer_shader[i] == -1) { // just pixel shader vars
+						if (shader->dx_info[i].shader == -1) { // just texture vars
 							if (zt_strEquals(shader->variables.variables[i].name, variable)) {
 								return tex_count;
 							}

@@ -46,7 +46,9 @@ struct ztGame
 	ztMemoryArena* asset_arena;
 	ztAssetManager asset_mgr;
 
-	ztCamera camera, gui_camera;
+	ztCamera camera, gui_camera, camera_test;
+
+	ztTextureID tex_test;
 
 	ztShaderID shader_id, shader_id_lit;
 	ztTextureID tex_id_floor, tex_id_floor_spec, tex_id_floor_norm, tex_id_crate, tex_id_crate_spec, tex_id_crate_norm, tex_skybox;
@@ -62,6 +64,9 @@ struct ztGame
 	ztModel *model_plane;
 	ztModel *model_light;
 	ztLight directional_light;
+
+	ztModel *model_point_lights[4];
+	ztLight point_lights[4];
 
 	ztMaterial material_boxes;
 	ztMaterial material_plane;
@@ -144,15 +149,16 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
 	if(zt_striCmp(cfg_renderer, "opengl") == 0) settings->renderer = ztRenderer_OpenGL;
 	if(zt_striCmp(cfg_renderer, "directx") == 0) settings->renderer = ztRenderer_DirectX;
 
+	settings->renderer_flags = 0;
 	//settings->renderer_flags |= ztRendererFlags_Vsync;
-	settings->renderer_flags = ztRendererFlags_Windowed;
+	settings->renderer_flags |= ztRendererFlags_Windowed;
 
 	settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_ScaleToVert;
 
@@ -206,15 +212,17 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	if (g_game->tex_id_crate_norm == ztInvalidID) return false;
 	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"), ztTextureFlags_Flip);
 	if (g_game->tex_id_floor == ztInvalidID) return false;
-	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"), ztTextureFlags_Flip);
+	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"), ztTextureFlags_Flip|ztTextureFlags_MipMaps);
 	if (g_game->tex_id_floor_spec == ztInvalidID) return false;
-	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), ztTextureFlags_Flip);
+	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), ztTextureFlags_Flip | ztTextureFlags_MipMaps);
 	if (g_game->tex_id_floor_norm == ztInvalidID) return false;
 	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 	if (g_game->tex_skybox == ztInvalidID) return false;
 
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 	zt_guiInitDebug(g_game->gui_manager);
+
+	g_game->tex_test = zt_textureMakeRenderTarget(512, 512);
 
 
 	ztMeshID mesh_chair = ztInvalidID;
@@ -231,7 +239,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->material_boxes = zt_materialMake(g_game->tex_id_crate, ztVec4::one, 0, g_game->tex_id_crate_spec, ztVec4::one, 0, g_game->tex_id_crate_norm);
 	g_game->material_boxes.shininess = 1.f;
 
-	g_game->plane = zt_meshMakePrimativePlane(20, 20, 5, 5);
+	g_game->plane = zt_meshMakePrimativePlane(200, 200, 50, 50);
 //	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
 	g_game->cube = zt_meshMakePrimativeBox(1, 1, 1);
 
@@ -239,7 +247,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows));
 
-	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
+	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// g_game->shader_id_lit; // zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
 	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows);
 	zt_fiz(1) {
 		zt_modelMake(zt_memGetGlobalArena(), mesh_droid[i + 1], &mat_droid[i + 1], droid_shader, nullptr, ztModelFlags_CastsShadows, model_droid);
@@ -255,7 +263,6 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 		}
 		else {
-			//g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
 		}
 
@@ -280,20 +287,31 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	model->transform.position.y = 1;
 	zt_sceneAddModel(g_game->scene, model);
 	*/
-	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
 	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
+	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, g_game->shader_id_lit, nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
 
 	g_game->model_light = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_light);
-
 	g_game->model_light->transform.position = ztVec3(0, 0, 0);
 	g_game->model_light->transform.scale = ztVec3(.5f, .5f, .5f);
+
+	ztMaterial point_light_mat = zt_materialMake(ztInvalidID, ztVec4(1, 1, 1, 1));
+	ztVec3 positions[4] = { ztVec3(-6, 3, 0), ztVec3(0, 3, -6), ztVec3(6, 3, 0), ztVec3(0, 3, 6) };
+	ztVec4 colors[4] = { ztVec4(1, 0, 0, 1), ztVec4(0, 1, 0, 1), ztVec4(0, 0, 1, 1), ztVec4(0, 1, 1, 1) };
+
+	zt_fiz(4) {
+		g_game->model_point_lights[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &point_light_mat, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
+		zt_sceneAddModel(g_game->scene, g_game->model_point_lights[i]);
+		g_game->model_point_lights[i]->transform.position = positions[i];
+		g_game->model_point_lights[i]->transform.scale = ztVec3(.25f, .25f, .25f);
+		g_game->point_lights[i] = zt_lightMakeArea(g_game->model_point_lights[i]->transform.position, 1, true, colors[i]);
+		zt_sceneAddLight(g_game->scene, &g_game->point_lights[i]);
+	}
 
 	g_game->directional_light = zt_lightMakeDirectional(g_game->model_light->transform.position, ztVec3::zero, 1, .05f);
 	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
-
 
 	{
 		ztGuiItemID slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
@@ -315,6 +333,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.b);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(2, -.8f));
+
+		zt_fiz(4) {
+			slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->point_lights[i].intensity);
+			zt_guiItemSetSize(slider, ztVec2(3, .3f));
+			zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1.2f - (i * .4f)));
+		}
 	}
 
 	makePngCpp(game_details);
@@ -328,13 +352,16 @@ void game_screenChange(ztGameSettings *game_settings)
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
 
 	if (g_game->details->current_frame == 1) {
-		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f, ztVec3(9, 10, 8), ztVec3(230, -30, 0));
+		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, ztVec3(9, 10, 8), ztVec3(230, -30, 0));
 		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, ztVec3(0, 0, 0));
 	}
 	else {
-		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 200.f, g_game->camera.position, g_game->camera.rotation);
+		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, g_game->camera.position, g_game->camera.rotation);
 		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, g_game->gui_camera.position);
 	}
+
+	zt_cameraMakePersp(&g_game->camera_test, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(30), 0.1f, 10.f, ztVec3(1, 1, 1), ztVec3(230, 0, 0));
+	zt_cameraRecalcMatrices(&g_game->camera_test);
 
 	zt_cameraRecalcMatrices(&g_game->camera);
 	zt_cameraRecalcMatrices(&g_game->gui_camera);
@@ -450,12 +477,61 @@ bool game_loop(r32 dt)
 				}
 			}
 		}
+
+//		if (input[ztInputKeys_Up].pressed()) {
+//			if (input[ztInputKeys_Shift].pressed()) {
+//				g_game->point_light.position.y += 1 * dt;
+//			}
+//			else {
+//				g_game->point_light.position.z += 1 * dt;
+//			}
+//		}
+//		if (input[ztInputKeys_Down].pressed()) {
+//			if (input[ztInputKeys_Shift].pressed()) {
+//				g_game->point_light.position.y -= 1 * dt;
+//			}
+//			else {
+//				g_game->point_light.position.z -= 1 * dt;
+//			}
+//		}
+//		if (input[ztInputKeys_Left].pressed()) {
+//			g_game->point_light.position.x -= 1 * dt;
+//		}
+//		if (input[ztInputKeys_Right].pressed()) {
+//			g_game->point_light.position.x += 1 * dt;
+//		}
+//		g_game->model_point_light->transform.position = g_game->point_light.position;
 	}
 
 	zt_rendererClear(ztVec4(0, 0, 0, 0));
 	zt_sceneCull(g_game->scene, &g_game->camera);
-	zt_sceneLighting(g_game->scene);
+	zt_sceneLighting(g_game->scene, &g_game->camera);
 	zt_sceneRender(g_game->scene, &g_game->camera);
+
+	{
+		//zt_sceneCull(g_game->scene, &g_game->camera_test);
+		//zt_sceneLighting(g_game->scene, &g_game->camera_test);
+
+//		zt_textureRenderTargetPrepare(g_game->tex_test);
+//
+//		zt_rendererClear(ztVec4(0, 0, 0, 1));
+//		zt_sceneRender(g_game->scene, &g_game->camera_test);
+//
+//		zt_textureRenderTargetCommit(g_game->tex_test);
+
+		zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+		//zt_drawListPushTexture(&g_game->draw_list, g_game->tex_test);
+		zt_drawListPushTexture(&g_game->draw_list, g_game->scene->tex_directional_shadow_map);
+		zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(11, -5.9375f, 0), ztVec2(14.22f / 2.f, 8 / 2.f), ztVec2(0,0), ztVec2(1,1));
+		zt_drawListPopTexture(&g_game->draw_list);
+		zt_drawListPopShader(&g_game->draw_list);
+		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
+	}
+
+//	ztFrustum frustum = zt_cameraCalcViewFrustum(&g_game->camera_test);
+//	zt_drawListAddFrustum(&g_game->draw_list, &frustum);
+//	zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
+
 
 	{
 #if 0
