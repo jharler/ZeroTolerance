@@ -656,10 +656,9 @@ typedef i32 ztTextureID;
 
 enum ztTextureFlags_Enum
 {
-	ztTextureFlags_MipMaps  = (1<<0),
-	ztTextureFlags_DepthMap = (1<<1), // going to be used for depth information
-	ztTextureFlags_Flip     = (1<<2), // flip the image data
-	ztTextureFlags_PixelPerfect  = (1<<3),
+	ztTextureFlags_MipMaps      = (1<<0),
+	ztTextureFlags_DepthMap     = (1<<1), // going to be used for depth information
+	ztTextureFlags_PixelPerfect = (1<<2),
 };
 
 enum ztTextureCubeMapFiles_Enum
@@ -678,6 +677,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
 ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags = 0);
+ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
@@ -747,6 +747,8 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 typedef i32 ztMeshID;
 
 // ------------------------------------------------------------------------------------------------
+
+// NOTE: UV coordinates are 0,0 = top left, 1,1 = bottom right
 
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count);
 void zt_meshFree(ztMeshID mesh_id);
@@ -981,6 +983,8 @@ struct ztDrawList
 
 // ------------------------------------------------------------------------------------------------
 
+// NOTE: UV coordinates for draw lists are 0,0 = top left, 1,1 = top right
+
 bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags = 0, ztMemoryArena *arena = zt_memGetGlobalArena());
 void zt_drawListFree(ztDrawList *draw_list);
 
@@ -1173,6 +1177,7 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light);
 
 void zt_sceneAddModel(ztScene *scene, ztModel *model);
 void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
+bool zt_sceneHasModel(ztScene *scene, ztModel *model);
 
 // --------------------------------------------------------
 // Cull models and lights based on camera view
@@ -4279,6 +4284,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 									zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 									zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
+									buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 								}
 
 							} break;
@@ -4294,10 +4300,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								};
 
 								ztVec2 uv[4] = {
-									ztVec2(cmp_item->command->billboard_uv.x, cmp_item->command->billboard_uv.y),
-									ztVec2(cmp_item->command->billboard_uv.x, cmp_item->command->billboard_uv.w),
-									ztVec2(cmp_item->command->billboard_uv.z, cmp_item->command->billboard_uv.w),
-									ztVec2(cmp_item->command->billboard_uv.z, cmp_item->command->billboard_uv.y),
+									ztVec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.y),
+									ztVec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.w),
+									ztVec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.w),
+									ztVec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.y),
 								};
 
 								ztVec3 pos_lookat = camera->position;
@@ -4683,6 +4689,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_clr->color.values[j];
+								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 							}
 
 						} break;
@@ -5020,6 +5027,22 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 	}
 
 	zt_assert(false); // should not be removing a model that doesn't exist in the scene
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_sceneHasModel(ztScene *scene, ztModel *model)
+{
+	zt_returnValOnNull(scene, false);
+	zt_returnValOnNull(model, false);
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model == model) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5994,8 +6017,6 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 											shader->dx_info[idx].shader = which_shader;
 											shader->dx_info[idx].cbuffer = cbuffer;
 
-											zt_logDebug("shader variable: %s (size %d, offset %d)", shader->variables.variables[idx].name, size, shader->dx_info[idx].offset);
-
 											return size + size_add;
 										}
 
@@ -6646,7 +6667,7 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
-	if (zt_bitIsSet(flags, ztTextureFlags_Flip)) {
+	if (pixel_data) {
 		int half_height = height / 2;
 		u32* pix_u32 = ((u32*)pixel_data);
 		for (int y = 0; y < half_height; ++y) {
@@ -7063,6 +7084,25 @@ on_error:
 		stbi_image_free(pixel_data);
 	}
 	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 flags)
+{
+	const char *error = nullptr;
+	ztTextureID texture_id = _zt_textureMakeBase((byte*)data, width, height, 4, flags, &error);
+	if (texture_id != ztInvalidID) {
+		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
+
+		// we copy this so we can reload if necessary
+		zt->textures[texture_id].arena = zt_memGetGlobalArena();
+		zt->textures[texture_id].data_len = width * height * 4;
+		zt->textures[texture_id].data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
+		zt_memCpy(zt->textures[texture_id].data, zt->textures[texture_id].data_len, data, zt->textures[texture_id].data_len);
+	}
+
+	return texture_id;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9232,13 +9272,13 @@ ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMat
 					if (asset_mgr) {
 						ztAssetID tex_asset_id = zt_assetLoad(asset_mgr, file, asset_id);
 						if (tex_asset_id != ztInvalidID) {
-							return zt_textureMake(asset_mgr, tex_asset_id, ztTextureFlags_Flip);
+							return zt_textureMake(asset_mgr, tex_asset_id);
 						}
 					}
 					else {
 						char tex_file_name[ztFileMaxPath];
 						zt_fileGetFileInOtherFileDirectory(tex_file_name, ztFileMaxPath, file, file_name);
-						return zt_textureMakeFromFile(tex_file_name, ztTextureFlags_Flip);
+						return zt_textureMakeFromFile(tex_file_name);
 					}
 					return ztInvalidID;
 				}
@@ -9584,6 +9624,8 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		vertices[i].normals = normals[indices[i]];
 		vertices[i].colors = ztVec4::one;
 		indices[i] = i;
+
+		vertices[i].uv.y = 1 - vertices[i].uv.y;
 	}
 
 	int triangles = indices_count / 3;
@@ -9984,7 +10026,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 	struct local
 	{
-		static real32 parseReal(const char* src, ztToken& token)
+		static r32 parseReal(const char* src, ztToken& token)
 		{
 			static char buffer[128];
 			zt_strCpy(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
@@ -10098,7 +10140,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 			}
 			else {
 				uvs[uvs_idx].x = local::parseReal(line, l_tokens[1]);
-				uvs[uvs_idx++].y = local::parseReal(line, l_tokens[2]);
+				uvs[uvs_idx++].y = 1 - local::parseReal(line, l_tokens[2]);
 			}
 		}
 	}

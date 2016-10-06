@@ -17,6 +17,7 @@
     <ClInclude Include="..\..\..\..\zt_game.h" />
     <ClInclude Include="..\..\..\..\zt_game_gui.h" />
     <ClInclude Include="..\..\..\..\zt_tools.h" />
+    <ClInclude Include="..\..\..\..\zt_vr.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{627E3672-E438-4E84-91C0-3327DABE2AFB}</ProjectGuid>
