@@ -16,7 +16,7 @@
 #define ZT_GAME_GUI_IMPLEMENTATION
 //#define ZT_SHADER_LOG_INVALID_ACCESS
 
-//#define ZT_NO_DIRECTX
+#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DEBUGGING
 #define ZT_DIRECTX_DEBUGGING
@@ -347,7 +347,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 	}
 
-	bool disable_vr = false;
+	bool disable_vr = true;
 	g_game->vr = !disable_vr && zt_vrIsHeadsetPresent() ? zt_vrMake() : nullptr;
 
 	makePngCpp(game_details);
@@ -498,30 +498,6 @@ bool game_loop(r32 dt)
 				}
 			}
 		}
-
-//		if (input[ztInputKeys_Up].pressed()) {
-//			if (input[ztInputKeys_Shift].pressed()) {
-//				g_game->point_light.position.y += 1 * dt;
-//			}
-//			else {
-//				g_game->point_light.position.z += 1 * dt;
-//			}
-//		}
-//		if (input[ztInputKeys_Down].pressed()) {
-//			if (input[ztInputKeys_Shift].pressed()) {
-//				g_game->point_light.position.y -= 1 * dt;
-//			}
-//			else {
-//				g_game->point_light.position.z -= 1 * dt;
-//			}
-//		}
-//		if (input[ztInputKeys_Left].pressed()) {
-//			g_game->point_light.position.x -= 1 * dt;
-//		}
-//		if (input[ztInputKeys_Right].pressed()) {
-//			g_game->point_light.position.x += 1 * dt;
-//		}
-//		g_game->model_point_light->transform.position = g_game->point_light.position;
 	}
 
 	if (g_game->vr) {
@@ -590,26 +566,30 @@ bool game_loop(r32 dt)
 		r32 y = 0.01f;
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
 		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(.5f, y, 0));
+		zt_drawListPopColor(&g_game->draw_list);
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
 		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(0, y + .5f, 0));
+		zt_drawListPopColor(&g_game->draw_list);
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
 		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(0, y, .5f));
+		zt_drawListPopColor(&g_game->draw_list);
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 		zt_drawListPopTexture(&g_game->draw_list);
 		zt_drawListPopShader(&g_game->draw_list);
 
 		if (g_game->vr) {
 
-			//zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
-			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->headset.transform.position, g_game->vr->headset.transform.position + ztVec3(0, 1, 0));
-
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
 			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_left.position, g_game->vr->camera_left.position + g_game->vr->camera_left.direction);
 			zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_left.position, g_game->vr->camera_left.position + ztVec3(0, 1, 0));
+			zt_drawListPopColor(&g_game->draw_list);
+
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
 			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_right.position, g_game->vr->camera_right.position + g_game->vr->camera_right.direction);
 			zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_right.position, g_game->vr->camera_right.position + ztVec3(0, 1, 0));
+			zt_drawListPopColor(&g_game->draw_list);
+
 
 			zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
 		}
@@ -619,20 +599,8 @@ bool game_loop(r32 dt)
 	}
 
 	{
-		//zt_sceneCull(g_game->scene, &g_game->camera_test);
-		//zt_sceneLighting(g_game->scene, &g_game->camera_test);
-
-//		zt_textureRenderTargetPrepare(g_game->tex_test);
-//
-//		zt_rendererClear(ztVec4(0, 0, 0, 1));
-//		zt_sceneRender(g_game->scene, &g_game->camera_test);
-//
-//		zt_textureRenderTargetCommit(g_game->tex_test);
 
 		zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
-		//zt_drawListPushTexture(&g_game->draw_list, g_game->tex_test);
-		//zt_drawListPushTexture(&g_game->draw_list, g_game->scene->tex_directional_shadow_map);
-		//zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(11, -5.9375f, 0), ztVec2(14.22f / 2.f, 8 / 2.f), ztVec2(0,0), ztVec2(1,1));
 
 		if (false && g_game->vr) {
 			zt_drawListPushTexture(&g_game->draw_list, g_game->vr->tex_left);
@@ -649,110 +617,28 @@ bool game_loop(r32 dt)
 		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
 	}
 
-//	ztFrustum frustum = zt_cameraCalcViewFrustum(&g_game->camera_test);
-//	zt_drawListAddFrustum(&g_game->draw_list, &frustum);
-//	zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
-
-
 	{
-#if 0
-		{
-			static r32 osc = 0;
-			osc += dt * 2.f;
-			r32 off = 3 + zt_sin(osc);
-
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 1, 1));
-			zt_drawListAddEmptyQuad(&g_game->draw_list, ztVec3(-1 * off, 1 * off, 0), ztVec3(-1 * off, -1 * off, 0), ztVec3(1 * off, -1 * off, 0), ztVec3(1 * off, 1 * off, 0));
-
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
-			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-			zt_drawListAddText2D(&g_game->draw_list, g_game->font_id_bmp, "This is the\nZeroTolerance\nGame Library", ztVec2(0, 0), ztAlign_Center);
-	
-			zt_drawListPopShader(&g_game->draw_list);
-
-			zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor(.2f, 0, 0, 1), ztRenderDrawListFlags_NoDepthTest, g_game->render_tex);
-		}
-		{
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(.5f, .5f, .5f, 1));
-			zt_drawListAddSkybox(&g_game->draw_list, g_game->cube_map);
-			zt_drawListAddFloorGrid(&g_game->draw_list, ztVec3(0, -0.0001f, 0), 30, 30);
-
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 1, 1));
-			zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-			zt_drawListPushTexture(&g_game->draw_list, g_game->tex_id_crate);
-			{
-				static ztVec3 pos[3] = { ztVec3(.0f, 1.5f, -.5f), ztVec3(-.5f, .5f, -.5f), ztVec3(.5f, .5f, -.5f) };
-				static ztVec2 uvs[3] = { ztVec2(0, 0), ztVec2(1, 1), ztVec2(.5f, 0) };
-				static ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-				zt_drawListAddFilledTriangle(&g_game->draw_list, pos, uvs, nml);
-			}
-			//zt_drawListPopTexture(&g_game->draw_list);
-
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
-			zt_drawListPushTexture(&g_game->draw_list, g_game->render_tex);
-			{
-				// top left, bottom left, bottom right, top right
-				static ztVec3 pos[4] = { ztVec3(-11, 22, -22), ztVec3(-11, 0, -22), ztVec3(11, 0, -22), ztVec3(11, 22, -22) };
-				static ztVec2 uvs[4] = { ztVec2(0, 0), ztVec2(0, 1), ztVec2(1, 1), ztVec2(1, 0) };
-				static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-				zt_drawListAddFilledQuad(&g_game->draw_list, pos, uvs, nml);
-			}
-			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(-2, 2, -2), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
-			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(2, 3, -3), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
-			zt_drawListAddBillboard(&g_game->draw_list, ztVec3(-1, 5, -1), ztVec2(.5f, .5f), ztVec2::zero, ztVec2::one);
-			zt_drawListPopTexture(&g_game->draw_list);
-
-			zt_drawListPopTexture(&g_game->draw_list);
-
-			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(2, .5f, 0), ztVec3(0, 0, 0), ztVec3(1, 1, 1));
-			zt_drawListAddMesh(&g_game->draw_list, g_game->box, ztVec3(-3, .5f, 0), ztVec3(0, 45, 0), ztVec3(1, 1, 1));
-			zt_drawListAddMesh(&g_game->draw_list, g_game->plane, ztVec3(0, -.01f, 0), ztVec3::zero, ztVec3::one);
-			//zt_drawListAddMesh(&g_game->draw_list, g_game->rock, ztVec3(2, 0, -2), ztVec3::zero, ztVec3::one);
-			zt_drawListAddMesh(&g_game->draw_list, g_game->cube, ztVec3(-2, .5f, -2), ztVec3::zero, ztVec3::one);
-
-			zt_drawListPopShader(&g_game->draw_list);
-
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(.5f, 0, 0));
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, .5f, 0));
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
-			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, 0, 0), ztVec3(0, 0, .5f));
-			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
-		}
-
-		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0,0,0,1), 0);
-
-#endif
-
 #if 1
 		zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
 		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list);
 		zt_drawListPopShader(&g_game->draw_list);
+		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 
 		if (zt_inputMouseIsLook()){
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
 			zt_drawListAddLine(&g_game->draw_list, ztVec3(-.5f, 0, 0), ztVec3(.5f, 0, 0));
+			zt_drawListPopColor(&g_game->draw_list);
 
 			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
 			zt_drawListAddLine(&g_game->draw_list, ztVec3(0, -.5f, 0), ztVec3(0, .5f, 0));
-
-			//zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
-			//zt_drawListAddPoint(&g_game->draw_list, ztVec3(2, 2, 2));
-			//zt_drawListAddPoint(&g_game->draw_list, ztVec3(3, 3, 3));
-			//zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
-			//zt_drawListAddPoint(&g_game->draw_list, ztVec3(4, 4, 4));
-
-			//zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor(0, 0, 0, 1), 0);
+			zt_drawListPopColor(&g_game->draw_list);
 		}
 		
 		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 #endif
 	}
 
-	// test changing renderers
+	// test changing renderers (this doesn't work)
 	{
 		if (input[ztInputKeys_R].justPressed() && input[ztInputKeys_Control].pressed()) {
 			zt_rendererRequestChange(g_game->settings->renderer == ztRenderer_OpenGL ? ztRenderer_DirectX : ztRenderer_OpenGL);
