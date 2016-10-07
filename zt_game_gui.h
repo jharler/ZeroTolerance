@@ -6774,7 +6774,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 			if(!zt_guiItemIsShowing(window_id)) return;
 
 			r32 l_avg = (r32)time / frames;
-			r32 l_time = time;
+			r32 l_time = (r32)time;
 			r32 l_frame_times[frames];
 			zt_memCpy(l_frame_times, zt_sizeof(r32) * frames, frame_times, zt_sizeof(r32) * frames);
 			i32 l_frame_times_idx = frame_times_idx;
