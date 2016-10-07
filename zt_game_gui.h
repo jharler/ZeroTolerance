@@ -958,6 +958,7 @@ struct ztGuiManager
 
 	ztGuiItem item_cache[64 * 1024];
 	i32 item_cache_flags[64 * 1024];
+	i32 item_cache_used;
 
 	ztGuiTheme default_theme;
 
@@ -1171,6 +1172,7 @@ ztGuiManagerID zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default
 	gm->item_has_mouse = ztInvalidID;
 	gm->focus_item = ztInvalidID;
 	gm->tooltip_item = ztInvalidID;
+	gm->item_cache_used = 0;
 
 	if (theme_default) {
 		gm->default_theme = *theme_default;
@@ -1472,6 +1474,7 @@ ztInternal void _zt_guiItemFree(ztGuiManager *gm, ztGuiItem *item)
 	}
 
 	gm->item_cache_flags[item->id - gm->base_id] = 0;
+	gm->item_cache_used -= 1;
 
 	zt_memSet(item, zt_sizeof(ztGuiItem), 0);
 }
@@ -1553,6 +1556,7 @@ void zt_guiManagerUpdate(ztGuiManagerID gui_manager, r32 dt)
 {
 	_zt_guiManagerCheckAndGet(gm, gui_manager);
 
+	int item_count = gm->item_cache_used;
 	zt_fiz(zt_elementsOf(gm->item_cache_flags)) {
 		if (gm->item_cache_flags[i] != 0) {
 			zt_bitRemove(gm->item_cache_flags[i], ztGuiManagerItemCacheFlags_MouseOver);
@@ -1575,6 +1579,9 @@ void zt_guiManagerUpdate(ztGuiManagerID gui_manager, r32 dt)
 					}
 				}
 			}
+			if (--item_count == 0) {
+				break;
+			}
 		}
 		if (gm->item_cache[i].functions.update) {
 			gm->item_cache[i].functions.update(i, dt, gm->item_cache[i].functions.user_data);
@@ -1588,9 +1595,15 @@ void zt_guiManagerUpdate(ztGuiManagerID gui_manager, r32 dt)
 		ztVec2 cam_min, cam_max;
 		zt_cameraOrthoGetExtents(gm->gui_camera, &cam_min, &cam_max);
 
+		int item_count = gm->item_cache_used;
 		zt_fiz(zt_elementsOf(gm->item_cache_flags)) {
-			if ((gm->item_cache[i].pos_anchor_flags || gm->item_cache[i].pos_align_flags) && gm->item_cache[i].parent == nullptr) {
-				_zt_guiItemReposition(gm, &gm->item_cache[i]);
+			if (gm->item_cache_flags[i] != 0) {
+				if ((gm->item_cache[i].pos_anchor_flags || gm->item_cache[i].pos_align_flags) && gm->item_cache[i].parent == nullptr) {
+					_zt_guiItemReposition(gm, &gm->item_cache[i]);
+				}
+				if (--item_count == 0) {
+					break;
+				}
 			}
 		}
 	}
@@ -1925,6 +1938,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 #					if defined(_zt_guiManagerRenderClipAreas)
 						zt_drawListPushColor(draw_list, ztVec4(1, 0, 0, .5f));
 						zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+						zt_drawListPopColor(&g_game->draw_list);
 #					else
 						zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
 #					endif
@@ -1933,6 +1947,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 #					if defined(_zt_guiManagerRenderClipAreas)
 						zt_drawListPushColor(draw_list, ztVec4(0, 1, 0, .5f));
 						zt_drawListAddEmptyRect(draw_list, pos, item->size);
+						zt_drawListPopColor(&g_game->draw_list);
 #					else
 						zt_drawListPushClipRegion(draw_list, pos, item->size);
 #					endif
@@ -1958,6 +1973,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 #					if defined(_zt_guiManagerRenderClipAreas)
 						zt_drawListPushColor(draw_list, ztVec4(1, 1, 0, 1));
 						zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
+						zt_drawListPopColor(&g_game->draw_list);
 #					else
 						zt_drawListPushClipRegion(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
 #					endif
@@ -1966,6 +1982,7 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 #					if defined(_zt_guiManagerRenderClipAreas)
 						zt_drawListPushColor(draw_list, ztVec4(0, 1, 1, 1));
 						zt_drawListAddEmptyRect(draw_list, pos, item->size);
+						zt_drawListPopColor(&g_game->draw_list);
 #					else
 						zt_drawListPushClipRegion(draw_list, pos, item->size);
 #					endif
@@ -1996,12 +2013,15 @@ void zt_guiManagerRender(ztGuiManagerID gui_manager, ztDrawList *draw_list)
 		}
 	};
 
+	zt_drawListPushColor(draw_list, ztVec4::one);
 
 	ztGuiItem *child = gm->first_child;
 	while (child) {
 		local::renderItem(gm, child, draw_list, ztVec2::zero);
 		child = child->sib_next;
 	}
+
+	zt_drawListPopColor(draw_list);
 
 #	if defined(_zt_guiManagerRenderClipAreas)
 #		undef _zt_guiManagerRenderClipAreas
@@ -2124,6 +2144,8 @@ ztInternal ztGuiItem *_zt_guiMakeItemBase(ztGuiManager *gm, ztGuiItemID parent, 
 			item->sib_prev = last_child;
 		}
 	}
+
+	gm->item_cache_used += 1;
 
 	*id = item_id;
 	return item;
@@ -3707,7 +3729,7 @@ ztGuiItemID zt_guiMakeScrollContainer(ztGuiItemID parent, i32 flags)
 		{
 			_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
 
-			if (item->scrolled_container.contained_item == ztInvalidID) {
+			if (item->scrolled_container.contained_item == ztInvalidID || !zt_guiItemIsShowing(item_id)) {
 				return;
 			}
 
@@ -6723,6 +6745,11 @@ ztInternal void _zt_guiDebugFpsDisplay()
 	static ztGuiItemID text_id = ztInvalidID;
 	static r64 time = 0;
 
+	static const int frames = 100;
+	static r32 frame_times[frames];
+	static i32 frame_times_idx = -1;
+	static i32 frame_times_idx_oldest = 0;
+
 	if (window_id != ztInvalidID) {
 		zt_guiItemShow(window_id);
 		return;
@@ -6737,15 +6764,33 @@ ztInternal void _zt_guiDebugFpsDisplay()
 
 		static ZT_FUNC_GUI_ITEM_UPDATE(item_update)
 		{
+			frame_times_idx = (frame_times_idx + 1) % frames;
+			frame_times_idx_oldest = (frame_times_idx_oldest + 1) % frames;
+
+			frame_times[frame_times_idx] = dt;
 			time += dt;
+			time -= frame_times[frame_times_idx_oldest];
+
 			if(!zt_guiItemIsShowing(window_id)) return;
 
-			zt_strMakePrintf(fps, 256, "%.0f f/s %2.04f us/f\n%.0f f/s %2.04f us/f", 1.f / dt, dt * 1000.f, 1.f / (time / (r32)zt->game_details.current_frame), (time / (r32)zt->game_details.current_frame) * 1000.f);
+			r32 l_avg = (r32)time / frames;
+			r32 l_time = time;
+			r32 l_frame_times[frames];
+			zt_memCpy(l_frame_times, zt_sizeof(r32) * frames, frame_times, zt_sizeof(r32) * frames);
+			i32 l_frame_times_idx = frame_times_idx;
+			i32 l_frame_times_idx_oldest = frame_times_idx_oldest;
+
+			zt_strMakePrintf(fps, 256, "%.0f f/s %.02f us/f\n%.0f f/s %.02f us/f", 1.f / dt, dt * 1000000.f, 1.f / (time / (r32)frames), (time / (r32)frames) * 1000000.f);
 			zt_guiItemSetLabel(text_id, fps);
 			//zt_guiItemAutoSize(text_id);
 			//zt_guiItemSetPosition(text_id, ztAlign_Left, ztAnchor_Left, ztVec2(3.f / zt_pixelsPerUnit(), 0));
 		}
 	};
+
+	zt_fiz(frames) {
+		frame_times[i] = 1 / 60.f;
+		time += 1 / 60.f;
+	}
 
 	window_id = zt_guiMakeWindow(nullptr, ztGuiWindowFlags_AllowDrag);
 	zt_debugOnly(zt_guiItemSetName(window_id, "FPS Display Window"));
