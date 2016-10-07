@@ -33,6 +33,10 @@
 #include "zt_game.h"
 #include "zt_game_gui.h"
 
+#define ZT_VR_IMPLEMENTATION
+#include "lib/openvr/openvr.h"
+#include "zt_vr.h"
+
 
 // types/enums/defines ============================================================================
 
@@ -70,6 +74,8 @@ struct ztGame
 
 	ztMaterial material_boxes;
 	ztMaterial material_plane;
+
+	ztVrSystem *vr;
 };
 
 
@@ -149,7 +155,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+//	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -204,17 +210,17 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
-	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"), ztTextureFlags_Flip);
+	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"), 0);
 	if (g_game->tex_id_crate == ztInvalidID) return false;
-	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"), ztTextureFlags_Flip);
+	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"), 0);
 	if (g_game->tex_id_crate_spec == ztInvalidID) return false;
-	g_game->tex_id_crate_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_n.png"), ztTextureFlags_Flip);
+	g_game->tex_id_crate_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_n.png"), 0);
 	if (g_game->tex_id_crate_norm == ztInvalidID) return false;
-	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"), ztTextureFlags_Flip);
+	g_game->tex_id_floor = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile.png"), 0);
 	if (g_game->tex_id_floor == ztInvalidID) return false;
-	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"), ztTextureFlags_Flip|ztTextureFlags_MipMaps);
+	g_game->tex_id_floor_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_s.png"), 0|ztTextureFlags_MipMaps);
 	if (g_game->tex_id_floor_spec == ztInvalidID) return false;
-	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), ztTextureFlags_Flip | ztTextureFlags_MipMaps);
+	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), 0 | ztTextureFlags_MipMaps);
 	if (g_game->tex_id_floor_norm == ztInvalidID) return false;
 	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
 	if (g_game->tex_skybox == ztInvalidID) return false;
@@ -274,9 +280,9 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		zt_sceneAddModel(g_game->scene, g_game->model_boxes[i]);
 	}
 
-	ztModel *model_center = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
-	model_center->transform.scale = ztVec3(.15f, .15f, .15f);
-	zt_sceneAddModel(g_game->scene, model_center);
+	//ztModel *model_center = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, nullptr, zt_shaderGetDefault(ztShaderDefault_Solid), nullptr, 0);
+	//model_center->transform.scale = ztVec3(.15f, .15f, .15f);
+	//zt_sceneAddModel(g_game->scene, model_center);
 
 	/*
 	ztMaterial mat = zt_materialMake(zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/spot_texture.png"), ztTextureFlags_Flip), ztVec4::one, ztMaterialFlags_OwnsTexture,
@@ -341,6 +347,9 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 	}
 
+	bool disable_vr = false;
+	g_game->vr = !disable_vr && zt_vrIsHeadsetPresent() ? zt_vrMake() : nullptr;
+
 	makePngCpp(game_details);
 	return true;
 }
@@ -370,6 +379,18 @@ void game_screenChange(ztGameSettings *game_settings)
 // ------------------------------------------------------------------------------------------------
 void game_cleanup()
 {
+	if (g_game->vr) {
+		if (g_game->vr->headset.model) {
+			zt_sceneRemoveModel(g_game->scene, g_game->vr->headset.model);
+		}
+		zt_fiz(g_game->vr->controllers_count) {
+			if (g_game->vr->controllers[i].model) {
+				zt_sceneRemoveModel(g_game->scene, g_game->vr->controllers[i].model);
+			}
+		}
+		zt_vrFree(g_game->vr);
+	}
+
 	zt_sceneFreeAllModels(g_game->scene);
 	zt_sceneFree(g_game->scene);
 
@@ -503,10 +524,99 @@ bool game_loop(r32 dt)
 //		g_game->model_point_light->transform.position = g_game->point_light.position;
 	}
 
+	if (g_game->vr) {
+		struct vr
+		{
+			static void checkDeviceModel(ztVrTrackedDevice *device, ztScene *scene)
+			{
+				if (device->model == nullptr) {
+					return;
+				}
+
+				if (device->actively_tracking && !zt_sceneHasModel(scene, device->model)) {
+					zt_sceneAddModel(scene, device->model);
+				}
+				else if (!device->actively_tracking && zt_sceneHasModel(g_game->scene, device->model)) {
+					zt_sceneRemoveModel(g_game->scene, device->model);
+				}
+			}
+		};
+
+		if (zt_vrUpdate(g_game->vr)) {
+			static r32 trigger_time = 0;
+			if (g_game->vr->controller_states[0].vive.trigger) {
+				trigger_time += dt;
+			}
+			else {
+				trigger_time = 0;
+			}
+			if (trigger_time) {
+				zt_vrControllerTriggerHapticFeedback(g_game->vr, 0, zt_min(1, trigger_time / 5.f));
+			}
+
+			vr::checkDeviceModel(&g_game->vr->headset, g_game->scene);
+			zt_fiz(g_game->vr->controllers_count) {
+				vr::checkDeviceModel(&g_game->vr->controllers[i], g_game->scene);
+			}
+
+			ztCamera *cameras[2] = { &g_game->vr->camera_left, &g_game->vr->camera_right };
+			ztTextureID textures[2] = { g_game->vr->tex_left, g_game->vr->tex_right };
+
+			g_game->vr->headset.model->flags |= ztModelFlags_Hidden;
+			zt_fiz(2) {
+				zt_sceneCull(g_game->scene, cameras[i]);
+				zt_sceneLighting(g_game->scene, cameras[i]);
+
+				zt_textureRenderTargetPrepare(textures[i]);
+				zt_rendererClear(ztVec4(0, 0, 0, 1));
+				zt_sceneRender(g_game->scene, cameras[i]);
+				zt_textureRenderTargetCommit(textures[i]);
+			}
+			zt_bitRemove(g_game->vr->headset.model->flags, ztModelFlags_Hidden);
+
+			zt_vrSubmit(g_game->vr);
+		}
+	}
+
 	zt_rendererClear(ztVec4(0, 0, 0, 0));
 	zt_sceneCull(g_game->scene, &g_game->camera);
 	zt_sceneLighting(g_game->scene, &g_game->camera);
 	zt_sceneRender(g_game->scene, &g_game->camera);
+
+	{
+		// draw the world center indicator
+		zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+		zt_drawListPushTexture(&g_game->draw_list, 0);
+		r32 y = 0.01f;
+		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
+		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(.5f, y, 0));
+		zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
+		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(0, y + .5f, 0));
+		zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
+		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(0, y, .5f));
+		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
+		zt_drawListPopTexture(&g_game->draw_list);
+		zt_drawListPopShader(&g_game->draw_list);
+
+		if (g_game->vr) {
+
+			//zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 1, 0, 1));
+			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->headset.transform.position, g_game->vr->headset.transform.position + ztVec3(0, 1, 0));
+
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
+			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_left.position, g_game->vr->camera_left.position + g_game->vr->camera_left.direction);
+			zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_left.position, g_game->vr->camera_left.position + ztVec3(0, 1, 0));
+
+			zt_drawListPushColor(&g_game->draw_list, ztVec4(0, 0, 1, 1));
+			//zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_right.position, g_game->vr->camera_right.position + g_game->vr->camera_right.direction);
+			zt_drawListAddLine(&g_game->draw_list, g_game->vr->camera_right.position, g_game->vr->camera_right.position + ztVec3(0, 1, 0));
+
+			zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
+		}
+
+		zt_renderDrawList(&g_game->camera, &g_game->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoClear);
+
+	}
 
 	{
 		//zt_sceneCull(g_game->scene, &g_game->camera_test);
@@ -521,10 +631,21 @@ bool game_loop(r32 dt)
 
 		zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 		//zt_drawListPushTexture(&g_game->draw_list, g_game->tex_test);
-		zt_drawListPushTexture(&g_game->draw_list, g_game->scene->tex_directional_shadow_map);
-		zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(11, -5.9375f, 0), ztVec2(14.22f / 2.f, 8 / 2.f), ztVec2(0,0), ztVec2(1,1));
-		zt_drawListPopTexture(&g_game->draw_list);
+		//zt_drawListPushTexture(&g_game->draw_list, g_game->scene->tex_directional_shadow_map);
+		//zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(11, -5.9375f, 0), ztVec2(14.22f / 2.f, 8 / 2.f), ztVec2(0,0), ztVec2(1,1));
+
+		if (false && g_game->vr) {
+			zt_drawListPushTexture(&g_game->draw_list, g_game->vr->tex_left);
+			zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(4, -5.9375f, 0), ztVec2(8.f / 2.f, 8 / 2.f), ztVec2(0, 0), ztVec2(1, 1));
+			zt_drawListPopTexture(&g_game->draw_list);
+
+			zt_drawListPushTexture(&g_game->draw_list, g_game->vr->tex_right);
+			zt_drawListAddFilledRect2D(&g_game->draw_list, ztVec3(11, -5.9375f, 0), ztVec2(8.f / 2.f, 8 / 2.f), ztVec2(0, 0), ztVec2(1, 1));
+			zt_drawListPopTexture(&g_game->draw_list);
+		}
+
 		zt_drawListPopShader(&g_game->draw_list);
+
 		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear);
 	}
 
