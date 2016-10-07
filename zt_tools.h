@@ -2635,30 +2635,36 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) // does 
 {
 	ztMat4 m(*this);
 
-	position->x = m.values[ztMat4_Col3Row0];
-	position->y = m.values[ztMat4_Col3Row1];
-	position->z = m.values[ztMat4_Col3Row2];
+	if (position) {
+		position->x = m.values[ztMat4_Col3Row0];
+		position->y = m.values[ztMat4_Col3Row1];
+		position->z = m.values[ztMat4_Col3Row2];
+	}
 
-	// pitch = y, yaw = x, roll = z
+	if (rotation) {
+		// pitch = y, yaw = x, roll = z
 
-	m.transpose();
+		m.transpose();
 
-	rotation->x = atan2f(-m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]);
-	r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) + powf(m.values[ztMat4_Row0Col1], 2));
-	rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
-	r32 sin_x_angle = sinf(rotation->x);
-	r32 cos_x_angle = cosf(rotation->x);
-	rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] + sin_x_angle * m.values[ztMat4_Row2Col0], cos_x_angle * m.values[ztMat4_Row1Col1] + sin_x_angle * m.values[ztMat4_Row2Col1]);
+		rotation->x = atan2f(-m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]);
+		r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) + powf(m.values[ztMat4_Row0Col1], 2));
+		rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
+		r32 sin_x_angle = sinf(rotation->x);
+		r32 cos_x_angle = cosf(rotation->x);
+		rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] + sin_x_angle * m.values[ztMat4_Row2Col0], cos_x_angle * m.values[ztMat4_Row1Col1] + sin_x_angle * m.values[ztMat4_Row2Col1]);
 
-	m.transpose();
+		m.transpose();
 
-	rotation->x = zt_radiansToDegrees(rotation->x);
-	rotation->y = zt_radiansToDegrees(rotation->y);
-	rotation->z = zt_radiansToDegrees(rotation->z);
+		rotation->x = zt_radiansToDegrees(rotation->x);
+		rotation->y = zt_radiansToDegrees(rotation->y);
+		rotation->z = zt_radiansToDegrees(rotation->z);
+	}
 
-	scale->x = ztVec3(m.values[ztMat4_Row0Col0], m.values[ztMat4_Row1Col0], m.values[ztMat4_Row2Col0]).length();
-	scale->y = ztVec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
-	scale->z = ztVec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
+	if (scale) {
+		scale->x = ztVec3(m.values[ztMat4_Row0Col0], m.values[ztMat4_Row1Col0], m.values[ztMat4_Row2Col0]).length();
+		scale->y = ztVec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
+		scale->z = ztVec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
