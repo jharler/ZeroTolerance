@@ -847,14 +847,14 @@ void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime posi
 void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
 
 // it is sometimes useful to set the camera matrices when the position/rotation is not known (such as with vr hmds)
-void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& view);
+void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view);
 
 void zt_cameraOrthoGetExtents(ztCamera *camera, ztVec2 *min_ext, ztVec2 *max_ext);
 ztVec2 zt_cameraOrthoGetMaxExtent(ztCamera *camera);
 ztVec2 zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, const ztVec2& pos);
+ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
 void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
@@ -1085,15 +1085,16 @@ enum ztModelFlags_Enum
 	ztModelFlags_NoFaceCull   = (1<<1),
 	ztModelFlags_Translucent  = (1<<2),
 	ztModelFlags_CastsShadows = (1<<3),
+	ztModelFlags_Hidden       = (1<<4),
 
 	// set automically when using internal shaders, but can be set manually
-	ztModelFlags_ShaderSupportsDiffuse          = (1<<4),		// "diffuse_tex", "diffuse_color"
-	ztModelFlags_ShaderSupportsSpecular         = (1<<5),		// "specular_tex", "specular_color"
-	ztModelFlags_ShaderSupportsNormal           = (1<<6),		// "normal_tex"
-	ztModelFlags_ShaderSupportsDirectionalLight = (1<<7),		// "light_matrix", "light_pos", "view_pos"
+	ztModelFlags_ShaderSupportsDiffuse          = (1<<27),		// "diffuse_tex", "diffuse_color"
+	ztModelFlags_ShaderSupportsSpecular         = (1<<28),		// "specular_tex", "specular_color"
+	ztModelFlags_ShaderSupportsNormal           = (1<<29),		// "normal_tex"
+	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
 
 	// toggled and used internally:
-	ztSceneModelFlags_Culled = (1 << 8),
+	ztSceneModelFlags_Culled = (1 << 31),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -5112,7 +5113,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera)
 	{
 		static void renderModelAndChildren(ztScene *scene, ztShaderID shader, ztModel *model, i32 match_flags)
 		{
-			if (match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) {
+			if ((match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) && !zt_bitIsSet(model->flags, ztModelFlags_Hidden)) {
 				zt_shaderSetModelMatrices(shader, model->calculated_mat);
 
 				bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
@@ -5169,6 +5170,10 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 	{
 		static void renderModelAndChildren(ztScene *scene, ztScene::ModelInfo *scene_model_info, ztModel *model, ztCamera *camera, ztMat4 *light_mat, ztShaderID *active_shader)
 		{
+			if (zt_bitIsSet(model->flags, ztModelFlags_Hidden)) {
+				return;
+			}
+
 			bool shader_supports_lights = zt_bitIsSet(scene_model_info->flags, ztSceneModelFlags_ShaderLit);
 
 			if(model->shader != *active_shader) {
@@ -7430,6 +7435,14 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 
+			ID3D11ShaderResourceView *srvnull = nullptr;
+			ID3D11SamplerState *ssnull = nullptr;
+			zt_fiz(zt->win_details[0].dx_texture_count) {
+				zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
+				zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
+			}
+			zt->win_details[0].dx_texture_count = 0;
+
 			ID3D11RenderTargetView *rtvnull = nullptr;
 			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, NULL);
 			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->textures[texture_id].dx_render_target_view, zt->textures[texture_id].dx_depth_stencil_view);
@@ -7484,7 +7497,7 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 				glBindFramebuffer(GL_READ_FRAMEBUFFER, zt->textures[texture_id].gl_fbo);
 				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, zt->textures[texture_id].gl_rb);
 
-				glBlitFramebuffer(0, 0, zt->textures[texture_id].width, zt->textures[texture_id].height, 0, zt->textures[texture_id].height, zt->textures[texture_id].width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+				glBlitFramebuffer(0, 0, zt->textures[texture_id].width, zt->textures[texture_id].height, 0, 0, zt->textures[texture_id].width, zt->textures[texture_id].height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 				glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -7502,7 +7515,7 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 			}
 
 			ID3D11RenderTargetView *rtvnull = nullptr;
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, NULL);
+			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, nullptr);
 			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->win_details[0].dx_backbuffer, zt->win_details[0].dx_depth_stencil_view);
 			zt->win_details[0].dx_active_render_target = zt->win_details[0].dx_backbuffer;
 			zt->win_details[0].dx_active_render_target_depth_stencil_view = zt->win_details[0].dx_depth_stencil_view;
@@ -7660,12 +7673,11 @@ void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat)
 	else {
 		zt_assert(false && "Invalid camera type");
 	}
-
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& view)
+void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view)
 {
 	zt_returnOnNull(camera);
 
@@ -7675,10 +7687,9 @@ void zt_cameraSetMatrices(ztCamera *camera, const ztMat4& proj, const ztMat4& vi
 	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
 	camera->direction = ztVec3(mat_final.values[2], mat_final.values[6], mat_final.values[10]).getNormal();
 
-	mat_final.inverse();
+	//mat_final.inverse();
 
-	camera->position = ztVec3(mat_final.values[12], mat_final.values[13], mat_final.values[14]);
-	// TODO(josh):  camera rotation?
+	view.extract(&camera->position, &camera->rotation, nullptr);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7748,7 +7759,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 
 // ------------------------------------------------------------------------------------------------
 
-ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, const ztVec2& pos)
+ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 {
 	zt_returnValOnNull(camera, ztPoint2(0,0));
 
