@@ -251,12 +251,12 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
-	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows));
+	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh));
 
 	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// g_game->shader_id_lit; // zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
-	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows);
+	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 	zt_fiz(1) {
-		zt_modelMake(zt_memGetGlobalArena(), mesh_droid[i + 1], &mat_droid[i + 1], droid_shader, nullptr, ztModelFlags_CastsShadows, model_droid);
+		zt_modelMake(zt_memGetGlobalArena(), mesh_droid[i + 1], &mat_droid[i + 1], droid_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh, model_droid);
 	}
 	zt_sceneAddModel(g_game->scene, model_droid);
 	model_droid->transform.position.x = -4;
@@ -266,7 +266,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
 		if (i == 0) {
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 		}
 		else {
 			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
@@ -393,6 +393,14 @@ void game_cleanup()
 
 	zt_sceneFreeAllModels(g_game->scene);
 	zt_sceneFree(g_game->scene);
+
+	zt_textureFree(g_game->tex_id_crate);
+	zt_textureFree(g_game->tex_id_crate_spec);
+	zt_textureFree(g_game->tex_id_crate_norm);
+	zt_textureFree(g_game->tex_id_floor);
+	zt_textureFree(g_game->tex_id_floor_spec);
+	zt_textureFree(g_game->tex_id_floor_norm);
+	zt_textureFree(g_game->tex_test);
 
 	zt_guiManagerFree(g_game->gui_manager);
 
