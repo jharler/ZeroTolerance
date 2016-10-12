@@ -603,8 +603,8 @@ bool zt_vrSubmit(ztVrSystem *vr_system)
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			vr_tex_left.handle = (void*)tex_left->gl_texid;
-			vr_tex_right.handle = (void*)tex_right->gl_texid;
+			vr_tex_left.handle = (void*)tex_left->gl_texture->texid;
+			vr_tex_right.handle = (void*)tex_right->gl_texture->texid;
 
 			vr_tex_left.eType = vr_tex_right.eType = vr::API_OpenGL;
 			vr_tex_left.eColorSpace = vr_tex_right.eColorSpace = vr::ColorSpace_Gamma;

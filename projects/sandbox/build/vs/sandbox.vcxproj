@@ -16,6 +16,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\..\zt_game.h" />
     <ClInclude Include="..\..\..\..\zt_game_gui.h" />
+    <ClInclude Include="..\..\..\..\zt_opengl.h" />
     <ClInclude Include="..\..\..\..\zt_tools.h" />
     <ClInclude Include="..\..\..\..\zt_vr.h" />
   </ItemGroup>

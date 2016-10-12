@@ -7549,12 +7549,16 @@ ztInternal void _zt_guiDebugTextureViewer()
 
 			zt_fiz(zt->textures_count) {
 				bool render_tex = false;
+				bool cubemap_tex = false;
 				switch (zt_currentRenderer())
 				{
-				case ztRenderer_OpenGL: zt_openGLSupport(render_tex = zt->textures[i].gl_fbo != 0); break;
-				case ztRenderer_DirectX: zt_directxSupport(render_tex = zt->textures[i].dx_render_target_view != nullptr); break;
+					case ztRenderer_OpenGL: {
+						zt_openGLSupport(render_tex = ztgl_textureIsRenderTarget(zt->textures[i].gl_texture));
+						zt_openGLSupport(cubemap_tex = zt_bitIsSet(zt->textures[i].gl_texture->flags, ztTextureGLFlags_CubeMap));
+					}
+					case ztRenderer_DirectX: zt_directxSupport(render_tex = zt->textures[i].dx_render_target_view != nullptr); break;
 				}
-				zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s", i, zt->textures[i].width, zt->textures[i].height, (render_tex ? "(render texture)" : ""));
+				zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s", i, zt->textures[i].width, zt->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")));
 				zt_guiComboBoxAppend(dropdown_id, buffer);
 			}
 		}
