@@ -220,6 +220,8 @@ struct ztShaderDX
 	Variable            *variables;
 	int                  variables_count;
 
+	bool                 has_cubemap;
+
 	ztMemoryArena       *arena;
 };
 
@@ -822,6 +824,7 @@ ztShaderDX *ztdx_shaderMake(ztMemoryArena *arena, ztContextDX *context, const ch
 
 	ztShaderDX *shader = zt_mallocStructArena(ztShaderDX, arena);
 	shader->arena = arena;
+	shader->has_cubemap = false;
 
 	ztdx_callAndReturnValOnError(context->device->CreateVertexShader(vert->GetBufferPointer(), vert->GetBufferSize(), NULL, &shader->vert), nullptr);
 	ztdx_callAndReturnValOnError(context->device->CreatePixelShader(frag->GetBufferPointer(), frag->GetBufferSize(), NULL, &shader->frag), nullptr);
@@ -1174,6 +1177,11 @@ void ztdx_shaderEnd(ztContextDX *context, ztShaderDX *shader)
 {
 	context->context->VSSetShader(NULL, NULL, NULL);
 	context->context->PSSetShader(NULL, NULL, NULL);
+
+	if (shader->has_cubemap) {
+		shader->has_cubemap = false;
+		context->context->ClearDepthStencilView(context->active_render_target_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1342,6 +1350,10 @@ void ztdx_shaderPopulateConstantBuffers(ztContextDX *context, ztShaderDX *shader
 				context->context->PSSetSamplers(shader->variables[i].offset, 1, &tex->sampler_state);
 			}
 			context->texture_count += 1;
+
+			if (zt_bitIsSet(tex->flags, ztTextureDXFlags_CubeMap)) {
+				shader->has_cubemap = true;
+			}
 		}
 	}
 

@@ -611,6 +611,7 @@ void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const 
 void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const ztMat4& value);
 void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12]);
 void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id);
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 texture_id);
 
 bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderID shader_id, u32 variable_hash, r32 value);
@@ -621,6 +622,7 @@ void zt_shaderSetVariableVec4(ztShaderID shader_id, u32 variable_hash, const ztV
 void zt_shaderSetVariableMat4(ztShaderID shader_id, u32 variable_hash, const ztMat4& value);
 void zt_shaderSetVariableMat3(ztShaderID shader_id, u32 variable_hash, r32 value[12]);
 void zt_shaderSetVariableTex(ztShaderID shader_id, u32 variable_hash, i32 texture_id);
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 texture_id);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -634,6 +636,7 @@ void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *v
 void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value);
 void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]);
 void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
+void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
 
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value);
@@ -644,6 +647,7 @@ void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_
 void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value);
 void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12]);
 void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
+void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -963,10 +967,6 @@ struct ztDrawCommand
 		};
 
 		struct {
-			ztTextureID skybox;
-		};
-
-		struct {
 			ztVec3 billboard_center;
 			ztVec2 billboard_size;
 			ztVec4 billboard_uv;
@@ -1026,7 +1026,6 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum);
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
-bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox);
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
@@ -1087,11 +1086,6 @@ ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1
 ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 
 
-// ------------------------------------------------------------------------------------------------
-// skybox
-
-//ztMeshID zt_skyboxGetSkyboxMesh();
-
 
 // ------------------------------------------------------------------------------------------------
 // models
@@ -1142,6 +1136,7 @@ struct ztModel
 ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 void zt_modelFree(ztModel *model);
 
+ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id);
 
 // ------------------------------------------------------------------------------------------------
 // scenes
@@ -1181,6 +1176,8 @@ struct ztScene
 	LightInfo directional_light;
 	LightInfo lights[ZT_SCENE_MAX_LIGHTS];
 
+	ModelInfo skybox;
+
 	ztMemoryArena *arena;
 
 	ztTextureID tex_directional_shadow_map;
@@ -1193,6 +1190,7 @@ void zt_sceneFree(ztScene *scene);
 void zt_sceneFreeAllModels(ztScene *scene);
 
 void zt_sceneAddLight(ztScene *scene, ztLight *light);
+void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
 
 void zt_sceneAddModel(ztScene *scene, ztModel *model);
 void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
@@ -2117,7 +2115,7 @@ ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox;\n\n	void main()\n	{\n		color = vec4(texture(skybox, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube tex_skybox;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return tex_skybox.Sample(sample_type, input.positionL);\n	}\n]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox_tex;\n\n	void main()\n	{\n		color = vec4(texture(skybox_tex, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube skybox_tex;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return skybox_tex.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
 };
 
@@ -2931,20 +2929,6 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_drawListAddSkybox(ztDrawList *draw_list, ztTextureID skybox)
-{
-	_zt_drawListCheck(draw_list);
-
-	auto *command = &draw_list->commands[draw_list->commands_count++];
-
-	command->type = ztDrawCommandType_Skybox;
-	command->skybox = skybox;
-
-	return true;
-}
-
-// ------------------------------------------------------------------------------------------------
-
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 {
 	_zt_drawListCheck(draw_list);
@@ -3296,8 +3280,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 #	define _zt_castMem(type) (type*)mem; mem += zt_sizeof(type); mem_left -= zt_sizeof(type); zt_assert(mem_left >= 0); // if you assert here, you need more ztGameSettings::renderer_memory
 
-	ztTextureID skybox = ztInvalidID;
-
 	struct local
 	{
 		static bool texturesMatch(ztDrawCommand *cmd1, ztDrawCommand *cmd2)
@@ -3316,7 +3298,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			return true;
 		}
 
-		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 &mem_left, ztTextureID *skybox, ztCompileShader **shader, ztCompileClipRegion *clip_regions)
+		static byte *processForShader(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, i32 flags, ztShaderID shader_id, byte *mem, i32 &mem_left, ztCompileShader **shader, ztCompileClipRegion *clip_regions)
 		{
 
 			ztCompileShader *cmp_shader = _zt_castMem(ztCompileShader);
@@ -3400,9 +3382,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 							}
 						}
-						if (command->type == ztDrawCommandType_Skybox) {
-							*skybox = command->skybox;
-						}
 					}
 
 					// extract display elements.  we sort them out so that things can be batched efficiently
@@ -3482,7 +3461,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					case ztDrawCommandType_ChangeShader: {
 						if (!local::processedShader(command->shader, shaders, shaders_count)) {
 							zt_assert(shaders_count < zt_elementsOf(shaders));
-							mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, mem_left, &skybox, &shaders[shaders_count++], clip_regions);
+							mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, command->shader, mem, mem_left, &shaders[shaders_count++], clip_regions);
 						}
 					} break;
 				}
@@ -3490,7 +3469,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		// process non-shader commands last
-		local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, mem_left, &skybox, &shaders[shaders_count++], clip_regions);
+		local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, mem_left, &shaders[shaders_count++], clip_regions);
 	}
 	else {
 		// there's no depth testing, so we just display everything as it came in
@@ -3649,65 +3628,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			zt_rendererClear(clear);
 		}
 
-#if 0
-		if (skybox != ztInvalidID) {
-			if (zt->win_details[0].gl_skybox_vao == 0) {
-				GLfloat skybox_verts[] = {
-					-1.0f,  1.0f, -1.0f,    -1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,     1.0f,  1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,
-					-1.0f, -1.0f,  1.0f,    -1.0f, -1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,    -1.0f,  1.0f, -1.0f,    -1.0f,  1.0f,  1.0f,    -1.0f, -1.0f,  1.0f,
-					 1.0f, -1.0f, -1.0f,     1.0f, -1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f, -1.0f,     1.0f, -1.0f, -1.0f,
-					-1.0f, -1.0f,  1.0f,    -1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,     1.0f, -1.0f,  1.0f,    -1.0f, -1.0f,  1.0f,
-					-1.0f,  1.0f, -1.0f,     1.0f,  1.0f, -1.0f,     1.0f,  1.0f,  1.0f,     1.0f,  1.0f,  1.0f,    -1.0f,  1.0f,  1.0f,    -1.0f,  1.0f, -1.0f,
-					-1.0f, -1.0f, -1.0f,    -1.0f, -1.0f,  1.0f,     1.0f, -1.0f, -1.0f,     1.0f, -1.0f, -1.0f,    -1.0f, -1.0f,  1.0f,     1.0f, -1.0f,  1.0f
-				};
-
-				ztgl_callAndReportOnError(glGenVertexArrays(1, &zt->win_details[0].gl_skybox_vao));
-				ztgl_callAndReportOnError(glGenBuffers(1, &zt->win_details[0].gl_skybox_vbo));
-				ztgl_callAndReportOnError(glBindVertexArray(zt->win_details[0].gl_skybox_vao));
-				ztgl_callAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, zt->win_details[0].gl_skybox_vbo));
-				ztgl_callAndReportOnError(glBufferData(GL_ARRAY_BUFFER, zt_elementsOf(skybox_verts) * sizeof(GLfloat), &skybox_verts, GL_STATIC_DRAW));
-				ztgl_callAndReportOnError(glEnableVertexAttribArray(0));
-				ztgl_callAndReportOnError(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0));
-				ztgl_callAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
-				ztgl_callAndReportOnError(glBindVertexArray(0));
-			}
-
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_LEQUAL);
-
-			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
-			if (shader_id != ztInvalidID) {
-				ztgl_callAndReportOnErrorFast(glUseProgram(zt->shaders[shader_id].gl_program_id));
-				zt->game_details.curr_frame.shader_switches += 1;
-				{
-					GLuint projection_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "projection");
-					GLuint view_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "view");
-					GLuint skybox_loc = glGetUniformLocation(zt->shaders[shader_id].gl_program_id, "skybox");
-
-					r32 view_mat[16];
-					zt_memCpy(view_mat, zt_sizeof(view_mat), camera->mat_view.values, zt_sizeof(view_mat));
-
-					view_mat[12] = view_mat[13] = view_mat[14] = 0;// view_mat[3] = view_mat[7] = view_mat[11] = 0;
-					view_mat[15] = 1;
-
-					ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(projection_loc, 1, GL_FALSE, camera->mat_proj.values));
-					ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(view_loc, 1, GL_FALSE, view_mat));
-
-					ztgl_callAndReportOnErrorFast(glBindVertexArray(zt->win_details[0].gl_skybox_vao));
-					ztgl_callAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0));
-					ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, zt->textures[skybox].gl_texid));
-					ztgl_callAndReportOnErrorFast(glUniform1i(skybox_loc, 0));
-					ztgl_callAndReportOnErrorFast(glDrawArrays(GL_TRIANGLES, 0, 36));
-					ztgl_callAndReportOnErrorFast(glBindVertexArray(0));
-					ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
-
-					zt->game_details.curr_frame.triangles_drawn += 36;
-				}
-				ztgl_callAndReportOnErrorFast(glUseProgram(0));
-			}
-		}
-#endif
-
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 			ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LESS));
@@ -3736,11 +3656,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			if (shaders[i]->shader != ztInvalidID) {
 				zt->game_details.curr_frame.shader_switches += 1;
-				ztgl_shaderBegin(zt->shaders[shader_id].gl_shader);
-
-				ztgl_shaderVariableMat4(zt->shaders[shader_id].gl_shader, zt_strHash("model"), ztMat4::identity);
-				ztgl_shaderVariableMat4(zt->shaders[shader_id].gl_shader, zt_strHash("projection"), camera->mat_proj);
-				ztgl_shaderVariableMat4(zt->shaders[shader_id].gl_shader, zt_strHash("view"), camera->mat_view);
+				zt_shaderBegin(shader_id);
+				zt_shaderSetVariableMat4(shader_id, zt_strHash("model"), ztMat4::identity);
+				zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
 			}
 			else {
 				glColor4fv(ztVec4::one.values);
@@ -3763,10 +3681,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (cmp_tex->command) {
+					ztgl_textureBindReset(zt->shaders[shader_id].gl_shader);
 					zt->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
-						ztgl_textureBind(zt->textures[cmp_tex->command->texture[i]].gl_texture, i);
-						ztgl_shaderVariableTex(zt->shaders[shader_id].gl_shader, zt_strHash("tex_diffuse"), 0);
+						ztgl_shaderVariableTex(zt->shaders[shader_id].gl_shader, zt_strHash("tex_diffuse"), zt->textures[cmp_tex->command->texture[i]].gl_texture);
 					}
 				}
 
@@ -3972,8 +3890,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (cmp_tex->command) {
-					glBindTexture(GL_TEXTURE_2D, 0);
-					if (model_loc != -1) ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(model_loc, 1, GL_FALSE, ztMat4::identity.values));
+					ztgl_textureBindReset(zt->shaders[shader_id].gl_shader);
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -4005,81 +3922,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			zt_textureRenderTargetPrepare(render_target_id);
 		}
 
-#if 0
-		if (skybox != ztInvalidID) {
-			if (zt->win_details[0].dx_skybox_buff_vert == nullptr) {
-				r32 skybox_verts[] = {
-					-1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f,
-					-1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f,
-					1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f,
-					-1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f,
-					-1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
-					-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f
-				};
-
-				// vertex buffer
-				D3D11_BUFFER_DESC vb;
-				ZeroMemory(&vb, sizeof(vb));
-
-				vb.Usage = D3D11_USAGE_DEFAULT;
-				vb.ByteWidth = zt_sizeof(r32) * 36 * 3;
-				vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-				vb.CPUAccessFlags = 0;
-
-				D3D11_SUBRESOURCE_DATA vb_data;
-				ZeroMemory(&vb_data, sizeof(vb_data));
-				vb_data.pSysMem = skybox_verts;
-
-				ztdx_callAndReportOnError(zt->win_details[0].dx_device->CreateBuffer(&vb, &vb_data, &zt->win_details[0].dx_skybox_buff_vert));
-			}
-
-			zt->win_details[0].dx_context->context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1);
-
-			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
-			if (shader_id != ztInvalidID) {
-				zt_shaderApplyVariables(shader_id);
-
-				zt->win_details[0].dx_context->context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
-				zt->win_details[0].dx_context->context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
-
-				ztMat4 dxView = camera->mat_view.getTranspose();
-				ztMat4 dxProj = camera->mat_proj.getTranspose();
-
-				dxView.values[3] = dxView.values[7] = dxView.values[11] = 0;
-				dxView.values[15] = 1;
-
-				static u32 view_hash = zt_strHash("view");
-				static u32 projection_hash = zt_strHash("projection");
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, view_hash, dxView);
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, projection_hash, dxProj);
-				zt_shaderApplyVariables(shader_id);
-
-				zt->game_details.curr_frame.shader_switches += 1;
-				{
-					ztTextureID texture_id = skybox;
-					zt->win_details[0].dx_context->context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
-					zt->win_details[0].dx_context->context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
-					float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
-					zt->win_details[0].dx_context->context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
-
-					UINT stride = zt_sizeof(r32) * 3, offset = 0;
-					zt->win_details[0].dx_context->context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_skybox_buff_vert, &stride, &offset);
-					zt->win_details[0].dx_context->context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
-					zt->win_details[0].dx_context->context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					zt->win_details[0].dx_context->context->Draw(36, 0);
-
-					zt->game_details.curr_frame.triangles_drawn += 36;
-				}
-
-				if (render_target_id != ztInvalidID) {
-					zt->win_details[0].dx_context->context->ClearDepthStencilView(zt->textures[render_target_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
-				}
-				else {
-					zt->win_details[0].dx_context->context->ClearDepthStencilView(zt->win_details[0].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
-				}
-			}
-		}
-#endif
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			ztdx_depthTestLess(zt->win_details[0].dx_context);
 		}
@@ -4138,8 +3980,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					static u32 tex_diffuse_hash = zt_strHash("tex_diffuse");
 					zt_shaderSetVariableTex(shader_id, tex_diffuse_hash, cmp_tex->command->texture[0]);
 					zt_shaderApplyVariables(shader_id);
-					//ztdx_shaderVariableTex(zt->shaders[shader_id].dx_shader, tex_diffuse_hash, zt->textures[cmp_tex->command->texture[0]].dx_texture);
-					//ztdx_shaderPopulateConstantBuffers(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
 				}
 
 				ztCompileItem *cmp_item = cmp_tex->item;
@@ -4458,6 +4298,29 @@ void zt_modelFree(ztModel *model)
 }
 
 // ------------------------------------------------------------------------------------------------
+
+ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
+{
+	ztVec3 skybox_verts[] = {
+		ztVec3(-1.0f,  1.0f, -1.0f), ztVec3(-1.0f, -1.0f, -1.0f), ztVec3( 1.0f, -1.0f, -1.0f), ztVec3( 1.0f, -1.0f, -1.0f), ztVec3( 1.0f,  1.0f, -1.0f), ztVec3(-1.0f,  1.0f, -1.0f),
+		ztVec3(-1.0f, -1.0f,  1.0f), ztVec3(-1.0f, -1.0f, -1.0f), ztVec3(-1.0f,  1.0f, -1.0f), ztVec3(-1.0f,  1.0f, -1.0f), ztVec3(-1.0f,  1.0f,  1.0f), ztVec3(-1.0f, -1.0f,  1.0f),
+		ztVec3( 1.0f, -1.0f, -1.0f), ztVec3( 1.0f, -1.0f,  1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3( 1.0f,  1.0f, -1.0f), ztVec3( 1.0f, -1.0f, -1.0f),
+		ztVec3(-1.0f, -1.0f,  1.0f), ztVec3(-1.0f,  1.0f,  1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3( 1.0f, -1.0f,  1.0f), ztVec3(-1.0f, -1.0f,  1.0f),
+		ztVec3(-1.0f,  1.0f, -1.0f), ztVec3( 1.0f,  1.0f, -1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3( 1.0f,  1.0f,  1.0f), ztVec3(-1.0f,  1.0f,  1.0f), ztVec3(-1.0f,  1.0f, -1.0f),
+		ztVec3(-1.0f, -1.0f, -1.0f), ztVec3(-1.0f, -1.0f,  1.0f), ztVec3( 1.0f, -1.0f, -1.0f), ztVec3( 1.0f, -1.0f, -1.0f), ztVec3(-1.0f, -1.0f,  1.0f), ztVec3( 1.0f, -1.0f,  1.0f)
+	};
+
+	ztMeshID mesh = zt_meshMake(skybox_verts, nullptr, nullptr, zt_elementsOf(skybox_verts), nullptr, 0);
+	if (mesh == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztMaterial material = zt_materialMake(texture_id);
+
+	return zt_modelMake(zt_memGetGlobalArena(), mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -4475,6 +4338,8 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models)
 	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
 		scene->lights[i].light = nullptr;
 	}
+
+	scene->skybox.model = nullptr;
 
 	return scene;
 }
@@ -4501,6 +4366,12 @@ void zt_sceneFreeAllModels(ztScene *scene)
 
 	zt_fiz(scene->models_count) {
 		zt_modelFree(scene->models[i].model);
+		scene->models[i].model = nullptr;
+	}
+
+	if (scene->skybox.model) {
+		zt_modelFree(scene->skybox.model);
+		scene->skybox.model = nullptr;
 	}
 }
 
@@ -4522,6 +4393,16 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light)
 			}
 		}
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox)
+{
+	zt_returnOnNull(scene);
+	zt_returnOnNull(skybox);
+
+	scene->skybox.model = skybox;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4829,6 +4710,21 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera)
 	}
 	else {
 		light_mat = ztMat4::identity;
+	}
+
+	if (scene->skybox.model) {
+		static u32 skybox_hash = zt_strHash("skybox_tex");
+
+		ztMat4 mat_view = camera->mat_view;
+		mat_view.values[ztMat4_Col3Row0] = mat_view.values[ztMat4_Col3Row1] = mat_view.values[ztMat4_Col3Row2] = 0;
+		mat_view.values[ztMat4_Col3Row3] = 1;
+
+		zt_shaderBegin(scene->skybox.model->shader);
+		zt_shaderSetCameraMatrices(scene->skybox.model->shader, camera->mat_proj, mat_view);
+		zt_shaderSetVariableTexCube(scene->skybox.model->shader, skybox_hash, scene->skybox.model->material.diffuse_tex);
+		zt_shaderApplyVariables(scene->skybox.model->shader);
+		zt_meshRender(scene->skybox.model->mesh_id);
+		zt_shaderEnd(scene->skybox.model->shader);
 	}
 
 	zt_fiz(scene->models_count) {
@@ -5496,6 +5392,8 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 			if (shader_vars->variables_count) {
+				ztgl_textureBindReset(shader->gl_shader);
+
 				zt_fiz(shader_vars->variables_count) {
 					ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
 
@@ -5503,13 +5401,13 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 					{
 						case ztShaderVariable_Float  : ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
 						case ztShaderVariable_Int    : ztgl_shaderVariableInt  (shader->gl_shader, val->name_hash, val->val_int  ); break;
-						case ztShaderVariable_Vec2   : ztgl_shaderVariableVec2 (shader->gl_shader, val->name_hash, *(ztVec2*)val->val_vec2 ); break;
-						case ztShaderVariable_Vec3   : ztgl_shaderVariableVec3 (shader->gl_shader, val->name_hash, *(ztVec3*)val->val_vec3 ); break;
-						case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, *(ztVec4*)val->val_vec4 ); break;
+						case ztShaderVariable_Vec2   : ztgl_shaderVariableVec2 (shader->gl_shader, val->name_hash, val->val_vec2 ); break;
+						case ztShaderVariable_Vec3   : ztgl_shaderVariableVec3 (shader->gl_shader, val->name_hash, val->val_vec3 ); break;
+						case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, val->val_vec4 ); break;
 						case ztShaderVariable_Mat3   : ztgl_shaderVariableMat3 (shader->gl_shader, val->name_hash, val->val_mat3 ); break;
 						case ztShaderVariable_Mat4   : ztgl_shaderVariableMat4 (shader->gl_shader, val->name_hash, val->val_mat4 ); break;
-						case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, val->val_tex  ); break;
-						case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, val->val_tex  ); break;
+						case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt->textures[val->val_tex].gl_texture); break;
+						case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt->textures[val->val_tex].gl_texture); break;
 					}
 				}
 			}
@@ -5526,12 +5424,12 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 					switch (val->type)
 					{
 						case ztShaderVariable_Float  : ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
-						case ztShaderVariable_Int    : ztdx_shaderVariableInt  (shader->dx_shader, val->name_hash, val->val_int); break;
-						case ztShaderVariable_Vec2   : ztdx_shaderVariableVec2 (shader->dx_shader, val->name_hash, val->val_vec2); break;
-						case ztShaderVariable_Vec3   : ztdx_shaderVariableVec3 (shader->dx_shader, val->name_hash, val->val_vec3); break;
-						case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4); break;
-						case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3); break;
-						case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4); break;
+						case ztShaderVariable_Int    : ztdx_shaderVariableInt  (shader->dx_shader, val->name_hash, val->val_int  ); break;
+						case ztShaderVariable_Vec2   : ztdx_shaderVariableVec2 (shader->dx_shader, val->name_hash, val->val_vec2 ); break;
+						case ztShaderVariable_Vec3   : ztdx_shaderVariableVec3 (shader->dx_shader, val->name_hash, val->val_vec3 ); break;
+						case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4 ); break;
+						case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3 ); break;
+						case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4 ); break;
 						case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
 						case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
 					}
@@ -5569,63 +5467,43 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash
 
 // ------------------------------------------------------------------------------------------------
 
-#if defined(ZT_SHADER_LOG_INVALID_ACCESS)
-ztInline void _zt_shaderDebugStop() {
-	int place_breakpoint_here = 1;
-}
-
-#	define _zt_shaderDebugLog(MSG, ...)	zt_logDebug(MSG, __VA_ARGS__); _zt_shaderDebugStop()
-#else
-#	define _zt_shaderDebugLog(MSG, ...)
-#endif
-
-#if defined(ZT_OPENGL_DEBUGGING) || defined(ZT_DIRECTX_DEBUGGING)
-
-#define _zt_shaderCheckHash(shared_vars, shader_type) \
+#define _zt_shaderCheckHash(shader_vars) \
 	int idx = -1; \
 	zt_fiz(shader_vars->variables_count) { \
 		if (shader_vars->variables[i].name_hash == variable_hash) {\
 			idx = i; break; \
-		} \
+						} \
 	} \
 	if (idx == -1) { return; } \
+
+#define _zt_shaderCheckType(shared_vars, shader_type) \
 	if (shader_vars->variables[idx].type != shader_type) { \
 		zt_assert(false); \
 		return; \
-	}
+			}
 
-#else
+#define _zt_shaderCheckHashAndType(shared_vars, shader_type) \
+	_zt_shaderCheckHash(shader_vars); \
+	_zt_shaderCheckType(shader_vars, shader_type);
 
-#define _zt_shaderCheckHash(shader_vars, shader_type) \
-	int idx = -1; \
-	zt_fiz(shader_vars->variables_count) { \
-		if (shader_vars->variables[i].name_hash == variable_hash) {\
-			idx = i; break; \
-		} \
-	} \
-	if (idx == -1) { return; } \
-	if (shader_vars->variables[idx].type != shader_type) { \
-		return; \
-	}
-
-#endif
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { zt_shaderSetVariableFloat(shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableInt  (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { zt_shaderSetVariableInt  (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec2 (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value) { zt_shaderSetVariableVec2 (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec3 (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value) { zt_shaderSetVariableVec3 (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec4 (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value) { zt_shaderSetVariableVec4 (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat4 (ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value) { zt_shaderSetVariableMat4 (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat3 (ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]      ) { zt_shaderSetVariableMat3 (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableTex  (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { zt_shaderSetVariableTex  (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableFloat  (ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { zt_shaderSetVariableFloat  (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableInt    (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { zt_shaderSetVariableInt    (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec2   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value) { zt_shaderSetVariableVec2   (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec3   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value) { zt_shaderSetVariableVec3   (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec4   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value) { zt_shaderSetVariableVec4   (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat4   (ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value) { zt_shaderSetVariableMat4   (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat3   (ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]      ) { zt_shaderSetVariableMat3   (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableTex    (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { zt_shaderSetVariableTex    (shader_vars, zt_strHash(variable), value); }
+void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { zt_shaderSetVariableTexCube(shader_vars, zt_strHash(variable), value); }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Float);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Float);
 	shader_vars->variables[idx].val_float = value;
 }
 
@@ -5633,7 +5511,7 @@ void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable
 
 void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Int);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Int);
 	shader_vars->variables[idx].val_int = value;
 }
 
@@ -5641,7 +5519,7 @@ void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_h
 
 void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Vec2);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec2);
 	shader_vars->variables[idx].val_vec2[0] = value.values[0];
 	shader_vars->variables[idx].val_vec2[1] = value.values[1];
 }
@@ -5650,7 +5528,7 @@ void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_
 
 void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Vec3);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec3);
 	shader_vars->variables[idx].val_vec3[0] = value.values[0];
 	shader_vars->variables[idx].val_vec3[1] = value.values[1];
 	shader_vars->variables[idx].val_vec3[2] = value.values[2];
@@ -5660,7 +5538,7 @@ void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_
 
 void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Vec4);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec4);
 	shader_vars->variables[idx].val_vec4[0] = value.values[0];
 	shader_vars->variables[idx].val_vec4[1] = value.values[1];
 	shader_vars->variables[idx].val_vec4[2] = value.values[2];
@@ -5671,7 +5549,7 @@ void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_
 
 void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Mat4);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat4);
 	zt_fiz(zt_elementsOf(value.values)) {
 		shader_vars->variables[idx].val_mat4[i] = value.values[i];
 	}
@@ -5681,7 +5559,7 @@ void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_
 
 void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12])
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Mat3);
+	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat3);
 	zt_fiz(12) {
 		shader_vars->variables[idx].val_mat3[i] = value[i];
 	}
@@ -5691,15 +5569,28 @@ void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_
 
 void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
 {
-	_zt_shaderCheckHash(shader_vars, ztShaderVariable_Tex);
-	shader_vars->variables[idx].val_tex = texture;
+	_zt_shaderCheckHash(shader_vars);
+	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
+		shader_vars->variables[idx].val_tex = texture;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
 
-#undef _zt_shaderCheck
+void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
+{
+	_zt_shaderCheckHash(shader_vars);
+	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
+		shader_vars->variables[idx].val_tex = texture;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 #undef _zt_shaderCheckHash
-#undef _zt_shaderDebugLog
+#undef _zt_shaderCheckType
+#undef _zt_shaderCheckHashAndType
+
 
 #define _zt_shaderCheck(shader_id) \
 	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt->shaders_count); \
@@ -5723,25 +5614,27 @@ bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVaria
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value          ) { zt_shaderSetVariableFloat(shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableInt  (ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableInt  (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec2 (ztShaderID shader_id, const char *variable, const ztVec2& value)	{ zt_shaderSetVariableVec2 (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec3 (ztShaderID shader_id, const char *variable, const ztVec3& value)	{ zt_shaderSetVariableVec3 (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec4 (ztShaderID shader_id, const char *variable, const ztVec4& value)	{ zt_shaderSetVariableVec4 (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat4 (ztShaderID shader_id, const char *variable, const ztMat4& value)	{ zt_shaderSetVariableMat4 (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat3 (ztShaderID shader_id, const char *variable, r32 value[12]      )	{ zt_shaderSetVariableMat3 (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableTex  (ztShaderID shader_id, const char *variable, i32 value          )	{ zt_shaderSetVariableTex  (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableFloat  (ztShaderID shader_id, const char *variable, r32 value          ) { zt_shaderSetVariableFloat  (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableInt    (ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableInt    (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, const char *variable, const ztVec2& value) { zt_shaderSetVariableVec2   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, const char *variable, const ztVec3& value) { zt_shaderSetVariableVec3   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, const char *variable, const ztVec4& value) { zt_shaderSetVariableVec4   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat4   (ztShaderID shader_id, const char *variable, const ztMat4& value) { zt_shaderSetVariableMat4   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat3   (ztShaderID shader_id, const char *variable, r32 value[12]      ) { zt_shaderSetVariableMat3   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableTex    (ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableTex    (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableTexCube(shader_id, zt_strHash(variable), value); }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat(ztShaderID shader_id, u32 variable_hash, r32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableFloat(shader_vars, variable_hash, value); }
-void zt_shaderSetVariableInt  (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableInt  (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec2 (ztShaderID shader_id, u32 variable_hash, const ztVec2& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec2 (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec3 (ztShaderID shader_id, u32 variable_hash, const ztVec3& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec3 (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec4 (ztShaderID shader_id, u32 variable_hash, const ztVec4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec4 (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableMat4 (ztShaderID shader_id, u32 variable_hash, const ztMat4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat4 (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableMat3 (ztShaderID shader_id, u32 variable_hash, r32 value[12]      ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat3 (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableTex  (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableTex  (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableInt    (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableTex    (shader_vars, variable_hash, value); }
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); }
 
 // ------------------------------------------------------------------------------------------------
 
@@ -8098,33 +7991,29 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			ztgl_textureBindReset();
+			ztgl_textureBindReset(zt->shaders[shader].gl_shader);
 
 			int tex_count = 0;
 			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
 			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, tex_count);
-			ztgl_textureBind(zt->textures[diffuse_tex].gl_texture, tex_count++);
+			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
 			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
 			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 specular_tex_hash = zt_strHash("specular_tex");
 			ztgl_textureBind(zt->textures[specular_tex].gl_texture, tex_count);
-			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, tex_count);
-			ztgl_textureBind(zt->textures[specular_tex].gl_texture, tex_count++);
+			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
 
 			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
 			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
-			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, tex_count);
-			ztgl_textureBind(zt->textures[normal_tex].gl_texture, tex_count++);
+			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
 					zt->game_details.curr_frame.texture_switches += 1;
-					ztgl_textureBind(zt->textures[additional_tex[i]].gl_texture, tex_count);
-					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], tex_count);
+					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
 					tex_count += 1;
 				}
 			}

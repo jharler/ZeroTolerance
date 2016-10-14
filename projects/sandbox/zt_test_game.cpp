@@ -18,7 +18,7 @@
 
 //#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
-//#define ZT_OPENGL_DEBUGGING
+#define ZT_OPENGL_DEBUGGING
 #define ZT_DIRECTX_DEBUGGING
 
 #define ZT_GAME_NAME			"ZeroTolerance Test Game"
@@ -256,6 +256,8 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	ztModel *model_chair = zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, chair_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 
 	zt_sceneAddModel(g_game->scene, model_chair);
+
+	zt_sceneSetSkybox(g_game->scene, zt_modelMakeSkybox(zt_memGetGlobalArena(), g_game->tex_skybox));
 
 	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// g_game->shader_id_lit; // zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
 	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);

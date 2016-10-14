@@ -181,8 +181,14 @@ struct ztShaderGL
 	Uniform *uniforms;
 	int      uniforms_count;
 
+	int      textures_bound;
+
 	ztMemoryArena *arena;
 };
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztTextureGL;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -197,12 +203,12 @@ bool        ztgl_shaderHasVariable(ztShaderGL *shader, u32 name_hash);
 
 void        ztgl_shaderVariableFloat(ztShaderGL *shader, u32 name_hash, r32 value);
 void        ztgl_shaderVariableInt(ztShaderGL *shader, u32 name_hash, i32 value);
-void        ztgl_shaderVariableVec2(ztShaderGL *shader, u32 name_hash, const ztVec2& value);
-void        ztgl_shaderVariableVec3(ztShaderGL *shader, u32 name_hash, const ztVec3& value);
-void        ztgl_shaderVariableVec4(ztShaderGL *shader, u32 name_hash, const ztVec4& value);
-void        ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, const ztMat4& value);
+void        ztgl_shaderVariableVec2(ztShaderGL *shader, u32 name_hash, r32 value[2]);
+void        ztgl_shaderVariableVec3(ztShaderGL *shader, u32 name_hash, r32 value[3]);
+void        ztgl_shaderVariableVec4(ztShaderGL *shader, u32 name_hash, r32 value[4]);
+void        ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, r32 value[16]);
 void        ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value[12]);
-void        ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, i32 value);
+void        ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -260,7 +266,7 @@ ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztMemoryArena *arena, int w, int 
 
 void         ztgl_textureFree(ztTextureGL *texture);
 
-void	     ztgl_textureBindReset();
+void	     ztgl_textureBindReset(ztShaderGL *shader);
 void	     ztgl_textureBind(ztTextureGL *texture, int as_idx);
 
 void         ztgl_textureRenderTargetPrepare(ztTextureGL *texture);
@@ -1034,6 +1040,7 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	shader->vert_id = vert;
 	shader->frag_id = frag;
 	shader->geom_id = geom;
+	shader->textures_bound = 0;
 	shader->arena = arena;
 
 	// extract shader variables
@@ -1101,6 +1108,8 @@ void ztgl_shaderEnd(ztShaderGL *shader)
 {
 	zt_returnOnNull(shader);
 	ztgl_callAndReportOnErrorFast(glUseProgram(0));
+	ztgl_textureBindReset(shader);
+	shader->textures_bound = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1149,34 +1158,34 @@ void ztgl_shaderVariableInt(ztShaderGL *shader, u32 name_hash, i32 value)
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_shaderVariableVec2(ztShaderGL *shader, u32 name_hash, const ztVec2& value)
+void ztgl_shaderVariableVec2(ztShaderGL *shader, u32 name_hash, r32 value[2])
 {
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
-	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform2fv(location, 1, value.values));
+	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform2fv(location, 1, value));
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_shaderVariableVec3(ztShaderGL *shader, u32 name_hash, const ztVec3& value)
+void ztgl_shaderVariableVec3(ztShaderGL *shader, u32 name_hash, r32 value[3])
 {
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
-	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform3fv(location, 1, value.values));
+	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform3fv(location, 1, value));
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_shaderVariableVec4(ztShaderGL *shader, u32 name_hash, const ztVec4& value)
+void ztgl_shaderVariableVec4(ztShaderGL *shader, u32 name_hash, r32 value[4])
 {
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
-	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform4fv(location, 1, value.values));
+	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform4fv(location, 1, value));
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, const ztMat4& value)
+void ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, r32 value[16])
 {
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
-	if (location != -1) ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(location, 1, GL_FALSE, value.values));
+	if (location != -1) ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(location, 1, GL_FALSE, value));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1189,10 +1198,11 @@ void ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value[12])
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, i32 value)
+void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 {
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
-	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform1i(location, value));
+	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform1i(location, shader->textures_bound));
+	ztgl_textureBind(tex, shader->textures_bound++);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1462,10 +1472,11 @@ void ztgl_textureFree(ztTextureGL *texture)
 
 // ------------------------------------------------------------------------------------------------
 
-void ztgl_textureBindReset()
+void ztgl_textureBindReset(ztShaderGL *shader)
 {
 	ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_2D, 0));
 	ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+	shader->textures_bound = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
