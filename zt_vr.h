@@ -615,8 +615,8 @@ bool zt_vrSubmit(ztVrSystem *vr_system)
 
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
-			vr_tex_left.handle = (void*)tex_left->dx_tex;
-			vr_tex_right.handle = (void*)tex_right->dx_tex;
+			vr_tex_left.handle = (void*)tex_left->dx_texture->tex;
+			vr_tex_right.handle = (void*)tex_right->dx_texture->tex;
 
 			vr_tex_left.eType = vr_tex_right.eType = vr::API_DirectX;
 			vr_tex_left.eColorSpace = vr_tex_right.eColorSpace = vr::ColorSpace_Auto;

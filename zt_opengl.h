@@ -137,6 +137,15 @@ void ztgl_cullFront();
 void ztgl_cullBack();
 void ztgl_cullNone();
 
+void ztgl_depthTestOff();
+void ztgl_depthTestNever();
+void ztgl_depthTestLess();
+void ztgl_depthTestLessEqual();
+void ztgl_depthTestEqual();
+void ztgl_depthTestGreater();
+void ztgl_depthTestNotEqual();
+void ztgl_depthTestGreaterEqual();
+void ztgl_depthTestAlways();
 
 // ------------------------------------------------------------------------------------------------
 
@@ -170,7 +179,7 @@ struct ztShaderGL
 	};
 
 	Uniform *uniforms;
-	int uniforms_count;
+	int      uniforms_count;
 
 	ztMemoryArena *arena;
 };
@@ -826,6 +835,77 @@ void ztgl_cullBack()
 void ztgl_cullNone()
 {
 	ztgl_callAndReportOnErrorFast(glDisable(GL_CULL_FACE));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestOff()
+{
+	glDisable(GL_DEPTH_TEST);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestNever()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_NEVER);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestLess()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestLessEqual()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestEqual()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_EQUAL);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestGreater()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_GREATER);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestNotEqual()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_NOTEQUAL);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestGreaterEqual()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_GEQUAL);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_depthTestAlways()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_ALWAYS);
 }
 
 

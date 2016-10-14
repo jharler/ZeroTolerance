@@ -88,14 +88,9 @@
 #endif
 
 #if !defined(ZT_NO_DIRECTX)
-#	if defined(ZT_WINDOWS)
-#		define ZT_DIRECTX
-#	endif
+#	include "zt_directx.h"
 #endif
 
-#if defined(ZT_DIRECTX) && !defined(ZT_WINDOWS)
-#undef ZT_DIRECTX
-#endif
 
 #define ztInvalidID -1
 
@@ -1396,33 +1391,9 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 #define ZT_OPENGL_IMPLEMENTATION
 #include "zt_opengl.h"
 
+#define ZT_DIRECTX_IMPLEMENTATION
+#include "zt_directx.h"
 
-#if defined(ZT_DIRECTX)
-
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "dxguid.lib")
-
-#include <d3d11.h>
-#include <d3dcompiler.h>
-
-// ------------------------------------------------------------------------------------------------
-// DirectX specifics
-
-bool zt_dxCheckAndReportError(const char *function, i32 hr);
-i32 zt_dxClearErrors();
-
-#define zt_dxCallAndReturnOnError(function) if (zt_dxCheckAndReportError(#function, (function))) return;
-#define zt_dxCallAndReturnValOnError(function, retval) if (zt_dxCheckAndReportError(#function, (function))) return retval;
-#define zt_dxCallAndReportOnError(function) zt_dxCheckAndReportError(#function, (function));
-
-#if defined(ZT_DIRECTX_DIAGNOSE)
-#define zt_dxCallAndReportOnErrorFast(function) zt_dxCheckAndReportError(#function, (function));
-#else
-#define zt_dxCallAndReportOnErrorFast(function) function;
-#endif
-
-#endif // ZT_DIRECTX
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1436,26 +1407,8 @@ struct ztWindowDetails
 	int screen_w, screen_h;
 
 	zt_openGLSupport(ztContextGL *gl_context);
-
-	zt_directxSupport(IDXGISwapChain *dx_swapchain);
-	zt_directxSupport(ID3D11Device *dx_device);
-	zt_directxSupport(ID3D11DeviceContext *dx_context);
-	zt_directxSupport(ID3D11RenderTargetView *dx_backbuffer);
-	zt_directxSupport(ID3D11Buffer *dx_tri_verts_buffer);
-	zt_directxSupport(ID3D11BlendState *dx_transparency);
-	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_ccw);
-	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_cw);
-	zt_directxSupport(ID3D11RasterizerState *dx_cull_mode_none);
-	zt_directxSupport(ID3D11DepthStencilView* dx_depth_stencil_view);
-	zt_directxSupport(ID3D11Texture2D *dx_depth_stencil_buffer);
-	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_enabled);
-	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_disabled);
-	zt_directxSupport(ID3D11DepthStencilState *dx_stencil_state_enabled_leq);
-	zt_directxSupport(ID3D11Buffer *dx_skybox_buff_vert);
-	zt_directxSupport(int dx_texture_count);
-
-	zt_directxSupport(ID3D11RenderTargetView *dx_active_render_target);
-	zt_directxSupport(ID3D11DepthStencilView* dx_active_render_target_depth_stencil_view);
+	zt_directxSupport(ztContextDX *dx_context);
+	zt_directxSupport(ztVertexArrayDX *dx_tri_verts_array);
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1498,23 +1451,10 @@ enum ztShaderLoadType_Enum
 #define ZT_MAX_SHADERS		64
 #endif
 
-#ifndef ZT_SHADER_MAX_DX_CBUFFERS
-#define ZT_SHADER_MAX_DX_CBUFFERS	 8
-#endif
-
-
 struct ztShader
 {
 	zt_openGLSupport(ztShaderGL *gl_shader);
-
-#if defined(ZT_DIRECTX)
-	ID3D11VertexShader *dx_vert;
-	ID3D11PixelShader *dx_frag;
-	ID3D11InputLayout *dx_layout;
-	ID3D11Buffer *dx_cbuffers[ZT_SHADER_MAX_DX_CBUFFERS];
-	int dx_cbuffers_shader[ZT_SHADER_MAX_DX_CBUFFERS];
-	i32 dx_cbuffers_count;
-#endif
+	zt_directxSupport(ztShaderDX *dx_shader);
 
 	char name[64];
 	ztRenderer_Enum renderer;
@@ -1533,14 +1473,6 @@ struct ztShader
 	};
 
 	ztShaderVariableValues variables;
-
-	struct DxInfo
-	{
-		int cbuffer;
-		int offset;
-		int shader;
-	};
-	zt_directxSupport(DxInfo dx_info[ZT_SHADER_MAX_VARIABLES]);
 
 	int textures_bound;
 };
@@ -1561,16 +1493,7 @@ enum ztTextureLoadType_Enum
 struct ztTexture
 {
 	zt_openGLSupport(ztTextureGL *gl_texture);
-
-#if defined(ZT_DIRECTX)
-	ID3D11Texture2D *dx_tex;
-	ID3D11ShaderResourceView *dx_shader_resource_view;
-	ID3D11SamplerState *dx_sampler_state;
-
-	ID3D11Texture2D *dx_depth_stencil_buffer;
-	ID3D11DepthStencilView *dx_depth_stencil_view;
-	ID3D11RenderTargetView* dx_render_target_view;
-#endif
+	zt_directxSupport(ztTextureDX *dx_texture);
 
 	i32 width, height;
 	i32 flags;
@@ -1634,11 +1557,7 @@ struct ztMesh
 	i32 indices;
 
 	zt_openGLSupport(ztVertexArrayGL *gl_vertex_array);
-
-#if defined(ZT_DIRECTX)
-	ID3D11Buffer *dx_buff_vert, *dx_buff_idx;
-	i32 dx_stride;
-#endif
+	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
 };
 
 #define ztMeshMaxMeshes	256
@@ -2228,11 +2147,11 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer);
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal bool _zt_dxSetViewport(ztWindowDetails *win_details, ztGameSettings *game_settings, bool force);
-ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags);
-ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details);
-ztInternal void _zt_dxSwapBuffers(ztWindowDetails *win_details);
-ztInternal bool _zt_dxToggleFullscreen(ztWindowDetails *win_details, ztGameSettings *game_settings, bool);
+ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails *win_details, ztGameSettings *game_settings, bool force);
+ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags);
+ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details);
+ztInternal void _ztdx_rendererSwapBuffers(ztWindowDetails *win_details);
+ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails *win_details, ztGameSettings *game_settings, bool);
 
 bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_details);
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
@@ -4086,6 +4005,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			zt_textureRenderTargetPrepare(render_target_id);
 		}
 
+#if 0
 		if (skybox != ztInvalidID) {
 			if (zt->win_details[0].dx_skybox_buff_vert == nullptr) {
 				r32 skybox_verts[] = {
@@ -4110,17 +4030,17 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				ZeroMemory(&vb_data, sizeof(vb_data));
 				vb_data.pSysMem = skybox_verts;
 
-				zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateBuffer(&vb, &vb_data, &zt->win_details[0].dx_skybox_buff_vert));
+				ztdx_callAndReportOnError(zt->win_details[0].dx_device->CreateBuffer(&vb, &vb_data, &zt->win_details[0].dx_skybox_buff_vert));
 			}
 
-			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1);
+			zt->win_details[0].dx_context->context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1);
 
 			ztShaderID shader_id = zt_shaderGetDefault(ztShaderDefault_Skybox);
 			if (shader_id != ztInvalidID) {
 				zt_shaderApplyVariables(shader_id);
 
-				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
-				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+				zt->win_details[0].dx_context->context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
+				zt->win_details[0].dx_context->context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
 
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
@@ -4137,34 +4057,34 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt->game_details.curr_frame.shader_switches += 1;
 				{
 					ztTextureID texture_id = skybox;
-					zt->win_details[0].dx_context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
-					zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
+					zt->win_details[0].dx_context->context->PSSetShaderResources(0, 1, &zt->textures[texture_id].dx_shader_resource_view);
+					zt->win_details[0].dx_context->context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
 					float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
-					zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
+					zt->win_details[0].dx_context->context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
 
 					UINT stride = zt_sizeof(r32) * 3, offset = 0;
-					zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_skybox_buff_vert, &stride, &offset);
-					zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
-					zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					zt->win_details[0].dx_context->Draw(36, 0);
+					zt->win_details[0].dx_context->context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_skybox_buff_vert, &stride, &offset);
+					zt->win_details[0].dx_context->context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
+					zt->win_details[0].dx_context->context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					zt->win_details[0].dx_context->context->Draw(36, 0);
 
 					zt->game_details.curr_frame.triangles_drawn += 36;
 				}
 
 				if (render_target_id != ztInvalidID) {
-					zt->win_details[0].dx_context->ClearDepthStencilView(zt->textures[render_target_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+					zt->win_details[0].dx_context->context->ClearDepthStencilView(zt->textures[render_target_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
 				}
 				else {
-					zt->win_details[0].dx_context->ClearDepthStencilView(zt->win_details[0].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
+					zt->win_details[0].dx_context->context->ClearDepthStencilView(zt->win_details[0].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
 				}
 			}
 		}
-
+#endif
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled, 1);
+			ztdx_depthTestLess(zt->win_details[0].dx_context);
 		}
 		else {
-			zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_disabled, 1);
+			ztdx_depthTestOff(zt->win_details[0].dx_context);
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -4177,8 +4097,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztShaderID shader_id = shaders[i]->shader;
 			if (shaders[i]->shader != ztInvalidID) {
 				zt->game_details.curr_frame.shader_switches += 1;
-				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
-				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+				ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
 
 				ztMat4 dxMod = ztMat4::identity.getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
@@ -4193,8 +4112,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
 
 				zt->game_details.curr_frame.shader_switches += 1;
-				zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
-				zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
+				ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
 
 				ztMat4 dxMod = ztMat4::identity .getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
@@ -4217,16 +4135,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (cmp_tex->command) {
 					zt->game_details.curr_frame.texture_switches += 1;
-					zt_fiz(cmp_tex->command->texture_count) {
-						ztTextureID texture_id = cmp_tex->command->texture[i];
-						zt_assert(texture_id >= 0 && texture_id < zt->textures_count);
-
-						zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &zt->textures[texture_id].dx_shader_resource_view);
-						zt->win_details[0].dx_context->PSSetSamplers(0, 1, &zt->textures[texture_id].dx_sampler_state);
-
-						float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
-						zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
-					}
+					static u32 tex_diffuse_hash = zt_strHash("tex_diffuse");
+					zt_shaderSetVariableTex(shader_id, tex_diffuse_hash, cmp_tex->command->texture[0]);
+					zt_shaderApplyVariables(shader_id);
+					//ztdx_shaderVariableTex(zt->shaders[shader_id].dx_shader, tex_diffuse_hash, zt->textures[cmp_tex->command->texture[0]].dx_texture);
+					//ztdx_shaderPopulateConstantBuffers(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
 				}
 
 				ztCompileItem *cmp_item = cmp_tex->item;
@@ -4241,23 +4154,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						{
 							case ztDrawCommandType_Billboard:
 							case ztDrawCommandType_Triangle: {
-								zt_shaderApplyVariables(active_shader);
+								//zt_shaderApplyVariables(active_shader);
 
-								// copy the vertices into the buffer
-								D3D11_MAPPED_SUBRESOURCE ms;
-								zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
-								memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-								zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL);
-
-								UINT stride = sizeof(ztVertex), offset = 0;
-								zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
-								zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
-
-								// select which primtive type we are using
-								zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-								// draw the vertex buffer to the back buffer
-								zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
+								ztdx_vertexArrayUpdate(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
+								ztdx_vertexArrayDraw(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array);
 								buffer->vertices_count = 0;
 
 								zt->game_details.curr_frame.draw_calls += 1;
@@ -4265,23 +4165,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							case ztDrawCommandType_Line:
 							case ztDrawCommandType_Point: {
-								zt_shaderApplyVariables(active_shader);
+								//zt_shaderApplyVariables(active_shader);
 
-								// copy the vertices into the buffer
-								D3D11_MAPPED_SUBRESOURCE ms;
-								zt_dxCallAndReportOnErrorFast(zt->win_details[0].dx_context->Map(zt->win_details[0].dx_tri_verts_buffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
-								memcpy(ms.pData, buffer->vertices, zt_sizeof(ztVertex) * buffer->vertices_count);
-								zt->win_details[0].dx_context->Unmap(zt->win_details[0].dx_tri_verts_buffer, NULL);
-
-								UINT stride = sizeof(ztVertex), offset = 0;
-								zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &zt->win_details[0].dx_tri_verts_buffer, &stride, &offset);
-								zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[active_shader].dx_layout);
-
-								// select which primtive type we are using
-								zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-
-								// draw the vertex buffer to the back buffer
-								zt->win_details[0].dx_context->Draw(buffer->vertices_count, 0);
+								ztdx_vertexArrayUpdate(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
+								ztdx_vertexArrayDraw(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 								buffer->vertices_count = 0;
 
 								zt->game_details.curr_frame.draw_calls += 1;
@@ -4293,13 +4180,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							case ztDrawCommandType_Billboard:
 							case ztDrawCommandType_Triangle: {
 								buffer->vertices_count = 0;
-								zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
+								ztdx_cullBack(zt->win_details[0].dx_context);
 							} break;
 
 							case ztDrawCommandType_Line:
 							case ztDrawCommandType_Point: {
 								buffer->vertices_count = 0;
-								zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none);
+								ztdx_cullNone(zt->win_details[0].dx_context);
 							} break;
 						}
 					}
@@ -4320,12 +4207,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
 							int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
 
-							D3D11_RECT rect; rect.left = pos.x; rect.top = pos.y; rect.right = pos.x + w; rect.bottom = pos.y + h;
-							zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
+							ztdx_clipRegionSet(zt->win_details[0].dx_context, pos.x, pos.y, pos.x + w, pos.y + h);
 						}
 						else {
-							D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_game_settings[0].native_w; rect.bottom = zt->win_game_settings[0].native_h;
-							zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
+							ztdx_clipRegionRemove(zt->win_details[0].dx_context);
 						}
 					}
 
@@ -4440,17 +4325,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
-					D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_game_settings[0].native_w; rect.bottom = zt->win_game_settings[0].native_h;
-					zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
-				}
-
-				if (cmp_tex->command) {
-					ID3D11ShaderResourceView *srvnull = nullptr;
-					ID3D11SamplerState *ssnull = nullptr;
-					zt_fiz(cmp_tex->command->texture_count) {
-						zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
-						zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
-					}
+					ztdx_clipRegionRemove(zt->win_details[0].dx_context);
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -4458,8 +4333,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
-				D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_game_settings[0].native_w; rect.bottom = zt->win_game_settings[0].native_h;
-				zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
+				ztdx_clipRegionRemove(zt->win_details[0].dx_context);
 			}
 			// unbind shader?
 		}
@@ -4529,9 +4403,9 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 {
 	zt_assertReturnValOnFail(shader >= 0 && shader < zt->shaders_count, nullptr);
 
-	static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+	static u32 diffuse_tex_hash  = zt_strHash("diffuse_tex");
 	static u32 specular_tex_hash = zt_strHash("specular_tex");
-	static u32 normal_tex_hash = zt_strHash("normal_tex");
+	static u32 normal_tex_hash   = zt_strHash("normal_tex");
 
 	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDiffuse ) && zt_shaderHasVariable(shader, material->diffuse_tex_override  ? material->diffuse_tex_override  : diffuse_tex_hash , nullptr)) flags |= ztModelFlags_ShaderSupportsDiffuse;
 	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsSpecular) && zt_shaderHasVariable(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, nullptr)) flags |= ztModelFlags_ShaderSupportsSpecular;
@@ -4552,7 +4426,7 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	model->next = nullptr;
 	model->first_child = nullptr;
 	model->parent = parent;
-	if (parent) {
+	if (parent != nullptr) {
 		zt_singleLinkAddToEnd(parent->first_child, model);
 	}
 
@@ -5000,13 +4874,9 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 			glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 #			endif
 		} break;
+
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			auto* win_details = &zt->win_details[0];
-			r32 color[4] = {r, g, b, a};
-			win_details->dx_context->ClearRenderTargetView(win_details->dx_active_render_target, color);
-			win_details->dx_context->ClearDepthStencilView(win_details->dx_active_render_target_depth_stencil_view, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
-#			endif
+			zt_directxSupport(ztdx_clear(zt->win_details[0].dx_context, r, g, b, a));
 		} break;
 	}
 }
@@ -5034,14 +4904,14 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 
 				switch (function)
 				{
-					case ztRendererDepthTestFunction_Never       : glDepthFunc(GL_NEVER); break;
-					case ztRendererDepthTestFunction_Less        : glDepthFunc(GL_LESS); break;
-					case ztRendererDepthTestFunction_LessEqual   : glDepthFunc(GL_LEQUAL); break;
-					case ztRendererDepthTestFunction_Equal       : glDepthFunc(GL_EQUAL); break;
-					case ztRendererDepthTestFunction_Greater     : glDepthFunc(GL_GREATER); break;
-					case ztRendererDepthTestFunction_NotEqual    : glDepthFunc(GL_NOTEQUAL); break;
-					case ztRendererDepthTestFunction_GreaterEqual: glDepthFunc(GL_GEQUAL); break;
-					case ztRendererDepthTestFunction_Always      : glDepthFunc(GL_ALWAYS); break;
+					case ztRendererDepthTestFunction_Never       : ztgl_depthTestNever();        break;
+					case ztRendererDepthTestFunction_Less        : ztgl_depthTestLess();         break;
+					case ztRendererDepthTestFunction_LessEqual   : ztgl_depthTestLessEqual();    break;
+					case ztRendererDepthTestFunction_Equal       : ztgl_depthTestEqual();        break;
+					case ztRendererDepthTestFunction_Greater     : ztgl_depthTestGreater();      break;
+					case ztRendererDepthTestFunction_NotEqual    : ztgl_depthTestNotEqual();     break;
+					case ztRendererDepthTestFunction_GreaterEqual: ztgl_depthTestGreaterEqual(); break;
+					case ztRendererDepthTestFunction_Always      : ztgl_depthTestAlways();       break;
 				}
 				
 			}
@@ -5051,15 +4921,14 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 #			if defined(ZT_DIRECTX)
 			switch (function)
 			{
-				// TODO: Need stencil states for all the functions
-				case ztRendererDepthTestFunction_Never       : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_Less        : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_LessEqual   : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_Equal       : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_Greater     : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_NotEqual    : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_GreaterEqual: zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
-				case ztRendererDepthTestFunction_Always      : zt->win_details[0].dx_context->OMSetDepthStencilState(zt->win_details[0].dx_stencil_state_enabled_leq, 1); break;
+				case ztRendererDepthTestFunction_Never       : ztdx_depthTestNever(zt->win_details[0].dx_context);        break;
+				case ztRendererDepthTestFunction_Less        : ztdx_depthTestLess(zt->win_details[0].dx_context);         break;
+				case ztRendererDepthTestFunction_LessEqual   : ztdx_depthTestLessEqual(zt->win_details[0].dx_context);    break;
+				case ztRendererDepthTestFunction_Equal       : ztdx_depthTestEqual(zt->win_details[0].dx_context);        break;
+				case ztRendererDepthTestFunction_Greater     : ztdx_depthTestGreater(zt->win_details[0].dx_context);      break;
+				case ztRendererDepthTestFunction_NotEqual    : ztdx_depthTestNotEqual(zt->win_details[0].dx_context);     break;
+				case ztRendererDepthTestFunction_GreaterEqual: ztdx_depthTestGreaterEqual(zt->win_details[0].dx_context); break;
+				case ztRendererDepthTestFunction_Always      : ztdx_depthTestAlways(zt->win_details[0].dx_context);       break;
 			}
 #			endif
 		} break;
@@ -5087,9 +4956,9 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 #			if defined(ZT_DIRECTX)
 			switch (culling)
 			{
-				case ztRendererFaceCulling_CullBack : zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw); break;
-				case ztRendererFaceCulling_CullFront: zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_cw); break;
-				case ztRendererFaceCulling_CullNone : zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none); break;
+				case ztRendererFaceCulling_CullBack : ztdx_cullBack(zt->win_details[0].dx_context); break;
+				case ztRendererFaceCulling_CullFront: ztdx_cullFront(zt->win_details[0].dx_context); break;
+				case ztRendererFaceCulling_CullNone : ztdx_cullNone(zt->win_details[0].dx_context); break;
 			}
 #			endif
 		} break;
@@ -5332,63 +5201,32 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		if (dx_vert_cnt == 0) { error = "No DirectX vertex shader found"; goto on_error; }
 		if (dx_frag_cnt == 0) { error = "No DirectX fragment shader found"; goto on_error; }
 
-		ID3D10Blob *blob_code = nullptr;
-		ID3D10Blob *vert, *frag;
+		char *vert_src = data + dx_vert_beg[0];
+		vert_src[dx_vert_len[0]] = 0;
+		char vert_entry[128] = { 0 };
 
-		zt_fkz(2) {
-			ID3D10Blob **blob_shad = k == 0 ? &vert : &frag;
-			i32& dx_hlsl_cnt = k == 0 ? dx_vert_cnt : dx_frag_cnt;
-			i32* dx_hlsl_beg = k == 0 ? dx_vert_beg : dx_frag_beg;
-			i32* dx_hlsl_len = k == 0 ? dx_vert_len : dx_frag_len;
+		char *frag_src = data + dx_frag_beg[0];
+		frag_src[dx_frag_len[0]] = 0;
+		char frag_entry[128] = { 0 };
 
-			zt_fiz(dx_hlsl_cnt) {
-				char *src = data + dx_hlsl_beg[i];
-				src[dx_hlsl_len[i]] = 0;
-
-				int label_pos = zt_strFindLastPos(data_in, "<<[", (src - data) - 4);
-				char *header = data + label_pos;
+		struct DirectX
+		{
+			static void getEntryFunction(char *start, int start_len, const char *src, char entry_func[128])
+			{
+				int label_pos = zt_strFindLastPos(start, start_len, "<<[", (int)(src - start) - 4);
+				char *header = start + label_pos;
 				int label_end = zt_strFindPos(header, "]>>", 0);
-				header[label_end] = 0;
-
-				char entry_func[128];
 
 				ztToken header_tokens[4];
-				int header_tokens_count = zt_strTokenize(header, " ,", header_tokens, zt_elementsOf(header_tokens), ztStrTokenizeFlags_TrimWhitespace);
+				int header_tokens_count = zt_strTokenize(header, label_end, " ,", header_tokens, zt_elementsOf(header_tokens), ztStrTokenizeFlags_TrimWhitespace);
 				if (header_tokens_count == 2) { // 0 - hlsl_xx, 1 - entry function
-					zt_strCpy(entry_func, sizeof(entry_func), header + header_tokens[1].beg, header_tokens[1].len);
+					zt_strCpy(entry_func, 128, header + header_tokens[1].beg, header_tokens[1].len);
 				}
-
-				// D3DCOMPILE_PACK_MATRIX_ROW_MAJOR
-				// D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR
-
-				struct DirectX
-				{
-					static bool load_shader(const char *src, const char *entry, ID3DBlob **shader, int k)
-					{
-						ID3DBlob *blob_error = nullptr;
-						i32 hr = D3DCompile(src, zt_strLen(src), NULL, NULL, NULL, entry, k == 0 ? "vs_4_0" : "ps_4_0", 0, 0, shader, &blob_error);
-						if (blob_error != nullptr) {
-							char *b_error = (char*)blob_error->GetBufferPointer();
-							int b_error_len = blob_error->GetBufferSize();
-
-							char error_buffer[1024 * 16];
-							zt_strCpy(error_buffer, sizeof(error_buffer), b_error, b_error_len);
-							zt_logCritical("DirectX compile failure: %s", error_buffer);
-							return false;
-						}
-
-						return true;
-					}
-				};
-
-				if (!DirectX::load_shader(src, entry_func, blob_shad, k)) {
-					error = k == 0 ? "Unable to compile DirectX vertex shader." : "Unable to compile DirectX fragment shader.";
-					goto on_error;
-				}
-
-				break;
 			}
-		}
+		};
+
+		DirectX::getEntryFunction((char*)data_in, data_len, data_in + dx_vert_beg[0], vert_entry);
+		DirectX::getEntryFunction((char*)data_in, data_len, data_in + dx_frag_beg[0], frag_entry);
 
 		if (replace != ztInvalidID) {
 			zt_shaderFree(replace);
@@ -5401,247 +5239,35 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 		ztShader* shader = &zt->shaders[shader_id];
 		shader->renderer = ztRenderer_DirectX;
+		ztShaderDX *dx_shader = shader->dx_shader = ztdx_shaderMake(zt->win_details[0].dx_context, vert_src, vert_entry, frag_src, frag_entry);
+		if (shader->dx_shader == nullptr) {
+			return ztInvalidID;
+		}
 
-		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateVertexShader(vert->GetBufferPointer(), vert->GetBufferSize(), NULL, &shader->dx_vert));
-		zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreatePixelShader(frag->GetBufferPointer(), frag->GetBufferSize(), NULL, &shader->dx_frag));
-
-		zt->win_details[0].dx_context->VSSetShader(shader->dx_vert, NULL, NULL);
-		zt->win_details[0].dx_context->PSSetShader(shader->dx_frag, NULL, NULL);
-
-		shader->dx_cbuffers_count = 0;
-
-		zt_fkz(2) {
-			ID3D11ShaderReflection *reflection = nullptr;
-
-			ID3D10Blob *shad = k == 0 ? vert : frag;
-			zt_dxCallAndReportOnError(D3DReflect(shad->GetBufferPointer(), shad->GetBufferSize(), IID_ID3D11ShaderReflection, (void**)&reflection));
-			if (reflection) {
-				D3D11_SHADER_DESC shader_desc;
-				if (SUCCEEDED(reflection->GetDesc(&shader_desc))) {
-					D3D11_INPUT_ELEMENT_DESC layouts[ZT_SHADER_MAX_VARIABLES];
-					int layouts_count = 0;
-					i32 bytes_offset = 0;
-					if (k == 0) {
-						zt_fiz(zt_min(zt_elementsOf(layouts), (i32)shader_desc.InputParameters)) {
-							D3D11_SIGNATURE_PARAMETER_DESC param_desc;
-							if (FAILED(reflection->GetInputParameterDesc(i, &param_desc))) {
-								continue;
-							}
-
-							int idx = layouts_count++;
-							layouts[idx].SemanticName = param_desc.SemanticName;
-							layouts[idx].SemanticIndex = param_desc.SemanticIndex;
-							layouts[idx].InputSlot = 0;
-							layouts[idx].AlignedByteOffset = bytes_offset;
-							layouts[idx].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-							layouts[idx].InstanceDataStepRate = 0;
-
-							if (param_desc.Mask == 1) {
-								if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_UINT32) layouts[idx].Format = DXGI_FORMAT_R32_UINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_SINT32) layouts[idx].Format = DXGI_FORMAT_R32_SINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_FLOAT32) layouts[idx].Format = DXGI_FORMAT_R32_FLOAT;
-								bytes_offset += 4;
-							}
-							else if (param_desc.Mask <= 3) {
-								if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_UINT32) layouts[idx].Format = DXGI_FORMAT_R32G32_UINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_SINT32) layouts[idx].Format = DXGI_FORMAT_R32G32_SINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_FLOAT32) layouts[idx].Format = DXGI_FORMAT_R32G32_FLOAT;
-								bytes_offset += 8;
-							}
-							else if (param_desc.Mask <= 7) {
-								if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_UINT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32_UINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_SINT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32_SINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_FLOAT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-								bytes_offset += 12;
-							}
-							else if (param_desc.Mask <= 15) {
-								if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_UINT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32A32_UINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_SINT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32A32_SINT;
-								else if (param_desc.ComponentType == D3D_REGISTER_COMPONENT_FLOAT32) layouts[idx].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-								bytes_offset += 16;
-							}
-						}
-					}
-					else {
-						zt_fiz((i32)shader_desc.BoundResources) {
-							D3D11_SHADER_INPUT_BIND_DESC ibdesc;
-							reflection->GetResourceBindingDesc(i, &ibdesc);
-
-							int idx = shader->variables.variables_count++;
-							zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), ibdesc.Name);
-							shader->variables.variables[idx].type = ztShaderVariable_Invalid;
-
-							switch (ibdesc.Type)
-							{
-								case D3D_SIT_TEXTURE: {
-									shader->variables.variables[idx].type = ztShaderVariable_Tex;
-									shader->dx_info[idx].cbuffer = -1;
-									shader->dx_info[idx].offset = -1;
-									shader->dx_info[idx].shader = -1;
-								} break;
-							}
-						}
-					}
-
-					if (layouts_count > 0) {
-						zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateInputLayout(layouts, layouts_count, vert->GetBufferPointer(), vert->GetBufferSize(), &shader->dx_layout));
-					}
-
-					bytes_offset = 0;
-					//zt_assert(shader_desc.ConstantBuffers <= 1); // we don't currently support more than one
-					zt_fiz(zt_min(ZT_SHADER_MAX_VARIABLES, (i32)shader_desc.ConstantBuffers)) {
-						u32 register_idx = 0;
-						ID3D11ShaderReflectionConstantBuffer *buffer = reflection->GetConstantBufferByIndex(i);
-						if (!buffer) {
-							zt_logCritical("DirectX: Unable to get constant buffer index %d", i);
-							error = "Unable to get constant buffer from shader";
-							goto on_error;
-						}
-						D3D11_SHADER_BUFFER_DESC bdesc;
-						buffer->GetDesc(&bdesc);
-
-						zt_fjz((i32)shader_desc.BoundResources) {
-							D3D11_SHADER_INPUT_BIND_DESC ibdesc;
-							reflection->GetResourceBindingDesc(j, &ibdesc);
-
-							if (zt_strEquals(ibdesc.Name, bdesc.Name)) {
-								register_idx = ibdesc.BindPoint;
-								break;
-							}
-						}
-
-						zt_fjz((i32)bdesc.Variables) {
-							ID3D11ShaderReflectionVariable* variable = buffer->GetVariableByIndex(j);
-							if (!variable) {
-								zt_logCritical("DirectX: Unable to get variables for constant buffer index %d", i);
-								error = "Unable to get variables from constant buffer from shader";
-								goto on_error;
-							}
-							D3D11_SHADER_VARIABLE_DESC vdesc;
-							variable->GetDesc(&vdesc);
-
-							if (shader->variables.variables_count < ZT_SHADER_MAX_VARIABLES) {
-								struct local
-								{
-									static int processReflectionType(int which_shader, int cbuffer, ztShader *shader, ID3D11ShaderReflectionType *type, D3D11_SHADER_VARIABLE_DESC *vdesc, const char *element_name, int element_struct_size)
-									{
-										D3D11_SHADER_TYPE_DESC tdesc;
-										type->GetDesc(&tdesc);
-
-										if (tdesc.Class == D3D_SVC_STRUCT) {
-											int offset = vdesc->StartOffset;
-											zt_fkz(tdesc.Elements) {
-												zt_fiz(tdesc.Members) {
-													ID3D11ShaderReflectionType *mtype = type->GetMemberTypeByIndex(i);
-													const char *name = type->GetMemberTypeName(i);
-													zt_strMakePrintf(var_name, 256, "%s[%d].%s", vdesc->Name, k, name);
-													offset += processReflectionType(which_shader, cbuffer, shader, mtype, vdesc, var_name, offset);
-												}
-											}
-										}
-										else {
-											int idx = shader->variables.variables_count++;
-											if (element_name) {
-												zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), element_name);
-											}
-											else {
-												zt_strCpy(shader->variables.variables[idx].name, zt_sizeof(shader->variables.variables[idx].name), vdesc->Name);
-											}
-											shader->variables.variables[idx].name_hash = zt_strHash(shader->variables[idx].name);
-											shader->variables.variables[idx].type = ztShaderVariable_Invalid;
-
-											int size = 0;
-											switch (tdesc.Class)
-											{
-												case D3D_SVC_SCALAR: {
-													if (tdesc.Type == D3D_SVT_FLOAT) { shader->variables.variables[idx].type = ztShaderVariable_Float; size = 4; }
-													else if (tdesc.Type == D3D_SVT_INT) { shader->variables.variables[idx].type = ztShaderVariable_Int; size = 4; }
-												} break;
-
-												case D3D_SVC_VECTOR: {
-													if (tdesc.Type == D3D_SVT_FLOAT) {
-														if (tdesc.Rows == 1 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Vec4; size = 16; }
-														else if (tdesc.Rows == 1 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Vec3; size = 12; }
-														else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; size = 8; }
-													}
-												} break;
-
-												case D3D_SVC_MATRIX_COLUMNS: {
-													if (tdesc.Type == D3D_SVT_FLOAT) {
-														if (tdesc.Rows == 4 && tdesc.Columns == 4) { shader->variables.variables[idx].type = ztShaderVariable_Mat4; *((ztMat4*)shader->variables.variables[idx].val_mat4) = ztMat4::identity; size = 64; }
-														else if (tdesc.Rows == 3 && tdesc.Columns == 3) { shader->variables.variables[idx].type = ztShaderVariable_Mat3; size = 36; }
-														else if (tdesc.Rows == 1 && tdesc.Columns == 2) { shader->variables.variables[idx].type = ztShaderVariable_Vec2; size = 8; }
-													}
-												} break;
-
-												default: {
-													shader->variables.variables_count--;
-													return 0;
-												} break;
-											}
-
-
-											int size_add = 0;
-											if(element_struct_size != 0) {
-												if( 16 - (element_struct_size % 16) < size) {
-													size_add = 16 - (element_struct_size % 16);
-													element_struct_size += size_add;
-												}
-											}
-											//while(size % 16 != 0) {
-											//	size += 1;
-											//}
-
-
-											shader->dx_info[idx].offset = element_struct_size == 0 ? vdesc->StartOffset : element_struct_size;
-											shader->dx_info[idx].shader = which_shader;
-											shader->dx_info[idx].cbuffer = cbuffer;
-
-											return size + size_add;
-										}
-
-										return 0;
-									}
-								};
-
-								ID3D11ShaderReflectionType* type = variable->GetType();
-								local::processReflectionType(k, shader->dx_cbuffers_count, shader, type, &vdesc, nullptr, 0);
-							}
-						}
-
-						D3D11_BUFFER_DESC cbbd;
-						ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
-
-						i32 size = bdesc.Size;
-						if (size % 16 != 0) {
-							size += 16 - (size % 16);
-						}
-
-						//cbbd.Usage = D3D11_USAGE_DYNAMIC;
-						cbbd.Usage = D3D11_USAGE_DEFAULT;
-						cbbd.ByteWidth = size;
-						cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-						cbbd.CPUAccessFlags = 0;// D3D11_CPU_ACCESS_WRITE;
-						cbbd.MiscFlags = 0;
-
-						zt_logDebug("[%s] DirectX: Creating constant buffer of size %d", name, size);
-
-						shader->dx_cbuffers_shader[shader->dx_cbuffers_count] = k;
-						zt_dxCallAndReportOnError(zt->win_details[0].dx_device->CreateBuffer(&cbbd, NULL, &shader->dx_cbuffers[shader->dx_cbuffers_count++]));
-					}
-				}
-				reflection->Release();
+		shader->variables.variables_count = dx_shader->variables_count;
+		zt_fiz(shader->variables.variables_count) {
+			ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
+			switch (dx_shader->variables[i].type)
+			{
+				case ztShaderDXVariableType_Float  : var_type = ztShaderVariable_Float; break;
+				case ztShaderDXVariableType_Vec2   : var_type = ztShaderVariable_Vec2; break;
+				case ztShaderDXVariableType_Vec3   : var_type = ztShaderVariable_Vec3; break;
+				case ztShaderDXVariableType_Vec4   : var_type = ztShaderVariable_Vec4; break;
+				case ztShaderDXVariableType_Int    : var_type = ztShaderVariable_Int; break;
+				case ztShaderDXVariableType_Mat3   : var_type = ztShaderVariable_Mat3; break;
+				case ztShaderDXVariableType_Mat4   : var_type = ztShaderVariable_Mat4; break;
+				case ztShaderDXVariableType_Tex    : var_type = ztShaderVariable_Tex; break;
+				case ztShaderDXVariableType_TexCube: var_type = ztShaderVariable_TexCube; break;
 			}
 
-#if 0
-			ID3D10Blob *disassembly = nullptr;
-			D3DDisassemble(shad->GetBufferPointer(), shad->GetBufferSize(), D3D_DISASM_ENABLE_DEFAULT_VALUE_PRINTS | D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING, NULL, &disassembly);
-			if (disassembly) {
-				char temp[1024 * 32];
-				zt_strCpy(temp, zt_sizeof(temp), (char*)disassembly->GetBufferPointer(), disassembly->GetBufferSize());
-				zt_logDebug(temp);
+			if (var_type == ztShaderVariable_Invalid) {
+				zt_logDebug("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
 			}
-#endif
+			else {
+				shader->variables.variables[i].type = var_type;
+				zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), dx_shader->variables[i].name);
+				shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+			}
 		}
 
 #else
@@ -5752,25 +5378,7 @@ void zt_shaderFree(ztShaderID shader_id)
 		zt_openGLSupport(ztgl_shaderFree(shader->gl_shader));
 	}
 	else if (shader->renderer == ztRenderer_DirectX) {
-#if defined(ZT_DIRECTX)
-		if (shader->dx_vert) {
-			shader->dx_vert->Release();
-			shader->dx_vert = nullptr;
-		}
-		if (shader->dx_frag) {
-			shader->dx_frag->Release();
-			shader->dx_frag = nullptr;
-		}
-		if (shader->dx_layout) {
-			shader->dx_layout->Release();
-			shader->dx_layout = nullptr;
-		}
-		zt_fiz(shader->dx_cbuffers_count) {
-			shader->dx_cbuffers[i]->Release();
-			shader->dx_cbuffers[i] = nullptr;
-		}
-		shader->dx_cbuffers_count = 0;
-#endif // ZT_DIRECTX
+		zt_directxSupport(ztdx_shaderFree(zt->win_details[0].dx_context, shader->dx_shader));
 	}
 
 	zt_memSet(shader, sizeof(ztShader), 0);
@@ -5789,11 +5397,7 @@ void zt_shaderBegin(ztShaderID shader_id)
 		} break;
 
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt->win_details[0].dx_context->VSSetShader(zt->shaders[shader_id].dx_vert, NULL, NULL);
-			zt->win_details[0].dx_context->PSSetShader(zt->shaders[shader_id].dx_frag, NULL, NULL);
-			zt->win_details[0].dx_context->IASetInputLayout(zt->shaders[shader_id].dx_layout);
-#			endif
+			zt_directxSupport(ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader));
 		} break;
 
 		default: {
@@ -5811,20 +5415,11 @@ void zt_shaderEnd(ztShaderID shader_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-
-			zt_fiz(zt->shaders[shader_id].textures_bound) {
-			}
-
-			ztgl_callAndReportOnErrorFast(glUseProgram(0));
-#			endif
+			zt_openGLSupport(ztgl_shaderEnd(zt->shaders[shader_id].gl_shader));
 		} break;
 
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt->win_details[0].dx_context->VSSetShader(NULL, NULL, NULL);
-			zt->win_details[0].dx_context->PSSetShader(NULL, NULL, NULL);
-#			endif
+			zt_directxSupport(ztdx_shaderEnd(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader));
 		} break;
 
 		default: {
@@ -5925,71 +5520,24 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 #			if defined(ZT_DIRECTX)
 			// populate cbuffer data
 			if (shader_vars->variables_count) {
-				zt->win_details[0].dx_context->VSSetConstantBuffers(0, 0, NULL);
-				zt->win_details[0].dx_context->PSSetConstantBuffers(0, 0, NULL);
+				zt_fiz(shader_vars->variables_count) {
+					ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
 
-				int cbuffer_count[2] = { 0 };
-
-				zt_fkz(shader->dx_cbuffers_count) {
-					i32 cbuffer_idx = k;
-					byte cbuffer_data[1024 * 4];
-
-					zt_fiz(shader_vars->variables_count) {
-						if(shader->dx_info[i].cbuffer != cbuffer_idx) {
-							continue;
-						}
-
-						int cbuffer_pos = shader->dx_info[i].offset;
-
-						i32 size = 0;
-						r32 data[16];
-						zt_memCpy(data, zt_sizeof(r32) * 16, &shader_vars->variables[i].val_float, zt_sizeof(r32) * 16);
-
-						switch (shader->variables.variables[i].type)
-						{
-							case ztShaderVariable_Float: size = zt_sizeof(r32); break;
-							case ztShaderVariable_Int: size = zt_sizeof(i32); break;
-							case ztShaderVariable_Vec2: size = zt_sizeof(r32) * 2; break;
-							case ztShaderVariable_Vec3: {
-								size = zt_sizeof(r32) * 3;
-							} break;
-							case ztShaderVariable_Vec4: {
-								size = zt_sizeof(r32) * 4;
-								r32 *sdata = shader_vars->variables[i].val_vec4;
-							} break;
-							case ztShaderVariable_Mat3: {
-								size = zt_sizeof(r32) * 9;
-								r32 *sdata = shader_vars->variables[i].val_mat3;
-								data[1] = sdata[3];
-								data[2] = sdata[6];
-								data[3] = sdata[1];
-								data[5] = sdata[7];
-								data[6] = sdata[2];
-								data[7] = sdata[5];
-							} break;
-							case ztShaderVariable_Mat4: {
-								size = zt_sizeof(r32) * 16;
-								((ztMat4*)data)->transpose();
-							} break;
-							case ztShaderVariable_Tex: size = zt_sizeof(i32); break;
-							case ztShaderVariable_TexCube: size = zt_sizeof(i32); break;
-						}
-
-						zt_memCpy(cbuffer_data + cbuffer_pos, size, data, size);
-					}
-
-					cbuffer_count[shader->dx_cbuffers_shader[cbuffer_idx]] += 1;
-
-					zt->win_details[0].dx_context->UpdateSubresource(shader->dx_cbuffers[cbuffer_idx], 0, NULL, cbuffer_data, 0, 0);
-					int slot = cbuffer_count[shader->dx_cbuffers_shader[cbuffer_idx]] - 1;
-					if (shader->dx_cbuffers_shader[cbuffer_idx] == 0) {
-						zt->win_details[0].dx_context->VSSetConstantBuffers(slot, 1, &shader->dx_cbuffers[cbuffer_idx]);
-					}
-					else {
-						zt->win_details[0].dx_context->PSSetConstantBuffers(slot, 1, &shader->dx_cbuffers[cbuffer_idx]);
+					switch (val->type)
+					{
+						case ztShaderVariable_Float  : ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
+						case ztShaderVariable_Int    : ztdx_shaderVariableInt  (shader->dx_shader, val->name_hash, val->val_int); break;
+						case ztShaderVariable_Vec2   : ztdx_shaderVariableVec2 (shader->dx_shader, val->name_hash, val->val_vec2); break;
+						case ztShaderVariable_Vec3   : ztdx_shaderVariableVec3 (shader->dx_shader, val->name_hash, val->val_vec3); break;
+						case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4); break;
+						case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3); break;
+						case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4); break;
+						case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
+						case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
 					}
 				}
-	
+
+				ztdx_shaderPopulateConstantBuffers(zt->win_details[0].dx_context, shader->dx_shader);
 			}
 #			endif
 		} break;
@@ -6218,159 +5766,45 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
-	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-		return ztInvalidID;
-	}
+	ztTextureID texture_id = zt->textures_count++;
+	ztTexture *texture = &zt->textures[texture_id];
 
-	if (pixel_data) {
-		int half_height = height / 2;
-		u32* pix_u32 = ((u32*)pixel_data);
-		for (int y = 0; y < half_height; ++y) {
-			for (int x = 0; x < width; ++x) {
-				int idx_1 = (y * width) + x;
-				int idx_2 = (((height - y) - 1) * width) + x;
-				uint32 pixel = pix_u32[idx_2];
-				pix_u32[idx_2] = pix_u32[idx_1];
-				pix_u32[idx_1] = pixel;
+	texture->renderer = zt_currentRenderer();
+	texture->width = width;
+	texture->height = height;
+	texture->flags = flags;
+
+	switch (texture->renderer)
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			if (pixel_data) {
+				texture->gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
 			}
-		}
-	}
-
-	bool render_target = pixel_data == nullptr;
-
-	ztTextureID texture_id = ztInvalidID;
-
-	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-#if defined(ZT_OPENGL)
-		return ztInvalidID;
-#else
-		*error = "OpenGL is disabled in the library";
-		return ztInvalidID;
-#endif // ZT_OPENGL
-	}
-	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
-#if defined(ZT_DIRECTX)
-		D3D11_TEXTURE2D_DESC desc;
-		desc.Width = width;
-		desc.Height = height;
-		desc.MipLevels = 1; // zt_bitIsSet(flags, ztTextureFlags_MipMaps) ? 0 : 1; // this is crashing
-		desc.ArraySize = 1;
-		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		desc.SampleDesc.Count = 1;
-		desc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.BindFlags = (render_target ? D3D11_BIND_RENDER_TARGET : 0) | D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = 0;
-		desc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA subr;
-		subr.pSysMem = pixel_data;
-		subr.SysMemPitch = width * 4;
-		subr.SysMemSlicePitch = width * height * 4; // not needed in 2d tex
-
-		ID3D11Texture2D *dx_tex;
-		if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&desc, (render_target ? nullptr : &subr), &dx_tex))) {
-			*error = "CreateTexture2D failed.";
-			return ztInvalidID;
-		}
-
-		ID3D11RenderTargetView *dx_render_target_view = nullptr;
-		ID3D11Texture2D *dx_depth_stencil_buffer = nullptr;
-		ID3D11DepthStencilView *dx_depth_stencil_view = nullptr;
-		if (render_target) {
-			D3D11_TEXTURE2D_DESC dsdesc;
-
-			dsdesc.Width = width;
-			dsdesc.Height = height;
-			dsdesc.MipLevels = 1;
-			dsdesc.ArraySize = 1;
-			dsdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-			dsdesc.SampleDesc.Count = 1;
-			dsdesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
-			dsdesc.Usage = D3D11_USAGE_DEFAULT;
-			dsdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-			dsdesc.CPUAccessFlags = 0;
-			dsdesc.MiscFlags = 0;
-
-			if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&dsdesc, NULL, &dx_depth_stencil_buffer))) {
-				*error = "CreateTexture2D failed.";
+			else {
+				texture->gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
+			}
+			if (texture->gl_texture == nullptr) {
+				zt->textures_count -= 1;
 				return ztInvalidID;
 			}
-			if (FAILED(zt->win_details[0].dx_device->CreateDepthStencilView(dx_depth_stencil_buffer, NULL, &dx_depth_stencil_view))) {
-				*error = "CreateDepthStencilView failed.";
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			if (pixel_data) {
+				texture->dx_texture = ztdx_textureMakeFromPixelData(zt->win_details[0].dx_context, pixel_data, width, height, depth, flags);
+			}
+			else {
+				texture->dx_texture = ztdx_textureMakeRenderTarget(zt->win_details[0].dx_context, width, height, flags);
+			}
+			if (texture->dx_texture == nullptr) {
+				zt->textures_count -= 1;
 				return ztInvalidID;
 			}
-
-
-			D3D11_RENDER_TARGET_VIEW_DESC rtvd;
-			ZeroMemory(&rtvd, zt_sizeof(rtvd));
-			rtvd.Format = desc.Format;
-			rtvd.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-			rtvd.Texture2D.MipSlice = 0;
-
-			if (FAILED(zt->win_details[0].dx_device->CreateRenderTargetView(dx_tex, &rtvd, &dx_render_target_view))) {
-				*error = "CreateRenderTargetView failed.";
-				return ztInvalidID;
-			}
-		}
-
-		ID3D11ShaderResourceView *dx_shader_resource_view;
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
-		ZeroMemory(&srvd, zt_sizeof(srvd));
-
-		srvd.Format = desc.Format;
-		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvd.Texture2D.MostDetailedMip = 0;
-		srvd.Texture2D.MipLevels = 1;
-
-		if (FAILED(zt->win_details[0].dx_device->CreateShaderResourceView(dx_tex, (render_target ? &srvd : nullptr), &dx_shader_resource_view))) {
-			*error = "CreateShaderResourceView failed.";
-			return ztInvalidID;
-		}
-
-		ID3D11SamplerState *dx_sampler_state;
-
-		D3D11_SAMPLER_DESC samp_desc;
-		ZeroMemory(&samp_desc, sizeof(samp_desc));
-		if (zt_bitIsSet(flags, ztTextureFlags_PixelPerfect)) {
-			samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-		}
-		else {
-			samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		}
-		samp_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		samp_desc.MinLOD = 0;
-		samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
-
-		if (FAILED(zt->win_details[0].dx_device->CreateSamplerState(&samp_desc, &dx_sampler_state))) {
-			*error = "CreateSamplerState failed.";
-			return ztInvalidID;
-		}
-
-		texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-
-		zt->textures[texture_id].renderer = ztRenderer_DirectX;
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-		zt->textures[texture_id].flags = flags;
-		zt->textures[texture_id].dx_tex = dx_tex;
-		zt->textures[texture_id].dx_shader_resource_view = dx_shader_resource_view;
-		zt->textures[texture_id].dx_sampler_state = dx_sampler_state;
-		zt->textures[texture_id].dx_depth_stencil_buffer = dx_depth_stencil_buffer;
-		zt->textures[texture_id].dx_depth_stencil_view = dx_depth_stencil_view;
-		zt->textures[texture_id].dx_render_target_view = dx_render_target_view;
-
-#else
-		*error = "DirectX is disabled in the library";
-		return ztInvalidID;
-#endif // ZT_DIRECTX
-	}
-	else {
-		zt_assert(false);
+#			endif
+		} break;
 	}
 
 	return texture_id;
@@ -6421,19 +5855,12 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	}
 
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
-	if(texture_id == ztInvalidID && zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-		texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-		zt->textures[texture_id].flags = flags;
-		zt->textures[texture_id].gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
-	}
+
 	if (texture_id != ztInvalidID) {
-		zt->textures[texture_id].load_type = ztTextureLoadType_Asset;
-		zt->textures[texture_id].asset_mgr = asset_mgr;
-		zt->textures[texture_id].asset_id = asset_id;
+		ztTexture *texture = &zt->textures[texture_id];
+		texture->load_type = ztTextureLoadType_Asset;
+		texture->asset_mgr = asset_mgr;
+		texture->asset_id = asset_id;
 
 		zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererTextureReload, (void*)texture_id);
 	}
@@ -6462,23 +5889,15 @@ ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 	int depth = 4;
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
-	if (texture_id == ztInvalidID && zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-		texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-		zt->textures[texture_id].flags = flags;
-		zt->textures[texture_id].gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
-	}
 	if (texture_id != ztInvalidID) {
-		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
+		ztTexture *texture = &zt->textures[texture_id];
+		texture->load_type = ztTextureLoadType_Data;
 		
 		// we copy this so we can reload if necessary
-		zt->textures[texture_id].arena = zt_memGetGlobalArena();
-		zt->textures[texture_id].data_len = width * height * depth;
-		zt->textures[texture_id].data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
-		zt_memCpy(zt->textures[texture_id].data, zt->textures[texture_id].data_len, pixel_data, zt->textures[texture_id].data_len);
+		texture->arena = zt_memGetGlobalArena();
+		texture->data_len = width * height * depth;
+		texture->data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
+		zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
 	}
 	else {
 		zt_logCritical("Unable to load texture (%d x %d). %s.", width, height, error);
@@ -6527,23 +5946,15 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 	}
 
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
-	if (texture_id == ztInvalidID && zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-		texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-		zt->textures[texture_id].flags = flags;
-		zt->textures[texture_id].gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
-	}
 	if (texture_id != ztInvalidID) {
-		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
+		ztTexture *texture = &zt->textures[texture_id];
+		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
-		zt->textures[texture_id].arena = zt_memGetGlobalArena();
-		zt->textures[texture_id].data_len = width * height * depth;
-		zt->textures[texture_id].data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
-		zt_memCpy(zt->textures[texture_id].data, zt->textures[texture_id].data_len, pixel_data, zt->textures[texture_id].data_len);
+		texture->arena = zt_memGetGlobalArena();
+		texture->data_len = width * height * depth;
+		texture->data = zt_mallocStructArray(byte, texture->data_len);
+		zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
 	}
 
 	stbi_image_free(pixel_data);
@@ -6564,13 +5975,14 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase((byte*)data, width, height, 4, flags, &error);
 	if (texture_id != ztInvalidID) {
-		zt->textures[texture_id].load_type = ztTextureLoadType_Data;
+		ztTexture *texture = &zt->textures[texture_id];
+		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
-		zt->textures[texture_id].arena = zt_memGetGlobalArena();
-		zt->textures[texture_id].data_len = width * height * 4;
-		zt->textures[texture_id].data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
-		zt_memCpy(zt->textures[texture_id].data, zt->textures[texture_id].data_len, data, zt->textures[texture_id].data_len);
+		texture->arena = zt_memGetGlobalArena();
+		texture->data_len = width * height * 4;
+		texture->data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
+		zt_memCpy(texture->data, texture->data_len, data, texture->data_len);
 	}
 
 	return texture_id;
@@ -6584,14 +5996,6 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase(nullptr, width, height, 4, flags, &error);
-	if (texture_id == ztInvalidID) {
-		texture_id = zt->textures_count++;
-		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
-		zt->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
-		zt->textures[texture_id].gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-	}
 	if (texture_id != ztInvalidID) {
 		zt->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
 	}
@@ -6652,135 +6056,49 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 		}
 	}
 
-	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-#		if defined(ZT_OPENGL)
-
-		int width, height, depth;
-		byte *pixel_data[ztTextureGLCubeMapFiles_MAX];
-		zt_fiz(ztTextureGLCubeMapFiles_MAX) {
-			pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
-		}
-
-		ztTextureGL *gl_texture = ztgl_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
-
-		zt_fiz(ztTextureCubeMapFiles_MAX) {
-			stbi_image_free(pixel_data[i]);
-			zt_free(tex_data[i]);
-		}
-
-		ztTextureID texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-
-		zt->textures[texture_id].renderer = ztRenderer_OpenGL;
-		zt->textures[texture_id].width = width;
-		zt->textures[texture_id].height = height;
-		zt->textures[texture_id].flags = 0;
-		zt->textures[texture_id].gl_texture = gl_texture;
-
-		return texture_id;
-#		else
-		*error = "OpenGL is disabled in the library";
-		return ztInvalidID;
-#		endif // ZT_OPENGL
+	int width, height, depth;
+	byte *pixel_data[ztTextureGLCubeMapFiles_MAX];
+	zt_fiz(ztTextureGLCubeMapFiles_MAX) {
+		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
-	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
-#		if defined(ZT_DIRECTX)
-		D3D11_TEXTURE2D_DESC desc;
-//		desc.Width = width;
-//		desc.Height = height;
-		desc.MipLevels = 1;
-		desc.ArraySize = 6;
-		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		desc.SampleDesc.Count = 1;
-		desc.SampleDesc.Quality = 0;
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = 0;
-		desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
-		ID3D11ShaderResourceView *dx_shader_resource_view;
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
-		ZeroMemory(&srvd, zt_sizeof(srvd));
+	ztTextureID texture_id = zt->textures_count++;
+	ztTexture *texture = &zt->textures[texture_id];
 
-		srvd.Format = desc.Format;
-		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-		srvd.Texture2D.MipLevels = desc.MipLevels;
-		srvd.Texture2D.MostDetailedMip = 0;
-
-		D3D11_SUBRESOURCE_DATA subr[ztTextureCubeMapFiles_MAX];
-		zt_fiz(ztTextureCubeMapFiles_MAX) {
-			int width, height, depth;
-			byte *pixel_data = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
-			if (pixel_data == nullptr) {
+	texture->renderer = zt_currentRenderer();
+	switch (texture->renderer)
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
+			if (texture->gl_texture == nullptr) {
+				zt->textures_count--;
 				return ztInvalidID;
 			}
+#			endif
+		} break;
 
-			subr[i].pSysMem = pixel_data;
-			subr[i].SysMemPitch = width * 4;
-			subr[i].SysMemSlicePitch = width * height * 4;
-			desc.Width = width;
-			desc.Height = height;
-		}
-
-		ID3D11Texture2D *dx_tex;
-		if (FAILED(zt->win_details[0].dx_device->CreateTexture2D(&desc, subr, &dx_tex))) {
-			zt_logCritical("CreateTexture2D failed.");
-			return ztInvalidID;
-		}
-
-		bool failed = FAILED(zt->win_details[0].dx_device->CreateShaderResourceView(dx_tex, &srvd, &dx_shader_resource_view));
-
-		zt_fiz(ztTextureCubeMapFiles_MAX) {
-			stbi_image_free((void*)subr[i].pSysMem);
-			zt_free(tex_data[i]);
-		}
-
-		if (failed) {
-			zt_logCritical("CreateShaderResourceView failed.");
-			return ztInvalidID;
-		}
-
-		ID3D11SamplerState *dx_sampler_state;
-
-		D3D11_SAMPLER_DESC samp_desc;
-		ZeroMemory(&samp_desc, sizeof(samp_desc));
-		samp_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		samp_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-		samp_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		samp_desc.MinLOD = 0;
-		samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
-
-		if (FAILED(zt->win_details[0].dx_device->CreateSamplerState(&samp_desc, &dx_sampler_state))) {
-			zt_logCritical("CreateSamplerState failed.");
-			return ztInvalidID;
-		}
-
-		ztTextureID texture_id = zt->textures_count++;
-		zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
-
-		zt->textures[texture_id].renderer = ztRenderer_DirectX;
-		zt->textures[texture_id].width = desc.Width;
-		zt->textures[texture_id].height = desc.Height;
-		zt->textures[texture_id].flags = 0;
-		zt->textures[texture_id].dx_tex = dx_tex;
-		zt->textures[texture_id].dx_shader_resource_view = dx_shader_resource_view;
-		zt->textures[texture_id].dx_sampler_state = dx_sampler_state;
-		zt->textures[texture_id].dx_depth_stencil_buffer = nullptr;
-		zt->textures[texture_id].dx_depth_stencil_view = nullptr;
-		zt->textures[texture_id].dx_render_target_view = nullptr;
-
-		return texture_id;
-#		else
-		return ztInvalidID;
-#		endif // ZT_DIRECTX
-	}
-	else {
-		zt_assert(false);
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			texture->dx_texture = ztdx_textureMakeCubeMapFromPixelData(zt->win_details[0].dx_context, pixel_data, width, height, depth);
+			if (texture->dx_texture == nullptr) {
+				zt->textures_count--;
+				return ztInvalidID;
+			}
+#			endif
+		} break;
 	}
 
-	return ztInvalidID;
+	texture->width  = width;
+	texture->height = height;
+	texture->flags  = 0;
+
+	zt_fiz(ztTextureCubeMapFiles_MAX) {
+		stbi_image_free(pixel_data[i]);
+		zt_free(tex_data[i]);
+	}
+
+	return texture_id;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6795,32 +6113,15 @@ void zt_textureFree(ztTextureID texture_id)
 #		if defined(ZT_OPENGL)
 		ztgl_textureFree(zt->textures[texture_id].gl_texture);
 		zt->textures[texture_id].gl_texture = nullptr;
-#		else
-		zt_assert(false);
 #		endif // ZT_OPENGL
 	}
 	else if (zt->textures[texture_id].renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
-		zt->textures[texture_id].dx_sampler_state->Release();
-		zt->textures[texture_id].dx_shader_resource_view->Release();
-		zt->textures[texture_id].dx_tex->Release();
-
-		if (zt->textures[texture_id].dx_render_target_view) {
-			zt->textures[texture_id].dx_render_target_view->Release();
-			zt->textures[texture_id].dx_depth_stencil_buffer->Release();
-			zt->textures[texture_id].dx_depth_stencil_view->Release();
-		}
-
-		zt->textures[texture_id].dx_sampler_state = nullptr;
-		zt->textures[texture_id].dx_shader_resource_view = nullptr;
-		zt->textures[texture_id].dx_tex = nullptr;
-		zt->textures[texture_id].dx_depth_stencil_buffer = nullptr;
-		zt->textures[texture_id].dx_depth_stencil_view = nullptr;
-		zt->textures[texture_id].dx_render_target_view = nullptr;
-#		else
-		zt_assert(false);
+		ztdx_textureFree(zt->textures[texture_id].dx_texture);
+		zt->textures[texture_id].dx_texture = nullptr;
 #		endif // ZT_DIRECTX
 	}
+
 	if (zt->textures[texture_id].load_type == ztTextureLoadType_Data) {
 		zt_freeArena(zt->textures[texture_id].data, zt->textures[texture_id].arena);
 	}
@@ -6838,46 +6139,7 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 		} break;
 
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-
-			ID3D11ShaderResourceView *srvnull = nullptr;
-			ID3D11SamplerState *ssnull = nullptr;
-			zt_fiz(zt->win_details[0].dx_texture_count) {
-				zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
-				zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
-			}
-			zt->win_details[0].dx_texture_count = 0;
-
-			ID3D11RenderTargetView *rtvnull = nullptr;
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, NULL);
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->textures[texture_id].dx_render_target_view, zt->textures[texture_id].dx_depth_stencil_view);
-
-			//zt->win_details[0].dx_context->ClearRenderTargetView(zt->textures[texture_id].dx_render_target_view, clear.values);
-			zt->win_details[0].dx_context->ClearDepthStencilView(zt->textures[texture_id].dx_depth_stencil_view, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-			zt->win_details[0].dx_active_render_target = zt->textures[texture_id].dx_render_target_view;
-			zt->win_details[0].dx_active_render_target_depth_stencil_view = zt->textures[texture_id].dx_depth_stencil_view;
-
-			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
-				zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_none);
-			}
-
-			D3D11_VIEWPORT viewport;
-			ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-			viewport.TopLeftX = 0;
-			viewport.TopLeftY = 0;
-			viewport.MinDepth = 0;
-			viewport.MaxDepth = 1;
-
-			viewport.Width = (r32)zt->textures[texture_id].width;
-			viewport.Height = (r32)zt->textures[texture_id].height;
-
-			zt->win_details[0].dx_context->RSSetViewports(1, &viewport);
-			D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = (i32)viewport.Width; rect.bottom = (i32)viewport.Height;
-			zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
-
-#			endif
+			zt_directxSupport(ztdx_textureRenderTargetPrepare(zt->win_details[0].dx_context, zt->textures[texture_id].dx_texture));
 		} break;
 	}
 }
@@ -6892,23 +6154,8 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 			zt_openGLSupport(ztgl_textureRenderTargetCommit(zt->textures[texture_id].gl_texture, zt->win_details[0].gl_context));
 		} break;
 
-
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			if (zt_bitIsSet(zt->textures[texture_id].flags, ztTextureFlags_DepthMap)) {
-				zt->win_details[0].dx_context->RSSetState(zt->win_details[0].dx_cull_mode_ccw);
-			}
-
-			ID3D11RenderTargetView *rtvnull = nullptr;
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &rtvnull, nullptr);
-			zt->win_details[0].dx_context->OMSetRenderTargets(1, &zt->win_details[0].dx_backbuffer, zt->win_details[0].dx_depth_stencil_view);
-			zt->win_details[0].dx_active_render_target = zt->win_details[0].dx_backbuffer;
-			zt->win_details[0].dx_active_render_target_depth_stencil_view = zt->win_details[0].dx_depth_stencil_view;
-
-			_zt_dxSetViewport(&zt->win_details[0], &zt->win_game_settings[0], true);
-			D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_details[0].screen_w; rect.bottom = zt->win_details[0].screen_h;
-			zt->win_details[0].dx_context->RSSetScissorRects(1, &rect);
-#			endif
+			zt_directxSupport(ztdx_textureRenderTargetCommit(zt->win_details[0].dx_context, zt->textures[texture_id].dx_texture));
 		} break;
 	}
 }
@@ -8890,77 +8137,27 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 
-			struct DirectX
-			{
-				static int getVariableSlot(ztShaderID shader_id, char *variable)
-				{
-					ztShader *shader = &zt->shaders[shader_id];
-					int tex_count = 0;
-					zt_fiz(shader->variables.variables_count) {
-						if (shader->dx_info[i].shader == -1) { // just texture vars
-							if (zt_strEquals(shader->variables.variables[i].name, variable)) {
-								return tex_count;
-							}
-							tex_count += 1;
-						}
-					}
-					return -1;
-				}
-			};
-
-			ID3D11ShaderResourceView *srvnull = nullptr;
-			ID3D11SamplerState *ssnull = nullptr;
-			zt_fiz(zt->win_details[0].dx_texture_count) {
-				zt->win_details[0].dx_context->PSSetShaderResources(i, 1, &srvnull);
-				zt->win_details[0].dx_context->PSSetSamplers(i, 1, &ssnull);
-			}
-
-			int slot = 0, max_slot = 0;
 			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-			slot = DirectX::getVariableSlot(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash);
-			if(slot >= 0) {
-				if(slot > max_slot) max_slot = slot;
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[diffuse_tex].dx_shader_resource_view);
-				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[diffuse_tex].dx_sampler_state);
-			}
+			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
 			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 specular_tex_hash = zt_strHash("specular_tex");
-			slot = DirectX::getVariableSlot(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash);
-			if(slot >= 0) {
-				if(slot > max_slot) max_slot = slot;
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[specular_tex].dx_shader_resource_view);
-				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[specular_tex].dx_sampler_state);
-			}
+			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
 
 			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
+			zt->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
-			slot = DirectX::getVariableSlot(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash);
-			if(slot >= 0) {
-				if(slot > max_slot) max_slot = slot;
-				zt->game_details.curr_frame.texture_switches += 1;
-				zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[normal_tex].dx_shader_resource_view);
-				zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[normal_tex].dx_sampler_state);
-			}
+			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
-					int slot = DirectX::getVariableSlot(shader, additional_tex_names[i]);
-					if(slot >= 0) {
-						if(slot > max_slot) max_slot = slot;
-						zt->game_details.curr_frame.texture_switches += 1;
-						zt->win_details[0].dx_context->PSSetShaderResources(slot, 1, &zt->textures[additional_tex[i]].dx_shader_resource_view);
-						zt->win_details[0].dx_context->PSSetSamplers(slot, 1, &zt->textures[additional_tex[i]].dx_sampler_state);
-					}
+					zt->game_details.curr_frame.texture_switches += 1;
+					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
 				}
 			}
-
-			zt->win_details[0].dx_texture_count = max_slot + 1;
-			zt->shaders[shader].textures_bound = max_slot + 1;
-
 #			endif
 		} break;
 
@@ -9101,46 +8298,19 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 #if defined(ZT_DIRECTX)
 			ztWindowDetails *win_details = &zt->win_details[0];
 
-			// indice buffer
-			D3D11_BUFFER_DESC ib;
-			ZeroMemory(&ib, sizeof(ib));
+			ztVertexEntryDX entries[] = {
+				{ 3 * sizeof(r32) },
+				{ 2 * sizeof(r32) },
+				{ 3 * sizeof(r32) },
+				{ 4 * sizeof(r32) },
+				{ 4 * sizeof(r32) },
+				{ 4 * sizeof(r32) },
+			};
 
-			ib.Usage = D3D11_USAGE_DEFAULT;
-			ib.ByteWidth = zt_sizeof(u32) * indices_count;
-			ib.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-			u32 *uindices = zt_mallocStructArray(u32, indices_count);
-			zt_assert(indices_count % 3 == 0);
-			for (int i = 0; i < indices_count; i += 3) {
-				uindices[i+0] = indices[i+0];
-				uindices[i+1] = indices[i+1];
-				uindices[i+2] = indices[i+2];
+			mesh->dx_vertex_array = ztdx_vertexArrayMake(win_details->dx_context, entries, zt_elementsOf(entries), vertices, indices_count);
+			if (mesh->dx_vertex_array == nullptr) {
+				return ztInvalidID;
 			}
-
-			D3D11_SUBRESOURCE_DATA ib_data;
-			ZeroMemory(&ib_data, sizeof(ib_data));
-			ib_data.pSysMem = uindices;
-
-			zt_dxCallAndReportOnError(win_details->dx_device->CreateBuffer(&ib, &ib_data, &mesh->dx_buff_idx));
-
-			zt_free(uindices);
-
-			// vertex buffer
-			D3D11_BUFFER_DESC vb;
-			ZeroMemory(&vb, sizeof(vb));
-
-			vb.Usage = D3D11_USAGE_DEFAULT;
-			vb.ByteWidth = zt_sizeof(ztVertex) * indices_count;
-			vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-			vb.CPUAccessFlags = 0;
-
-			D3D11_SUBRESOURCE_DATA vb_data;
-			ZeroMemory(&vb_data, sizeof(vb_data));
-			vb_data.pSysMem = vertices;
-
-			zt_dxCallAndReportOnError(win_details->dx_device->CreateBuffer(&vb, &vb_data, &mesh->dx_buff_vert));
-
-			mesh->dx_stride = sizeof(ztVertex);
 #endif // ZT_DIRECTX
 		} break;
 	}
@@ -9172,16 +8342,7 @@ void zt_meshFree(ztMeshID mesh_id)
 		} break;
 
 		case ztRenderer_DirectX: {
-#if defined(ZT_DIRECTX)
-			if (mesh->dx_buff_idx) {
-				mesh->dx_buff_idx->Release();
-				mesh->dx_buff_idx = nullptr;
-			}
-			if (mesh->dx_buff_vert) {
-				mesh->dx_buff_vert->Release();
-				mesh->dx_buff_vert = nullptr;
-			}
-#endif
+			zt_directxSupport(ztdx_vertexArrayFree(mesh->dx_vertex_array));
 		} break;
 	}
 }
@@ -9682,18 +8843,7 @@ void zt_meshRender(ztMeshID mesh_id)
 		} break;
 
 		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-
-			float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
-			zt->win_details[0].dx_context->OMSetBlendState(zt->win_details[0].dx_transparency, blend_factor, 0xffffffff);
-
-			UINT stride = mesh->dx_stride, offset = 0;
-			zt->win_details[0].dx_context->IASetIndexBuffer(mesh->dx_buff_idx, DXGI_FORMAT_R32_UINT, 0);
-			zt->win_details[0].dx_context->IASetVertexBuffers(0, 1, &mesh->dx_buff_vert, &stride, &offset);
-			zt->win_details[0].dx_context->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			zt->win_details[0].dx_context->DrawIndexed(mesh->indices, 0, 0);
-
-#			endif
+			zt_directxSupport(ztdx_vertexArrayDraw(zt->win_details[0].dx_context, mesh->dx_vertex_array));
 		} break;
 
 		default: {
@@ -9771,25 +8921,10 @@ ztInternal bool _zt_rendererRequestProcess()
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_dxCheckAndReportError(const char *function, i32 hr)
+ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails* win_details, ztGameSettings *game_settings, bool force)
 {
 #if defined(ZT_DIRECTX)
-	switch(hr)
-	{
-	case S_OK: return false;
-	case D3D11_ERROR_FILE_NOT_FOUND                              : zt_logCritical("DirectX: Error: D3D11_ERROR_FILE_NOT_FOUND"); return true;
-	case D3D11_ERROR_TOO_MANY_UNIQUE_STATE_OBJECTS               : zt_logCritical("DirectX: Error: D3D11_ERROR_TOO_MANY_UNIQUE_STATE_OBJECTS"); return true;
-	case D3D11_ERROR_TOO_MANY_UNIQUE_VIEW_OBJECTS                : zt_logCritical("DirectX: Error: D3D11_ERROR_TOO_MANY_UNIQUE_VIEW_OBJECTS"); return true;
-	case D3D11_ERROR_DEFERRED_CONTEXT_MAP_WITHOUT_INITIAL_DISCARD: zt_logCritical("DirectX: Error: D3D11_ERROR_DEFERRED_CONTEXT_MAP_WITHOUT_INITIAL_DISCARD"); return true;
-	case DXGI_ERROR_INVALID_CALL                                 : zt_logCritical("DirectX: Error: DXGI_ERROR_INVALID_CALL"); return true;
-	case DXGI_ERROR_WAS_STILL_DRAWING                            : zt_logCritical("DirectX: Error: DXGI_ERROR_WAS_STILL_DRAWING"); return true;
-	case E_FAIL                                                  : zt_logCritical("DirectX: Error: E_FAIL"); return true;
-	case E_INVALIDARG                                            : zt_logCritical("DirectX: Error: E_INVALIDARG"); return true;
-	case E_OUTOFMEMORY                                           : zt_logCritical("DirectX: Error: E_OUTOFMEMORY"); return true;
-	case E_NOTIMPL                                               : zt_logCritical("DirectX: Error: E_NOTIMPL"); return true;
-	case S_FALSE                                                 : zt_logCritical("DirectX: Error: S_FALSE"); return true;
-	default: zt_logCritical("DirectX: Unknown error code: 0x%x (%d)", hr, hr); return true;
-	}
+	return ztdx_setViewport(win_details->dx_context);
 #else
 	return false;
 #endif
@@ -9797,274 +8932,42 @@ bool zt_dxCheckAndReportError(const char *function, i32 hr)
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_dxClearErrors()
+ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags)
 {
-	return 0;
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal bool _zt_dxSetup()
-{
-#if defined(ZT_DIRECTX)
-	return true;
-#else
-	return false;
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal bool _zt_dxSetViewport(ztWindowDetails* win_details, ztGameSettings *game_settings, bool force)
-{
-#if defined(ZT_DIRECTX)
-	D3D11_VIEWPORT viewport;
-	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-	viewport.TopLeftX = 0;//-(r32)game_settings->screen_w;
-	viewport.TopLeftY = 0;//-(r32)game_settings->screen_h;
-	viewport.MinDepth = 0;
-	viewport.MaxDepth = 1;
-
-	if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
-		viewport.Width = (r32)game_settings->native_w;
-		viewport.Height = (r32)game_settings->native_h;
-	}
-	else {
-		viewport.Width = (r32)game_settings->screen_w;
-		viewport.Height = (r32)game_settings->screen_h;
-	}
-
-	//zt_logDebug("_zt_dxSetViewport() %.2f x %.2f", viewport.Width, viewport.Height);
-
-	win_details->screen_w = game_settings->screen_w;
-	win_details->screen_h = game_settings->screen_h;
-
-	win_details->dx_context->RSSetViewports(1, &viewport);
-
-	D3D11_RECT rect; rect.left = 0; rect.top = 0; rect.right = zt->win_game_settings[0].native_w; rect.bottom = zt->win_game_settings[0].native_h;
-	win_details->dx_context->RSSetScissorRects(1, &rect);
-
-	if (force) {
-		// this crashes.  i think i need to re-create the swapchain and everything when this happens
-		//zt_dxCallAndReturnValOnError(win_details->dx_swapchain->ResizeBuffers(0, (UINT)viewport.Width, (UINT)viewport.Height, DXGI_FORMAT_UNKNOWN, 0), false);
-	}
-
-	return true;
-#else
-	return false;
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal bool _zt_dxMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags)
-{
-#if defined(ZT_DIRECTX)
-	DXGI_MODE_DESC buffer_desc;
-	ZeroMemory(&buffer_desc, sizeof(DXGI_MODE_DESC));
-
-	buffer_desc.Width = game_settings->screen_w;
-	buffer_desc.Height = game_settings->screen_h;
-	buffer_desc.RefreshRate.Numerator = 60;
-	buffer_desc.RefreshRate.Denominator = 1;
-	buffer_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	buffer_desc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	buffer_desc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-
-	DXGI_SWAP_CHAIN_DESC scd;
-	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
-	scd.BufferCount = 1;                                    // one back buffer
-	scd.BufferDesc = buffer_desc;
-	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
-	scd.OutputWindow = win_details->handle;                 // the window to be used
-	scd.SampleDesc.Count = 1;                               // how many multisamples
-	scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-	scd.Windowed = zt_bitIsSet(renderer_flags, ztRendererFlags_Windowed) ? TRUE : FALSE;
-
-	D3D_FEATURE_LEVEL feature_level;
-
-	zt_logInfo("DirectX: Creating swap chain");
-		// create a device, device context and swap chain using the information in the scd struct
-	i32 flags = 0;
-#if defined(_DEBUG) && defined(ZT_DIRECTX_DEBUGGING)
-	flags = D3D11_CREATE_DEVICE_DEBUG;
-#endif
-
-	zt_dxCallAndReturnValOnError(D3D11CreateDeviceAndSwapChain(
-		NULL,
-		D3D_DRIVER_TYPE_HARDWARE,
-		NULL,
-		flags,
-		NULL,
-		0,
-		D3D11_SDK_VERSION,
-		&scd,
-		&win_details->dx_swapchain,
-		&win_details->dx_device,
-		&feature_level,
-		&win_details->dx_context), false);
-
-	// get the address of the back buffer
-	zt_logInfo("DirectX: Finding back buffer address");
-	ID3D11Texture2D *backbuffer;
-	zt_dxCallAndReturnValOnError(win_details->dx_swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backbuffer), false);
-
-	// use the back buffer address to create the render target
-	zt_logInfo("DirectX: Creating back buffer render target");
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRenderTargetView(backbuffer, NULL, &win_details->dx_backbuffer), false);
-	backbuffer->Release();
-
-	D3D11_TEXTURE2D_DESC dsdesc;
-
-	dsdesc.Width = game_settings->screen_w;
-	dsdesc.Height = game_settings->screen_h;
-	dsdesc.MipLevels = 1;
-	dsdesc.ArraySize = 1;
-	dsdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	dsdesc.SampleDesc.Count = 1;
-	dsdesc.SampleDesc.Quality = 0;
-	dsdesc.Usage = D3D11_USAGE_DEFAULT;
-	dsdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	dsdesc.CPUAccessFlags = 0;
-	dsdesc.MiscFlags = 0;
-
-	//Create the Depth/Stencil View
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateTexture2D(&dsdesc, NULL, &win_details->dx_depth_stencil_buffer), false);
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilView(win_details->dx_depth_stencil_buffer, NULL, &win_details->dx_depth_stencil_view), false);
-
-	// set the render target as the back buffer
-	zt_logInfo("DirectX: Setting context back buffer");
-	win_details->dx_context->OMSetRenderTargets(1, &win_details->dx_backbuffer, win_details->dx_depth_stencil_view);
-
-
-	win_details->dx_active_render_target = win_details->dx_backbuffer;
-	win_details->dx_active_render_target_depth_stencil_view = win_details->dx_depth_stencil_view;
-
-	win_details->dx_texture_count = 0;
-
-	D3D11_DEPTH_STENCIL_DESC dssdesc;
-	dssdesc.DepthEnable = true;
-	dssdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	dssdesc.DepthFunc = D3D11_COMPARISON_LESS;
-	dssdesc.StencilEnable = true;
-	dssdesc.StencilReadMask = 0xFF;
-	dssdesc.StencilWriteMask = 0xFF;
-	dssdesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dssdesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	dssdesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dssdesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	dssdesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dssdesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	dssdesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dssdesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilState(&dssdesc, &win_details->dx_stencil_state_enabled), false);
-
-	dssdesc.DepthEnable = true;
-	dssdesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilState(&dssdesc, &win_details->dx_stencil_state_enabled_leq), false);
-
-	dssdesc.DepthEnable = true;
-	dssdesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateDepthStencilState(&dssdesc, &win_details->dx_stencil_state_disabled), false);
-
-	if (!_zt_dxSetViewport(win_details, game_settings, false)) {
+#	if defined(ZT_DIRECTX)
+	win_details->dx_context = ztdx_contextMake(win_details->handle, game_settings->native_w, game_settings->native_h, game_settings->pixels_per_unit, renderer_flags);
+	if (win_details->dx_context == nullptr) {
 		return false;
 	}
+	
+	ztVertexEntryDX entries[] = {
+		3 * zt_sizeof(r32), // pos
+		2 * zt_sizeof(r32), // uv
+		3 * zt_sizeof(r32), // normals
+		4 * zt_sizeof(r32), // color
+	};
 
-	// alpha blending
-	D3D11_BLEND_DESC blend_desc;
-	ZeroMemory(&blend_desc, sizeof(blend_desc));
-
-	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
-	ZeroMemory(&rtbd, sizeof(rtbd));
-
-	rtbd.BlendEnable = true;
-	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA; //D3D11_BLEND_SRC_COLOR;
-	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;// D3D11_BLEND_BLEND_FACTOR;
-	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
-	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.DestBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
-
-	blend_desc.AlphaToCoverageEnable = false;
-	blend_desc.RenderTarget[0] = rtbd;
-
-	win_details->dx_device->CreateBlendState(&blend_desc, &win_details->dx_transparency);
-
-	//Create the Counter Clockwise and Clockwise Culling States
-	D3D11_RASTERIZER_DESC cmdesc;
-	ZeroMemory(&cmdesc, sizeof(D3D11_RASTERIZER_DESC));
-
-	cmdesc.FillMode = D3D11_FILL_SOLID;
-	cmdesc.CullMode = D3D11_CULL_BACK;
-	cmdesc.ScissorEnable = TRUE;
-
-	cmdesc.FrontCounterClockwise = true;
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRasterizerState(&cmdesc, &win_details->dx_cull_mode_ccw), false);
-
-	cmdesc.FrontCounterClockwise = false;
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRasterizerState(&cmdesc, &win_details->dx_cull_mode_cw), false);
-
-	cmdesc.CullMode = D3D11_CULL_NONE;
-	cmdesc.FrontCounterClockwise = true;
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateRasterizerState(&cmdesc, &win_details->dx_cull_mode_none), false);
-
-	// initialize the triangle vertex buffer (used when pushing triangles in draw lists)
-	D3D11_BUFFER_DESC bd;
-	ZeroMemory(&bd, sizeof(bd));
-
-	bd.Usage = D3D11_USAGE_DYNAMIC;
-	bd.ByteWidth = ztRenderDrawListVertexByteSize;
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	zt_dxCallAndReturnValOnError(win_details->dx_device->CreateBuffer(&bd, NULL, &win_details->dx_tri_verts_buffer), false);
-
-	return true;
-#else
-	return false;
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
-{
-#if defined(ZT_DIRECTX)
-	if (win_details->dx_swapchain != nullptr) {
-		win_details->dx_swapchain->Release();
-		win_details->dx_backbuffer->Release();
-		win_details->dx_device->Release();
-		win_details->dx_context->Release();
-		win_details->dx_cull_mode_ccw->Release();
-		win_details->dx_cull_mode_cw->Release();
-		win_details->dx_cull_mode_none->Release();
-		win_details->dx_transparency->Release();
-		win_details->dx_tri_verts_buffer->Release();
-		win_details->dx_depth_stencil_view->Release();
-		win_details->dx_depth_stencil_buffer->Release();
-		win_details->dx_stencil_state_enabled->Release();
-		win_details->dx_stencil_state_enabled_leq->Release();
-		win_details->dx_stencil_state_disabled->Release();
-
-		win_details->dx_swapchain = nullptr;
-		win_details->dx_backbuffer = nullptr;
-		win_details->dx_device = nullptr;
-		win_details->dx_context = nullptr;
-		win_details->dx_cull_mode_ccw = nullptr;
-		win_details->dx_cull_mode_cw = nullptr;
-		win_details->dx_cull_mode_none = nullptr;
-		win_details->dx_transparency = nullptr;
-		win_details->dx_tri_verts_buffer = nullptr;
-		win_details->dx_depth_stencil_view = nullptr;
-		win_details->dx_depth_stencil_buffer = nullptr;
-		win_details->dx_stencil_state_enabled = nullptr;
-		win_details->dx_stencil_state_enabled_leq = nullptr;
-		win_details->dx_stencil_state_disabled = nullptr;
+	win_details->dx_tri_verts_array = ztdx_vertexArrayMake(win_details->dx_context, entries, zt_elementsOf(entries), nullptr, ztRenderDrawListVertexArraySize);
+	if (win_details->dx_tri_verts_array == nullptr) {
+		return false;
 	}
+	
+	return true;
+#	endif
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details)
+{
+#	if defined(ZT_DIRECTX)
+	ztdx_contextFree(win_details->dx_context);
+	win_details->dx_context = nullptr;
+
+	ztdx_vertexArrayFree(win_details->dx_tri_verts_array);
+	win_details->dx_tri_verts_array = nullptr;
+
 	return true;
 #else
 	return false;
@@ -10073,20 +8976,17 @@ ztInternal bool _zt_dxFreeContext(ztWindowDetails *win_details)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztInline void _zt_dxSwapBuffers(ztWindowDetails* win_details)
+ztInternal ztInline void _ztdx_rendererSwapBuffers(ztWindowDetails* win_details)
 {
-#if defined(ZT_DIRECTX)
-	win_details->dx_swapchain->Present(0, 0);
-#endif
+	zt_directxSupport(ztdx_contextDisplay(win_details->dx_context));
 }
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal bool _zt_dxToggleFullscreen(ztWindowDetails* win_details, ztGameSettings *game_settings, bool fullscreen)
+ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails* win_details, ztGameSettings *game_settings, bool fullscreen)
 {
 #if defined(ZT_DIRECTX)
-	zt_dxCallAndReturnValOnError(win_details->dx_swapchain->SetFullscreenState(fullscreen ? TRUE : FALSE, NULL), false);
-	return _zt_dxSetViewport(win_details, game_settings, true);
+	return _ztdx_rendererSetViewport(win_details, game_settings, true);
 #else
 	return false;
 #endif
@@ -10148,11 +9048,11 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 	}
 	else if (renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
-		_zt_rendererSwapBuffers      = _zt_dxSwapBuffers;
-		_zt_rendererSetViewport      = _zt_dxSetViewport;
-		_zt_rendererMakeContext      = _zt_dxMakeContext;
-		_zt_rendererFreeContext      = _zt_dxFreeContext;
-		_zt_rendererToggleFullscreen = _zt_dxToggleFullscreen;
+		_zt_rendererSwapBuffers      = _ztdx_rendererSwapBuffers;
+		_zt_rendererSetViewport      = _ztdx_rendererSetViewport;
+		_zt_rendererMakeContext      = _ztdx_rendererMakeContext;
+		_zt_rendererFreeContext      = _ztdx_rendererFreeContext;
+		_zt_rendererToggleFullscreen = _ztdx_rendererToggleFullscreen;
 #else
 		zt_logFatal("DirectX is not supported in this configuration");
 		return false;
@@ -10419,7 +9319,7 @@ int main(int argc, char **argv)
 	}
 
 	if (!_zt_rendererMakeContext(win_details, game_settings, game_settings->renderer_flags)) {
-		zt_logCritical("main: Failed to create OpenGL context on main window");
+		zt_logCritical("main: Failed to create renderer context on main window");
 		return 1;
 	}
 
@@ -10782,7 +9682,8 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 				game_settings->screen_w = screen_w;
 				game_settings->screen_h = screen_h;
 
-				zt_openGLSupport(ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
+				zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
+				zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
 
 				_zt_rendererSetViewport(window_details, game_settings, true);
 				_zt_callFuncScreenChange(game_settings);

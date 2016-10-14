@@ -16,7 +16,7 @@
 #define ZT_GAME_GUI_IMPLEMENTATION
 //#define ZT_SHADER_LOG_INVALID_ACCESS
 
-#define ZT_NO_DIRECTX
+//#define ZT_NO_DIRECTX
 //#define ZT_MEM_ARENA_LOG_DETAILS
 //#define ZT_OPENGL_DEBUGGING
 #define ZT_DIRECTX_DEBUGGING
@@ -155,7 +155,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-//	settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -228,14 +228,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 	zt_guiInitDebug(g_game->gui_manager);
 
-	g_game->tex_test = zt_textureMakeRenderTarget(512, 512);
+//	g_game->tex_test = zt_textureMakeRenderTarget(512, 512);
 
 
-	ztMeshID mesh_chair = ztInvalidID;
-	ztMaterial mat_chair = zt_materialMake();
-	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3::one, ztVec3(2, 3, 0));
-
-	ztMeshID mesh_droid[2];
+	ztMeshID mesh_droid[2] = { ztInvalidID, ztInvalidID };
 	ztMaterial mat_droid[2];
 	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/droid/attack_droid.obj"), mesh_droid, mat_droid, 2, ztVec3(.2f, .2f, .2f), ztVec3(0, 0, 0));
 	
@@ -246,12 +242,20 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->material_boxes.shininess = 1.f;
 
 	g_game->plane = zt_meshMakePrimativePlane(200, 200, 50, 50);
-//	g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
+	//g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
 	g_game->cube = zt_meshMakePrimativeBox(1, 1, 1);
+
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
-	zt_sceneAddModel(g_game->scene, zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh));
+	ztMeshID mesh_chair = ztInvalidID;
+	ztMaterial mat_chair;
+	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3::one, ztVec3(2, 3, 0));
+
+	ztShaderID chair_shader = zt_shaderGetDefault(ztShaderDefault_LitShadow);
+	ztModel *model_chair = zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, chair_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+
+	zt_sceneAddModel(g_game->scene, model_chair);
 
 	ztShaderID droid_shader = zt_shaderGetDefault(ztShaderDefault_Lit);// g_game->shader_id_lit; // zt_shaderGetDefault(ztShaderDefault_Lit);// zt_shaderGetDefault(ztShaderDefault_Lit);
 	ztModel* model_droid = zt_modelMake(zt_memGetGlobalArena(), mesh_droid[0], &mat_droid[0], droid_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
@@ -319,7 +323,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
 
-	{
+	if(false){
 		ztGuiItemID slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);

@@ -16,6 +16,8 @@ cloc*
 **/bin/[Rr]elease/
 **/vs/[Dd]ebug/
 **/vs/[Rr]elease/
+**/x64/[Dd]ebug/
+**/x64/[Rr]elease/
 
 
 # Visual C++ cache files
