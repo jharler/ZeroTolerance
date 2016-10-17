@@ -893,6 +893,9 @@ const char *zt_strJumpToNextLine(const char *s, int s_len);
 int zt_strGetNextLinePos(const char *s);
 int zt_strGetNextLinePos(const char *s, int s_len);
 
+int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+
 enum ztStrTokenizeFlags_Enum
 {
 	ztStrTokenizeFlags_IncludeTokens  = (1<<0),
@@ -1004,6 +1007,7 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
 void zt_fileSetCurrentPath(const char *path);
 
 i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
+i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, char *path, char *file);
 
 bool zt_fileExists(const char *file_name);
 bool zt_fileDelete(const char *file_name);
@@ -1039,9 +1043,13 @@ ztInline bool zt_fileWrite(ztFile *file, r64 value)		{ return zt_sizeof(value) =
 
 void zt_fileFlush(ztFile *file);
 
-void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena = zt_memGetGlobalArena());
-i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size);
+void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_bom = false, ztMemoryArena *arena = zt_memGetGlobalArena());
+i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom = false);
 i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
+
+bool zt_directoryExists(const char *dir);
+bool zt_directoryMake(const char *dir);
+bool zt_directoryDelete(const char *dir, bool force);
 
 i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
 i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
@@ -1242,6 +1250,21 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 
 r64 zt_getTime(); // seconds since app started
 void zt_sleep(r32 seconds);
+
+struct ztDate
+{
+	int year, month, day, hour, minute, second;
+};
+
+void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *second);
+ztDate zt_getDate();
+
+bool operator<(ztDate& d1, ztDate& d2);
+bool operator>(ztDate& d1, ztDate& d2);
+bool operator==(ztDate& d1, ztDate& d2);
+bool operator!=(ztDate& d1, ztDate& d2);
+
+// ------------------------------------------------------------------------------------------------
 
 class ztBlockProfiler
 {
@@ -2171,6 +2194,7 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 #include <stdarg.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 #if defined(ZT_COMPILER_MSVC)
 #	include <windows.h>
@@ -4301,6 +4325,44 @@ int zt_strGetNextLinePos(const char *s, int s_len)
 
 // ------------------------------------------------------------------------------------------------
 
+int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset, int end_offset)
+{
+	return zt_strGetBetween(buffer, buffer_len, s, zt_strLen(s), beg, end, beg_offset, end_offset);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset, int end_offset)
+{
+	if (buffer_len == 0 || !s || s_len <= 0) {
+		return 0;
+	}
+
+	int beg_len = zt_strLen(beg);
+	int end_len = zt_strLen(end);
+
+	int beg_pos = beg_len == 0 ? 0 : zt_strFindPos(s, s_len, beg, 0);
+	if (beg_pos == ztStrPosNotFound) {
+		return 0;
+	}
+	beg_pos += beg_len + beg_offset;
+
+	int end_pos = end_len == 0 ? s_len : zt_strFindPos(s, s_len, end, beg_pos);
+	if (end_pos == ztStrPosNotFound) {
+		return 0;
+	}
+	end_pos += end_offset;
+
+	if (beg_pos >= end_pos || beg_pos >= s_len) {
+		return 0;
+	}
+
+	const char *str_beg = zt_strMoveForward(s, beg_pos);
+	return zt_strCpy(buffer, buffer_len, str_beg, end_pos - beg_pos);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int results_count, int32 flags)
 {
 	return zt_strTokenize(s, zt_strLen(s), tokens, results, results_count, flags);
@@ -4661,6 +4723,10 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	file->win_file_handle = (i32)hfile;
 	file->win_read_pos = 0;
 
+	if (file_open_method == ztFileOpenMethod_WriteAppend) {
+		zt_fileSetReadPos(file, file->size);
+	}
+
 	return true;
 #endif
 }
@@ -4916,6 +4982,36 @@ i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *fil
 
 // ------------------------------------------------------------------------------------------------
 
+i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, char *path, char *file)
+{
+	int dirs_back = 0;
+	while (zt_strStartsWith(file, "..")) {
+		dirs_back += 1;
+		file += 3;
+	}
+
+	int dir_end = zt_strLen(path);
+	zt_fiz(dirs_back) {
+		int pos_dir_sep = zt_max(zt_strFindLastPos(path, "\\", dir_end - 1), zt_strFindLastPos(path, "/", dir_end - 1));
+		if (pos_dir_sep != ztStrPosNotFound) {
+			dir_end = pos_dir_sep;
+		}
+	}
+
+	int buffer_size_orig = buffer_size;
+	zt_strCpy(buffer, buffer_size, path, dir_end);
+	buffer += dir_end;
+	buffer_size -= dir_end;
+	zt_strCpy(buffer, buffer_size, ztFilePathSeparatorStr, 1);
+	buffer += 1;
+	buffer_size -= 1;
+	zt_strCpy(buffer, buffer_size, file);
+
+	return buffer_size_orig - buffer_size;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_fileExists(const char *file_name)
 {
 #if defined(ZT_WINDOWS)
@@ -5114,7 +5210,7 @@ void zt_fileFlush(ztFile *file)
 
 // ------------------------------------------------------------------------------------------------
 
-void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *arena)
+void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_bom, ztMemoryArena *arena)
 {
 	zt_returnValOnNull(file_name, nullptr);
 	zt_returnValOnNull(file_size, nullptr);
@@ -5139,12 +5235,22 @@ void *zt_readEntireFile(const char *file_name, i32 *file_size, ztMemoryArena *ar
 	*file_size = file.size;
 	zt_fileClose(&file);
 
+	if (discard_utf_bom && bytes_read >= 3) {
+		char *bytes = (char*)data;
+		if ((byte)bytes[0] == 0xEF && (byte)bytes[1] == 0xBB && (byte)bytes[2] == 0xBF) {
+			zt_fiz(bytes_read - 3) {
+				bytes[i] = bytes[i + 3];
+			}
+			bytes_read -= 3;
+		}
+	}
+
 	return data;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size)
+i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom)
 {
 	zt_returnValOnNull(file_name, 0);
 	zt_returnValOnNull(buffer, 0);
@@ -5161,6 +5267,16 @@ i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size)
 	}
 
 	zt_fileClose(&file);
+
+	if (discard_utf_bom && bytes_read >= 3) {
+		char *bytes = (char*)buffer;
+		if ((byte)bytes[0] == 0xEF && (byte)bytes[1] == 0xBB && (byte)bytes[2] == 0xBF) {
+			zt_fiz(bytes_read - 3) {
+				bytes[i] = bytes[i + 3];
+			}
+			bytes_read -= 3;
+		}
+	}
 
 	return bytes_read;
 }
@@ -5185,6 +5301,76 @@ i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemor
 	zt_fileClose(&file);
 
 	return bytes_written;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_directoryExists(const char *dir)
+{
+#if defined(ZT_WINDOWS)
+	DWORD attribs = GetFileAttributesA(dir);
+	return (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY));
+#else
+#error zt_directoryExists needs an implementation for this platform
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_directoryMake(const char *dir)
+{
+#if defined(ZT_WINDOWS)
+	return FALSE != CreateDirectoryA(dir, NULL);
+#else
+#error zt_directoryMake needs an implementation for this platform
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_directoryDelete(const char *dir, bool force)
+{
+#if defined(ZT_WINDOWS)
+	if (RemoveDirectoryA(dir) == TRUE) {
+		return true;
+	}
+	if (!force) {
+		return false;
+	}
+
+	int dir_list_size = 1024 * 1024;
+	char *dir_list_buff = zt_mallocStructArray(char, dir_list_size);
+	zt_getDirectoryFiles(dir, dir_list_buff, dir_list_size, true);
+
+	const char *dir_list = zt_strFind(dir_list_buff, "\n");
+	while (dir_list) {
+		char file[ztFileMaxPath];
+		int pos_end = zt_strFindPos(dir_list, "\n", 0);
+		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end - 1);
+
+		zt_fileDelete(file);
+
+		dir_list = zt_strMoveForward(dir_list, pos_end);
+	}
+
+	zt_getDirectorySubs(dir, dir_list_buff, dir_list_size, true);
+	dir_list = zt_strFind(dir_list_buff, "\n");
+	while (dir_list) {
+		char file[ztFileMaxPath];
+		int pos_end = zt_strFindPos(dir_list, "\n", 0);
+		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end - 1);
+
+		zt_directoryDelete(file, false);
+
+		dir_list = zt_strMoveForward(dir_list, pos_end);
+	}
+
+	zt_free(dir_list);
+
+	return FALSE != RemoveDirectoryA(dir);
+#else
+#error zt_directoryMake needs an implementation for this platform
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6403,6 +6589,78 @@ void zt_sleep(r32 seconds)
 #error zt_sleep needs an implementation for this platform
 #endif
 }
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *second)
+{
+	time_t tt = time(nullptr);
+	tm t;
+	localtime_s(&t, &tt);
+
+	if (year) *year = t.tm_year + 1900;
+	if (month) *month = t.tm_mon + 1;
+	if (day) *day = t.tm_mday;
+	if (hour) *hour = t.tm_hour;
+	if (minute) *minute = t.tm_min;
+	if (second) *second = t.tm_sec;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztDate zt_getDate()
+{
+	ztDate dt;
+	zt_getDate(&dt.year, &dt.month, &dt.day, &dt.hour, &dt.minute, &dt.second);
+	return dt;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool operator<(ztDate& d1, ztDate& d2)
+{
+	if (d1.year < d2.year) return true;
+	if (d1.year > d2.year) return false;
+
+	if (d1.month < d2.month) return true;
+	if (d1.month > d2.month) return false;
+
+	if (d1.day < d2.day) return true;
+	if (d1.day > d2.day) return false;
+
+	if (d1.hour < d2.hour) return true;
+	if (d1.hour > d2.hour) return false;
+
+	if (d1.minute < d2.minute) return true;
+	if (d1.minute > d2.minute) return false;
+
+	if (d1.second < d2.second) return true;
+	if (d1.second > d2.second) return false;
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool operator>(ztDate& d1, ztDate& d2)
+{
+	return !(d1 < d2) && !(d1 == d2);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool operator==(ztDate& d1, ztDate& d2)
+{
+	return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day && d1.hour == d2.hour && d1.minute == d2.minute && d1.second == d2.second;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool operator!=(ztDate& d1, ztDate& d2)
+{
+	return !(d1 == d2);
+}
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------

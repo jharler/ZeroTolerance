@@ -1926,7 +1926,7 @@ bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data,
 		case ztAssetManagerSource_Directory: {
 			if (asset_mgr->asset_data[asset_id] == nullptr) {
 				i32 size = 0;
-				asset_mgr->asset_data[asset_id] = zt_readEntireFile(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &size, asset_mgr->arena);
+				asset_mgr->asset_data[asset_id] = zt_readEntireFile(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &size, false, asset_mgr->arena);
 
 				if (size != asset_mgr->asset_size[asset_id]) {
 					asset_mgr->asset_size[asset_id] = size;
