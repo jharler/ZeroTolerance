@@ -51,6 +51,7 @@ struct ztGame
 	ztAssetManager asset_mgr;
 
 	ztCamera camera, gui_camera, camera_test;
+	ztCameraControllerFPS camera_controller;
 
 	ztTextureID tex_test;
 
@@ -155,7 +156,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -179,6 +180,22 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 {
 	ztBlockProfiler bp_tex("game_init");
+
+#if 1
+	{
+		ztRandom random;
+		zt_randomInit(&random, 12345);
+
+		zt_fiz(10) {
+			ztVec3 rot(zt_randomVal(&random) * 360, zt_randomVal(&random) * 360, zt_randomVal(&random) * 360);
+			ztQuat q = ztQuat::makeFromEuler(rot);
+			ztVec3 qrot = q.euler();
+			if (!zt_real32Eq(qrot.x, rot.x) || !zt_real32Eq(qrot.y, rot.y) || !zt_real32Eq(qrot.z, rot.z)) {
+				zt_logDebug("Sent %.2f, %.2f, %.2f; Recv %.2f, %.2f, %.2f", rot.x, rot.y, rot.z, qrot.x, qrot.y, qrot.z);
+			}
+		}
+	}
+#endif
 
 	g_game = zt_mallocStruct(ztGame);
 	*g_game = {};
@@ -267,7 +284,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	zt_sceneAddModel(g_game->scene, model_droid);
 	model_droid->transform.position.x = -4;
 	model_droid->transform.position.z = -6;
-	model_droid->transform.rotation.y = 45;
+	model_droid->transform.rotation = ztQuat::makeFromEuler(0, -45, 0);
 
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
@@ -367,15 +384,17 @@ void game_screenChange(ztGameSettings *game_settings)
 	//zt_logDebug("Game screen changed (%d x %d).  Updated cameras", game_settings->screen_w, game_settings->screen_h);
 
 	if (g_game->details->current_frame == 1) {
-		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, ztVec3(9, 10, 8), ztVec3(230, -30, 0));
+		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, ztVec3(9, 10, 8));
+		//zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, ztVec3(0, 16, 12), ztQuat::makeFromEuler(0, 0, 0));
 		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, ztVec3(0, 0, 0));
+		g_game->camera_controller = zt_cameraControllerMakeFPS(&g_game->camera, ztVec3(30, -40, 0));
 	}
 	else {
 		zt_cameraMakePersp(&g_game->camera, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(60), 0.1f, 100.f, g_game->camera.position, g_game->camera.rotation);
 		zt_cameraMakeOrtho(&g_game->gui_camera, game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h, 0.1f, 100.f, g_game->gui_camera.position);
 	}
 
-	zt_cameraMakePersp(&g_game->camera_test, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(30), 0.1f, 10.f, ztVec3(1, 1, 1), ztVec3(230, 0, 0));
+	zt_cameraMakePersp(&g_game->camera_test, game_settings->screen_w, game_settings->screen_h, zt_degreesToRadians(30), 0.1f, 10.f, ztVec3(1, 1, 1), ztQuat::makeFromEuler(230, 0, 0));
 	zt_cameraRecalcMatrices(&g_game->camera_test);
 
 	zt_cameraRecalcMatrices(&g_game->camera);
@@ -444,7 +463,7 @@ bool game_loop(r32 dt)
 
 	bool gui_input = false;
 	if (zt_inputMouseIsLook()) {
-		zt_cameraControlUpdateWASD(&g_game->camera, mouse, input, dt);
+		zt_cameraControlUpdateWASD(&g_game->camera_controller, mouse, input, dt);
 	}
 	else {
 		if (zt_guiManagerHandleInput(g_game->gui_manager, input, input_keystrokes, mouse)) {
@@ -480,19 +499,15 @@ bool game_loop(r32 dt)
 		}
 
 		if (moving) {
-			const r32 slice = (ztMathPi2 / 5);
 			static r32 angle = 0;
+			angle += 360 * dt * .2f;
 
-			angle += slice * dt;
+			ztQuat quat = ztQuat::makeFromEuler(0, angle, 0);
 
-			g_game->model_light->transform.position.x = zt_cos(angle) * 5.5f;
-			g_game->model_light->transform.position.z = zt_sin(angle) * 5.5f;
-			g_game->model_light->transform.position.y = 10;
+			g_game->model_light->transform.position = ztVec3(5, 10, 0);
+			quat.rotatePosition(&g_game->model_light->transform.position);
 
-			g_game->model_light->transform.rotation.y += 360 * dt;
-			if (g_game->model_light->transform.rotation.y > 360) {
-				g_game->model_light->transform.rotation.y -= 360;
-			}
+			g_game->model_light->transform.rotation *= ztQuat::makeFromEuler(0, 360 * dt, 0);
 
 			g_game->directional_light.position = g_game->model_light->transform.position;
 
@@ -500,17 +515,9 @@ bool game_loop(r32 dt)
 		}
 
 		if (moving) {
-			const r32 slice = (ztMathPi2 / 5);
-			static r32 angle = 0;
-
-			angle += slice * dt;
-
-			zt_fiz(2) {
-				g_game->model_boxes[i]->transform.rotation.y += 90 * dt;
-				if (g_game->model_boxes[i]->transform.rotation.y > 360) {
-					g_game->model_boxes[i]->transform.rotation.y -= 360;
-				}
-			}
+			g_game->model_boxes[4]->transform.rotation *= ztQuat::makeFromEuler(dt * 360 * .25f, 0, 0);
+			g_game->model_boxes[5]->transform.rotation *= ztQuat::makeFromEuler(0, dt * 360 * .25f, 0);
+			g_game->model_boxes[6]->transform.rotation *= ztQuat::makeFromEuler(0, 0, dt * 360 * .25f);
 		}
 	}
 

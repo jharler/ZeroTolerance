@@ -784,7 +784,7 @@ void zt_meshRender(ztMeshID mesh_id);
 struct ztTransform
 {
 	ztVec3 position;
-	ztVec3 rotation;
+	ztQuat rotation;
 	ztVec3 scale;
 };
 
@@ -822,7 +822,7 @@ struct ztCamera
 
 		struct { // perspective only
 			r32 fov;
-			ztVec3 rotation;
+			ztQuat rotation;
 			ztVec3 direction;
 		};
 	};
@@ -859,7 +859,7 @@ struct ztFrustum
 // ------------------------------------------------------------------------------------------------
 
 void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztVec3& rotation = ztVec3::zero);
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
 
 void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
 void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
@@ -874,7 +874,36 @@ ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
 ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
-void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
+struct ztCameraControllerFPS
+{
+	// settings:
+	ztCamera *camera;
+
+	r32 mouse_sensitivity;
+	r32 speed;
+	r32 boosted_speed;
+	r32 sneaking_speed;
+
+	// per-frame input:
+	r32 mouse_delta_x;
+	r32 mouse_delta_y;
+
+	bool is_boosted;
+	bool is_sneaking;
+
+	r32 move_back;
+	r32 move_forward;
+	r32 strafe_left;
+	r32 strafe_right;
+
+	// used internally:
+	ztVec3 rotation;
+	ztVec3 velocity;
+};
+
+ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
+void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
+void zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
 ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera);
 
@@ -4261,7 +4290,7 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	model->shader_vars = shader_vars;
 	model->material = material ? *material : zt_materialMake();
 	model->transform.position = ztVec3::zero;
-	model->transform.rotation = ztVec3::zero;
+	model->transform.rotation = ztQuat::identity;
 	model->transform.scale = ztVec3::one;
 	model->next = nullptr;
 	model->first_child = nullptr;
@@ -4481,8 +4510,10 @@ void zt_sceneCull(ztScene *scene, ztCamera *camera)
 		{
 			model->calculated_mat = ztMat4::identity.getTranslate(model->transform.position);
 
-			if (model->transform.rotation != ztVec3::zero) {
-				model->calculated_mat.rotateEuler(model->transform.rotation);
+			if (model->transform.rotation != ztQuat::identity) {
+				//model->calculated_mat.rotateEuler(model->transform.rotation);
+				ztMat4 rmat = model->transform.rotation.convertToMat4();
+				model->calculated_mat *= rmat;
 			}
 
 			if (model->transform.scale != ztVec3::one) {
@@ -6130,7 +6161,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position, const ztVec3& rotation)
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position, const ztQuat& rotation)
 {
 	zt_returnOnNull(camera);
 
@@ -6157,19 +6188,8 @@ void zt_cameraRecalcMatrices(ztCamera *camera)
 		camera->mat_view = ztMat4::identity.getTranslate(camera->position);
 	}
 	else if (camera->type == ztCameraType_Perspective) {
-		ztVec3 lookat = ztVec3::zero;
-		if (camera->rotation != ztVec3::zero) {
-			real32 rad_pitch = zt_degreesToRadians(camera->rotation.y);
-			real32 rad_yaw   = zt_degreesToRadians(camera->rotation.x);
-			real32 cos_pitch = cosf(rad_pitch);
-			real32 cos_yaw   = cosf(rad_yaw);
-
-			lookat.x = cos_pitch * cos_yaw + camera->position.x;
-			lookat.y = sinf(rad_pitch) + camera->position.y;
-			lookat.z = cos_pitch * sin(rad_yaw) + camera->position.z;
-		}
-
-		camera->mat_view = ztMat4::identity.getLookAt(camera->position, lookat);
+		camera->mat_view = camera->rotation.convertToMat4();
+		camera->mat_view *= ztMat4::identity.getTranslate(camera->position).getInverse();
 		
 		ztMat4 mat_final = camera->mat_proj * camera->mat_view;
 		camera->direction = ztVec3(mat_final.values[2], mat_final.values[6], mat_final.values[10]).getNormal();
@@ -6214,7 +6234,10 @@ void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view)
 
 	//mat_final.inverse();
 
-	view.extract(&camera->position, &camera->rotation, nullptr);
+	ztVec3 rot;
+	view.extract(&camera->position, &rot, nullptr);
+
+	camera->rotation = ztQuat::makeFromEuler(rot);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6304,64 +6327,107 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraControlUpdateWASD(ztCamera *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
+ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation)
 {
-	zt_returnOnNull(camera);
+	ztCameraControllerFPS controller;
+	zt_memSet(&controller, zt_sizeof(ztCameraControllerFPS), 0);
+
+	controller.camera = camera;
+	controller.mouse_sensitivity = 0.05f;
+	controller.speed = 10.f;
+	controller.boosted_speed = 30.f;
+	controller.sneaking_speed = 2.f;
+
+	controller.rotation = initial_rotation;
+	controller.camera->rotation = ztQuat::makeFromEuler(controller.rotation.x, 0, 0);
+	controller.camera->rotation *= ztQuat::makeFromEuler(0, controller.rotation.y, 0);
+	zt_cameraRecalcMatrices(controller.camera);
+
+	return controller;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
+{
+	zt_returnOnNull(controller);
 
 	bool cam_moved = false;
 
-	ztVec2 mouse_pos = ztVec2((r32)input_mouse->delta_x, (r32)input_mouse->delta_y); // mouse position is a delta of mouse movement since last frame, not a true x/y coordinate
-	if (mouse_pos != ztVec2::zero) {
+	if (controller->mouse_delta_x != 0 || controller->mouse_delta_y != 0) {
 		cam_moved = true;
 
-		r32 mouse_sensitivity = 0.05f;
-		ztVec2 delta = mouse_pos * mouse_sensitivity;
+		r32 delta_x = controller->mouse_delta_x * controller->mouse_sensitivity;
+		r32 delta_y = controller->mouse_delta_y * controller->mouse_sensitivity;
 
-		camera->rotation.x += delta.x;
-		if (camera->rotation.x < 0) camera->rotation.x += 360;
-		if (camera->rotation.x > 360) camera->rotation.x -= 360;
+		controller->rotation.y += delta_x;
+		if (controller->rotation.x <   0) controller->rotation.y += 360;
+		if (controller->rotation.x > 360) controller->rotation.y -= 360;
 
-		camera->rotation.y = zt_clamp(camera->rotation.y - delta.y, -89, 89);
+		controller->rotation.x = zt_clamp(controller->rotation.x + delta_y, -89, 89);
+
+		controller->camera->rotation = ztQuat::makeFromEuler(controller->rotation.x, 0, 0);
+		controller->camera->rotation *= ztQuat::makeFromEuler(0, controller->rotation.y, 0);
 	}
 
-	r32 movement_speed = 1.5f * (input_keys[ztInputKeys_Shift].pressed() ? .05f : 1) * (input_keys[ztInputKeys_Control].pressed() ? 3 : 1);
+	r32 movement_speed = controller->is_boosted ? controller->boosted_speed : (controller->is_sneaking ? controller->sneaking_speed : controller->speed);
 
-	static ztVec3 camera_velocity = ztVec3::zero;
-
-	ztVec3 movement_velocity = camera_velocity;
+	ztVec3 movement_velocity = controller->velocity;
 
 	bool moved_x = false, moved_z = false;
-	if (input_keys[ztInputKeys_W].pressed()) { movement_velocity.z = zt_approach(movement_velocity.z, -1, 2 * dt); moved_z = true; }
-	if (input_keys[ztInputKeys_S].pressed()) { movement_velocity.z = zt_approach(movement_velocity.z, +1, 2 * dt); moved_z = true; }
-	if (input_keys[ztInputKeys_A].pressed()) { movement_velocity.x = zt_approach(movement_velocity.x, -1, 2 * dt); moved_x = true; }
-	if (input_keys[ztInputKeys_D].pressed()) { movement_velocity.x = zt_approach(movement_velocity.x, +1, 2 * dt); moved_x = true; }
+	if (controller->move_forward) { movement_velocity.z = zt_approach(movement_velocity.z, -1, 2 * dt); moved_z = true; }
+	if (controller->move_back   ) { movement_velocity.z = zt_approach(movement_velocity.z, +1, 2 * dt); moved_z = true; }
+	if (controller->strafe_left ) { movement_velocity.x = zt_approach(movement_velocity.x, -1, 2 * dt); moved_x = true; }
+	if (controller->strafe_right) { movement_velocity.x = zt_approach(movement_velocity.x, +1, 2 * dt); moved_x = true; }
 
 	if (!moved_z && movement_velocity.z != 0) { movement_velocity.z = zt_approach(movement_velocity.z, 0, 4.75f * dt); }
 	if (!moved_x && movement_velocity.x != 0) { movement_velocity.x = zt_approach(movement_velocity.x, 0, 4.75f * dt); }
 
-	camera_velocity = movement_velocity;
+	controller->velocity = movement_velocity;
 
 	if (movement_velocity != ztVec3::zero) {
 		cam_moved = true;
 		if (movement_velocity.z != 0) {
 			r32 z_move = -1 * movement_velocity.z * movement_speed * dt;
-			camera->position.x += camera->direction.x * z_move;
-			camera->position.y += camera->direction.y * z_move;
-			camera->position.z += camera->direction.z * z_move;
+			controller->camera->position.x += controller->camera->direction.x * z_move;
+			controller->camera->position.y += controller->camera->direction.y * z_move;
+			controller->camera->position.z += controller->camera->direction.z * z_move;
 		}
 		if (movement_velocity.x != 0) {
-			ztVec3 side = ztVec3(0, 1, 0).cross(camera->direction);
+			ztVec3 side = ztVec3(0, 1, 0).cross(controller->camera->direction);
+			side.normalize();
+
 			r32 x_move = -1 * movement_velocity.x * movement_speed * dt;
 
-			camera->position.x += side.x * x_move;
-			camera->position.y += side.y * x_move;
-			camera->position.z += side.z * x_move;
+			controller->camera->position.x += side.x * x_move;
+			controller->camera->position.y += side.y * x_move;
+			controller->camera->position.z += side.z * x_move;
 		}
 	}
 
 	if (cam_moved) {
-		zt_cameraRecalcMatrices(camera);
+		zt_cameraRecalcMatrices(controller->camera);
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraControlUpdateWASD(ztCameraControllerFPS *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
+{
+	zt_returnOnNull(camera);
+
+	camera->mouse_delta_x = (r32)input_mouse->delta_x;
+	camera->mouse_delta_y = (r32)input_mouse->delta_y;
+
+	camera->move_forward = input_keys[ztInputKeys_W].pressed() ? 1.f : 0.f;
+	camera->move_back    = input_keys[ztInputKeys_S].pressed() ? 1.f : 0.f;
+	camera->strafe_left  = input_keys[ztInputKeys_A].pressed() ? 1.f : 0.f;
+	camera->strafe_right = input_keys[ztInputKeys_D].pressed() ? 1.f : 0.f;
+
+	camera->is_boosted  = input_keys[ztInputKeys_Control].pressed();
+	camera->is_sneaking = input_keys[ztInputKeys_Shift].pressed();
+
+	zt_cameraControlUpdateFPS(camera, dt);
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -573,8 +573,98 @@ struct ztMat4
 
 // ------------------------------------------------------------------------------------------------
 
-ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
-ztVec3 operator*(const ztMat4& m, const ztVec3& v);
+ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
+ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztQuat
+{
+	union {
+		r32 values[4];
+
+		struct {
+			r32 x;
+			r32 y;
+			r32 z;
+			r32 w;
+		};
+
+		struct {
+			ztVec3 xyz;
+			r32 w;
+		};
+
+		struct {
+			ztVec4 xyzw;
+		};
+	};
+
+	ztQuat() {}
+	ztQuat(r32 v[4]) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
+	ztQuat(r32 _x, r32 _y, r32 _z, r32 _w) : x(_x), y(_y), z(_z), w(_w) {}
+	ztQuat(const ztVec3& _xyz, r32 _w) : xyz(_xyz), w(_w) {}
+	ztQuat(const ztVec4& _xyzw) : xyzw(_xyzw) {}
+
+	ztQuat& operator+=(const ztQuat& q);
+	ztQuat& operator-=(const ztQuat& q);
+	ztQuat& operator*=(const ztQuat& q);
+	ztQuat& operator/=(const ztQuat& q);
+
+	ztQuat& operator*=(r32 s);
+	ztQuat& operator/=(r32 s);
+
+	r32 dot(const ztQuat& q) const;
+	r32 magnitude() const;
+
+	void normalize();
+	ztQuat getNormalize() const;
+
+	void conjugate();
+	ztQuat getConjugate() const;
+
+	void inverse();
+	ztQuat getInverse() const;
+
+	ztVec3 axis() const;
+	r32 angle() const;
+
+	void axisAngle(ztVec3 *axis, r32 *angle) const;
+
+	ztVec3 euler() const;
+
+	void rotatePosition(ztVec3 *vec) const;
+	ztVec3 rotatePosition(const ztVec3 &vec) const;
+	ztVec3 rotatePosition(r32 x, r32 y, r32 z) const;
+	void rotatePosition(r32 *x, r32 *y, r32 *z) const;
+
+	ztMat4 convertToMat4() const;
+	void convertToMat4(ztMat4 *mat) const;
+
+	bool operator==(const ztQuat& q) const { return xyzw == q.xyzw; }
+	bool operator!=(const ztQuat& q) const { return xyzw != q.xyzw; }
+
+	static ztQuat makeFromAxisAngle(r32 axis_x, r32 axis_y, r32 axis_z, r32 angle);
+	static ztQuat makeFromEuler(r32 pitch, r32 yaw, r32 roll);
+	static ztQuat makeFromEuler(const ztVec3& euler) { return makeFromEuler(euler.x, euler.y, euler.z); }
+	static ztQuat makeFromMat4(const ztMat4& mat);
+
+	static ztQuat lerp(const ztQuat& q1, const ztQuat& q2, r32 percent);
+	static ztQuat nLerp(const ztQuat& q1, const ztQuat& q2, r32 percent);
+	static ztQuat sLerp(const ztQuat& q1, const ztQuat&  q2, r32 percent);
+
+	
+	static const ztQuat identity;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2);
+ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2);
+ztInline ztQuat operator*(const ztQuat& q1, const ztQuat& q2);
+ztInline ztQuat operator/(const ztQuat& q1, const ztQuat& q2);
+ztInline ztQuat operator*(const ztQuat& q1, r32 scale);
+ztInline ztQuat operator/(const ztQuat& q1, r32 scale);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -598,6 +688,7 @@ r32 zt_normalize(r32 val, r32 min, r32 max);
 r32 zt_approach(r32 var, r32 appr, r32 by);
 
 r32 zt_sin(r32 x);
+r32 zt_asin(r32 x);
 r32 zt_cos(r32 y);
 r32 zt_acos(r32 y);
 r32 zt_tan(r32 r);
@@ -1701,6 +1792,362 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2)
+{
+	return m1.getMultiply(m2);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v)
+{
+	return m.getMultiply(v);
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator+=(const ztQuat& q)
+{
+	xyzw += q.xyzw;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator-=(const ztQuat& q)
+{
+	xyzw -= q.xyzw;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator*=(const ztQuat& q)
+{
+	/*
+	d->x = q0.w * q1.x + q0.x * q1.w + q0.y * q1.z - q0.z * q1.y;
+	d->y = q0.w * q1.y - q0.x * q1.z + q0.y * q1.w + q0.z * q1.x;
+	d->z = q0.w * q1.z + q0.x * q1.y - q0.y * q1.x + q0.z * q1.w;
+	d->w = q0.w * q1.w - q0.x * q1.x - q0.y * q1.y - q0.z * q1.z;
+	*/
+	r32 tx = w * q.x + x * q.w + y * q.z - z * q.y;
+	r32 ty = w * q.y - x * q.z + y * q.w + z * q.x;
+	r32 tz = w * q.z + x * q.y - y * q.x + z * q.w;
+	r32 tw = w * q.w - x * q.x - y * q.y - z * q.z;
+
+	x = tx; y = ty; z = tz; w = tw;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator/=(const ztQuat& q)
+{
+	ztQuat inv = q.getInverse();
+	*this *= inv;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator*=(r32 s)
+{
+	xyzw *= s;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat& ztQuat::operator/=(r32 s)
+{
+	xyzw *= 1.f / s;
+	return *this;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztQuat::dot(const ztQuat& q) const
+{
+	return xyz.dot(q.xyz) + (w * q.w);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztQuat::magnitude() const
+{
+	return zt_sqrt(dot(*this));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::normalize()
+{
+	*this /= magnitude();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat ztQuat::getNormalize() const
+{
+	ztQuat q = *this;
+	q.normalize();
+	return q;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::conjugate()
+{
+	x = -x;
+	y = -y;
+	z = -z;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat ztQuat::getConjugate() const
+{
+	return ztQuat(-x, -y, -z, w);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::inverse()
+{
+	ztQuat conj = getConjugate();
+	r32 d = dot(*this);
+	if (d != 0) {
+		conj /= d;
+	}
+	*this = conj;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat ztQuat::getInverse() const
+{
+	ztQuat q = *this;
+	q.inverse();
+	return q;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 ztQuat::axis() const
+{
+	ztQuat n = getNormalize();
+	r32 s = zt_sin(zt_acos(w));
+	if (s == 0) {
+		return ztVec3::zero;
+	}
+	return n.xyz * (1.f / s);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline r32 ztQuat::angle() const
+{
+	r32 mag = magnitude();
+	if (mag == 0) {
+		return 0;
+	}
+
+	r32 c = w * (1.f / mag);
+	return w * zt_acos(c);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::axisAngle(ztVec3 *_axis, r32 *_angle) const
+{
+	*_axis = axis();
+	*_angle = angle();
+}
+
+// ------------------------------------------------------------------------------------------------
+ztInline ztVec3 ztQuat::euler() const
+{
+	return ztVec3(zt_radiansToDegrees(zt_atan2(1.f * y * z + w * x, w * w - x * x - y * y + z * z)),
+	              zt_radiansToDegrees(zt_asin(-1.f * (x * z - w * y))),
+	              zt_radiansToDegrees(zt_atan2(1.f * x * y + z * w, x * x + w * w - y * y - z * z)));
+}
+
+ztInline void ztQuat::rotatePosition(ztVec3 *vec) const
+{
+	ztVec3 t = xyz.cross(*vec) * 2.f;
+	ztVec3 p = xyz.cross(t);
+	*vec = (t * w) + *vec + p;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 ztQuat::rotatePosition(const ztVec3 &vec) const
+{
+	ztVec3 r = vec;
+	rotatePosition(&r);
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 ztQuat::rotatePosition(r32 x, r32 y, r32 z) const
+{
+	ztVec3 r(x, y, z);
+	rotatePosition(&r);
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::rotatePosition(r32 *x, r32 *y, r32 *z) const
+{
+	ztVec3 r(*x, *y, *z);
+	rotatePosition(&r);
+	*x = r.x;
+	*y = r.y;
+	*z = r.z;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztMat4 ztQuat::convertToMat4() const
+{
+	ztMat4 r;
+	convertToMat4(&r);
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
+{
+	r32 xx = x * x, yy = y * y, zz = z * z;
+	r32 xy = x * y, xz = x * z, yz = y * z;
+	r32 wx = w * x, wy = w * y, wz = w * z;
+
+	mat->values[ztMat4_Col0Row0] = 1.f - 2.f * (yy + zz);
+	mat->values[ztMat4_Col0Row1] =       2.f * (xy + wz);
+	mat->values[ztMat4_Col0Row2] =       2.f * (xz - wy);
+	mat->values[ztMat4_Col0Row3] = 0;
+
+	mat->values[ztMat4_Col1Row0] =       2.f * (xy - wz);
+	mat->values[ztMat4_Col1Row1] = 1.f - 2.f * (xx + zz);
+	mat->values[ztMat4_Col1Row2] =       2.f * (yz + wx);
+	mat->values[ztMat4_Col1Row3] = 0;
+
+	mat->values[ztMat4_Col2Row0] =       2.f * (xz + wy);
+	mat->values[ztMat4_Col2Row1] =       2.f * (yz - wx);
+	mat->values[ztMat4_Col2Row2] = 1.f - 2.f * (xx + yy);
+	mat->values[ztMat4_Col2Row3] = 0;
+
+	mat->values[ztMat4_Col3Row0] = 0;
+	mat->values[ztMat4_Col3Row1] = 0;
+	mat->values[ztMat4_Col3Row2] = 0;
+	mat->values[ztMat4_Col3Row3] = 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztQuat ztQuat::lerp(const ztQuat& q1, const ztQuat& q2, r32 percent)
+{
+	return ztQuat(ztVec4::lerp(q1.xyzw, q2.xyzw, percent));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztQuat ztQuat::nLerp(const ztQuat& q1, const ztQuat& q2, r32 percent)
+{
+	return lerp(q1, q2, percent).getNormalize();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztInline ztQuat ztQuat::sLerp(const ztQuat& q1, const ztQuat&  q2, r32 percent)
+{
+	ztQuat z = q2;
+	r32 cos_theta = q1.dot(q2);
+
+	if (cos_theta < 0.f) {
+		z = ztQuat(-q2.x, -q2.y, -q2.z, -q2.w);
+		cos_theta = -cos_theta;
+	}
+
+	if (cos_theta > 1.0f) {
+		return lerp(q1, q2, percent);
+	}
+
+	r32 angle = zt_acos(cos_theta);
+
+	r32 s1 = zt_sin(1.f - percent * angle);
+	r32 s0 = zt_sin(percent * angle);
+	r32 is = 1.f / zt_sin(angle);
+
+	ztQuat x = z * s1;
+	ztQuat y = z * s0;
+	return (x + y) * is;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2)
+{
+	ztQuat r = q1;
+	r += q2;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2)
+{
+	ztQuat r = q1;
+	r -= q2;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator*(const ztQuat& q1, const ztQuat& q2)
+{
+	ztQuat r = q1;
+	r *= q2;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator/(const ztQuat& q1, const ztQuat& q2)
+{
+	ztQuat r = q1;
+	r /= q2;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator*(const ztQuat& q1, r32 scale)
+{
+	ztQuat r = q1;
+	r *= scale;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
+{
+	ztQuat r = q1;
+	r /= scale;
+	return r;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2440,11 +2887,20 @@ void zt_memFreeGlobal(void *data)
 /*static*/ const ztMat4 ztMat4::zero = ztMat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 /*static*/ const ztMat4 ztMat4::identity = ztMat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
+/*static*/ const ztQuat ztQuat::identity = ztQuat(0, 0, 0, 1);
+
 // ------------------------------------------------------------------------------------------------
 
 r32 zt_sin(r32 x)
 {
 	return sinf(x);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_asin(r32 x)
+{
+	return asinf(x);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2503,6 +2959,29 @@ void ztMat4::rotateEuler(const ztVec3& euler)
 
 void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 {
+#if 0
+	x = zt_degreesToRadians(x);
+	y = zt_degreesToRadians(y);
+	z = zt_degreesToRadians(z);
+
+	r32 cr = zt_cos(x);
+	r32 sr = zt_sin(x);
+	r32 cy = zt_cos(z);
+	r32 sy = zt_sin(z);
+	r32 cp = zt_cos(y);
+	r32 sp = zt_sin(y);
+
+	ztMat4 m;
+	m.values[ztMat4_Col0Row0] =  cp * cy + sp * sr * sy; m.values[ztMat4_Col1Row0] = -cp * sy + sp * sr * cy; m.values[ztMat4_Col2Row0] =  sp * cr; m.values[ztMat4_Col3Row0] = 0;
+	m.values[ztMat4_Col0Row1] =  sy * cr;                m.values[ztMat4_Col1Row1] =  cy * cr;                m.values[ztMat4_Col2Row1] = -sr;      m.values[ztMat4_Col3Row1] = 0;
+	m.values[ztMat4_Col0Row2] = -sp * cy + cp * sr * sy; m.values[ztMat4_Col1Row2] =  sy * sp + cp * sr * cy; m.values[ztMat4_Col2Row2] =  cp * cr; m.values[ztMat4_Col3Row2] = 0;
+	m.values[ztMat4_Col0Row3] =  0;                      m.values[ztMat4_Col1Row3] =  0;                      m.values[ztMat4_Col2Row3] =  0;       m.values[ztMat4_Col3Row3] = 1;
+
+	multiply(m);
+#endif
+#if 1
+	// pitch = y, yaw = x, roll = z
+
 	x = zt_degreesToRadians(x);
 	y = zt_degreesToRadians(y);
 	z = zt_degreesToRadians(z);
@@ -2530,6 +3009,7 @@ void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 
 	ztMat4 mult_xyz = (rot_z * rot_y) * rot_x;
 	multiply(mult_xyz);
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2591,8 +3071,8 @@ ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
 ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 {
 	return ztVec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
-		(v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
-		(v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
+	              (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
+	              (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2710,18 +3190,20 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) // does 
 	}
 
 	if (rotation) {
-		// pitch = y, yaw = x, roll = z
+		r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) +
+		                        powf(m.values[ztMat4_Row0Col1], 2));
 
-		m.transpose();
+		rotation->x = atan2f(-m.values[ztMat4_Row1Col2], 
+		                      m.values[ztMat4_Row2Col2]);
 
-		rotation->x = atan2f(-m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]);
-		r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) + powf(m.values[ztMat4_Row0Col1], 2));
-		rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
 		r32 sin_x_angle = sinf(rotation->x);
 		r32 cos_x_angle = cosf(rotation->x);
-		rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] + sin_x_angle * m.values[ztMat4_Row2Col0], cos_x_angle * m.values[ztMat4_Row1Col1] + sin_x_angle * m.values[ztMat4_Row2Col1]);
 
-		m.transpose();
+		rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
+		rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] +
+		                     sin_x_angle * m.values[ztMat4_Row2Col0],
+		                     cos_x_angle * m.values[ztMat4_Row1Col1] +
+		                     sin_x_angle * m.values[ztMat4_Row2Col1]);
 
 		rotation->x = zt_radiansToDegrees(rotation->x);
 		rotation->y = zt_radiansToDegrees(rotation->y);
@@ -2747,7 +3229,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 /*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
 {
-	r32 m[16] = { 0 };
+	r32 m[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	m[ztMat4_Row0Col0] =  2.f / (right - left);
 	m[ztMat4_Row1Col1] =  2.f / (top - bottom);
 	m[ztMat4_Row2Col2] = -2.f / (far_z - near_z);
@@ -2766,8 +3248,8 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 	r32 m[16];
 
-	m[0] = k * height / width; m[4] = 0; m[8] = 0;  m[12] = 0;
-	m[1] = 0;                  m[5] = k; m[9] = 0;  m[13] = 0;
+	m[0] = k * height / width; m[4] = 0; m[ 8] =  0;  m[12] = 0;
+	m[1] = 0;                  m[5] = k; m[ 9] =  0;  m[13] = 0;
 	m[2] = 0;                  m[6] = 0; m[10] = -c;  m[14] = -((2 * near_z * far_z) / (far_z - near_z));
 	m[3] = 0;                  m[7] = 0; m[11] = -1;  m[15] = 0;
 
@@ -2775,17 +3257,62 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 }
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
-ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2)
+/*static*/ ztInline ztQuat ztQuat::makeFromAxisAngle(r32 axis_x, r32 axis_y, r32 axis_z, r32 angle)
 {
-	return m1.getMultiply(m2);
+	r32 angle_rad = zt_degreesToRadians(angle);
+	ztQuat quat(axis_x, axis_y, axis_z, 0);
+	quat.xyz.normalize();
+	quat.xyz *= zt_sin(.5f * angle_rad);
+	quat.w = zt_cos(.5f * angle_rad);
+	return quat;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v)
+/*static*/ztInline  ztQuat ztQuat::makeFromEuler(r32 x, r32 y, r32 z)
 {
-	return m.getMultiply(v);
+	ztQuat qx = makeFromAxisAngle(1, 0, 0, x);
+	ztQuat qy = makeFromAxisAngle(0, 1, 0, y);
+	ztQuat qz = makeFromAxisAngle(0, 0, 1, z);
+
+	ztQuat q = qy;
+	q *= qx;
+	q *= qz;
+
+	return q;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztQuat ztQuat::makeFromMat4(const ztMat4& mat)
+{
+	r32 four_x_squared_minus_1 = mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col2Row2];
+	r32 four_y_squared_minus_1 = mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col2Row2];
+	r32 four_z_squared_minus_1 = mat.values[ztMat4_Col2Row2] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1];
+	r32 four_w_squared_minus_1 = mat.values[ztMat4_Col0Row0] + mat.values[ztMat4_Col1Row1] + mat.values[ztMat4_Col2Row2];
+
+	int biggest_index = 0;
+	r32 four_biggest_squared_minus_1 = four_w_squared_minus_1;
+	if (four_x_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_x_squared_minus_1; biggest_index = 1; }
+	if (four_y_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_y_squared_minus_1; biggest_index = 2; }
+	if (four_z_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_z_squared_minus_1; biggest_index = 3; }
+
+	r32 biggest_value = zt_sqrt(four_biggest_squared_minus_1 + 1.f) * .5f;
+	r32 mult = .25f / biggest_value;
+
+	const r32 *m = mat.values;
+	switch (biggest_index) {
+		case 0: return ztQuat((m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult, biggest_value);
+		case 1: return ztQuat(biggest_value                                   , (m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, (m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult);
+		case 2: return ztQuat((m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, biggest_value                                   , (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult);
+		case 3: return ztQuat((m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, biggest_value                                   , (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult);
+		default: zt_assert(false);
+	}
+
+	return ztQuat::identity;
 }
 
 // ------------------------------------------------------------------------------------------------
