@@ -157,20 +157,21 @@
 #endif
 
 #define zt_assertAlways(cond)                  if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#define zt_staticAssert(cond)                  typedef char _zt_static_assertion_##__COUNTER__[(cond)?1:-1]
 
-#define ztInline		inline
-#define ztInternal		static
-#define ztPersistent	static
-#define ztGlobal		static
+#define ztInline        inline
+#define ztInternal      static
+#define ztPersistent    static
+#define ztGlobal        static
 
 #define zt_kilobytes(kb)	((kb) * 1024LL)
 #define zt_megabytes(mb)	(zt_kilobytes(mb) * 1024LL)
 #define zt_gigabytes(gb)	(zt_megabytes(gb) * 1024LL)
 #define zt_terabytes(tb)	(zt_gigabytes(tb) * 1024LL)
 
-#define zt_bitAdd(var, flag)		((var) |= (flag))
-#define zt_bitRemove(var, flag)	((var) &= ~(flag))
-#define zt_bitIsSet(var, flag)	(((var) & (flag)) != 0)
+#define zt_bitAdd(var, flag)    ((var) |= (flag))
+#define zt_bitRemove(var, flag) ((var) &= ~(flag))
+#define zt_bitIsSet(var, flag)  (((var) & (flag)) != 0)
 
 #define zt_max(val1, val2) ( (val1) > (val2) ? (val1) : (val2) )
 #define zt_min(val1, val2) ( (val1) < (val2) ? (val1) : (val2) )
