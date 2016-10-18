@@ -218,39 +218,39 @@ struct ztGameDetails
 #define _zt_inputKey(inputkey)	__zt_inputKey(inputkey)
 
 #define _zt_input_keysDef \
-	_zt_inputKey(ztInputKeys_Invalid),      _zt_inputKey(ztInputKeys_LeftButton),  _zt_inputKey(ztInputKeys_RightButton), _zt_inputKey(ztInputKeys_Cancel), \
-	_zt_inputKey(ztInputKeys_MiddleButton), _zt_inputKey(ztInputKeys_XButton1),    _zt_inputKey(ztInputKeys_XButton2),    _zt_inputKey(ztInputKeys_Back), \
-	_zt_inputKey(ztInputKeys_Tab),          _zt_inputKey(ztInputKeys_Clear),       _zt_inputKey(ztInputKeys_Return),      _zt_inputKey(ztInputKeys_Shift), \
-	_zt_inputKey(ztInputKeys_Control),      _zt_inputKey(ztInputKeys_Menu),        _zt_inputKey(ztInputKeys_Pause),       _zt_inputKey(ztInputKeys_Capital), \
-	_zt_inputKey(ztInputKeys_Kana),         _zt_inputKey(ztInputKeys_Hangul),      _zt_inputKey(ztInputKeys_Junja),       _zt_inputKey(ztInputKeys_Final), \
-	_zt_inputKey(ztInputKeys_Hanja),        _zt_inputKey(ztInputKeys_Kanji),       _zt_inputKey(ztInputKeys_Escape),      _zt_inputKey(ztInputKeys_Convert), \
-	_zt_inputKey(ztInputKeys_Nonconvert),   _zt_inputKey(ztInputKeys_Accept),      _zt_inputKey(ztInputKeys_ModeChange),  _zt_inputKey(ztInputKeys_Space), \
-	_zt_inputKey(ztInputKeys_Prior),        _zt_inputKey(ztInputKeys_Next),        _zt_inputKey(ztInputKeys_End),         _zt_inputKey(ztInputKeys_Home), \
-	_zt_inputKey(ztInputKeys_Left),         _zt_inputKey(ztInputKeys_Up),          _zt_inputKey(ztInputKeys_Right),       _zt_inputKey(ztInputKeys_Down), \
-	_zt_inputKey(ztInputKeys_Select),       _zt_inputKey(ztInputKeys_Print),       _zt_inputKey(ztInputKeys_Execute),     _zt_inputKey(ztInputKeys_Snapshot), \
-	_zt_inputKey(ztInputKeys_Insert),       _zt_inputKey(ztInputKeys_Delete),      _zt_inputKey(ztInputKeys_Help), \
+	_zt_inputKey(ztInputKeys_Invalid),       _zt_inputKey(ztInputKeys_LeftButton),       _zt_inputKey(ztInputKeys_RightButton),    _zt_inputKey(ztInputKeys_Cancel), \
+	_zt_inputKey(ztInputKeys_MiddleButton),  _zt_inputKey(ztInputKeys_XButton1),         _zt_inputKey(ztInputKeys_XButton2),       _zt_inputKey(ztInputKeys_Back), \
+	_zt_inputKey(ztInputKeys_Tab),           _zt_inputKey(ztInputKeys_Clear),            _zt_inputKey(ztInputKeys_Return),         _zt_inputKey(ztInputKeys_Shift), \
+	_zt_inputKey(ztInputKeys_Control),       _zt_inputKey(ztInputKeys_Menu),             _zt_inputKey(ztInputKeys_Pause),          _zt_inputKey(ztInputKeys_Capital), \
+	_zt_inputKey(ztInputKeys_Kana),          _zt_inputKey(ztInputKeys_Hangul),           _zt_inputKey(ztInputKeys_Junja),          _zt_inputKey(ztInputKeys_Final), \
+	_zt_inputKey(ztInputKeys_Hanja),         _zt_inputKey(ztInputKeys_Kanji),            _zt_inputKey(ztInputKeys_Escape),         _zt_inputKey(ztInputKeys_Convert), \
+	_zt_inputKey(ztInputKeys_Nonconvert),    _zt_inputKey(ztInputKeys_Accept),           _zt_inputKey(ztInputKeys_ModeChange),     _zt_inputKey(ztInputKeys_Space), \
+	_zt_inputKey(ztInputKeys_Prior),         _zt_inputKey(ztInputKeys_Next),             _zt_inputKey(ztInputKeys_End),            _zt_inputKey(ztInputKeys_Home), \
+	_zt_inputKey(ztInputKeys_Left),          _zt_inputKey(ztInputKeys_Up),               _zt_inputKey(ztInputKeys_Right),          _zt_inputKey(ztInputKeys_Down), \
+	_zt_inputKey(ztInputKeys_Select),        _zt_inputKey(ztInputKeys_Print),            _zt_inputKey(ztInputKeys_Execute),        _zt_inputKey(ztInputKeys_Snapshot), \
+	_zt_inputKey(ztInputKeys_Insert),        _zt_inputKey(ztInputKeys_Delete),           _zt_inputKey(ztInputKeys_Help), \
 	\
-	_zt_inputKey(ztInputKeys_0), _zt_inputKey(ztInputKeys_1), _zt_inputKey(ztInputKeys_2), _zt_inputKey(ztInputKeys_3), _zt_inputKey(ztInputKeys_4), \
-	_zt_inputKey(ztInputKeys_5), _zt_inputKey(ztInputKeys_6), _zt_inputKey(ztInputKeys_7), _zt_inputKey(ztInputKeys_8), _zt_inputKey(ztInputKeys_9), \
-	_zt_inputKey(ztInputKeys_A), _zt_inputKey(ztInputKeys_B), _zt_inputKey(ztInputKeys_C), _zt_inputKey(ztInputKeys_D), _zt_inputKey(ztInputKeys_E), \
-	_zt_inputKey(ztInputKeys_F), _zt_inputKey(ztInputKeys_G), _zt_inputKey(ztInputKeys_H), _zt_inputKey(ztInputKeys_I), _zt_inputKey(ztInputKeys_J), \
-	_zt_inputKey(ztInputKeys_K), _zt_inputKey(ztInputKeys_L), _zt_inputKey(ztInputKeys_M), _zt_inputKey(ztInputKeys_N), _zt_inputKey(ztInputKeys_O), \
-	_zt_inputKey(ztInputKeys_P), _zt_inputKey(ztInputKeys_Q), _zt_inputKey(ztInputKeys_R), _zt_inputKey(ztInputKeys_S), _zt_inputKey(ztInputKeys_T), \
-	_zt_inputKey(ztInputKeys_U), _zt_inputKey(ztInputKeys_V), _zt_inputKey(ztInputKeys_W), _zt_inputKey(ztInputKeys_X), _zt_inputKey(ztInputKeys_Y), \
+	_zt_inputKey(ztInputKeys_0),             _zt_inputKey(ztInputKeys_1),                _zt_inputKey(ztInputKeys_2),              _zt_inputKey(ztInputKeys_3),                    _zt_inputKey(ztInputKeys_4), \
+	_zt_inputKey(ztInputKeys_5),             _zt_inputKey(ztInputKeys_6),                _zt_inputKey(ztInputKeys_7),              _zt_inputKey(ztInputKeys_8),                    _zt_inputKey(ztInputKeys_9), \
+	_zt_inputKey(ztInputKeys_A),             _zt_inputKey(ztInputKeys_B),                _zt_inputKey(ztInputKeys_C),              _zt_inputKey(ztInputKeys_D),                    _zt_inputKey(ztInputKeys_E), \
+	_zt_inputKey(ztInputKeys_F),             _zt_inputKey(ztInputKeys_G),                _zt_inputKey(ztInputKeys_H),              _zt_inputKey(ztInputKeys_I),                    _zt_inputKey(ztInputKeys_J), \
+	_zt_inputKey(ztInputKeys_K),             _zt_inputKey(ztInputKeys_L),                _zt_inputKey(ztInputKeys_M),              _zt_inputKey(ztInputKeys_N),                    _zt_inputKey(ztInputKeys_O), \
+	_zt_inputKey(ztInputKeys_P),             _zt_inputKey(ztInputKeys_Q),                _zt_inputKey(ztInputKeys_R),              _zt_inputKey(ztInputKeys_S),                    _zt_inputKey(ztInputKeys_T), \
+	_zt_inputKey(ztInputKeys_U),             _zt_inputKey(ztInputKeys_V),                _zt_inputKey(ztInputKeys_W),              _zt_inputKey(ztInputKeys_X),                    _zt_inputKey(ztInputKeys_Y), \
 	_zt_inputKey(ztInputKeys_Z), \
 	\
-	_zt_inputKey(ztInputKeys_LeftWin),   _zt_inputKey(ztInputKeys_RightWin),  _zt_inputKey(ztInputKeys_Apps),     _zt_inputKey(ztInputKeys_Sleep), \
-	_zt_inputKey(ztInputKeys_Numpad0),   _zt_inputKey(ztInputKeys_Numpad1),   _zt_inputKey(ztInputKeys_Numpad2),  _zt_inputKey(ztInputKeys_Numpad3), \
-	_zt_inputKey(ztInputKeys_Numpad4),   _zt_inputKey(ztInputKeys_Numpad5),   _zt_inputKey(ztInputKeys_Numpad6),  _zt_inputKey(ztInputKeys_Numpad7), \
-	_zt_inputKey(ztInputKeys_Numpad8),   _zt_inputKey(ztInputKeys_Numpad9),   _zt_inputKey(ztInputKeys_Multiply), _zt_inputKey(ztInputKeys_Add), \
-	_zt_inputKey(ztInputKeys_Separator), _zt_inputKey(ztInputKeys_Substract), _zt_inputKey(ztInputKeys_Decimal),  _zt_inputKey(ztInputKeys_Divide), \
+	_zt_inputKey(ztInputKeys_LeftWin),       _zt_inputKey(ztInputKeys_RightWin),         _zt_inputKey(ztInputKeys_Apps),           _zt_inputKey(ztInputKeys_Sleep), \
+	_zt_inputKey(ztInputKeys_Numpad0),       _zt_inputKey(ztInputKeys_Numpad1),          _zt_inputKey(ztInputKeys_Numpad2),        _zt_inputKey(ztInputKeys_Numpad3), \
+	_zt_inputKey(ztInputKeys_Numpad4),       _zt_inputKey(ztInputKeys_Numpad5),          _zt_inputKey(ztInputKeys_Numpad6),        _zt_inputKey(ztInputKeys_Numpad7), \
+	_zt_inputKey(ztInputKeys_Numpad8),       _zt_inputKey(ztInputKeys_Numpad9),          _zt_inputKey(ztInputKeys_Multiply),       _zt_inputKey(ztInputKeys_Add), \
+	_zt_inputKey(ztInputKeys_Separator),     _zt_inputKey(ztInputKeys_Substract),        _zt_inputKey(ztInputKeys_Decimal),        _zt_inputKey(ztInputKeys_Divide), \
 	\
-	_zt_inputKey(ztInputKeys_F1),  _zt_inputKey(ztInputKeys_F2),  _zt_inputKey(ztInputKeys_F3),  _zt_inputKey(ztInputKeys_F4), \
-	_zt_inputKey(ztInputKeys_F5),  _zt_inputKey(ztInputKeys_F6),  _zt_inputKey(ztInputKeys_F7),  _zt_inputKey(ztInputKeys_F8), \
-	_zt_inputKey(ztInputKeys_F9),  _zt_inputKey(ztInputKeys_F10), _zt_inputKey(ztInputKeys_F11), _zt_inputKey(ztInputKeys_F12), \
-	_zt_inputKey(ztInputKeys_F13), _zt_inputKey(ztInputKeys_F14), _zt_inputKey(ztInputKeys_F15), _zt_inputKey(ztInputKeys_F16), \
-	_zt_inputKey(ztInputKeys_F17), _zt_inputKey(ztInputKeys_F18), _zt_inputKey(ztInputKeys_F19), _zt_inputKey(ztInputKeys_F20), \
-	_zt_inputKey(ztInputKeys_F21), _zt_inputKey(ztInputKeys_F22), _zt_inputKey(ztInputKeys_F23), _zt_inputKey(ztInputKeys_F24), \
+	_zt_inputKey(ztInputKeys_F1),            _zt_inputKey(ztInputKeys_F2),               _zt_inputKey(ztInputKeys_F3),             _zt_inputKey(ztInputKeys_F4), \
+	_zt_inputKey(ztInputKeys_F5),            _zt_inputKey(ztInputKeys_F6),               _zt_inputKey(ztInputKeys_F7),             _zt_inputKey(ztInputKeys_F8), \
+	_zt_inputKey(ztInputKeys_F9),            _zt_inputKey(ztInputKeys_F10),              _zt_inputKey(ztInputKeys_F11),            _zt_inputKey(ztInputKeys_F12), \
+	_zt_inputKey(ztInputKeys_F13),           _zt_inputKey(ztInputKeys_F14),              _zt_inputKey(ztInputKeys_F15),            _zt_inputKey(ztInputKeys_F16), \
+	_zt_inputKey(ztInputKeys_F17),           _zt_inputKey(ztInputKeys_F18),              _zt_inputKey(ztInputKeys_F19),            _zt_inputKey(ztInputKeys_F20), \
+	_zt_inputKey(ztInputKeys_F21),           _zt_inputKey(ztInputKeys_F22),              _zt_inputKey(ztInputKeys_F23),            _zt_inputKey(ztInputKeys_F24), \
 	\
 	_zt_inputKey(ztInputKeys_NumLock),       _zt_inputKey(ztInputKeys_Scroll),           _zt_inputKey(ztInputKeys_LeftShift),      _zt_inputKey(ztInputKeys_RightShift), \
 	_zt_inputKey(ztInputKeys_LeftControl),   _zt_inputKey(ztInputKeys_RightControl),     _zt_inputKey(ztInputKeys_LeftMenu),       _zt_inputKey(ztInputKeys_RightMenu), \
@@ -401,6 +401,129 @@ void zt_inputMouseLook(bool mouse_look);
 bool zt_inputMouseIsLook();
 
 void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor);
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztInputControllerFlags_Enum
+{
+	ztInputControllerFlags_Pressed      = (1 << 0),
+	ztInputControllerFlags_JustPressed  = (1 << 1),
+	ztInputControllerFlags_JustReleased = (1 << 2),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztInputControllerButton_Enum
+{
+	ztInputControllerButton_DPadUp,
+	ztInputControllerButton_DPadDown,
+	ztInputControllerButton_DPadLeft,
+	ztInputControllerButton_DPadRight,
+	ztInputControllerButton_Start,
+	ztInputControllerButton_Back,
+	ztInputControllerButton_ThumbLeft,
+	ztInputControllerButton_ThumbRight,
+	ztInputControllerButton_ShoulderLeft,
+	ztInputControllerButton_ShoulderRight,
+	ztInputControllerButton_A,
+	ztInputControllerButton_B,
+	ztInputControllerButton_X,
+	ztInputControllerButton_Y,
+	ztInputControllerButton_TriggerLeft,
+	ztInputControllerButton_TriggerRight,
+	ztInputControllerButton_ThumbpadLeft,
+	ztInputControllerButton_ThumbpadRight,
+
+	ztInputControllerButton_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztInputController
+{
+	bool connected;
+
+	union {
+		i32 button_states[ztInputControllerButton_MAX];
+
+		struct {
+			i32 button_state_dpad_up;
+			i32 button_state_dpad_down;
+			i32 button_state_dpad_left;
+			i32 button_state_dpad_right;
+			i32 button_state_start;
+			i32 button_state_back;
+			i32 button_state_thumb_left;
+			i32 button_state_thumb_right;
+			i32 button_state_shoulder_left;
+			i32 button_state_shoulder_right;
+			i32 button_state_a;
+			i32 button_state_b;
+			i32 button_state_x;
+			i32 button_state_y;
+
+			i32 button_state_trigger_left;
+			i32 button_state_trigger_right;
+			i32 button_state_thumbpad_left;
+			i32 button_state_thumbpad_right;
+		};
+	};
+
+	union {
+		r32 button_times[ztInputControllerButton_MAX];
+
+		struct {
+			r32 button_time_dpad_up;
+			r32 button_time_dpad_down;
+			r32 button_time_dpad_left;
+			r32 button_time_dpad_right;
+			r32 button_time_start;
+			r32 button_time_back;
+			r32 button_time_thumb_left;
+			r32 button_time_thumb_right;
+			r32 button_time_shoulder_left;
+			r32 button_time_shoulder_right;
+			r32 button_time_a;
+			r32 button_time_b;
+			r32 button_time_x;
+			r32 button_time_y;
+
+			r32 button_time_trigger_left;
+			r32 button_time_trigger_right;
+			r32 button_time_thumbpad_left;
+			r32 button_time_thumbpad_right;
+		};
+	};
+
+	union {
+		r32 analog_values[6];
+
+		struct {
+			r32 analog_value_trigger_left;
+			r32 analog_value_trigger_right;
+			r32 analog_value_thumb_pad_left_x;
+			r32 analog_value_thumb_pad_left_y;
+			r32 analog_value_thumb_pad_right_x;
+			r32 analog_value_thumb_pad_right_y;
+		};
+	};
+
+	bool pressed(int button)      { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_Pressed); }
+	bool justPressed(int button)  { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_JustPressed); }
+	bool justReleased(int button) { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_JustReleased); }
+
+};
+
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_MAX_INPUT_CONTROLLERS	4
+
+// ------------------------------------------------------------------------------------------------
+
+ztInputController* zt_inputControllerAccessState(int idx); // not thread safe
+void zt_inputControllerCopyState(ztInputController *input_controller, int idx);
+void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high);
+
 
 // ------------------------------------------------------------------------------------------------
 // Asset Manager
@@ -1412,6 +1535,7 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 // headers (strive to avoid including anything if possible)
 #include <windows.h>
 #include <windowsx.h>
+#include <xinput.h>
 
 #endif // ZT_WINDOWS
 
@@ -1602,6 +1726,13 @@ struct ztGameGlobals
 {
 #if defined(ZT_WINDOWS)
 	HINSTANCE hinstance = NULL;
+	HMODULE hmod_xinput = NULL;
+
+	typedef DWORD(*xinput_getState_Func)(DWORD, XINPUT_STATE *);
+	typedef DWORD(*xinput_setState_Func)(DWORD, XINPUT_VIBRATION *);
+	xinput_getState_Func xinput_getState = nullptr;
+	xinput_setState_Func xinput_setState = nullptr;
+	r32 xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 #endif
 
 	bool quit_requested = false;
@@ -1644,6 +1775,7 @@ struct ztGameGlobals
 	// ----------------------
 
 	bool input_this_frame = false;
+
 	ztInputKeys_Enum input_key_strokes[ztInputKeyMaxStrokes];
 	i32 input_key_strokes_count = 0;
 
@@ -1653,6 +1785,8 @@ struct ztGameGlobals
 	ztInputMouse input_mouse;
 	bool input_mouse_look = false;
 	i32 input_mouse_captures = 0;
+
+	ztInputController input_controllers[ZT_MAX_INPUT_CONTROLLERS];
 
 	// ----------------------
 };
@@ -2442,6 +2576,31 @@ void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 
 // ------------------------------------------------------------------------------------------------
 
+ztInputController* zt_inputControllerAccessState(int idx)
+{
+	zt_assertReturnValOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS, nullptr);
+	return &zt->input_controllers[idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
+{
+	zt_assertReturnOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS);
+	zt_memCpy(input_controller, zt_sizeof(ztInputController), &zt->input_controllers[idx], zt_sizeof(ztInputController));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+zt_winOnly(void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high));
+
+void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high)
+{
+	zt_winOnly(_zt_winControllerInputHapticFeedback(idx, strength_low, strength_high));
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void _zt_inputClearState( bool lost_focus )
 {
 	zt_fiz(ztInputKeys_MAX) {
@@ -2462,6 +2621,13 @@ void _zt_inputClearState( bool lost_focus )
 
 	zt->input_mouse.delta_x = zt->input_mouse.delta_y = 0;
 
+	zt_fiz(ZT_MAX_INPUT_CONTROLLERS) {
+		zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
+			zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
+			zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+		}
+	}
+
 	if (lost_focus) {
 		zt_fiz(ztInputKeys_MAX) {
 			if (zt_bitIsSet(zt->input_keys[i].flags, ztInputKeyFlags_Pressed)) {
@@ -2474,6 +2640,19 @@ void _zt_inputClearState( bool lost_focus )
 				zt->input_mouse.button_states[i] = ztInputMouseFlags_JustReleased;
 			}
 		}
+
+		zt_fiz(ZT_MAX_INPUT_CONTROLLERS) {
+			zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
+				if (zt_bitIsSet(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
+					zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+					zt->input_controllers[i].button_times[j] = 0;
+				}
+			}
+			zt_fjz(zt_elementsOf(zt->input_controllers[i].analog_values)) {
+				zt->input_controllers[i].analog_values[j] = 0;
+			}
+		}
+
 	}
 }
 
@@ -9167,6 +9346,159 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 
 // ------------------------------------------------------------------------------------------------
 
+void _zt_winControllerInputUpdate(r32 dt);
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_winControllerInputInit()
+{
+	const char *libs[] = { "xinput1_4.dll", "xinput9_1_0.dll", "xinput1_3.dll" };
+	zt_fiz(zt_elementsOf(libs)) {
+		zt->hmod_xinput = LoadLibraryA(libs[i]);
+		if (zt->hmod_xinput != NULL) {
+			break;
+		}
+	}
+
+	if (zt->hmod_xinput == NULL) {
+		return;
+	}
+
+	zt->xinput_getState = (ztGameGlobals::xinput_getState_Func)GetProcAddress(zt->hmod_xinput, "XInputGetState");
+	zt->xinput_setState = (ztGameGlobals::xinput_setState_Func)GetProcAddress(zt->hmod_xinput, "XInputSetState");
+
+	zt_fiz(zt_elementsOf(zt->input_controllers)) {
+		zt->input_controllers[i].connected = true;
+		zt->xinput_haptic[i] = false;
+	}
+
+	_zt_winControllerInputUpdate(0);
+
+	zt_fiz(zt_elementsOf(zt->input_controllers)) {
+		zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
+			zt->input_controllers[i].button_states[j] = 0;
+			zt->input_controllers[i].button_times [j] = 0;
+		}
+		zt_fjz(zt_elementsOf(zt->input_controllers[i].analog_values)) {
+			zt->input_controllers[i].analog_values[j] = 0;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_winControllerInputCleanup()
+{
+	zt->xinput_getState = nullptr;
+	zt->xinput_setState = nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_winControllerInputUpdate(r32 dt)
+{
+	if (!zt->xinput_getState) {
+		return;
+	}
+
+	int flags[] = { XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y };
+	zt_staticAssert(zt_elementsOf(flags) == ztInputControllerButton_Y+1);
+
+	bool pressed[ztInputControllerButton_MAX];
+
+	zt_fiz(zt_min(ZT_MAX_INPUT_CONTROLLERS, zt_elementsOf(zt->input_controllers))) {
+		if (zt->input_controllers[i].connected) {
+			XINPUT_STATE controller_state;
+			if (zt->xinput_getState(i, &controller_state) == ERROR_SUCCESS) {
+
+				// if analog controls are within the deadzone, we just zero them out
+				if (controller_state.Gamepad.bLeftTrigger  < XINPUT_GAMEPAD_TRIGGER_THRESHOLD) controller_state.Gamepad.bLeftTrigger = 0;
+				if (controller_state.Gamepad.bRightTrigger < XINPUT_GAMEPAD_TRIGGER_THRESHOLD) controller_state.Gamepad.bRightTrigger = 0;
+
+				if (controller_state.Gamepad.sThumbLX > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  && controller_state.Gamepad.sThumbLX < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE ) controller_state.Gamepad.sThumbLX = 0;
+				if (controller_state.Gamepad.sThumbLY > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  && controller_state.Gamepad.sThumbLY < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE ) controller_state.Gamepad.sThumbLY = 0;
+				if (controller_state.Gamepad.sThumbRX > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && controller_state.Gamepad.sThumbRX < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) controller_state.Gamepad.sThumbRX = 0;
+				if (controller_state.Gamepad.sThumbRY > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && controller_state.Gamepad.sThumbRY < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) controller_state.Gamepad.sThumbRY = 0;
+
+				zt_fjz(zt_elementsOf(flags)) {
+					pressed[j] = zt_bitIsSet(controller_state.Gamepad.wButtons, flags[j]);
+				}
+				pressed[ztInputControllerButton_TriggerLeft  ] = controller_state.Gamepad.bLeftTrigger != 0;
+				pressed[ztInputControllerButton_TriggerRight ] = controller_state.Gamepad.bRightTrigger != 0;
+				pressed[ztInputControllerButton_ThumbpadLeft ] = controller_state.Gamepad.sThumbLX != 0 || controller_state.Gamepad.sThumbLY != 0;
+				pressed[ztInputControllerButton_ThumbpadRight] = controller_state.Gamepad.sThumbRX != 0 || controller_state.Gamepad.sThumbRY != 0;
+
+				zt_fjz(zt_elementsOf(pressed)) {
+					if (pressed[j]) {
+						if (zt_bitIsSet(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
+							zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
+							zt->input_controllers[i].button_times[j] += dt;
+						}
+						else {
+							zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+							zt->input_controllers[i].button_states[j] |= ztInputControllerFlags_Pressed | ztInputControllerFlags_JustPressed;
+							zt->input_controllers[i].button_times[j] = dt;
+						}
+						zt->input_this_frame = true;
+					}
+					else if (zt->input_controllers[i].button_times[j] != 0) {
+						zt->input_controllers[i].button_states[j] |= ztInputControllerFlags_JustReleased;
+						zt->input_controllers[i].button_times[j] = 0;
+						zt->input_this_frame = true;
+					}
+					else {
+						zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed);
+						zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+					}
+				}
+				zt->input_controllers[i].analog_value_trigger_left      = zt_linearRemap((r32)controller_state.Gamepad.bLeftTrigger,  0.f, 255.f, 0.f, 1.f);
+				zt->input_controllers[i].analog_value_trigger_right     = zt_linearRemap((r32)controller_state.Gamepad.bRightTrigger, 0.f, 255.f, 0.f, 1.f);
+				zt->input_controllers[i].analog_value_thumb_pad_left_x  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLX, -32768.f, 32768.f, -1.f, 1.f);
+				zt->input_controllers[i].analog_value_thumb_pad_left_y  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLY, -32768.f, 32768.f, -1.f, 1.f);
+				zt->input_controllers[i].analog_value_thumb_pad_right_x = zt_linearRemap((r32)controller_state.Gamepad.sThumbRX, -32768.f, 32768.f, -1.f, 1.f);
+				zt->input_controllers[i].analog_value_thumb_pad_right_y = zt_linearRemap((r32)controller_state.Gamepad.sThumbRY, -32768.f, 32768.f, -1.f, 1.f);
+
+				for (int j = 2; j < zt_elementsOf(zt->input_controllers[i].analog_values); ++j) {
+					if (zt_abs(zt->input_controllers[i].analog_values[j]) < 0.05f) {
+						zt->input_controllers[i].analog_values[j] = 0;
+					}
+				}
+
+				if (zt->xinput_haptic[i] != 0.f) {
+					zt->xinput_haptic[i] += dt;
+					if (zt->xinput_haptic[i] > 1 / 60.f) {
+						zt->xinput_haptic[i] = 0;
+						XINPUT_VIBRATION vibration = { 0, 0 };
+						zt->xinput_setState(i, &vibration);
+					}
+				}
+			}
+			else {
+				zt->input_controllers[i].connected = false;
+
+				if (dt != 0) {
+					zt_logInfo("Controller %d disconnected", i + 1);
+				}
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high)
+{
+	zt_assertReturnOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS);
+
+	if (zt->xinput_setState) {
+		XINPUT_VIBRATION vibration = { zt_convertToi32Floor(strength_low * 65535.f), zt_convertToi32Floor(strength_high * 65535.f) };
+		zt->xinput_setState(idx, &vibration);
+		zt->xinput_haptic[idx] = 0.01f;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void _zt_win_processMessages()
 {
 	MSG msg;
@@ -9263,6 +9595,8 @@ int main(int argc, char **argv)
 
 		zt->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
 		zt->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
+
+		_zt_winControllerInputInit();
 	}
 
 	zt->renderer_memory_size = game_settings->renderer_memory;
@@ -9358,6 +9692,7 @@ int main(int argc, char **argv)
 
 		_zt_inputClearState(false);
 		_zt_win_processMessages();
+		_zt_winControllerInputUpdate(dt);
 
 		++zt->game_details.current_frame;
 	} while (!zt->quit_requested);
@@ -9375,6 +9710,7 @@ int main(int argc, char **argv)
 
 	zt_memFree(zt_memGetGlobalArena(), zt->renderer_memory);
 
+	_zt_winControllerInputCleanup();
 	_zt_winCleanupWindow(&zt->win_details[0], &zt->win_game_settings[0]);
 
 	zt_memDumpArena(zt_memGetGlobalArena(), "main memory");

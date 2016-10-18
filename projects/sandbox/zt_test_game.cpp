@@ -455,6 +455,7 @@ bool game_loop(r32 dt)
 {
 	ztInputKeys *input = zt_inputKeysAccessState();
 	ztInputMouse *mouse = zt_inputMouseAccessState();
+	ztInputController *controller = zt_inputControllerAccessState(0);
 
 	ztInputKeys_Enum input_keystrokes[16];
 	zt_inputGetKeyStrokes(input_keystrokes);
