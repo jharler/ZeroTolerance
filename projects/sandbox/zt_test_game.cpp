@@ -69,6 +69,7 @@ struct ztGame
 	ztModel *model_plane;
 	ztModel *model_light;
 	ztLight directional_light;
+	ztModel *model_sphere;
 
 	ztModel *model_point_lights[4];
 	ztLight point_lights[4];
@@ -258,16 +259,33 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->material_boxes = zt_materialMake(g_game->tex_id_crate, ztVec4::one, 0, g_game->tex_id_crate_spec, ztVec4::one, 0, g_game->tex_id_crate_norm);
 	g_game->material_boxes.shininess = 1.f;
 
-	g_game->plane = zt_meshMakePrimativePlane(200, 200, 50, 50);
+	g_game->plane = zt_meshMakePrimitivePlane(200, 200, 50, 50);
 	//g_game->cube = zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/cube.obj"), nullptr);
-	g_game->cube = zt_meshMakePrimativeBox(1, 1, 1);
-
+	g_game->cube = zt_meshMakePrimitiveBox(1, 1, 1);
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
+	ztMeshID sphere = zt_meshMakePrimitiveSphere(.25f, 10, ztMeshPrimitiveSphere_TexWrapped);
+	if (sphere != ztInvalidID) {
+		ztMaterial mat = zt_materialMake(zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/spherical_cube_tex.png"), /*ztTextureFlags_PixelPerfect*/ 0), ztVec4::one, ztMaterialFlags_OwnsTexture);
+		ztModel *sphere_model = zt_modelMake(zt_memGetGlobalArena(), sphere, &mat, zt_shaderGetDefault(ztShaderDefault_Lit), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+		zt_sceneAddModel(g_game->scene, sphere_model);
+		sphere_model->transform.position.y = 1;
+		g_game->model_sphere = sphere_model;
+	}
+
+	ztMeshID diamond = zt_meshMakePrimitiveDiamond(.25f, .25f, .75f, 4);
+	if (diamond != ztInvalidID) {
+		ztMaterial mat = zt_materialMake(ztInvalidID, ztVec4::one);
+		ztModel *model_diamond = zt_modelMake(zt_memGetGlobalArena(), diamond, &mat, zt_shaderGetDefault(ztShaderDefault_Lit), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+		zt_sceneAddModel(g_game->scene, model_diamond);
+		model_diamond->transform.position.y = 1;
+		model_diamond->transform.position.z = -2;
+	}
+
 	ztMeshID mesh_chair = ztInvalidID;
 	ztMaterial mat_chair;
-	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3::one, ztVec3(2, 3, 0));
+	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3(.25f, .25f, .25f), ztVec3(0, 1, 0));
 
 	ztShaderID chair_shader = zt_shaderGetDefault(ztShaderDefault_LitShadow);
 	ztModel *model_chair = zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, chair_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
@@ -289,7 +307,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
 		if (i == 0) {
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimativeBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimitiveBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 		}
 		else {
 			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
@@ -342,7 +360,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	g_game->directional_light.position = ztVec3(-5, 10, -2.5f);
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
 
-	if(false){
+	if(true){
 		ztGuiItemID slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);
@@ -409,7 +427,7 @@ void game_cleanup()
 			zt_sceneRemoveModel(g_game->scene, g_game->vr->headset.model);
 		}
 		zt_fiz(g_game->vr->controllers_count) {
-			if (g_game->vr->controllers[i].model) {
+			if (g_game->vr->controllers[i].model && zt_sceneHasModel(g_game->scene, g_game->vr->controllers[i].model)) {
 				zt_sceneRemoveModel(g_game->scene, g_game->vr->controllers[i].model);
 			}
 		}
@@ -520,6 +538,8 @@ bool game_loop(r32 dt)
 			g_game->model_boxes[5]->transform.rotation *= ztQuat::makeFromEuler(0, dt * 360 * .25f, 0);
 			g_game->model_boxes[6]->transform.rotation *= ztQuat::makeFromEuler(0, 0, dt * 360 * .25f);
 		}
+
+		g_game->model_sphere->transform.rotation *= ztQuat::makeFromEuler(0, dt * 360 * .15f, 0);
 	}
 
 	if (g_game->vr) {

@@ -894,8 +894,17 @@ typedef i32 ztMeshID;
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count);
 void zt_meshFree(ztMeshID mesh_id);
 
-ztMeshID zt_meshMakePrimativeBox(r32 width, r32 height, r32 depth);
-ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w = 1, int grid_d = 1);
+ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth);
+ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w = 1, int grid_d = 1);
+ztMeshID zt_meshMakePrimitiveDiamond(r32 width, r32 top, r32 bottom, int sides);
+
+enum ztMeshPrimativeSphere_Enum
+{
+	ztMeshPrimitiveSphere_TexDuplicatedPerFace, // the quadrilateralised spherical cube maps the same texture on each of the 6 faces
+	ztMeshPrimitiveSphere_TexWrapped,           // the texture coordinates are in the shape of a T with the T at the top of the texture
+};
+
+ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere_Enum texture);
 
 int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
@@ -8483,7 +8492,7 @@ void zt_meshFree(ztMeshID mesh_id)
 
 // ------------------------------------------------------------------------------------------------
 
-ztMeshID zt_meshMakePrimativeBox(r32 width, r32 height, r32 depth)
+ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth)
 {
 	ztVec3 vertices[] = {
 		/* front face  */ ztVec3(-.5f * width,  .5f * height,  .5f * depth), ztVec3(-.5f * width, -.5f * height,  .5f * depth), ztVec3( .5f * width, -.5f * height,  .5f * depth), ztVec3( .5f * width,  .5f * height,  .5f * depth),
@@ -8528,7 +8537,7 @@ ztMeshID zt_meshMakePrimativeBox(r32 width, r32 height, r32 depth)
 
 // ------------------------------------------------------------------------------------------------
 
-ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w, int grid_d)
+ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w, int grid_d)
 {
 	int verts_count = (grid_w * grid_d) * 4;
 	ztVec3 *vertices = zt_mallocStructArray(ztVec3, verts_count);
@@ -8582,6 +8591,142 @@ ztMeshID zt_meshMakePrimativePlane(r32 width, r32 depth, int grid_w, int grid_d)
 	zt_free(normals);
 	zt_free(uvs);
 	zt_free(vertices);
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMakePrimitiveDiamond(r32 width, r32 top, r32 bottom, int sides)
+{
+	int verts_count = 6 * sides;
+
+	ztVec3 *vertices = zt_mallocStructArray(ztVec3, verts_count);
+
+	r32 angle = zt_degreesToRadians(360.f / sides);
+
+	ztVec3 vtop(0, top, 0);
+	ztVec3 vbtm(0, -bottom, 0);
+
+	int vert_idx = 0;
+	zt_fiz(sides) {
+		ztVec3 side_a = ztVec3(width * zt_cos(angle * i), 0, width * zt_sin(angle * i));
+		ztVec3 side_b = ztVec3(width * zt_cos(angle * ((i + 1) % sides)), 0, width * zt_sin(angle * ((i + 1) % sides)));
+
+		vertices[vert_idx++] = vtop;
+		vertices[vert_idx++] = side_b;
+		vertices[vert_idx++] = side_a;
+
+		vertices[vert_idx++] = vbtm;
+		vertices[vert_idx++] = side_a;
+		vertices[vert_idx++] = side_b;
+	}
+
+	ztMeshID result = zt_meshMake(vertices, nullptr, nullptr, verts_count, nullptr, 0);
+
+	zt_free(vertices);
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere_Enum texture)
+{
+	int verts_count = rings * rings * 6 * 6;
+	ztVec3 *vertices  = zt_mallocStructArray(ztVec3, verts_count);
+	ztVec2 *uvs       = zt_mallocStructArray(ztVec2, verts_count);
+	
+	r32 grid_size = radius * 2 / rings;
+
+	int vert_idx = 0;
+
+	//                           front,        bottom,          back,            top,          left,         right
+
+	r32 y_add_vert_2[6] = { -grid_size,             0,     grid_size,              0,    -grid_size,    -grid_size };
+	r32 z_add_vert_2[6] = {          0,    -grid_size,             0,      grid_size,             0,             0 };
+
+	r32 x_add_vert_3[6] = {  grid_size,     grid_size,     grid_size,      grid_size,             0,             0 };
+	r32 y_add_vert_3[6] = { -grid_size,             0,     grid_size,              0,    -grid_size,    -grid_size };
+	r32 z_add_vert_3[6] = {          0,    -grid_size,             0,      grid_size,     grid_size,    -grid_size };
+
+	r32 x_add_vert_5[6] = {  grid_size,     grid_size,     grid_size,      grid_size,             0,             0 };
+	r32 y_add_vert_5[6] = { -grid_size,             0,     grid_size,              0,    -grid_size,    -grid_size };
+	r32 z_add_vert_5[6] = {          0,    -grid_size,             0,      grid_size,     grid_size,    -grid_size };
+
+	r32 x_add_vert_6[6] = {  grid_size,     grid_size,     grid_size,      grid_size,             0,             0 };
+	r32 z_add_vert_6[6] = {          0,             0,             0,              0,     grid_size,    -grid_size };
+
+	r32 x_start[6]      = {    -radius,       -radius,       -radius,        -radius,       -radius,        radius };
+	r32 y_start[6]      = {     radius,       -radius,       -radius,         radius,        radius,        radius };
+	r32 z_start[6]      = {     radius,        radius,       -radius,        -radius,       -radius,        radius };
+
+	r32 y_add_1[6]      = { -grid_size,             0,     grid_size,              0,    -grid_size,    -grid_size };
+	r32 z_add_1[6]      = {          0,    -grid_size,             0,      grid_size,             0,             0 };
+
+	r32 x_add_2[6]      = { grid_size ,     grid_size,     grid_size,      grid_size,             0,             0 };
+	r32 y_add_2[6]      = { radius * 2,             0,   -radius * 2,              0,    radius * 2,    radius * 2 };
+	r32 z_add_2[6]      = {          0,    radius * 2,             0,    -radius * 2,     grid_size,    -grid_size };
+
+	r32 uv_x_beg[6]     = {       .25f,          .25f,          .25f,           .25f,         .000f,           .5f };
+	r32 uv_y_beg[6]     = {      .000f,          .25f,           .5f,           .75f,         .000f,         .000f };
+
+	zt_fkz(6) {
+		r32 x_pos = x_start[k];
+		r32 y_pos = y_start[k];
+		r32 z_pos = z_start[k];
+
+		zt_fiz(rings) {
+			zt_fjz(rings) {
+				vertices[vert_idx + 0] = ztVec3(x_pos                  , y_pos                  , z_pos);
+				vertices[vert_idx + 1] = ztVec3(x_pos                  , y_pos + y_add_vert_2[k], z_pos + z_add_vert_2[k]);
+				vertices[vert_idx + 2] = ztVec3(x_pos + x_add_vert_3[k], y_pos + y_add_vert_3[k], z_pos + z_add_vert_3[k]);
+
+				vertices[vert_idx + 3] = ztVec3(x_pos                  , y_pos                  , z_pos);
+				vertices[vert_idx + 4] = ztVec3(x_pos + x_add_vert_5[k], y_pos + y_add_vert_5[k], z_pos + z_add_vert_5[k]);
+				vertices[vert_idx + 5] = ztVec3(x_pos + x_add_vert_6[k], y_pos                  , z_pos + z_add_vert_6[k]);
+
+				if (texture == ztMeshPrimitiveSphere_TexDuplicatedPerFace) {
+					uvs[vert_idx + 0] = ztVec2((i + 0) / (r32)rings, (j + 0) / (r32)rings);
+					uvs[vert_idx + 1] = ztVec2((i + 0) / (r32)rings, (j + 1) / (r32)rings);
+					uvs[vert_idx + 2] = ztVec2((i + 1) / (r32)rings, (j + 1) / (r32)rings);
+
+					uvs[vert_idx + 3] = ztVec2((i + 0) / (r32)rings, (j + 0) / (r32)rings);
+					uvs[vert_idx + 4] = ztVec2((i + 1) / (r32)rings, (j + 1) / (r32)rings);
+					uvs[vert_idx + 5] = ztVec2((i + 1) / (r32)rings, (j + 0) / (r32)rings);
+				}
+				else {
+					uvs[vert_idx + 0] = ztVec2(uv_x_beg[k] + ((i + 0) / (r32)rings * .25f), uv_y_beg[k] + ((j + 0) / (r32)rings * .25f));
+					uvs[vert_idx + 1] = ztVec2(uv_x_beg[k] + ((i + 0) / (r32)rings * .25f), uv_y_beg[k] + ((j + 1) / (r32)rings * .25f));
+					uvs[vert_idx + 2] = ztVec2(uv_x_beg[k] + ((i + 1) / (r32)rings * .25f), uv_y_beg[k] + ((j + 1) / (r32)rings * .25f));
+
+					uvs[vert_idx + 3] = ztVec2(uv_x_beg[k] + ((i + 0) / (r32)rings * .25f), uv_y_beg[k] + ((j + 0) / (r32)rings * .25f));
+					uvs[vert_idx + 4] = ztVec2(uv_x_beg[k] + ((i + 1) / (r32)rings * .25f), uv_y_beg[k] + ((j + 1) / (r32)rings * .25f));
+					uvs[vert_idx + 5] = ztVec2(uv_x_beg[k] + ((i + 1) / (r32)rings * .25f), uv_y_beg[k] + ((j + 0) / (r32)rings * .25f));
+				}
+
+				vert_idx += 6;
+
+				y_pos += y_add_1[k];
+				z_pos += z_add_1[k];
+			}
+			x_pos += x_add_2[k];
+			y_pos += y_add_2[k];
+			z_pos += z_add_2[k];
+		}
+	}
+
+	zt_fiz(vert_idx) {
+		vertices[i].normalize();
+		vertices[i] *= radius;
+	}
+
+	verts_count = vert_idx;
+
+	ztMeshID result = zt_meshMake(vertices, uvs, nullptr, verts_count, nullptr, 0);
+
+	zt_free(vertices);
+	zt_free(uvs);
 
 	return result;
 }
