@@ -39,6 +39,11 @@ Implimentation Options: (only used with ZT_OPENGL_IMPLEMENTATION #include)
 // ------------------------------------------------------------------------------------------------
 
 #include "zt_tools.h"
+
+#if defined(ZT_WINDOWS)
+#include <windows.h>
+#endif
+
 #include <gl/GL.h>
 
 
@@ -420,9 +425,23 @@ typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint
 	ZTGL_FUNC_OP(glGetUniformfv) \
 	ZTGL_FUNC_OP(glGetUniformiv) \
 
+
 #define ZTGL_FUNC_OP(func)	extern ztgl_##func##_Func func;
 ZTGL_FUNCTIONS
 #undef ZTGL_FUNC_OP
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_FUNC_DLL_SET_OPENGL_GLOBALS(name) void name(void *memory, int version)
+typedef ZT_FUNC_DLL_SET_OPENGL_GLOBALS(zt_dllSetOpenGLGlobals_Func);
+
+#if !defined(ZT_DLL)
+
+void zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals_Func *set_globals);
+
+#endif
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -492,6 +511,60 @@ enum ztRendererFlagsGL_Enum
 };
 
 
+// ------------------------------------------------------------------------------------------------
+
+struct ztOpenGLFunctions
+{
+#	define ZTGL_FUNC_OP(func)	ztgl_##func##_Func func;
+	ZTGL_FUNCTIONS
+#	undef ZTGL_FUNC_OP
+};
+
+#define ZT_OPENGL_FUNCTIONS_VERSION   1 // update this any time ztOpenGLFunctions is changed
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_loadFunctions(ztOpenGLFunctions *functions)
+{
+#	define ZTGL_FUNC_OP(func) functions->func = func;
+	ZTGL_FUNCTIONS;
+#	undef ZTGL_FUNC_OP
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_saveFunctions(ztOpenGLFunctions *functions)
+{
+#	define ZTGL_FUNC_OP(func) func = functions->func;
+	ZTGL_FUNCTIONS;
+#	undef ZTGL_FUNC_OP
+}
+
+// ------------------------------------------------------------------------------------------------
+
+#if defined(ZT_DLL)
+
+ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetOpenGLGlobals)
+{
+	if (version == ZT_OPENGL_FUNCTIONS_VERSION) {
+		ztgl_saveFunctions((ztOpenGLFunctions*)memory);
+	}
+}
+
+#else
+void zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals_Func *set_globals)
+{
+	if (set_globals) {
+		ztOpenGLFunctions functions;
+		ztgl_loadFunctions(&functions);
+		set_globals(&functions, ZT_OPENGL_FUNCTIONS_VERSION);
+	}
+}
+#endif
+
+
+// ------------------------------------------------------------------------------------------------
+
 
 #if defined(ZT_WINDOWS)
 #pragma comment(lib, "opengl32.lib")
@@ -500,7 +573,7 @@ enum ztRendererFlagsGL_Enum
 
 ztInternal void _ztgl_win_loadFunctions()
 {
-#	define ZTGL_FUNC_OP(func) func = (ztgl_##func##_Func)wglGetProcAddress((LPCSTR)((const GLubyte*)#func)); if(func == nullptr) zt_logCritical("Unable to load OpenGL function: %s", #func);
+#	define ZTGL_FUNC_OP(func) if(!func) func = (ztgl_##func##_Func)wglGetProcAddress((LPCSTR)((const GLubyte*)#func)); if(func == nullptr) zt_logCritical("Unable to load OpenGL function: %s (%d)", #func, GetLastError());
 	ZTGL_FUNCTIONS;
 #	undef ZTGL_FUNC_OP
 }

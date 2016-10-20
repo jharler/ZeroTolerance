@@ -594,8 +594,8 @@ bool zt_vrUpdate(ztVrSystem *vr_system)
 
 bool zt_vrSubmit(ztVrSystem *vr_system)
 {
-	ztTexture *tex_left = &zt->textures[vr_system->tex_left];
-	ztTexture *tex_right = &zt->textures[vr_system->tex_right];
+	ztTexture *tex_left = &zt_game->textures[vr_system->tex_left];
+	ztTexture *tex_right = &zt_game->textures[vr_system->tex_right];
 
 	vr::Texture_t vr_tex_left, vr_tex_right;
 

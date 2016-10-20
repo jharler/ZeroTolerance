@@ -324,10 +324,10 @@ struct ztInputKeys
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_inputThisFrame();
+bool         zt_inputThisFrame();
 ztInputKeys* zt_inputKeysAccessState(); // not thread safe
-void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
-void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes]);
+void         zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
+void         zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes]);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -395,12 +395,12 @@ struct ztInputMouse
 // ------------------------------------------------------------------------------------------------
 
 ztInputMouse* zt_inputMouseAccessState(); // not thread safe
-void zt_inputMouseCopyState(ztInputMouse *input_mouse);
+void          zt_inputMouseCopyState(ztInputMouse *input_mouse);
 
-void zt_inputMouseLook(bool mouse_look);
-bool zt_inputMouseIsLook();
+void          zt_inputMouseLook(bool mouse_look);
+bool          zt_inputMouseIsLook();
 
-void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor);
+void          zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -521,8 +521,8 @@ struct ztInputController
 // ------------------------------------------------------------------------------------------------
 
 ztInputController* zt_inputControllerAccessState(int idx); // not thread safe
-void zt_inputControllerCopyState(ztInputController *input_controller, int idx);
-void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high);
+void               zt_inputControllerCopyState(ztInputController *input_controller, int idx);
+void               zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -616,28 +616,28 @@ struct ztAssetManager
 // ------------------------------------------------------------------------------------------------
 
 // takes the given directory and places all files in all directories (recursively) into the given packed file
-bool zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr);
+bool      zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr);
 
-bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena = nullptr);
-bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena = nullptr);
-void zt_assetManagerFree(ztAssetManager *asset_mgr);
+bool      zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena = nullptr);
+bool      zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena = nullptr);
+void      zt_assetManagerFree(ztAssetManager *asset_mgr);
 
-bool zt_assetExists(ztAssetManager *asset_mgr, const char *asset);
-bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash);
-bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash);
+bool      zt_assetExists(ztAssetManager *asset_mgr, const char *asset);
+bool      zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash);
+bool      zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash);
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID same_location_as);
-i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id);
-bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size);
+i32       zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id);
+bool      zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size);
 
-bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id);
+bool      zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id);
 
 // if reading from a directory, the passed function will be called whenever the file changes
-void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, zt_assetManagerAssetUpdated_Func function, void *user_data);
-void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data);
+void      zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, zt_assetManagerAssetUpdated_Func function, void *user_data);
+void      zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data);
 
-void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
+void      zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -646,12 +646,12 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
 typedef i32 ztShaderID;
 
 ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
-void zt_shaderFree(ztShaderID shader_id);
+void       zt_shaderFree(ztShaderID shader_id);
 
 // --------------------------------------------------------
 // sets shader variables "model", "projection" and "view"
-void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view);
-void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model);
+void       zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view);
+void       zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -823,10 +823,12 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
 
-void zt_textureFree(ztTextureID texture_id);
+void        zt_textureFree(ztTextureID texture_id);
 
-void zt_textureRenderTargetPrepare(ztTextureID texture_id);
-void zt_textureRenderTargetCommit(ztTextureID texture_id);
+void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
+void        zt_textureRenderTargetCommit(ztTextureID texture_id);
+
+ztPoint2    zt_textureGetSize(ztTextureID texture_id);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -892,7 +894,7 @@ typedef i32 ztMeshID;
 // NOTE: UV coordinates are 0,0 = top left, 1,1 = bottom right
 
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count);
-void zt_meshFree(ztMeshID mesh_id);
+void     zt_meshFree(ztMeshID mesh_id);
 
 ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth);
 ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w = 1, int grid_d = 1);
@@ -906,9 +908,9 @@ enum ztMeshPrimativeSphere_Enum
 
 ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere_Enum texture);
 
-int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
+int      zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
 
-void zt_meshRender(ztMeshID mesh_id);
+void     zt_meshRender(ztMeshID mesh_id);
 
 // ------------------------------------------------------------------------------------------------
 // transform
@@ -963,6 +965,25 @@ struct ztCamera
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
+
+void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
+void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
+
+// it is sometimes useful to set the camera matrices when the position/rotation is not known (such as with vr hmds)
+void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view);
+
+void     zt_cameraOrthoGetExtents(ztCamera *camera, ztVec2 *min_ext, ztVec2 *max_ext);
+ztVec2   zt_cameraOrthoGetMaxExtent(ztCamera *camera);
+ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
+ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
+ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
+ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztFrustum
 {
 	union {
@@ -990,21 +1011,10 @@ struct ztFrustum
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera);
 
-void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
-void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
 
-// it is sometimes useful to set the camera matrices when the position/rotation is not known (such as with vr hmds)
-void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view);
-
-void zt_cameraOrthoGetExtents(ztCamera *camera, ztVec2 *min_ext, ztVec2 *max_ext);
-ztVec2 zt_cameraOrthoGetMaxExtent(ztCamera *camera);
-ztVec2 zt_cameraOrthoGetMinExtent(ztCamera *camera);
-ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera);
-ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+// ------------------------------------------------------------------------------------------------
 
 struct ztCameraControllerFPS
 {
@@ -1033,11 +1043,12 @@ struct ztCameraControllerFPS
 	ztVec3 velocity;
 };
 
-ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
-void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
-void zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
+// ------------------------------------------------------------------------------------------------
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera);
+ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
+void                  zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
+void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
+
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1411,6 +1422,7 @@ void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset = nullptr);
 void zt_alignToPixel(ztVec2 *val, r32 ppu);
 void zt_alignToPixel(ztVec3 *val, r32 ppu);
 
+
 // ------------------------------------------------------------------------------------------------
 // fonts
 
@@ -1492,6 +1504,24 @@ bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_
 bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size);
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_FUNC_DLL_SET_GAME_GLOBALS(name) void name(void *memory, int version)
+typedef ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals_Func);
+
+#if !defined(ZT_DLL)
+
+#if defined(ZT_OPENGL)
+void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals, zt_dllSetOpenGLGlobals_Func *set_globals_opengl);
+#else
+void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
+#endif
+#endif
+
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1521,19 +1551,19 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 
 // configure renderers
 #if defined(ZT_OPENGL)
-#define zt_openGLSupport(code) code
-#define zt_noOpenGLSupport(code)
+#	define zt_openGLSupport(code) code
+#	define zt_noOpenGLSupport(code)
 #else
-#define zt_openGLSupport(code)
-#define zt_noOpenGLSupport(code) code
+#	define zt_openGLSupport(code)
+#	define zt_noOpenGLSupport(code) code
 #endif
 
 #if defined(ZT_DIRECTX)
-#define zt_directxSupport(code) code
-#define zt_noDirectxSupport(code)
+#	define zt_directxSupport(code) code
+#	define zt_noDirectxSupport(code)
 #else
-#define zt_directxSupport(code)
-#define zt_noDirectxSupport(code) code
+#	define zt_directxSupport(code)
+#	define zt_noDirectxSupport(code) code
 #endif
 
 // ------------------------------------------------------------------------------------------------
@@ -1737,12 +1767,15 @@ struct ztGameGlobals
 	HINSTANCE hinstance = NULL;
 	HMODULE hmod_xinput = NULL;
 
-	typedef DWORD(*xinput_getState_Func)(DWORD, XINPUT_STATE *);
-	typedef DWORD(*xinput_setState_Func)(DWORD, XINPUT_VIBRATION *);
+	typedef DWORD (__stdcall *xinput_getState_Func)(DWORD, XINPUT_STATE *);
+	typedef DWORD (__stdcall *xinput_setState_Func)(DWORD, XINPUT_VIBRATION *);
 	xinput_getState_Func xinput_getState = nullptr;
 	xinput_setState_Func xinput_setState = nullptr;
 	r32 xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 #endif
+
+	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
+
 
 	bool quit_requested = false;
 
@@ -1800,7 +1833,9 @@ struct ztGameGlobals
 	// ----------------------
 };
 
-ztGameGlobals *zt = nullptr;
+#define ZT_GAME_GLOBALS_VERSION   1 // update this any time ztGameGlobals is changed
+
+ztGameGlobals *zt_game = nullptr;
 
 
 #endif // internal include guard
@@ -1810,18 +1845,48 @@ ztGameGlobals *zt = nullptr;
 #ifndef __zt_game_implementation__
 #define __zt_game_implementation__
 
-// check for valid setup
-#if !defined(ZT_GAME_FUNC_SETTINGS)
-#	error "You must define ZT_GAME_FUNC_SETTINGS"
+#if !defined(ZT_DLL)
+	// check for valid setup
+#	if !defined(ZT_GAME_FUNC_SETTINGS)
+#		error You must define ZT_GAME_FUNC_SETTINGS
+#	endif
+#	if !defined(ZT_GAME_FUNC_INIT)
+#		error You must define ZT_GAME_FUNC_INIT
+#	endif
+#	if !defined(ZT_GAME_FUNC_CLEANUP)
+#		error You must define ZT_GAME_FUNC_CLEANUP
+#	endif
+#	if !defined(ZT_GAME_FUNC_LOOP)
+#		error You must define ZT_GAME_FUNC_LOOP
+#	endif
 #endif
-#if !defined(ZT_GAME_FUNC_INIT)
-#	error "You must define ZT_GAME_FUNC_INIT"
-#endif
-#if !defined(ZT_GAME_FUNC_CLEANUP)
-#	error "You must define ZT_GAME_FUNC_CLEANUP"
-#endif
-#if !defined(ZT_GAME_FUNC_LOOP)
-#	error "You must define ZT_GAME_FUNC_LOOP"
+
+#if defined(ZT_DLL)
+ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
+{
+	if (version == ZT_GAME_GLOBALS_VERSION) {
+		zt_game = (ztGameGlobals *)memory;
+	}
+}
+#else
+#	if defined(ZT_OPENGL)
+	void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals, zt_dllSetOpenGLGlobals_Func *set_globals_opengl)
+	{
+		if (set_globals) {
+			set_globals(zt_game, ZT_GAME_GLOBALS_VERSION);
+		}
+		if (set_globals_opengl) {
+			zt_game->zt_dllSetOpenGLGlobals = set_globals_opengl;
+		}
+	}
+#	else
+	void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals)
+	{
+		if (set_globals) {
+			set_globals(zt_game, ZT_GAME_GLOBALS_VERSION);
+		}
+	}
+#	endif
 #endif
 
 // ------------------------------------------------------------------------------------------------
@@ -1856,8 +1921,8 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	i32 len = zt_getDirectoryFiles(directory, buffer, buffer_size, true);
 	if (len == 0) {
 		zt_logInfo("Asset Manager: No assets found in directory: %s", directory);
-		zt_free(buffer);
-		return false;
+		zt_freeArena(buffer, arena);
+		return true; // no reason to fail here, but there's nothing more to do
 	}
 
 	if (ztFilePathSeparator == '\\') {
@@ -1871,7 +1936,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	int tokens_count = zt_strTokenize(buffer, "\n", nullptr, 0);
 	if (tokens_count <= 0) {
 		zt_logCritical("Asset Manager: Unable to parse directory list: %s", buffer);
-		zt_free(buffer);
+		zt_freeArena(buffer, arena);
 		return false;
 	}
 
@@ -2295,14 +2360,14 @@ ztInternal const char *_zt_default_shaders[] = {
 
 ztRenderer_Enum zt_currentRenderer()
 {
-	return zt->win_game_settings[0].renderer;
+	return zt_game->win_game_settings[0].renderer;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 r32 zt_pixelsPerUnit()
 {
-	return (r32)zt->win_game_settings[0].pixels_per_unit;
+	return (r32)zt_game->win_game_settings[0].pixels_per_unit;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2329,7 +2394,7 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 
 // ------------------------------------------------------------------------------------------------
 
-#define _zt_setKeyData(code, name, display, shift_display, mapping) zt->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
+#define _zt_setKeyData(code, name, display, shift_display, mapping) zt_game->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
 
 ztInternal void _zt_inputSetupKeys()
 {
@@ -2512,14 +2577,14 @@ ztInternal void _zt_inputSetupKeys()
 
 bool zt_inputThisFrame()
 {
-	return zt->input_this_frame;
+	return zt_game->input_this_frame;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 ztInputKeys* zt_inputKeysAccessState()
 {
-	return zt->input_keys;
+	return zt_game->input_keys;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2527,7 +2592,7 @@ ztInputKeys* zt_inputKeysAccessState()
 void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX])
 {
 	int size = sizeof(ztInputKeys) * ztInputKeys_MAX;
-	zt_memCpy(input_keys, size, zt->input_keys, size);
+	zt_memCpy(input_keys, size, zt_game->input_keys, size);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2535,35 +2600,35 @@ void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX])
 void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes])
 {
 	int size = sizeof(ztInputKeys_Enum) * ztInputKeyMaxStrokes;
-	zt_memCpy(key_strokes, size, zt->input_key_strokes, size);
+	zt_memCpy(key_strokes, size, zt_game->input_key_strokes, size);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 ztInputMouse* zt_inputMouseAccessState()
 {
-	return &zt->input_mouse;
+	return &zt_game->input_mouse;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_inputMouseCopyState(ztInputMouse *input_mouse)
 {
-	zt_memCpy(input_mouse, zt_sizeof(ztInputMouse), &zt->input_mouse, zt_sizeof(ztInputMouse));
+	zt_memCpy(input_mouse, zt_sizeof(ztInputMouse), &zt_game->input_mouse, zt_sizeof(ztInputMouse));
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_inputMouseLook(bool mouse_look)
 {
-	zt->input_mouse_look = mouse_look;
+	zt_game->input_mouse_look = mouse_look;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 bool zt_inputMouseIsLook()
 {
-	return zt->input_mouse_look;
+	return zt_game->input_mouse_look;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2580,7 +2645,7 @@ void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 	case ztInputMouseCursor_ResizeSWNE:	SetCursor(LoadCursor(NULL, IDC_SIZENESW)); break;
 	}
 
-	zt->input_mouse.cursor = cursor;
+	zt_game->input_mouse.cursor = cursor;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2588,7 +2653,7 @@ void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 ztInputController* zt_inputControllerAccessState(int idx)
 {
 	zt_assertReturnValOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS, nullptr);
-	return &zt->input_controllers[idx];
+	return &zt_game->input_controllers[idx];
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2596,7 +2661,7 @@ ztInputController* zt_inputControllerAccessState(int idx)
 void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
 {
 	zt_assertReturnOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS);
-	zt_memCpy(input_controller, zt_sizeof(ztInputController), &zt->input_controllers[idx], zt_sizeof(ztInputController));
+	zt_memCpy(input_controller, zt_sizeof(ztInputController), &zt_game->input_controllers[idx], zt_sizeof(ztInputController));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2613,52 +2678,52 @@ void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 stre
 void _zt_inputClearState( bool lost_focus )
 {
 	zt_fiz(ztInputKeys_MAX) {
-		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustPressed);
-		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustReleased);
-		zt_bitRemove(zt->input_keys[i].flags, ztInputKeyFlags_JustRepeated);
+		zt_bitRemove(zt_game->input_keys[i].flags, ztInputKeyFlags_JustPressed);
+		zt_bitRemove(zt_game->input_keys[i].flags, ztInputKeyFlags_JustReleased);
+		zt_bitRemove(zt_game->input_keys[i].flags, ztInputKeyFlags_JustRepeated);
 	}
 
-	zt_fiz(zt_elementsOf(zt->input_key_strokes)) {
-		zt->input_key_strokes[i] = ztInputKeys_Invalid;
+	zt_fiz(zt_elementsOf(zt_game->input_key_strokes)) {
+		zt_game->input_key_strokes[i] = ztInputKeys_Invalid;
 	}
-	zt->input_key_strokes_count = 0;
+	zt_game->input_key_strokes_count = 0;
 
-	zt_fiz(zt_elementsOf(zt->input_mouse.button_states)) {
-		zt_bitRemove(zt->input_mouse.button_states[i], ztInputMouseFlags_JustPressed);
-		zt_bitRemove(zt->input_mouse.button_states[i], ztInputMouseFlags_JustReleased);
+	zt_fiz(zt_elementsOf(zt_game->input_mouse.button_states)) {
+		zt_bitRemove(zt_game->input_mouse.button_states[i], ztInputMouseFlags_JustPressed);
+		zt_bitRemove(zt_game->input_mouse.button_states[i], ztInputMouseFlags_JustReleased);
 	}
 
-	zt->input_mouse.delta_x = zt->input_mouse.delta_y = 0;
+	zt_game->input_mouse.delta_x = zt_game->input_mouse.delta_y = 0;
 
 	zt_fiz(ZT_MAX_INPUT_CONTROLLERS) {
-		zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
-			zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
-			zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+		zt_fjz(zt_elementsOf(zt_game->input_controllers[i].button_states)) {
+			zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
+			zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
 		}
 	}
 
 	if (lost_focus) {
 		zt_fiz(ztInputKeys_MAX) {
-			if (zt_bitIsSet(zt->input_keys[i].flags, ztInputKeyFlags_Pressed)) {
-				zt->input_keys[i].flags = ztInputKeyFlags_JustReleased;
+			if (zt_bitIsSet(zt_game->input_keys[i].flags, ztInputKeyFlags_Pressed)) {
+				zt_game->input_keys[i].flags = ztInputKeyFlags_JustReleased;
 			}
 		}
 
-		zt_fiz(zt_elementsOf(zt->input_mouse.button_states)) {
-			if (zt_bitIsSet(zt->input_mouse.button_states[i], ztInputMouseFlags_Pressed)) {
-				zt->input_mouse.button_states[i] = ztInputMouseFlags_JustReleased;
+		zt_fiz(zt_elementsOf(zt_game->input_mouse.button_states)) {
+			if (zt_bitIsSet(zt_game->input_mouse.button_states[i], ztInputMouseFlags_Pressed)) {
+				zt_game->input_mouse.button_states[i] = ztInputMouseFlags_JustReleased;
 			}
 		}
 
 		zt_fiz(ZT_MAX_INPUT_CONTROLLERS) {
-			zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
-				if (zt_bitIsSet(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
-					zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
-					zt->input_controllers[i].button_times[j] = 0;
+			zt_fjz(zt_elementsOf(zt_game->input_controllers[i].button_states)) {
+				if (zt_bitIsSet(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
+					zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+					zt_game->input_controllers[i].button_times[j] = 0;
 				}
 			}
-			zt_fjz(zt_elementsOf(zt->input_controllers[i].analog_values)) {
-				zt->input_controllers[i].analog_values[j] = 0;
+			zt_fjz(zt_elementsOf(zt_game->input_controllers[i].analog_values)) {
+				zt_game->input_controllers[i].analog_values[j] = 0;
 			}
 		}
 
@@ -3385,10 +3450,10 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 
 ztInternal void _zt_rendererCheckToResetStats()
 {
-	if (zt->last_drawn_frame != zt->game_details.current_frame) {
-		zt->game_details.prev_frame = zt->game_details.curr_frame;
-		zt->game_details.curr_frame.shader_switches = zt->game_details.curr_frame.texture_switches = zt->game_details.curr_frame.triangles_drawn = zt->game_details.curr_frame.draw_calls = 0;
-		zt->last_drawn_frame = zt->game_details.current_frame;
+	if (zt_game->last_drawn_frame != zt_game->game_details.current_frame) {
+		zt_game->game_details.prev_frame = zt_game->game_details.curr_frame;
+		zt_game->game_details.curr_frame.shader_switches = zt_game->game_details.curr_frame.texture_switches = zt_game->game_details.curr_frame.triangles_drawn = zt_game->game_details.curr_frame.draw_calls = 0;
+		zt_game->last_drawn_frame = zt_game->game_details.current_frame;
 	}
 }
 
@@ -3417,8 +3482,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	}
 #else
 
-	byte *mem = zt->renderer_memory;
-	i32 mem_left = zt->renderer_memory_size;
+	byte *mem = zt_game->renderer_memory;
+	i32 mem_left = zt_game->renderer_memory_size;
 
 	struct ztCompileClipRegion
 	{
@@ -3823,12 +3888,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
-			zt_cameraMakeOrtho(&rt_cam, zt->textures[render_target_id].width, zt->textures[render_target_id].height, zt->textures[render_target_id].width, zt->textures[render_target_id].height, camera->near_z, camera->far_z);
+			zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->near_z, camera->far_z);
 			rt_cam.zoom = camera->zoom;
 			rt_cam.position = camera->position;
 		}
 		else {
-			zt_cameraMakePersp(&rt_cam, zt->textures[render_target_id].width, zt->textures[render_target_id].height, camera->fov, camera->near_z, camera->far_z);
+			zt_cameraMakePersp(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->fov, camera->near_z, camera->far_z);
 			rt_cam.position = camera->position;
 			rt_cam.rotation = camera->rotation;
 			rt_cam.direction = camera->direction;
@@ -3838,7 +3903,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		camera = &rt_cam;
 	}
 
-	if (zt->win_game_settings[0].renderer == ztRenderer_OpenGL) {
+	if (zt_game->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
 			zt_textureRenderTargetPrepare(render_target_id);
@@ -3859,7 +3924,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		if (clip_regions_count > 0) {
 			ztgl_callAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
-			ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+			ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -3872,7 +3937,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			GLuint model_loc = -1;
 
 			if (shaders[i]->shader != ztInvalidID) {
-				zt->game_details.curr_frame.shader_switches += 1;
+				zt_game->game_details.curr_frame.shader_switches += 1;
 				zt_shaderBegin(shader_id);
 				zt_shaderSetVariableMat4(shader_id, zt_strHash("model"), ztMat4::identity);
 				zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
@@ -3894,14 +3959,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 				}
 
 				if (cmp_tex->command) {
-					ztgl_textureBindReset(zt->shaders[shader_id].gl_shader);
-					zt->game_details.curr_frame.texture_switches += 1;
+					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
+					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
-						ztgl_shaderVariableTex(zt->shaders[shader_id].gl_shader, zt_strHash("tex_diffuse"), zt->textures[cmp_tex->command->texture[i]].gl_texture);
+						ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, zt_strHash("tex_diffuse"), zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
 					}
 				}
 
@@ -3912,7 +3977,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 				}
 
 				ztCompileItem *cmp_item = cmp_tex->item;
@@ -3935,13 +4000,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								};
 
 								ztgl_drawVertices(GL_TRIANGLES, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-								zt->game_details.curr_frame.draw_calls += 1;
+								zt_game->game_details.curr_frame.draw_calls += 1;
 
 							} break;
 
 							case ztDrawCommandType_Line:
 							case ztDrawCommandType_Point: {
-								zt->game_details.curr_frame.draw_calls += 1;
+								zt_game->game_details.curr_frame.draw_calls += 1;
 								glEnd();
 								ztgl_callAndReportOnErrorFast(glPopMatrix());
 							} break;
@@ -4005,7 +4070,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
 						}
 						else {
-							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 							//ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
 						}
 					}
@@ -4018,7 +4083,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					switch (cmp_item->command->type)
 					{
 						case ztDrawCommandType_Triangle: {
-							++zt->game_details.curr_frame.triangles_drawn;
+							++zt_game->game_details.curr_frame.triangles_drawn;
 
 							zt_fkz(3) {
 								int idx = buffer.vertices_count++;
@@ -4032,7 +4097,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Billboard: {
-							zt->game_details.curr_frame.triangles_drawn += 2;
+							zt_game->game_details.curr_frame.triangles_drawn += 2;
 
 							ztVec3 p[4] = {
 								ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
@@ -4103,11 +4168,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 				}
 
 				if (cmp_tex->command) {
-					ztgl_textureBindReset(zt->shaders[shader_id].gl_shader);
+					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -4116,7 +4181,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
 				//glDisable(GL_SCISSOR_TEST);
-				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt->win_game_settings[0].native_w, zt->win_game_settings[0].native_h));
+				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 			}
 
 			glUseProgram(0);
@@ -4132,7 +4197,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 #endif // ZT_OPENGL
 	}
-	else if (zt->win_game_settings[0].renderer == ztRenderer_DirectX) {
+	else if (zt_game->win_game_settings[0].renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
 
 		if (render_target_id != ztInvalidID) {
@@ -4140,10 +4205,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			ztdx_depthTestLess(zt->win_details[0].dx_context);
+			ztdx_depthTestLess(zt_game->win_details[0].dx_context);
 		}
 		else {
-			ztdx_depthTestOff(zt->win_details[0].dx_context);
+			ztdx_depthTestOff(zt_game->win_details[0].dx_context);
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -4155,31 +4220,31 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
 			if (shaders[i]->shader != ztInvalidID) {
-				zt->game_details.curr_frame.shader_switches += 1;
-				ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
+				zt_game->game_details.curr_frame.shader_switches += 1;
+				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
 
 				ztMat4 dxMod = ztMat4::identity.getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
 
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, model_hash, dxMod);
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, view_hash, dxView);
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, projection_hash, dxProj);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, projection_hash, dxProj);
 				zt_shaderApplyVariables(shader_id);
 			}
 			else {
 				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
 
-				zt->game_details.curr_frame.shader_switches += 1;
-				ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader);
+				zt_game->game_details.curr_frame.shader_switches += 1;
+				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
 
 				ztMat4 dxMod = ztMat4::identity .getTranspose();
 				ztMat4 dxView = camera->mat_view.getTranspose();
 				ztMat4 dxProj = camera->mat_proj.getTranspose();
 
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, model_hash, dxMod);
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, view_hash, dxView);
-				zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, projection_hash, dxProj);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
+				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, projection_hash, dxProj);
 				zt_shaderApplyVariables(shader_id);
 				// set color
 			}
@@ -4193,7 +4258,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (cmp_tex->command) {
-					zt->game_details.curr_frame.texture_switches += 1;
+					zt_game->game_details.curr_frame.texture_switches += 1;
 					static u32 tex_diffuse_hash = zt_strHash("tex_diffuse");
 					zt_shaderSetVariableTex(shader_id, tex_diffuse_hash, cmp_tex->command->texture[0]);
 					zt_shaderApplyVariables(shader_id);
@@ -4213,22 +4278,22 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							case ztDrawCommandType_Triangle: {
 								//zt_shaderApplyVariables(active_shader);
 
-								ztdx_vertexArrayUpdate(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
-								ztdx_vertexArrayDraw(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array);
+								ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
+								ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array);
 								buffer->vertices_count = 0;
 
-								zt->game_details.curr_frame.draw_calls += 1;
+								zt_game->game_details.curr_frame.draw_calls += 1;
 							} break;
 
 							case ztDrawCommandType_Line:
 							case ztDrawCommandType_Point: {
 								//zt_shaderApplyVariables(active_shader);
 
-								ztdx_vertexArrayUpdate(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
-								ztdx_vertexArrayDraw(zt->win_details[0].dx_context, zt->win_details[0].dx_tri_verts_array, D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+								ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
+								ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 								buffer->vertices_count = 0;
 
-								zt->game_details.curr_frame.draw_calls += 1;
+								zt_game->game_details.curr_frame.draw_calls += 1;
 							} break;
 						}
 
@@ -4237,13 +4302,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							case ztDrawCommandType_Billboard:
 							case ztDrawCommandType_Triangle: {
 								buffer->vertices_count = 0;
-								ztdx_cullBack(zt->win_details[0].dx_context);
+								ztdx_cullBack(zt_game->win_details[0].dx_context);
 							} break;
 
 							case ztDrawCommandType_Line:
 							case ztDrawCommandType_Point: {
 								buffer->vertices_count = 0;
-								ztdx_cullNone(zt->win_details[0].dx_context);
+								ztdx_cullNone(zt_game->win_details[0].dx_context);
 							} break;
 						}
 					}
@@ -4264,10 +4329,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
 							int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
 
-							ztdx_clipRegionSet(zt->win_details[0].dx_context, pos.x, pos.y, pos.x + w, pos.y + h);
+							ztdx_clipRegionSet(zt_game->win_details[0].dx_context, pos.x, pos.y, pos.x + w, pos.y + h);
 						}
 						else {
-							ztdx_clipRegionRemove(zt->win_details[0].dx_context);
+							ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
 						}
 					}
 
@@ -4279,7 +4344,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					switch (cmp_item->command->type)
 					{
 						case ztDrawCommandType_Triangle: {
-							++zt->game_details.curr_frame.triangles_drawn;
+							++zt_game->game_details.curr_frame.triangles_drawn;
 
 							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
 								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Triangle, &buffer);
@@ -4297,7 +4362,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Billboard: {
-							zt->game_details.curr_frame.triangles_drawn += 2;
+							zt_game->game_details.curr_frame.triangles_drawn += 2;
 
 							ztVec3 p[4] = {
 								ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
@@ -4382,7 +4447,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
-					ztdx_clipRegionRemove(zt->win_details[0].dx_context);
+					ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
 				}
 
 				cmp_tex = cmp_tex->next;
@@ -4390,7 +4455,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
-				ztdx_clipRegionRemove(zt->win_details[0].dx_context);
+				ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
 			}
 			// unbind shader?
 		}
@@ -4458,7 +4523,7 @@ ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, c
 
 ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
-	zt_assertReturnValOnFail(shader >= 0 && shader < zt->shaders_count, nullptr);
+	zt_assertReturnValOnFail(shader >= 0 && shader < zt_game->shaders_count, nullptr);
 
 	static u32 diffuse_tex_hash  = zt_strHash("diffuse_tex");
 	static u32 specular_tex_hash = zt_strHash("specular_tex");
@@ -4981,7 +5046,7 @@ bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i
 
 void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 {
-	switch(zt->win_game_settings[0].renderer)
+	switch(zt_game->win_game_settings[0].renderer)
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
@@ -4991,7 +5056,7 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_clear(zt->win_details[0].dx_context, r, g, b, a));
+			zt_directxSupport(ztdx_clear(zt_game->win_details[0].dx_context, r, g, b, a));
 		} break;
 	}
 }
@@ -5036,14 +5101,14 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 #			if defined(ZT_DIRECTX)
 			switch (function)
 			{
-				case ztRendererDepthTestFunction_Never       : ztdx_depthTestNever(zt->win_details[0].dx_context);        break;
-				case ztRendererDepthTestFunction_Less        : ztdx_depthTestLess(zt->win_details[0].dx_context);         break;
-				case ztRendererDepthTestFunction_LessEqual   : ztdx_depthTestLessEqual(zt->win_details[0].dx_context);    break;
-				case ztRendererDepthTestFunction_Equal       : ztdx_depthTestEqual(zt->win_details[0].dx_context);        break;
-				case ztRendererDepthTestFunction_Greater     : ztdx_depthTestGreater(zt->win_details[0].dx_context);      break;
-				case ztRendererDepthTestFunction_NotEqual    : ztdx_depthTestNotEqual(zt->win_details[0].dx_context);     break;
-				case ztRendererDepthTestFunction_GreaterEqual: ztdx_depthTestGreaterEqual(zt->win_details[0].dx_context); break;
-				case ztRendererDepthTestFunction_Always      : ztdx_depthTestAlways(zt->win_details[0].dx_context);       break;
+				case ztRendererDepthTestFunction_Never       : ztdx_depthTestNever(zt_game->win_details[0].dx_context);        break;
+				case ztRendererDepthTestFunction_Less        : ztdx_depthTestLess(zt_game->win_details[0].dx_context);         break;
+				case ztRendererDepthTestFunction_LessEqual   : ztdx_depthTestLessEqual(zt_game->win_details[0].dx_context);    break;
+				case ztRendererDepthTestFunction_Equal       : ztdx_depthTestEqual(zt_game->win_details[0].dx_context);        break;
+				case ztRendererDepthTestFunction_Greater     : ztdx_depthTestGreater(zt_game->win_details[0].dx_context);      break;
+				case ztRendererDepthTestFunction_NotEqual    : ztdx_depthTestNotEqual(zt_game->win_details[0].dx_context);     break;
+				case ztRendererDepthTestFunction_GreaterEqual: ztdx_depthTestGreaterEqual(zt_game->win_details[0].dx_context); break;
+				case ztRendererDepthTestFunction_Always      : ztdx_depthTestAlways(zt_game->win_details[0].dx_context);       break;
 			}
 #			endif
 		} break;
@@ -5071,9 +5136,9 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 #			if defined(ZT_DIRECTX)
 			switch (culling)
 			{
-				case ztRendererFaceCulling_CullBack : ztdx_cullBack(zt->win_details[0].dx_context); break;
-				case ztRendererFaceCulling_CullFront: ztdx_cullFront(zt->win_details[0].dx_context); break;
-				case ztRendererFaceCulling_CullNone : ztdx_cullNone(zt->win_details[0].dx_context); break;
+				case ztRendererFaceCulling_CullBack : ztdx_cullBack(zt_game->win_details[0].dx_context); break;
+				case ztRendererFaceCulling_CullFront: ztdx_cullFront(zt_game->win_details[0].dx_context); break;
+				case ztRendererFaceCulling_CullNone : ztdx_cullNone(zt_game->win_details[0].dx_context); break;
 			}
 #			endif
 		} break;
@@ -5085,10 +5150,10 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 
 void zt_rendererRequestChange(ztRenderer_Enum renderer)
 {
-	if (zt->renderer_requests_count >= zt_elementsOf(zt->renderer_requests))
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt->renderer_requests[zt->renderer_requests_count++];
+	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Change;
 	request->change_to = renderer;
 }
@@ -5097,13 +5162,13 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer)
 
 void zt_rendererRequestWindowed()
 {
-	if (!zt_bitIsSet(zt->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen))
+	if (!zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen))
 		return;
 
-	if (zt->renderer_requests_count >= zt_elementsOf(zt->renderer_requests))
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt->renderer_requests[zt->renderer_requests_count++];
+	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Windowed;
 }
 
@@ -5111,16 +5176,16 @@ void zt_rendererRequestWindowed()
 
 void zt_rendererRequestFullscreen()
 {
-	if (zt_bitIsSet(zt->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen))
+	if (zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen))
 		return;
 
-	if (zt->win_count > 1)
+	if (zt_game->win_count > 1)
 		return; // cannot go into fullscreen if there are multiple windows opened
 
-	if (zt->renderer_requests_count >= zt_elementsOf(zt->renderer_requests))
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt->renderer_requests[zt->renderer_requests_count++];
+	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Fullscreen;
 }
 
@@ -5136,7 +5201,7 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 {
 	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_mgr->asset_name[asset_id]);
 	ztShaderID shader_id = (ztShaderID)user_data;
-	zt_assert(shader_id >= 0 && shader_id < zt->shaders_count);
+	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
@@ -5162,9 +5227,9 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 		goto on_error;
 	}
 
-	zt->shaders[shader_id].load_type = ztShaderLoadType_Asset;
-	zt->shaders[shader_id].asset_mgr = asset_mgr;
-	zt->shaders[shader_id].asset_id = asset_id;
+	zt_game->shaders[shader_id].load_type = ztShaderLoadType_Asset;
+	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
+	zt_game->shaders[shader_id].asset_id = asset_id;
 
 	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
@@ -5250,7 +5315,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		pos_beg = zt_strFindPos(data, "<<[", pos_end);
 	}
 
-	ztGameSettings *game_settings = &zt->win_game_settings[0];
+	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
 	if (game_settings->renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (gl_vert_cnt == 0) { error = "No vertex shader found"; goto on_error; }
@@ -5270,13 +5335,13 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			shader_id = replace;
 		}
 		else {
-			zt_assert(zt->shaders_count < zt_elementsOf(zt->shaders));
-			shader_id = zt->shaders_count++;
+			zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
+			shader_id = zt_game->shaders_count++;
 		}
 
-		ztShaderGL *gl_shader = zt->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
+		ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
 
-		ztShader* shader = &zt->shaders[shader_id];
+		ztShader* shader = &zt_game->shaders[shader_id];
 		shader->renderer = ztRenderer_OpenGL;
 
 		shader->variables.variables_count = gl_shader->uniforms_count;
@@ -5348,13 +5413,13 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			shader_id = replace;
 		}
 		else {
-			zt_assert(zt->shaders_count < zt_elementsOf(zt->shaders));
-			shader_id = zt->shaders_count++;
+			zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
+			shader_id = zt_game->shaders_count++;
 		}
 
-		ztShader* shader = &zt->shaders[shader_id];
+		ztShader* shader = &zt_game->shaders[shader_id];
 		shader->renderer = ztRenderer_DirectX;
-		ztShaderDX *dx_shader = shader->dx_shader = ztdx_shaderMake(zt->win_details[0].dx_context, vert_src, vert_entry, frag_src, frag_entry);
+		ztShaderDX *dx_shader = shader->dx_shader = ztdx_shaderMake(zt_game->win_details[0].dx_context, vert_src, vert_entry, frag_src, frag_entry);
 		if (shader->dx_shader == nullptr) {
 			return ztInvalidID;
 		}
@@ -5392,7 +5457,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	}
 
 	if (replace != ztInvalidID && shader_id != ztInvalidID) {
-		ztShader *shader = &zt->shaders[shader_id];
+		ztShader *shader = &zt_game->shaders[shader_id];
 		zt_fjz(shader->variables.variables_count) {
 			zt_fiz(var_values.variables_count) {
 				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
@@ -5418,9 +5483,9 @@ ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len)
 		return shader_id;
 	}
 
-	zt->shaders[shader_id].load_type = ztShaderLoadType_Data;
-	zt->shaders[shader_id].data = data;
-	zt->shaders[shader_id].data_len = data_len;
+	zt_game->shaders[shader_id].load_type = ztShaderLoadType_Data;
+	zt_game->shaders[shader_id].data = data;
+	zt_game->shaders[shader_id].data_len = data_len;
 
 	return shader_id;
 }
@@ -5458,9 +5523,9 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 		goto on_error;
 	}
 
-	zt->shaders[shader_id].load_type = ztShaderLoadType_Asset;
-	zt->shaders[shader_id].asset_mgr = asset_mgr;
-	zt->shaders[shader_id].asset_id = asset_id;
+	zt_game->shaders[shader_id].load_type = ztShaderLoadType_Asset;
+	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
+	zt_game->shaders[shader_id].asset_id = asset_id;
 
 	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
@@ -5477,9 +5542,9 @@ on_error:
 
 void zt_shaderFree(ztShaderID shader_id)
 {
-	zt_assert(shader_id >= 0 && shader_id < zt->shaders_count);
+	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
-	ztShader* shader = &zt->shaders[shader_id];
+	ztShader* shader = &zt_game->shaders[shader_id];
 
 	if (shader->renderer == ztRenderer_Invalid) {
 		return;
@@ -5493,7 +5558,7 @@ void zt_shaderFree(ztShaderID shader_id)
 		zt_openGLSupport(ztgl_shaderFree(shader->gl_shader));
 	}
 	else if (shader->renderer == ztRenderer_DirectX) {
-		zt_directxSupport(ztdx_shaderFree(zt->win_details[0].dx_context, shader->dx_shader));
+		zt_directxSupport(ztdx_shaderFree(zt_game->win_details[0].dx_context, shader->dx_shader));
 	}
 
 	zt_memSet(shader, sizeof(ztShader), 0);
@@ -5503,16 +5568,16 @@ void zt_shaderFree(ztShaderID shader_id)
 
 void zt_shaderBegin(ztShaderID shader_id)
 {
-	zt->game_details.curr_frame.shader_switches += 1;
+	zt_game->game_details.curr_frame.shader_switches += 1;
 
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_shaderBegin(zt->shaders[shader_id].gl_shader));
+			zt_openGLSupport(ztgl_shaderBegin(zt_game->shaders[shader_id].gl_shader));
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_shaderBegin(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader));
+			zt_directxSupport(ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader));
 		} break;
 
 		default: {
@@ -5525,16 +5590,16 @@ void zt_shaderBegin(ztShaderID shader_id)
 
 void zt_shaderEnd(ztShaderID shader_id)
 {
-	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt->shaders_count);
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_shaderEnd(zt->shaders[shader_id].gl_shader));
+			zt_openGLSupport(ztgl_shaderEnd(zt_game->shaders[shader_id].gl_shader));
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_shaderEnd(zt->win_details[0].dx_context, zt->shaders[shader_id].dx_shader));
+			zt_directxSupport(ztdx_shaderEnd(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader));
 		} break;
 
 		default: {
@@ -5549,8 +5614,8 @@ void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, 
 {
 	static u32 view_hash = zt_strHash("view");
 	static u32 projection_hash = zt_strHash("projection");
-	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, view_hash, view);
-	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, projection_hash, projection);
+	zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, view);
+	zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, projection_hash, projection);
 	zt_shaderApplyVariables(shader_id);
 }
 
@@ -5559,7 +5624,7 @@ void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, 
 void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model)
 {
 	static u32 model_hash = zt_strHash("model");
-	zt_shaderSetVariableMat4(&zt->shaders[shader_id].variables, model_hash, model);
+	zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, model);
 	zt_shaderApplyVariables(shader_id);
 }
 
@@ -5568,9 +5633,9 @@ void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model)
 void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
 {
 	zt_returnOnNull(shader_vars);
-	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt->shaders_count);
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt_game->shaders_count);
 
-	zt_memCpy(shader_vars, zt_sizeof(ztShaderVariableValues), &zt->shaders[shader_id].variables, zt_sizeof(ztShaderVariableValues));
+	zt_memCpy(shader_vars, zt_sizeof(ztShaderVariableValues), &zt_game->shaders[shader_id].variables, zt_sizeof(ztShaderVariableValues));
 
 	zt_fiz(shader_vars->variables_count) {
 		shader_vars->variables[i].changed = false;
@@ -5582,9 +5647,9 @@ void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *sh
 void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
 {
 	zt_returnOnNull(shader_vars);
-	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt->shaders_count);
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id <= zt_game->shaders_count);
 
-	ztShaderVariableValues *shader = &zt->shaders[shader_id].variables;
+	ztShaderVariableValues *shader = &zt_game->shaders[shader_id].variables;
 
 #if defined(ZT_DEBUG)
 	// validate that the shader variables match up
@@ -5603,7 +5668,7 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 
 void zt_shaderApplyVariables(ztShaderID shader_id)
 {
-	ztShader *shader = &zt->shaders[shader_id];
+	ztShader *shader = &zt_game->shaders[shader_id];
 	ztShaderVariableValues *shader_vars = &shader->variables;
 
 	switch (zt_currentRenderer())
@@ -5625,8 +5690,8 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 						case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, val->val_vec4 ); break;
 						case ztShaderVariable_Mat3   : ztgl_shaderVariableMat3 (shader->gl_shader, val->name_hash, val->val_mat3 ); break;
 						case ztShaderVariable_Mat4   : ztgl_shaderVariableMat4 (shader->gl_shader, val->name_hash, val->val_mat4 ); break;
-						case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt->textures[val->val_tex].gl_texture); break;
-						case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt->textures[val->val_tex].gl_texture); break;
+						case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+						case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
 					}
 				}
 			}
@@ -5649,12 +5714,12 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 						case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4 ); break;
 						case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3 ); break;
 						case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4 ); break;
-						case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
-						case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt->textures[val->val_tex].dx_texture); break;
+						case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+						case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
 					}
 				}
 
-				ztdx_shaderPopulateConstantBuffers(zt->win_details[0].dx_context, shader->dx_shader);
+				ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
 			}
 #			endif
 		} break;
@@ -5812,23 +5877,23 @@ void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variab
 
 
 #define _zt_shaderCheck(shader_id) \
-	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt->shaders_count); \
-	ztShaderVariableValues *shader_vars = &zt->shaders[shader_id].variables;
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count); \
+	ztShaderVariableValues *shader_vars = &zt_game->shaders[shader_id].variables;
 
 // ------------------------------------------------------------------------------------------------
 
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type)
 {
-	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt->shaders_count, false);
-	return zt_shaderHasVariable(&zt->shaders[shader_id].variables, variable, type);
+	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count, false);
+	return zt_shaderHasVariable(&zt_game->shaders[shader_id].variables, variable, type);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVariable_Enum *type)
 {
-	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt->shaders_count, false);
-	return zt_shaderHasVariable(&zt->shaders[shader_id].variables, variable_hash, type);
+	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count, false);
+	return zt_shaderHasVariable(&zt_game->shaders[shader_id].variables, variable_hash, type);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5878,8 +5943,8 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
-	ztTextureID texture_id = zt->textures_count++;
-	ztTexture *texture = &zt->textures[texture_id];
+	ztTextureID texture_id = zt_game->textures_count++;
+	ztTexture *texture = &zt_game->textures[texture_id];
 
 	texture->renderer = zt_currentRenderer();
 	texture->width = width;
@@ -5897,7 +5962,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 				texture->gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
 			}
 			if (texture->gl_texture == nullptr) {
-				zt->textures_count -= 1;
+				zt_game->textures_count -= 1;
 				return ztInvalidID;
 			}
 #			endif
@@ -5906,13 +5971,13 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 			if (pixel_data) {
-				texture->dx_texture = ztdx_textureMakeFromPixelData(zt->win_details[0].dx_context, pixel_data, width, height, depth, flags);
+				texture->dx_texture = ztdx_textureMakeFromPixelData(zt_game->win_details[0].dx_context, pixel_data, width, height, depth, flags);
 			}
 			else {
-				texture->dx_texture = ztdx_textureMakeRenderTarget(zt->win_details[0].dx_context, width, height, flags);
+				texture->dx_texture = ztdx_textureMakeRenderTarget(zt_game->win_details[0].dx_context, width, height, flags);
 			}
 			if (texture->dx_texture == nullptr) {
-				zt->textures_count -= 1;
+				zt_game->textures_count -= 1;
 				return ztInvalidID;
 			}
 #			endif
@@ -5969,7 +6034,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 
 	if (texture_id != ztInvalidID) {
-		ztTexture *texture = &zt->textures[texture_id];
+		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Asset;
 		texture->asset_mgr = asset_mgr;
 		texture->asset_id = asset_id;
@@ -6002,13 +6067,13 @@ ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
-		ztTexture *texture = &zt->textures[texture_id];
+		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
 		
 		// we copy this so we can reload if necessary
 		texture->arena = zt_memGetGlobalArena();
 		texture->data_len = width * height * depth;
-		texture->data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
+		texture->data = zt_mallocStructArray(byte, zt_game->textures[texture_id].data_len);
 		zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
 	}
 	else {
@@ -6059,7 +6124,7 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 
 	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
-		ztTexture *texture = &zt->textures[texture_id];
+		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
@@ -6087,13 +6152,13 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase((byte*)data, width, height, 4, flags, &error);
 	if (texture_id != ztInvalidID) {
-		ztTexture *texture = &zt->textures[texture_id];
+		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
 		texture->arena = zt_memGetGlobalArena();
 		texture->data_len = width * height * 4;
-		texture->data = zt_mallocStructArray(byte, zt->textures[texture_id].data_len);
+		texture->data = zt_mallocStructArray(byte, zt_game->textures[texture_id].data_len);
 		zt_memCpy(texture->data, texture->data_len, data, texture->data_len);
 	}
 
@@ -6109,7 +6174,7 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 	const char *error = nullptr;
 	ztTextureID texture_id = _zt_textureMakeBase(nullptr, width, height, 4, flags, &error);
 	if (texture_id != ztInvalidID) {
-		zt->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
+		zt_game->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
 	}
 
 	return texture_id;
@@ -6174,8 +6239,8 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
 
-	ztTextureID texture_id = zt->textures_count++;
-	ztTexture *texture = &zt->textures[texture_id];
+	ztTextureID texture_id = zt_game->textures_count++;
+	ztTexture *texture = &zt_game->textures[texture_id];
 
 	texture->renderer = zt_currentRenderer();
 	switch (texture->renderer)
@@ -6184,7 +6249,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 #			if defined(ZT_OPENGL)
 			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
 			if (texture->gl_texture == nullptr) {
-				zt->textures_count--;
+				zt_game->textures_count--;
 				return ztInvalidID;
 			}
 #			endif
@@ -6192,9 +6257,9 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
-			texture->dx_texture = ztdx_textureMakeCubeMapFromPixelData(zt->win_details[0].dx_context, pixel_data, width, height, depth);
+			texture->dx_texture = ztdx_textureMakeCubeMapFromPixelData(zt_game->win_details[0].dx_context, pixel_data, width, height, depth);
 			if (texture->dx_texture == nullptr) {
-				zt->textures_count--;
+				zt_game->textures_count--;
 				return ztInvalidID;
 			}
 #			endif
@@ -6217,27 +6282,27 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 
 void zt_textureFree(ztTextureID texture_id)
 {
-	if (zt->textures[texture_id].renderer == ztRenderer_Invalid) {
+	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
 		return;
 	}
 
-	if (zt->textures[texture_id].renderer == ztRenderer_OpenGL) {
+	if (zt_game->textures[texture_id].renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
-		ztgl_textureFree(zt->textures[texture_id].gl_texture);
-		zt->textures[texture_id].gl_texture = nullptr;
+		ztgl_textureFree(zt_game->textures[texture_id].gl_texture);
+		zt_game->textures[texture_id].gl_texture = nullptr;
 #		endif // ZT_OPENGL
 	}
-	else if (zt->textures[texture_id].renderer == ztRenderer_DirectX) {
+	else if (zt_game->textures[texture_id].renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
-		ztdx_textureFree(zt->textures[texture_id].dx_texture);
-		zt->textures[texture_id].dx_texture = nullptr;
+		ztdx_textureFree(zt_game->textures[texture_id].dx_texture);
+		zt_game->textures[texture_id].dx_texture = nullptr;
 #		endif // ZT_DIRECTX
 	}
 
-	if (zt->textures[texture_id].load_type == ztTextureLoadType_Data) {
-		zt_freeArena(zt->textures[texture_id].data, zt->textures[texture_id].arena);
+	if (zt_game->textures[texture_id].load_type == ztTextureLoadType_Data) {
+		zt_freeArena(zt_game->textures[texture_id].data, zt_game->textures[texture_id].arena);
 	}
-	zt_memSet(&zt->textures[texture_id], sizeof(ztTexture), 0);
+	zt_memSet(&zt_game->textures[texture_id], sizeof(ztTexture), 0);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6247,11 +6312,11 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureRenderTargetPrepare(zt->textures[texture_id].gl_texture));
+			zt_openGLSupport(ztgl_textureRenderTargetPrepare(zt_game->textures[texture_id].gl_texture));
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_textureRenderTargetPrepare(zt->win_details[0].dx_context, zt->textures[texture_id].dx_texture));
+			zt_directxSupport(ztdx_textureRenderTargetPrepare(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
 		} break;
 	}
 }
@@ -6263,13 +6328,21 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureRenderTargetCommit(zt->textures[texture_id].gl_texture, zt->win_details[0].gl_context));
+			zt_openGLSupport(ztgl_textureRenderTargetCommit(zt_game->textures[texture_id].gl_texture, zt_game->win_details[0].gl_context));
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_textureRenderTargetCommit(zt->win_details[0].dx_context, zt->textures[texture_id].dx_texture));
+			zt_directxSupport(ztdx_textureRenderTargetCommit(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
 		} break;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztPoint2 zt_textureGetSize(ztTextureID texture_id)
+{
+	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, ztPoint2(0,0));
+	return ztPoint2(zt_game->textures[texture_id].width, zt_game->textures[texture_id].height);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6339,7 +6412,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
 	r32 aspect_h = native_w > native_h ? 1.f : native_h / (r32)native_w;
 
-	r32 scale = (zt_min(width, height) / (r32)zt->win_game_settings[0].pixels_per_unit) / 2;
+	r32 scale = (zt_min(width, height) / (r32)zt_game->win_game_settings[0].pixels_per_unit) / 2;
 	aspect_w *= scale;
 	aspect_h *= scale;
 
@@ -6472,7 +6545,7 @@ ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera)
 		return ztVec2::zero;
 	}
 
-	return ztVec2(camera->width / (r32)zt->win_game_settings[0].pixels_per_unit, camera->height / (r32)zt->win_game_settings[0].pixels_per_unit);
+	return ztVec2(camera->width / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->height / (r32)zt_game->win_game_settings[0].pixels_per_unit);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6487,8 +6560,8 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 
 	r32 spct_x = camera->width / (r32)camera->native_w;
 	r32 spct_y = camera->height / (r32)camera->native_h;
-	r32 x = (sx - (camera->width / 2.0f)) / zt->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
-	r32 y = (sy - (camera->height / 2.0f)) / zt->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
+	r32 x = (sx - (camera->width / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
+	r32 y = (sy - (camera->height / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
 
 	return ztVec2(x + camera->position.x, y + camera->position.y);
 }
@@ -6503,7 +6576,7 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 		return ztPoint2(0,0);
 	}
 
-	r32 ppu = (r32)zt->win_game_settings[0].pixels_per_unit;
+	r32 ppu = (r32)zt_game->win_game_settings[0].pixels_per_unit;
 	ztVec2 diff = pos - camera->position.xy;
 
 	r32 x = (diff.x + ((camera->width / ppu) / 2.f)) * ppu;
@@ -6755,8 +6828,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		goto on_error;
 	}
 
-	font_id = zt->fonts_count++;
-	ztFont *font = &zt->fonts[font_id];
+	font_id = zt_game->fonts_count++;
+	ztFont *font = &zt_game->fonts[font_id];
 
 	zt_memSet(font, zt_sizeof(ztFont), 0);
 
@@ -6843,7 +6916,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 					font->size_pixels = local::getIntAfterEquals(start, toks[j].len);
 				}
 				else if (zt_strStartsWith(start, "lineHeight=")) {
-					font->line_height = local::getIntAfterEquals(start, toks[j].len) / (r32)zt->win_game_settings[0].pixels_per_unit;
+					font->line_height = local::getIntAfterEquals(start, toks[j].len) / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 				}
 				else if (zt_strStartsWith(start, "base=")) {
 					base = local::getIntAfterEquals(start, toks[j].len);
@@ -6902,12 +6975,12 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
 	font->glyphs = zt_mallocStructArrayArena(ztFont::ztGlyph, chars, font->arena);
 
-	r32 tex_w = (r32)zt->textures[font->texture].width;
-	r32 tex_h = (r32)zt->textures[font->texture].height;
+	r32 tex_w = (r32)zt_game->textures[font->texture].width;
+	r32 tex_h = (r32)zt_game->textures[font->texture].height;
 
 	int glyph_idx = 0;
 	i32 x_adv_ttl = 0;
-	r32 base_offset = base == 0 ? 0 : base / (r32)zt->win_game_settings[0].pixels_per_unit;
+	r32 base_offset = base == 0 ? 0 : base / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 
 	for (int i = chars_line; i < lines; ++i) {
 		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
@@ -6946,20 +7019,20 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "width=")) {
 				glyph->tex_uv.z = (r32)val / tex_w;
-				glyph->size.x = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+				glyph->size.x = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "height=")) {
 				glyph->tex_uv.w = (r32)val / tex_h;
-				glyph->size.y = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+				glyph->size.y = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "xoffset=")) {
-				glyph->offset.x = (val / 1.f) / zt->win_game_settings[0].pixels_per_unit;
+				glyph->offset.x = (val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit;
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "yoffset=")) {
-				glyph->offset.y = ((val / 1.f) / zt->win_game_settings[0].pixels_per_unit) - base_offset;
+				glyph->offset.y = ((val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit) - base_offset;
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "xadvance=")) {
-				glyph->x_adv = val / (r32)zt->win_game_settings[0].pixels_per_unit;
+				glyph->x_adv = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 				x_adv_ttl += val;
 			}
 		}
@@ -6969,8 +7042,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		}
 	}
 
-	font->line_spacing = ((r32)font->size_pixels * .1f) / zt->win_game_settings[0].pixels_per_unit;
-	font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt->win_game_settings[0].pixels_per_unit;
+	font->line_spacing = ((r32)font->size_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
+	font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
 
 	if (asset_mgr) {
 		zt_free(data);
@@ -7030,9 +7103,9 @@ ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_o
 
 void zt_fontFree(ztFontID font_id)
 {
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	if (font->texture != ztInvalidID) {
 		zt_textureFree(font->texture);
@@ -7052,16 +7125,16 @@ void zt_fontFree(ztFontID font_id)
 
 const char *zt_fontGetName(ztFontID font_id)
 {
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
-	return zt->fonts[font_id].name;
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
+	return zt_game->fonts[font_id].name;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 i32 zt_fontGetSizeInPixels(ztFontID font_id)
 {
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
-	return zt->fonts[font_id].size_pixels;
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
+	return zt_game->fonts[font_id].size_pixels;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7110,7 +7183,7 @@ ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int 
 
 ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, int text_len, i32 *glyphs_idx, int glyphs_size)
 {
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	if (text_len > glyphs_size) {
 		text_len = glyphs_size;
@@ -7133,7 +7206,7 @@ ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, in
 
 ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
 {
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 
 	if (text_len == 0) {
 		// we should return a valid height for empty lines
@@ -7142,7 +7215,7 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 		return;
 	}
 
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	r32 total_width = 0;
 	r32 total_height = 0;
@@ -7233,10 +7306,10 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 	if (text_len <= 0) return;
 
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	i32 glyphs_idx[1024 * 64];
 	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
@@ -7352,7 +7425,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 
 ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
 {
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 
 	if (text_len == 0) {
 		// we should return a valid height for empty lines
@@ -7361,7 +7434,7 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 		return;
 	}
 
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	r32 total_width = 0;
 	r32 total_height = 0;
@@ -7484,10 +7557,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
-	zt_assert(font_id >= 0 && font_id < zt->fonts_count);
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 	if (text_len <= 0) return;
 
-	ztFont *font = &zt->fonts[font_id];
+	ztFont *font = &zt_game->fonts[font_id];
 
 	i32 glyphs_idx[1024 * 64];
 	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
@@ -7664,8 +7737,8 @@ ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x
 	zt_assert(tex != ztInvalidID);
 	zt_assert(x >= 0 && y >= 0 && w != 0 && h != 0);
 
-	r32 tex_w = (r32)zt->textures[tex].width;
-	r32 tex_h = (r32)zt->textures[tex].height;
+	r32 tex_w = (r32)zt_game->textures[tex].width;
+	r32 tex_h = (r32)zt_game->textures[tex].height;
 
 	ztSprite result;
 	result.tex = tex;
@@ -7797,8 +7870,8 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 	zt_assert(tex != ztInvalidID);
 	zt_assert(tex_x >= 0 && tex_y >= 0 && tex_w != 0 && tex_h != 0 && nw_interior_x > tex_x && nw_interior_y > tex_y && se_interior_x < tex_x + tex_w && se_interior_y < tex_y + tex_h);
 
-	r32 tex_atl_w = (r32)zt->textures[tex].width;
-	r32 tex_atl_h = (r32)zt->textures[tex].height;
+	r32 tex_atl_w = (r32)zt_game->textures[tex].width;
+	r32 tex_atl_h = (r32)zt_game->textures[tex].height;
 
 	//  0, 1,  2, 3, 4, 5,  6, 7,  8
 	// nw, n, ne, w, c, e, sw, s, se
@@ -8245,34 +8318,34 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			ztgl_textureBindReset(zt->shaders[shader].gl_shader);
+			ztgl_textureBindReset(zt_game->shaders[shader].gl_shader);
 
 			int tex_count = 0;
 			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
 			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
 			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 specular_tex_hash = zt_strHash("specular_tex");
-			ztgl_textureBind(zt->textures[specular_tex].gl_texture, tex_count);
+			ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
 			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
 
 			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
 			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
-					zt->game_details.curr_frame.texture_switches += 1;
+					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
 					tex_count += 1;
 				}
 			}
 
-			zt->shaders[shader].textures_bound = tex_count;
+			zt_game->shaders[shader].textures_bound = tex_count;
 
 #			endif
 		} break;
@@ -8281,23 +8354,23 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 #			if defined(ZT_DIRECTX)
 
 			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
 			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
 			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 specular_tex_hash = zt_strHash("specular_tex");
 			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
 
 			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
-			zt->game_details.curr_frame.texture_switches += 1;
+			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
 			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
-					zt->game_details.curr_frame.texture_switches += 1;
+					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
 				}
 			}
@@ -8407,9 +8480,9 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		v1.bitangent = v2.bitangent = v3.bitangent = ztVec4(bitangent, 0);
 	}
 
-	zt_assert(zt->meshes_count < zt_elementsOf(zt->meshes));
-	ztMeshID mesh_id = zt->meshes_count++;
-	ztMesh *mesh = &zt->meshes[mesh_id];
+	zt_assert(zt_game->meshes_count < zt_elementsOf(zt_game->meshes));
+	ztMeshID mesh_id = zt_game->meshes_count++;
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
 	zt_memSet(mesh, zt_sizeof(ztMesh), 0);
 
 	mesh->triangles = indices_count / 3;
@@ -8439,7 +8512,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 		case ztRenderer_DirectX: {
 #if defined(ZT_DIRECTX)
-			ztWindowDetails *win_details = &zt->win_details[0];
+			ztWindowDetails *win_details = &zt_game->win_details[0];
 
 			ztVertexEntryDX entries[] = {
 				{ 3 * sizeof(r32) },
@@ -8474,9 +8547,9 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 void zt_meshFree(ztMeshID mesh_id)
 {
-	zt_assert(mesh_id >= 0 && mesh_id < zt->meshes_count);
+	zt_assert(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
 
-	ztMesh *mesh = &zt->meshes[mesh_id];
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
 
 	switch (zt_currentRenderer())
 	{
@@ -9109,11 +9182,11 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 void zt_meshRender(ztMeshID mesh_id)
 {
-	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt->meshes_count);
+	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
 
-	ztMesh *mesh = &zt->meshes[mesh_id];
-	zt->game_details.curr_frame.triangles_drawn += mesh->triangles;
-	zt->game_details.curr_frame.draw_calls += 1;
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
+	zt_game->game_details.curr_frame.triangles_drawn += mesh->triangles;
+	zt_game->game_details.curr_frame.draw_calls += 1;
 
 	switch (zt_currentRenderer())
 	{
@@ -9122,7 +9195,7 @@ void zt_meshRender(ztMeshID mesh_id)
 		} break;
 
 		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_vertexArrayDraw(zt->win_details[0].dx_context, mesh->dx_vertex_array));
+			zt_directxSupport(ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, mesh->dx_vertex_array));
 		} break;
 
 		default: {
@@ -9137,16 +9210,16 @@ void zt_meshRender(ztMeshID mesh_id)
 
 ztInternal bool _zt_rendererRequestProcess()
 {
-	int count = zt->renderer_requests_count;
-	zt->renderer_requests_count = 0;
+	int count = zt_game->renderer_requests_count;
+	zt_game->renderer_requests_count = 0;
 
 	zt_fiz(count) {
-		auto* request = &zt->renderer_requests[i];
+		auto* request = &zt_game->renderer_requests[i];
 		switch(request->type)
 		{
 			case ztRendererRequest_Change: {
-				zt_fiz(zt->win_count) {
-					_zt_rendererFreeContext(&zt->win_details[i]);
+				zt_fiz(zt_game->win_count) {
+					_zt_rendererFreeContext(&zt_game->win_details[i]);
 				}
 
 				if (request->change_to == ztRenderer_OpenGL) {
@@ -9163,9 +9236,9 @@ ztInternal bool _zt_rendererRequestProcess()
 					return false;
 				}
 
-				zt_fiz(zt->win_count) {
-					zt->win_game_settings[i].renderer = request->change_to;
-					if (!_zt_rendererMakeContext(&zt->win_details[i], &zt->win_game_settings[i], zt->win_game_settings[i].renderer_flags)) {
+				zt_fiz(zt_game->win_count) {
+					zt_game->win_game_settings[i].renderer = request->change_to;
+					if (!_zt_rendererMakeContext(&zt_game->win_details[i], &zt_game->win_game_settings[i], zt_game->win_game_settings[i].renderer_flags)) {
 						zt_logCritical("Failed to switch renderer");
 						return false;
 					}
@@ -9174,21 +9247,21 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_Windowed: {
-				zt_fiz(zt->win_count) {
-					zt_bitRemove(zt->win_game_settings[i].renderer_flags, ztRendererFlags_Fullscreen);
-					zt->win_game_settings[i].renderer_flags |= ztRendererFlags_Windowed;
+				zt_fiz(zt_game->win_count) {
+					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Fullscreen);
+					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Windowed;
 
-					if (!_zt_rendererToggleFullscreen(&zt->win_details[i], &zt->win_game_settings[i], false))
+					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], false))
 						return false;
 				}
 			} break;
 
 			case ztRendererRequest_Fullscreen: {
-				zt_fiz(zt->win_count) {
-					zt_bitRemove(zt->win_game_settings[i].renderer_flags, ztRendererFlags_Windowed);
-					zt->win_game_settings[i].renderer_flags |= ztRendererFlags_Fullscreen;
+				zt_fiz(zt_game->win_count) {
+					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Windowed);
+					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Fullscreen;
 
-					if (!_zt_rendererToggleFullscreen(&zt->win_details[i], &zt->win_game_settings[i], true))
+					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], true))
 						return false;
 				}
 			} break;
@@ -9290,6 +9363,11 @@ ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings*, 
 ztInternal bool _ztgl_rendererMakeContext(ztWindowDetails* wd, ztGameSettings* gs, i32 flags)
 {
 	wd->gl_context = ztgl_contextMake(zt_memGetGlobalArena(), wd->handle, gs->native_w, gs->native_h, gs->pixels_per_unit, flags);
+#if !defined(ZT_DLL)
+	if (wd->gl_context && zt_game->zt_dllSetOpenGLGlobals) {
+		zt_dllSendOpenGLGlobals(zt_game->zt_dllSetOpenGLGlobals);
+	}
+#endif
 	return wd->gl_context != nullptr;
 }
 
@@ -9379,26 +9457,27 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 // the _zt_callFunc<function> calls are used because it's possible for the ZT_GAME_FUNC_<function> defines
 // to have naming conflicts with variables in the main function
 
-bool ZT_GAME_FUNC_SETTINGS(ztGameDetails*, ztGameSettings*);
-ztInternal ztInline bool _zt_callFuncSettings(ztGameDetails *details, ztGameSettings *settings)
-{ return ZT_GAME_FUNC_SETTINGS(details, settings); }
+#if !defined(ZT_DLL)
+	bool ZT_GAME_FUNC_SETTINGS(ztGameDetails*, ztGameSettings*);
+	ztInternal ztInline bool _zt_callFuncSettings(ztGameDetails *details, ztGameSettings *settings)
+	{ return ZT_GAME_FUNC_SETTINGS(details, settings); }
 
-bool ZT_GAME_FUNC_INIT(ztGameDetails*, ztGameSettings*);
-ztInternal ztInline bool _zt_callFuncInit(ztGameDetails *details, ztGameSettings *settings)
-{ return ZT_GAME_FUNC_INIT(details, settings); }
+	bool ZT_GAME_FUNC_INIT(ztGameDetails*, ztGameSettings*);
+	ztInternal ztInline bool _zt_callFuncInit(ztGameDetails *details, ztGameSettings *settings)
+	{ return ZT_GAME_FUNC_INIT(details, settings); }
 
-void ZT_GAME_FUNC_SCREENCHANGE(ztGameSettings *settings);
-ztInternal ztInline void _zt_callFuncScreenChange(ztGameSettings *settings)
-{ ZT_GAME_FUNC_SCREENCHANGE(settings); }
+	void ZT_GAME_FUNC_SCREENCHANGE(ztGameSettings *settings);
+	ztInternal ztInline void _zt_callFuncScreenChange(ztGameSettings *settings)
+	{ ZT_GAME_FUNC_SCREENCHANGE(settings); }
 
-void ZT_GAME_FUNC_CLEANUP();
-ztInternal ztInline void _zt_callFuncCleanup()
-{ ZT_GAME_FUNC_CLEANUP(); }
+	void ZT_GAME_FUNC_CLEANUP();
+	ztInternal ztInline void _zt_callFuncCleanup()
+	{ ZT_GAME_FUNC_CLEANUP(); }
 
-bool ZT_GAME_FUNC_LOOP(r32);
-ztInternal ztInline bool _zt_callFuncLoop(r32 dt)
-{ return ZT_GAME_FUNC_LOOP(dt); }
-
+	bool ZT_GAME_FUNC_LOOP(r32);
+	ztInternal ztInline bool _zt_callFuncLoop(r32 dt)
+	{ return ZT_GAME_FUNC_LOOP(dt); }
+#endif
 
 #if defined(ZT_WINDOWS)
 
@@ -9406,12 +9485,14 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 // ------------------------------------------------------------------------------------------------
 
+#if !defined(ZT_DLL)
+
 bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_details)
 {
 	WNDCLASS wndcls = {};
 	wndcls.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	wndcls.lpfnWndProc = _zt_winCallback;
-	wndcls.hInstance = zt->hinstance;
+	wndcls.hInstance = zt_game->hinstance;
 #if defined(ZT_UNICODE)
 	u16 wc_game_name[1024] = { 0 };
 	zt_strConvertToUTF16(ZT_GAME_NAME, zt_strLen(ZT_GAME_NAME), wc_game_name, zt_elementsOf(wc_game_name));
@@ -9489,6 +9570,8 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 	SetWindowTextA(window_details->handle, title);
 }
 
+#endif
+
 // ------------------------------------------------------------------------------------------------
 
 void _zt_winControllerInputUpdate(r32 dt);
@@ -9499,33 +9582,33 @@ void _zt_winControllerInputInit()
 {
 	const char *libs[] = { "xinput1_4.dll", "xinput9_1_0.dll", "xinput1_3.dll" };
 	zt_fiz(zt_elementsOf(libs)) {
-		zt->hmod_xinput = LoadLibraryA(libs[i]);
-		if (zt->hmod_xinput != NULL) {
+		zt_game->hmod_xinput = LoadLibraryA(libs[i]);
+		if (zt_game->hmod_xinput != NULL) {
 			break;
 		}
 	}
 
-	if (zt->hmod_xinput == NULL) {
+	if (zt_game->hmod_xinput == NULL) {
 		return;
 	}
 
-	zt->xinput_getState = (ztGameGlobals::xinput_getState_Func)GetProcAddress(zt->hmod_xinput, "XInputGetState");
-	zt->xinput_setState = (ztGameGlobals::xinput_setState_Func)GetProcAddress(zt->hmod_xinput, "XInputSetState");
+	zt_game->xinput_getState = (ztGameGlobals::xinput_getState_Func)GetProcAddress(zt_game->hmod_xinput, "XInputGetState");
+	zt_game->xinput_setState = (ztGameGlobals::xinput_setState_Func)GetProcAddress(zt_game->hmod_xinput, "XInputSetState");
 
-	zt_fiz(zt_elementsOf(zt->input_controllers)) {
-		zt->input_controllers[i].connected = true;
-		zt->xinput_haptic[i] = false;
+	zt_fiz(zt_elementsOf(zt_game->input_controllers)) {
+		zt_game->input_controllers[i].connected = true;
+		zt_game->xinput_haptic[i] = false;
 	}
 
 	_zt_winControllerInputUpdate(0);
 
-	zt_fiz(zt_elementsOf(zt->input_controllers)) {
-		zt_fjz(zt_elementsOf(zt->input_controllers[i].button_states)) {
-			zt->input_controllers[i].button_states[j] = 0;
-			zt->input_controllers[i].button_times [j] = 0;
+	zt_fiz(zt_elementsOf(zt_game->input_controllers)) {
+		zt_fjz(zt_elementsOf(zt_game->input_controllers[i].button_states)) {
+			zt_game->input_controllers[i].button_states[j] = 0;
+			zt_game->input_controllers[i].button_times [j] = 0;
 		}
-		zt_fjz(zt_elementsOf(zt->input_controllers[i].analog_values)) {
-			zt->input_controllers[i].analog_values[j] = 0;
+		zt_fjz(zt_elementsOf(zt_game->input_controllers[i].analog_values)) {
+			zt_game->input_controllers[i].analog_values[j] = 0;
 		}
 	}
 }
@@ -9534,15 +9617,15 @@ void _zt_winControllerInputInit()
 
 void _zt_winControllerInputCleanup()
 {
-	zt->xinput_getState = nullptr;
-	zt->xinput_setState = nullptr;
+	zt_game->xinput_getState = nullptr;
+	zt_game->xinput_setState = nullptr;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void _zt_winControllerInputUpdate(r32 dt)
 {
-	if (!zt->xinput_getState) {
+	if (!zt_game->xinput_getState) {
 		return;
 	}
 
@@ -9551,10 +9634,10 @@ void _zt_winControllerInputUpdate(r32 dt)
 
 	bool pressed[ztInputControllerButton_MAX];
 
-	zt_fiz(zt_min(ZT_MAX_INPUT_CONTROLLERS, zt_elementsOf(zt->input_controllers))) {
-		if (zt->input_controllers[i].connected) {
+	zt_fiz(zt_min(ZT_MAX_INPUT_CONTROLLERS, zt_elementsOf(zt_game->input_controllers))) {
+		if (zt_game->input_controllers[i].connected) {
 			XINPUT_STATE controller_state;
-			if (zt->xinput_getState(i, &controller_state) == ERROR_SUCCESS) {
+			if (zt_game->xinput_getState(i, &controller_state) == ERROR_SUCCESS) {
 
 				// if analog controls are within the deadzone, we just zero them out
 				if (controller_state.Gamepad.bLeftTrigger  < XINPUT_GAMEPAD_TRIGGER_THRESHOLD) controller_state.Gamepad.bLeftTrigger = 0;
@@ -9575,51 +9658,51 @@ void _zt_winControllerInputUpdate(r32 dt)
 
 				zt_fjz(zt_elementsOf(pressed)) {
 					if (pressed[j]) {
-						if (zt_bitIsSet(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
-							zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
-							zt->input_controllers[i].button_times[j] += dt;
+						if (zt_bitIsSet(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed)) {
+							zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustPressed);
+							zt_game->input_controllers[i].button_times[j] += dt;
 						}
 						else {
-							zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
-							zt->input_controllers[i].button_states[j] |= ztInputControllerFlags_Pressed | ztInputControllerFlags_JustPressed;
-							zt->input_controllers[i].button_times[j] = dt;
+							zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+							zt_game->input_controllers[i].button_states[j] |= ztInputControllerFlags_Pressed | ztInputControllerFlags_JustPressed;
+							zt_game->input_controllers[i].button_times[j] = dt;
 						}
-						zt->input_this_frame = true;
+						zt_game->input_this_frame = true;
 					}
-					else if (zt->input_controllers[i].button_times[j] != 0) {
-						zt->input_controllers[i].button_states[j] |= ztInputControllerFlags_JustReleased;
-						zt->input_controllers[i].button_times[j] = 0;
-						zt->input_this_frame = true;
+					else if (zt_game->input_controllers[i].button_times[j] != 0) {
+						zt_game->input_controllers[i].button_states[j] |= ztInputControllerFlags_JustReleased;
+						zt_game->input_controllers[i].button_times[j] = 0;
+						zt_game->input_this_frame = true;
 					}
 					else {
-						zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed);
-						zt_bitRemove(zt->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
+						zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_Pressed);
+						zt_bitRemove(zt_game->input_controllers[i].button_states[j], ztInputControllerFlags_JustReleased);
 					}
 				}
-				zt->input_controllers[i].analog_value_trigger_left      = zt_linearRemap((r32)controller_state.Gamepad.bLeftTrigger,  0.f, 255.f, 0.f, 1.f);
-				zt->input_controllers[i].analog_value_trigger_right     = zt_linearRemap((r32)controller_state.Gamepad.bRightTrigger, 0.f, 255.f, 0.f, 1.f);
-				zt->input_controllers[i].analog_value_thumb_pad_left_x  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLX, -32768.f, 32768.f, -1.f, 1.f);
-				zt->input_controllers[i].analog_value_thumb_pad_left_y  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLY, -32768.f, 32768.f, -1.f, 1.f);
-				zt->input_controllers[i].analog_value_thumb_pad_right_x = zt_linearRemap((r32)controller_state.Gamepad.sThumbRX, -32768.f, 32768.f, -1.f, 1.f);
-				zt->input_controllers[i].analog_value_thumb_pad_right_y = zt_linearRemap((r32)controller_state.Gamepad.sThumbRY, -32768.f, 32768.f, -1.f, 1.f);
+				zt_game->input_controllers[i].analog_value_trigger_left      = zt_linearRemap((r32)controller_state.Gamepad.bLeftTrigger,  0.f, 255.f, 0.f, 1.f);
+				zt_game->input_controllers[i].analog_value_trigger_right     = zt_linearRemap((r32)controller_state.Gamepad.bRightTrigger, 0.f, 255.f, 0.f, 1.f);
+				zt_game->input_controllers[i].analog_value_thumb_pad_left_x  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLX, -32768.f, 32768.f, -1.f, 1.f);
+				zt_game->input_controllers[i].analog_value_thumb_pad_left_y  = zt_linearRemap((r32)controller_state.Gamepad.sThumbLY, -32768.f, 32768.f, -1.f, 1.f);
+				zt_game->input_controllers[i].analog_value_thumb_pad_right_x = zt_linearRemap((r32)controller_state.Gamepad.sThumbRX, -32768.f, 32768.f, -1.f, 1.f);
+				zt_game->input_controllers[i].analog_value_thumb_pad_right_y = zt_linearRemap((r32)controller_state.Gamepad.sThumbRY, -32768.f, 32768.f, -1.f, 1.f);
 
-				for (int j = 2; j < zt_elementsOf(zt->input_controllers[i].analog_values); ++j) {
-					if (zt_abs(zt->input_controllers[i].analog_values[j]) < 0.05f) {
-						zt->input_controllers[i].analog_values[j] = 0;
+				for (int j = 2; j < zt_elementsOf(zt_game->input_controllers[i].analog_values); ++j) {
+					if (zt_abs(zt_game->input_controllers[i].analog_values[j]) < 0.05f) {
+						zt_game->input_controllers[i].analog_values[j] = 0;
 					}
 				}
 
-				if (zt->xinput_haptic[i] != 0.f) {
-					zt->xinput_haptic[i] += dt;
-					if (zt->xinput_haptic[i] > 1 / 60.f) {
-						zt->xinput_haptic[i] = 0;
+				if (zt_game->xinput_haptic[i] != 0.f) {
+					zt_game->xinput_haptic[i] += dt;
+					if (zt_game->xinput_haptic[i] > 1 / 60.f) {
+						zt_game->xinput_haptic[i] = 0;
 						XINPUT_VIBRATION vibration = { 0, 0 };
-						zt->xinput_setState(i, &vibration);
+						zt_game->xinput_setState(i, &vibration);
 					}
 				}
 			}
 			else {
-				zt->input_controllers[i].connected = false;
+				zt_game->input_controllers[i].connected = false;
 
 				if (dt != 0) {
 					zt_logInfo("Controller %d disconnected", i + 1);
@@ -9635,10 +9718,10 @@ void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strengt
 {
 	zt_assertReturnOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS);
 
-	if (zt->xinput_setState) {
+	if (zt_game->xinput_setState) {
 		XINPUT_VIBRATION vibration = { zt_convertToi32Floor(strength_low * 65535.f), zt_convertToi32Floor(strength_high * 65535.f) };
-		zt->xinput_setState(idx, &vibration);
-		zt->xinput_haptic[idx] = 0.01f;
+		zt_game->xinput_setState(idx, &vibration);
+		zt_game->xinput_haptic[idx] = 0.01f;
 	}
 }
 
@@ -9653,7 +9736,7 @@ void _zt_win_processMessages()
 	}
 
 	if (msg.message == WM_QUIT) {
-		zt->quit_requested = false;
+		zt_game->quit_requested = false;
 	}
 }
 
@@ -9664,6 +9747,8 @@ ztInternal HINSTANCE _zt_hinstance;
 #endif // ZT_WINDOWS
 
 // ------------------------------------------------------------------------------------------------
+
+#if !defined(ZT_DLL)
 
 int main(int argc, char **argv)
 {
@@ -9678,8 +9763,8 @@ int main(int argc, char **argv)
 	zt_fileGetUserPath(user_path, sizeof(user_path), ZT_GAME_NAME);
 #endif
 
-	zt = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
-	zt_memSet(zt, zt_sizeof(ztGameGlobals), 0);
+	zt_game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
+	zt_memSet(zt_game, zt_sizeof(ztGameGlobals), 0);
 	{
 		char size[128];
 		zt_strBytesToString(size, zt_sizeof(size), zt_sizeof(ztGameGlobals));
@@ -9690,23 +9775,23 @@ int main(int argc, char **argv)
 		_zt_inputSetupKeys();
 
 		for (int i = 0; i < ztInputKeys_MAX; ++i) {
-			zt->input_keys_mapping[zt->input_keys[i].platform_mapping] = zt->input_keys[i].code;
+			zt_game->input_keys_mapping[zt_game->input_keys[i].platform_mapping] = zt_game->input_keys[i].code;
 		}
-		zt_memSet(&zt->input_mouse, zt_sizeof(ztInputMouse), 0);
-		zt->input_mouse.cursor = ztInputMouseCursor_Arrow;
+		zt_memSet(&zt_game->input_mouse, zt_sizeof(ztInputMouse), 0);
+		zt_game->input_mouse.cursor = ztInputMouseCursor_Arrow;
 	}
 
-	zt->game_details = {};
-	zt->game_details.argc = argc;
-	zt->game_details.argv = argv;
+	zt_game->game_details = {};
+	zt_game->game_details.argc = argc;
+	zt_game->game_details.argv = argv;
 
-	zt->game_details.app_path = app_path;
-	zt->game_details.user_path = user_path;
+	zt_game->game_details.app_path = app_path;
+	zt_game->game_details.user_path = user_path;
 
-	zt->game_details.current_frame = 1;
+	zt_game->game_details.current_frame = 1;
 
-	ztGameSettings *game_settings = &zt->win_game_settings[0];
-	zt->win_count += 1;
+	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
+	zt_game->win_count += 1;
 
 	game_settings->memory = zt_megabytes(64);
 	game_settings->native_w = game_settings->screen_w = 1280;
@@ -9718,11 +9803,11 @@ int main(int argc, char **argv)
 	game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
 	game_settings->renderer_memory = zt_megabytes(16);
 
-	if (!_zt_callFuncSettings(&zt->game_details, game_settings))
+	if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
 		return 1;
 
-	zt_logDebug("main: app path: %s", zt->game_details.app_path);
-	zt_logDebug("main: user path: %s", zt->game_details.user_path);
+	zt_logDebug("main: app path: %s", zt_game->game_details.app_path);
+	zt_logDebug("main: user path: %s", zt_game->game_details.user_path);
 
 	char app_memory_str[128];
 	zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
@@ -9730,7 +9815,7 @@ int main(int argc, char **argv)
 
 	zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
 
-	ztWindowDetails *win_details = &zt->win_details[0];
+	ztWindowDetails *win_details = &zt_game->win_details[0];
 	if (!_zt_winCreateWindow(game_settings, win_details))
 		return 1;
 
@@ -9738,14 +9823,14 @@ int main(int argc, char **argv)
 		POINT cursor_pos;
 		GetCursorPos(&cursor_pos);
 
-		zt->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
-		zt->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
+		zt_game->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
+		zt_game->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
 
 		_zt_winControllerInputInit();
 	}
 
-	zt->renderer_memory_size = game_settings->renderer_memory;
-	zt->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt->renderer_memory_size);
+	zt_game->renderer_memory_size = game_settings->renderer_memory;
+	zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
 
 	if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
 		zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
@@ -9772,7 +9857,7 @@ int main(int argc, char **argv)
 		zt_textureRenderTargetCommit(white_tex);
 	}
 
-	if (!_zt_callFuncInit(&zt->game_details, game_settings))
+	if (!_zt_callFuncInit(&zt_game->game_details, game_settings))
 		return 1;
 
 	_zt_callFuncScreenChange(game_settings);
@@ -9780,29 +9865,29 @@ int main(int argc, char **argv)
 	r32 dt = 0;
 	r64 time_last = zt_getTime();
 
-	bool mouse_look = zt->input_mouse_look;
+	bool mouse_look = zt_game->input_mouse_look;
 	POINT mouse_prev_frame = { 0, 0 };
 	if (mouse_look) {
 		SetCursorPos(0, 0);
 	}
 
 	do {
-		if (mouse_look != zt->input_mouse_look) {
-			mouse_look = zt->input_mouse_look;
+		if (mouse_look != zt_game->input_mouse_look) {
+			mouse_look = zt_game->input_mouse_look;
 			if (mouse_look) {
 				GetCursorPos(&mouse_prev_frame);
 			}
 		}
-		if (zt->input_mouse_look) {
+		if (zt_game->input_mouse_look) {
 			POINT mouse_this_frame;
 			GetCursorPos(&mouse_this_frame);
 
 			if (GetFocus() == win_details->handle) {
-				zt->input_mouse.screen_x = 0;
-				zt->input_mouse.screen_y = 0;
+				zt_game->input_mouse.screen_x = 0;
+				zt_game->input_mouse.screen_y = 0;
 
-				zt->input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
-				zt->input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
+				zt_game->input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
+				zt_game->input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
 
 				mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2);
 				mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2);
@@ -9810,10 +9895,10 @@ int main(int argc, char **argv)
 				SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
 			}
 			else {
-				zt->input_mouse.screen_x = 0;
-				zt->input_mouse.screen_y = 0;
-				zt->input_mouse.delta_x  = 0;
-				zt->input_mouse.delta_y  = 0;
+				zt_game->input_mouse.screen_x = 0;
+				zt_game->input_mouse.screen_y = 0;
+				zt_game->input_mouse.delta_x  = 0;
+				zt_game->input_mouse.delta_y  = 0;
 			}
 		}
 
@@ -9826,11 +9911,11 @@ int main(int argc, char **argv)
 		if (!_zt_callFuncLoop(dt))
 			break;
 
-		zt_fiz(zt->win_count) {
-			_zt_rendererSwapBuffers(&zt->win_details[i]);
+		zt_fiz(zt_game->win_count) {
+			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
 		}
 
-		if (zt->renderer_requests_count) {
+		if (zt_game->renderer_requests_count) {
 			if (!_zt_rendererRequestProcess())
 				break;
 		}
@@ -9839,37 +9924,39 @@ int main(int argc, char **argv)
 		_zt_win_processMessages();
 		_zt_winControllerInputUpdate(dt);
 
-		++zt->game_details.current_frame;
-	} while (!zt->quit_requested);
+		++zt_game->game_details.current_frame;
+	} while (!zt_game->quit_requested);
 
 	zt_textureFree(0); // free the white tex
 
 	_zt_callFuncCleanup();
 
-	zt_fiz(zt->shaders_count) {
+	zt_fiz(zt_game->shaders_count) {
 		zt_shaderFree((ztShaderID)i);
 	}
-	zt_fiz(zt->textures_count) {
+	zt_fiz(zt_game->textures_count) {
 		//zt_textureFree((ztTextureID)i);
 	}
 
-	zt_memFree(zt_memGetGlobalArena(), zt->renderer_memory);
+	zt_memFree(zt_memGetGlobalArena(), zt_game->renderer_memory);
 
 	_zt_winControllerInputCleanup();
-	_zt_winCleanupWindow(&zt->win_details[0], &zt->win_game_settings[0]);
+	_zt_winCleanupWindow(&zt_game->win_details[0], &zt_game->win_game_settings[0]);
 
 	zt_memDumpArena(zt_memGetGlobalArena(), "main memory");
 	zt_memFreeArena(zt_memGetGlobalArena());
 	zt_memPopGlobalArena();
 
-	free(zt);
+	free(zt_game);
 
 	return 0;
 }
 
+#endif
+
 // ------------------------------------------------------------------------------------------------
 
-#if defined(ZT_WINDOWS)
+#if defined(ZT_WINDOWS) && !defined(ZT_DLL)
 
 #if !defined(ZT_PLATFORM_WIN32_CONSOLE) && !defined(ZT_PLATFORM_WIN64_CONSOLE)
 
@@ -9911,9 +9998,9 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 	bool repeated = (msg.lParam & 0xffff) != 0;
 
 	if (was_down != is_down || repeated) {
-		zt->input_this_frame = true;
+		zt_game->input_this_frame = true;
 
-		auto* input_key = &zt->input_keys[zt->input_keys_mapping[key_code]];
+		auto* input_key = &zt_game->input_keys[zt_game->input_keys_mapping[key_code]];
 		
 		input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
 
@@ -9927,8 +10014,8 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 
 		if (is_down && repeated) input_key->flags |= ztInputKeyFlags_JustRepeated;
 
-		if ( is_down && (!was_down || repeated) && zt->input_key_strokes_count < zt_elementsOf(zt->input_key_strokes) ) {
-			zt->input_key_strokes[zt->input_key_strokes_count++] = input_key->code;
+		if ( is_down && (!was_down || repeated) && zt_game->input_key_strokes_count < zt_elementsOf(zt_game->input_key_strokes) ) {
+			zt_game->input_key_strokes[zt_game->input_key_strokes_count++] = input_key->code;
 		}
 
 		switch(key_code)
@@ -9936,7 +10023,7 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 			case VK_F4: {
 #if !defined(ZT_GAME_NO_ALTF4)
 				if ( GetAsyncKeyState(VK_MENU) ) {
-					zt->quit_requested = true;	// ALT+F4 needs to close our game
+					zt_game->quit_requested = true;	// ALT+F4 needs to close our game
 				}
 #endif
 			} break;
@@ -9952,10 +10039,10 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 	ztGameSettings *game_settings = nullptr;
 	ztWindowDetails *window_details = nullptr;
 
-	zt_fiz(zt->win_count) {
-		if (zt->win_details[i].handle == handle) {
-			game_settings = &zt->win_game_settings[i];
-			window_details = &zt->win_details[i];
+	zt_fiz(zt_game->win_count) {
+		if (zt_game->win_details[i].handle == handle) {
+			game_settings = &zt_game->win_game_settings[i];
+			window_details = &zt_game->win_details[i];
 			break;
 		}
 	}
@@ -9965,7 +10052,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 	switch (msg)
 	{
 		case WM_QUIT: {
-			zt->quit_requested = false;
+			zt_game->quit_requested = false;
 		} break;
 
 		case WM_SYSKEYDOWN:
@@ -9998,20 +10085,20 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					if (!is_down && was_down) input_state |= ztInputMouseFlags_JustReleased;
 
 					if (is_down) {
-						if (zt->input_mouse_captures == 0) {
+						if (zt_game->input_mouse_captures == 0) {
 							SetCapture(win_details->handle); // required so that events continue to be sent during dragging
 						}
-						zt->input_mouse_captures += 1;
+						zt_game->input_mouse_captures += 1;
 					}
 					else {
-						if (--zt->input_mouse_captures == 0) {
+						if (--zt_game->input_mouse_captures == 0) {
 							ReleaseCapture();
 						}
 					}
 				}
 			};
 
-			zt->input_this_frame = true;
+			zt_game->input_this_frame = true;
 
 			switch (msg)
 			{
@@ -10019,32 +10106,32 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					int x = GET_X_LPARAM(l_param);// - window_details->window_rect.left;
 					int y = GET_Y_LPARAM(l_param);// - window_details->window_rect.top;
 
-					zt->input_mouse.delta_x = x - zt->input_mouse.screen_x;
-					zt->input_mouse.delta_y = y - zt->input_mouse.screen_y;
+					zt_game->input_mouse.delta_x = x - zt_game->input_mouse.screen_x;
+					zt_game->input_mouse.delta_y = y - zt_game->input_mouse.screen_y;
 
-					zt->input_mouse.screen_x = x;
-					zt->input_mouse.screen_y = y;
+					zt_game->input_mouse.screen_x = x;
+					zt_game->input_mouse.screen_y = y;
 				} break;
 
-				case WM_LBUTTONDOWN: local::button_pressed(window_details, zt->input_mouse.button_state_left, true, false); break;
-				case WM_LBUTTONUP: local::button_pressed(window_details, zt->input_mouse.button_state_left, false, true); break;
+				case WM_LBUTTONDOWN: local::button_pressed(window_details, zt_game->input_mouse.button_state_left, true, false); break;
+				case WM_LBUTTONUP: local::button_pressed(window_details, zt_game->input_mouse.button_state_left, false, true); break;
 
-				case WM_RBUTTONDOWN: local::button_pressed(window_details, zt->input_mouse.button_state_right, true, false); break;
-				case WM_RBUTTONUP: local::button_pressed(window_details, zt->input_mouse.button_state_right, false, true); break;
+				case WM_RBUTTONDOWN: local::button_pressed(window_details, zt_game->input_mouse.button_state_right, true, false); break;
+				case WM_RBUTTONUP: local::button_pressed(window_details, zt_game->input_mouse.button_state_right, false, true); break;
 
-				case WM_MBUTTONDOWN: local::button_pressed(window_details, zt->input_mouse.button_state_middle, true, false); break;
-				case WM_MBUTTONUP: local::button_pressed(window_details, zt->input_mouse.button_state_middle, false, true); break;
+				case WM_MBUTTONDOWN: local::button_pressed(window_details, zt_game->input_mouse.button_state_middle, true, false); break;
+				case WM_MBUTTONUP: local::button_pressed(window_details, zt_game->input_mouse.button_state_middle, false, true); break;
 
 				case WM_MOUSEWHEEL: {
-					zt->input_mouse.wheel_delta = GET_WHEEL_DELTA_WPARAM(w_param) / 120;
+					zt_game->input_mouse.wheel_delta = GET_WHEEL_DELTA_WPARAM(w_param) / 120;
 				} break;
 			}
 		} break;
 
 		case WM_DESTROY:
 		case WM_CLEAR: {
-			if (window_details && window_details == &zt->win_details[0]) {
-				zt->quit_requested = true;
+			if (window_details && window_details == &zt_game->win_details[0]) {
+				zt_game->quit_requested = true;
 			}
 			else {
 				_zt_winCleanupWindow(window_details, game_settings);
@@ -10203,18 +10290,18 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_SETCURSOR: {
 			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_HideCursor) && GetFocus() == handle) {
-				if (zt->input_mouse_look || LOWORD(l_param) == HTCLIENT) {
+				if (zt_game->input_mouse_look || LOWORD(l_param) == HTCLIENT) {
 					SetCursor(NULL);
-					zt->input_mouse.over_window = true;
+					zt_game->input_mouse.over_window = true;
 				}
 				else {
-					zt->input_mouse.over_window = false;
+					zt_game->input_mouse.over_window = false;
 					SetCursor(LoadCursor(NULL, IDC_ARROW));
 				}
 			}
 			else {
-				zt->input_mouse.over_window = false;
-				zt_inputMouseSetCursor(zt->input_mouse.cursor);
+				zt_game->input_mouse.over_window = false;
+				zt_inputMouseSetCursor(zt_game->input_mouse.cursor);
 			}
 		} break;
 
@@ -20426,9 +20513,9 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 
 	r32 scale = stbtt_ScaleForPixelHeight(&f, (r32)size_in_pixels);
 
-	zt_assert(zt->fonts_count < zt_elementsOf(zt->fonts));
-	ztFontID font_id = zt->fonts_count++;
-	ztFont *font = &zt->fonts[font_id];
+	zt_assert(zt_game->fonts_count < zt_elementsOf(zt_game->fonts));
+	ztFontID font_id = zt_game->fonts_count++;
+	ztFont *font = &zt_game->fonts[font_id];
 	zt_memSet(font, zt_sizeof(ztFont), 0);
 
 	font->arena = zt_memGetGlobalArena();
@@ -20466,14 +20553,14 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		font->glyphs[i].tex_uv.z = (x + gw + padding * 2) / (r32)tex_size;
 		font->glyphs[i].tex_uv.w = (y + gh + padding * 2) / (r32)tex_size;
 
-		font->glyphs[i].size.x = gw / (r32)zt->win_game_settings[0].pixels_per_unit;
-		font->glyphs[i].size.y = gh / (r32)zt->win_game_settings[0].pixels_per_unit;
+		font->glyphs[i].size.x = gw / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+		font->glyphs[i].size.y = gh / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 		font->line_height = zt_max(font->line_height, font->glyphs[i].size.y);
 
-		font->glyphs[i].offset.x = (r32)x0 / zt->win_game_settings[0].pixels_per_unit;
-		font->glyphs[i].offset.y = (r32)y0 / zt->win_game_settings[0].pixels_per_unit;
+		font->glyphs[i].offset.x = (r32)x0 / zt_game->win_game_settings[0].pixels_per_unit;
+		font->glyphs[i].offset.y = (r32)y0 / zt_game->win_game_settings[0].pixels_per_unit;
 
-		font->glyphs[i].x_adv = (scale * advance) / (r32)zt->win_game_settings[0].pixels_per_unit;
+		font->glyphs[i].x_adv = (scale * advance) / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 
 		x = x + gw + spacing;
 		if (y + gh + spacing > bottom_y)
@@ -20483,11 +20570,11 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 			space_idx = i;
 	}
 
-	font->line_spacing = ((r32)size_in_pixels * .1f) / zt->win_game_settings[0].pixels_per_unit;
+	font->line_spacing = ((r32)size_in_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
 
 	int advance, lsb;
 	stbtt_GetGlyphHMetrics(&f, stbtt_FindGlyphIndex(&f, ' '), &advance, &lsb);
-	font->space_width = (scale * advance) / zt->win_game_settings[0].pixels_per_unit;
+	font->space_width = (scale * advance) / zt_game->win_game_settings[0].pixels_per_unit;
 
 	if (space_idx != -1) {
 		font->glyphs[space_idx].size.x = font->space_width;

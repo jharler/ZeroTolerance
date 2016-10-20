@@ -132,6 +132,20 @@
 #endif
 
 
+// ------------------------------------------------------------------------------------------------
+// DLL defines
+
+// Use ZT_DLLEXPORT before any function inside a DLL that needs called externally
+
+#if defined(ZT_DLL)
+#	if defined(ZT_COMPILER_MSVC)
+#		define ZT_DLLEXPORT   extern "C" __declspec(dllexport)
+#	else
+#		define ZT_DLLEXPORT
+#	endif
+#else
+#	define ZT_DLLEXPORT
+#endif
 
 
 // ------------------------------------------------------------------------------------------------
@@ -141,19 +155,19 @@
 #define zt_sizeof(type) ((i32)sizeof(type))
 
 #if defined(ZT_DEBUG)
-#define zt_assert(cond)	                       if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
-#define zt_assertReturnOnFail(cond)            if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
-#define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
+#	define zt_assert(cond)	                       if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#	define zt_assertReturnOnFail(cond)            if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
+#	define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
 
-#define zt_debugOnly(code)	code
-#define zt_releaseOnly(code)
+#	define zt_debugOnly(code)	code
+#	define zt_releaseOnly(code)
 #else
-#define zt_assert(cond)
-#define zt_assertReturnOnFail(cond)            if(!(cond)) { return; }
-#define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { return (retval); }
+#	define zt_assert(cond)
+#	define zt_assertReturnOnFail(cond)            if(!(cond)) { return; }
+#	define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { return (retval); }
 
-#define zt_debugOnly(code)
-#define zt_releaseOnly(code)	code
+#	define zt_debugOnly(code)
+#	define zt_releaseOnly(code)	code
 #endif
 
 #define zt_assertAlways(cond)                  if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
@@ -200,8 +214,8 @@
 #define zt_radiansToDegrees(radians) ((radians) * ztMath180Pi)
 
 #if !defined(ZT_TOOLS_RETURN_ON_NULLPTR_NO_ASSERT)
-#	define zt_returnOnNull(ptr) if (ptr == nullptr) { zt_assert(false && "Null pointer encountered: " #ptr); return; }
-#	define zt_returnValOnNull(ptr, retval) if (ptr == nullptr) { zt_assert(false && "Null pointer encountered: " #ptr); return retval; };
+#	define zt_returnOnNull(ptr) if (ptr == nullptr) { zt_assert(false); return; }
+#	define zt_returnValOnNull(ptr, retval) if (ptr == nullptr) { zt_assert(false); return retval; };
 #else
 #	define zt_returnOnNull(ptr) if (ptr == nullptr) { return; }
 #	define zt_returnValOnNull(ptr, retval) if (ptr == nullptr) { return retval; };
@@ -703,6 +717,36 @@ void zt_assert_raw(const char *condition_name, const char *file, int file_line);
 
 
 // ------------------------------------------------------------------------------------------------
+// function pointers
+
+typedef i32 ztFunctionID;
+
+ztFunctionID zt_registerFunctionPointer(const char *function_name, void *function);
+void        *zt_functionPointer(ztFunctionID function_id);
+
+#define ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
+        function_decl; \
+        ztFunctionID function_name##_FunctionID = zt_registerFunctionPointer(#function_decl, function_name); \
+        function_decl
+
+/*
+	typedef void (myFunction_Func)(int, obj*);
+
+	ZT_FUNCTION_POINTER_REGISTER(myFunction, void myFunction(int x, obj *o))
+	{
+		if(x > 0) {
+			objFunction(x, o, myFunction_FunctionID);
+		}
+	}
+
+	void objFunction(int x, obj *o, ztFunctionID function_id)
+	{
+		((myFunction_Func*)zt_functionPointer(function_id))(x - 1, o);
+	}
+*/
+
+
+// ------------------------------------------------------------------------------------------------
 // logging
 
 enum ztLogMessageLevel_Enum
@@ -725,9 +769,13 @@ void zt_logCritical(const char *message, ...);
 void zt_logFatal(const char *message, ...);
 
 // add your own logging callback ... the message does not contain a newline by default
-typedef void(*zt_logCallback_Func)(ztLogMessageLevel_Enum level, const char * message);
+
+#define ZT_FUNC_LOG_CALLBACK(name) void name(ztLogMessageLevel_Enum level, const char * message)
+typedef ZT_FUNC_LOG_CALLBACK(zt_logCallback_Func);
+
 void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level);
 void zt_logRemoveCallback(zt_logCallback_Func callback);
+
 
 // ------------------------------------------------------------------------------------------------
 // memory
@@ -1008,7 +1056,7 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
 void zt_fileSetCurrentPath(const char *path);
 
 i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
-i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, char *path, char *file);
+i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, const char *file);
 
 bool zt_fileExists(const char *file_name);
 bool zt_fileDelete(const char *file_name);
@@ -1318,6 +1366,7 @@ public:
 		} \
 	}
 
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1450,6 +1499,7 @@ ztInline void zt_assert_raw(const char *condition_name, const char *file, int fi
 	//zt_debugOnly(__asm { int 3 });
 	zt_debugOnly(__debugbreak());
 }
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2172,9 +2222,15 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+#define ZT_FUNC_DLL_SET_GLOBALS(name) void name(void *memory, int version)
+typedef ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals_Func);
+
+#if !defined(ZT_DLL)
+
+void zt_dllSendGlobals(zt_dllSetGlobals_Func *set_globals);
+
+#endif
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2187,8 +2243,63 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#endif // include guard
+
+#if defined(ZT_TOOLS_IMPLEMENTATION) || defined(ZT_TOOLS_INTERNAL_DECLARATIONS)
+
+#ifndef __zt_tools_h_internal_included__
+#define __zt_tools_h_internal_included__
+
+// ------------------------------------------------------------------------------------------------
+
+void *_zt_call_malloc(size_t);
+void  _zt_call_free(void*);
+
+// ------------------------------------------------------------------------------------------------
+
+#ifndef ZT_MAX_LOG_CALLBACKS
+#define ZT_MAX_LOG_CALLBACKS	8
+#endif
+
+#if !defined(ZT_MEM_GLOBAL_ARENA_STACK_SIZE)
+#define ZT_MEM_GLOBAL_ARENA_STACK_SIZE	64
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztGlobals
+{
+	zt_logCallback_Func   *log_callbacks[ZT_MAX_LOG_CALLBACKS];
+	ztLogMessageLevel_Enum log_callbacks_minlevel[ZT_MAX_LOG_CALLBACKS];
+	i32                    log_callbacks_count = 0;
+
+	ztMemoryArena         *mem_global_arena_stack[ZT_MEM_GLOBAL_ARENA_STACK_SIZE];
+	i32                    mem_global_arena_stack_count = 0;
+	void                *(*mem_malloc)(size_t) = _zt_call_malloc;
+	void                 (*mem_free)(void*)    = _zt_call_free;
+
+	void *(*functionPointer)(ztFunctionID) = nullptr;
+};
+
+#define ZT_GLOBALS_VERSION	1 // update this any time ztGlobals is changed
+
+extern ztGlobals *zt;
+
+#endif // internal include guard
+#endif // internal declarations
 
 #if defined(ZT_TOOLS_IMPLEMENTATION)
+#ifndef __zt_tools_implementation__
+#define __zt_tools_implementation__
 
 // headers (strive to avoid including anything if possible)
 #include <stdlib.h>
@@ -2203,15 +2314,97 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 #	include <shlobj.h>
 #endif
 
-// ------------------------------------------------------------------------------------------------
+ztGlobals zt_local = {};
 
-#ifndef ZT_MAX_LOG_CALLBACKS
-#define ZT_MAX_LOG_CALLBACKS	8
+#if defined(ZT_DLL)
+	ztGlobals *zt = &zt_local;
+
+	ZT_DLLEXPORT ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals)
+	{
+		if(version == ZT_GLOBALS_VERSION) {
+			zt = (ztGlobals *)memory;
+		}
+	}
+
+#else
+	ztGlobals *zt = &zt_local;
+
+	void zt_dllSendGlobals(zt_dllSetGlobals_Func *set_globals)
+	{
+		if (set_globals) {
+			zt->functionPointer = zt_functionPointer;
+			set_globals(zt, ZT_GLOBALS_VERSION);
+		}
+	}
 #endif
 
-ztInternal zt_logCallback_Func _zt_logCallbacks[ZT_MAX_LOG_CALLBACKS];
-ztInternal ztLogMessageLevel_Enum _zt_logCallbacksMin[ZT_MAX_LOG_CALLBACKS];
-ztInternal i32 _zt_logCallbacksCount = 0;
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#ifndef ZT_MAX_FUNCTION_POINTER_ENTRIES
+#define ZT_MAX_FUNCTION_POINTER_ENTRIES  256
+#endif
+
+//these aren't in ztGlobals because they must be process-specific:
+ztInternal void *_zt_function_pointers[ZT_MAX_FUNCTION_POINTER_ENTRIES];
+ztInternal i32   _zt_function_hashes  [ZT_MAX_FUNCTION_POINTER_ENTRIES];
+ztInternal int   _zt_function_count = 0;
+
+// ------------------------------------------------------------------------------------------------
+
+ztFunctionID zt_registerFunctionPointer(const char *function_name, void *function)
+{
+	zt_assert(_zt_function_count < ZT_MAX_FUNCTION_POINTER_ENTRIES);
+
+	i32 hash = zt_strHash(function_name);
+
+	zt_fiz(_zt_function_count) {
+		if (_zt_function_hashes[i] == hash) {
+			return hash;
+		}
+	}
+
+	int idx = _zt_function_count++;
+	_zt_function_pointers[idx] = function;
+	_zt_function_hashes[idx] = zt_strHash(function_name);
+
+	return _zt_function_hashes[idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void *zt_functionPointer(ztFunctionID function_id)
+{
+	zt_fiz(_zt_function_count) {
+		if (_zt_function_hashes[i] == function_id) {
+			return _zt_function_pointers[i];
+		}
+	}
+
+	if (zt->functionPointer) {
+		return zt->functionPointer(function_id);
+	}
+
+	return nullptr;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+void *_zt_call_malloc(size_t size)
+{
+	return malloc(size);
+}
+
+void  _zt_call_free(void* mem)
+{
+	free(mem);
+}
+
+// ------------------------------------------------------------------------------------------------
 
 #if defined(ZT_COMPILER_MSVC)
 #define _zt_var_args \
@@ -2232,9 +2425,9 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 	OutputDebugStringA("\n");
 #endif
 
-	zt_fiz(_zt_logCallbacksCount) {
-		if (_zt_logCallbacksMin[i] >= level) {
-			_zt_logCallbacks[i](level, message);
+	zt_fiz(zt->log_callbacks_count) {
+		if (zt->log_callbacks_minlevel[i] >= level) {
+			zt->log_callbacks[i](level, message);
 		}
 	}
 }
@@ -2295,24 +2488,24 @@ void zt_logFatal(const char *message, ...)
 
 void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level)
 {
-	zt_assert(_zt_logCallbacksCount < ZT_MAX_LOG_CALLBACKS);
+	zt_assert(zt->log_callbacks_count < ZT_MAX_LOG_CALLBACKS);
 
-	int idx = _zt_logCallbacksCount++;
-	_zt_logCallbacks[idx] = callback;
-	_zt_logCallbacksMin[idx] = min_level;
+	int idx = zt->log_callbacks_count++;
+	zt->log_callbacks[idx] = callback;
+	zt->log_callbacks_minlevel[idx] = min_level;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_logRemoveCallback(zt_logCallback_Func callback)
 {
-	zt_fiz(_zt_logCallbacksCount) {
-		if (_zt_logCallbacks[i] == callback) {
-			for (int j = i; j < _zt_logCallbacksCount - 1; ++j) {
-				_zt_logCallbacks[j] = _zt_logCallbacks[j + 1];
-				_zt_logCallbacksMin[j] = _zt_logCallbacksMin[j + 1];
+	zt_fiz(zt->log_callbacks_count) {
+		if (zt->log_callbacks[i] == callback) {
+			for (int j = i; j < zt->log_callbacks_count - 1; ++j) {
+				zt->log_callbacks[j] = zt->log_callbacks[j + 1];
+				zt->log_callbacks_minlevel[j] = zt->log_callbacks_minlevel[j + 1];
 			}
-			_zt_logCallbacksCount -= 1;
+			zt->log_callbacks_count -= 1;
 			break;
 		}
 	}
@@ -2386,17 +2579,6 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 #endif
 
 // ------------------------------------------------------------------------------------------------
-
-#if !defined(ZT_MEM_GLOBAL_ARENA_STACK_SIZE)
-#define ZT_MEM_GLOBAL_ARENA_STACK_SIZE	64
-#endif
-
-ztInternal ztMemoryArena *_zt_memGlobalArenaStack[ZT_MEM_GLOBAL_ARENA_STACK_SIZE];
-ztInternal i32 _zt_memGlobalArenaStackCount = 0;
-
-ztInternal void *(*_zt_malloc)(size_t) = malloc;
-ztInternal void(*_zt_free)(void*) = free;
-
 
 ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 {
@@ -2535,7 +2717,7 @@ void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMes
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
 	if (arena == nullptr) {
-		return _zt_malloc(bytes);
+		return zt->mem_malloc(bytes);
 	}
 
 	const int byte_align = ztPointerSize;
@@ -2558,8 +2740,13 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 				if (remaining > (zt_sizeof(ztMemoryArena::allocation))) {
 					ztMemoryArena::allocation *original = allocation;
 					original->length = remaining - (zt_sizeof(ztMemoryArena::allocation));
-					zt_debugOnly(original->file = "original");
-					zt_debugOnly(original->file_line = 0);
+#					if defined(ZT_DLL)
+					original->file = nullptr;
+					original->file_line = 0;
+#					else
+					original->file = "original";
+					original->file_line = 0;
+#					endif
 
 					byte *end_of_mem = ((byte*)original->start + original->length) - 1;
 					zt_fiz(padding) *end_of_mem-- = 0xcd;
@@ -2572,8 +2759,13 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 					inserted->start = (byte *)inserted + zt_sizeof(ztMemoryArena::allocation);
 					inserted->length = bytes;
 
-					zt_debugOnly(inserted->file = "inserted");
-					zt_debugOnly(inserted->file_line = 0);
+#					if defined(ZT_DLL)
+					inserted->file = nullptr;
+					inserted->file_line = 0;
+#					else
+					inserted->file = "inserted";
+					inserted->file_line = 0;
+#					endif
 
 					inserted->next = original;
 					//allocation->next = alloc;
@@ -2631,8 +2823,13 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		byte *end_of_mem = ((byte*)allocation->start + allocation->length) - 1;
 		zt_fiz(padding) *end_of_mem-- = 0xcd;
 
-		zt_debugOnly(allocation->file = nullptr);
-		zt_debugOnly(allocation->file_line = 0);
+#		if defined(ZT_DLL)
+		allocation->file = nullptr;
+		allocation->file_line = 0;
+#		else
+		allocation->file = nullptr;
+		allocation->file_line = 0;
+#		endif
 
 		arena->latest = allocation;
 
@@ -2662,8 +2859,13 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 	void *result = zt_memAllocFromArena(arena, size);
 	if (result && arena) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
-		zt_debugOnly(allocation->file = file);
-		zt_debugOnly(allocation->file_line = file_line);
+#if defined(ZT_DLL)
+		allocation->file = nullptr;
+		allocation->file_line = file_line;
+#else
+		allocation->file = file;
+		allocation->file_line = file_line;
+#endif
 
 		zt_debugOnly(zt_logMemory("memory (%llx): %d bytes of memory at location 0x%llx (file: %s) (line: %d)", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation, file, file_line));
 	}
@@ -2723,7 +2925,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 	}
 
 	if (arena == nullptr) {
-		_zt_free(data);
+		zt->mem_free(data);
 		return;
 	}
 
@@ -2835,12 +3037,12 @@ bool zt_memArenaValidate(ztMemoryArena *arena)
 
 bool zt_memPushGlobalArena(ztMemoryArena *arena)
 {
-	zt_assert(_zt_memGlobalArenaStackCount < ZT_MEM_GLOBAL_ARENA_STACK_SIZE);
-	if (_zt_memGlobalArenaStackCount >= ZT_MEM_GLOBAL_ARENA_STACK_SIZE) {
+	zt_assert(zt->mem_global_arena_stack_count < ZT_MEM_GLOBAL_ARENA_STACK_SIZE);
+	if (zt->mem_global_arena_stack_count >= ZT_MEM_GLOBAL_ARENA_STACK_SIZE) {
 		return false;
 	}
 
-	_zt_memGlobalArenaStack[_zt_memGlobalArenaStackCount++] = arena;
+	zt->mem_global_arena_stack[zt->mem_global_arena_stack_count++] = arena;
 	return true;
 }
 
@@ -2848,26 +3050,26 @@ bool zt_memPushGlobalArena(ztMemoryArena *arena)
 
 void zt_memPopGlobalArena()
 {
-	zt_assert(_zt_memGlobalArenaStackCount > 0);
-	_zt_memGlobalArenaStackCount -= 1;
+	zt_assert(zt->mem_global_arena_stack_count > 0);
+	zt->mem_global_arena_stack_count -= 1;
 }
 
 // ------------------------------------------------------------------------------------------------
 
 ztMemoryArena* zt_memGetGlobalArena()
 {
-	if (_zt_memGlobalArenaStackCount == 0) {
+	if (zt->mem_global_arena_stack_count == 0) {
 		return nullptr;
 	}
-	return _zt_memGlobalArenaStack[_zt_memGlobalArenaStackCount - 1];
+	return zt->mem_global_arena_stack[zt->mem_global_arena_stack_count - 1];
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*))
 {
-	_zt_malloc = malloc_func;
-	_zt_free = free_func;
+	zt->mem_malloc = malloc_func;
+	zt->mem_free   = free_func;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2879,7 +3081,7 @@ void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 		return zt_memAllocFromArena(arena, size, file, file_line);
 	}
 	else {
-		return _zt_malloc(size);
+		return zt->mem_malloc(size);
 	}
 }
 
@@ -2892,7 +3094,7 @@ void zt_memFreeGlobal(void *data)
 		zt_memFree(arena, data);
 	}
 	else {
-		_zt_free(data);
+		zt->mem_free(data);
 	}
 }
 
@@ -4983,8 +5185,10 @@ i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *fil
 
 // ------------------------------------------------------------------------------------------------
 
-i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, char *path, char *file)
+i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, const char *cfile)
 {
+	char *file = (char*)cfile;
+
 	int dirs_back = 0;
 	while (zt_strStartsWith(file, "..")) {
 		dirs_back += 1;
