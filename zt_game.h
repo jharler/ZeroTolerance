@@ -1578,11 +1578,15 @@ void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
 
 #endif // ZT_WINDOWS
 
+#if !defined(ZT_NO_OPENGL)
 #define ZT_OPENGL_IMPLEMENTATION
 #include "zt_opengl.h"
+#endif
 
+#if !defined(ZT_NO_DIRECTX)
 #define ZT_DIRECTX_IMPLEMENTATION
 #include "zt_directx.h"
+#endif
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1765,6 +1769,7 @@ struct ztGameGlobals
 {
 #if defined(ZT_WINDOWS)
 	HINSTANCE hinstance = NULL;
+	HICON exe_icon = NULL;
 	HMODULE hmod_xinput = NULL;
 
 	typedef DWORD (__stdcall *xinput_getState_Func)(DWORD, XINPUT_STATE *);
@@ -9493,6 +9498,7 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	wndcls.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	wndcls.lpfnWndProc = _zt_winCallback;
 	wndcls.hInstance = zt_game->hinstance;
+	wndcls.hIcon = zt_game->exe_icon;
 #if defined(ZT_UNICODE)
 	u16 wc_game_name[1024] = { 0 };
 	zt_strConvertToUTF16(ZT_GAME_NAME, zt_strLen(ZT_GAME_NAME), wc_game_name, zt_elementsOf(wc_game_name));
@@ -9769,6 +9775,12 @@ int main(int argc, char **argv)
 		char size[128];
 		zt_strBytesToString(size, zt_sizeof(size), zt_sizeof(ztGameGlobals));
 		zt_logDebug("main: initial memory: %s", size);
+
+		zt_game->hinstance = _zt_hinstance;
+
+		char exe_name[ztFileMaxPath];
+		GetModuleFileNameA(NULL, exe_name, zt_elementsOf(exe_name));
+		zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0);
 	}
 
 	{ // init input
