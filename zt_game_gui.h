@@ -706,6 +706,9 @@ void zt_dllGuiUnload();
 
 #if defined(ZT_GAME_GUI_IMPLEMENTATION) || defined(ZT_GAME_GUI_INTERNAL_DECLARATIONS)
 
+#ifndef __zt_game_gui_h_internal_included__
+#define __zt_game_gui_h_internal_included__
+
 #define ZT_GAME_INTERNAL_DECLARATIONS
 #include "zt_game.h"
 
@@ -1028,9 +1031,13 @@ extern ztGuiGlobals *zt_gui;
 
 // ------------------------------------------------------------------------------------------------
 
+#endif // include guard
 #endif // INTERNAL DECLARATIONS
 
 #if defined(ZT_GAME_GUI_IMPLEMENTATION)
+
+#ifndef __zt_game_gui_implementation__
+#define __zt_game_gui_implementation__
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1460,7 +1467,7 @@ ztInternal void _zt_guiItemFree(ztGuiManager *gm, ztGuiItem *item)
 				child->sib_prev->sib_next = child->sib_next;
 			}
 			if (child->sib_next) {
-				child->sib_next = child->sib_prev;
+				child->sib_next->sib_prev = child->sib_prev;
 			}
 
 			if (item->parent && item->parent->first_child == child) {
@@ -1497,6 +1504,14 @@ ztInternal void _zt_guiItemFree(ztGuiManager *gm, ztGuiItem *item)
 	gm->item_cache_used -= 1;
 
 	zt_memSet(item, zt_sizeof(ztGuiItem), 0);
+
+#	if defined(ZT_DEBUG)
+	zt_fize(gm->item_cache) {
+		if (gm->item_cache_flags[i] != 0 && gm->item_cache[i].functions.update == 0) {
+			zt_assert(false);
+		}
+	}
+#	endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1583,7 +1598,7 @@ void zt_guiManagerUpdate(ztGuiManagerID gui_manager, r32 dt)
 		if (gm->item_cache_flags[i] != 0) {
 			zt_bitRemove(gm->item_cache_flags[i], ztGuiManagerItemCacheFlags_MouseOver);
 
-			if (gm->item_cache[i].prev_size.x != gm->item_cache[i].size.y || gm->item_cache[i].prev_size.y != gm->item_cache[i].size.y) {
+			if (gm->item_cache[i].prev_size.x != gm->item_cache[i].size.x || gm->item_cache[i].prev_size.y != gm->item_cache[i].size.y) {
 				gm->item_cache[i].flags |= ztGuiItemFlags_Dirty;
 				gm->item_cache[i].prev_size = gm->item_cache[i].size;
 
@@ -1601,12 +1616,12 @@ void zt_guiManagerUpdate(ztGuiManagerID gui_manager, r32 dt)
 					}
 				}
 			}
+			if (gm->item_cache[i].functions.update != ztInvalidID) {
+				((zt_guiItemUpdate_Func*)zt_functionPointer(gm->item_cache[i].functions.update))(i, dt, gm->item_cache[i].functions.user_data);
+			}
 			if (--item_count == 0) {
 				break;
 			}
-		}
-		if (gm->item_cache[i].functions.update != ztInvalidID) {
-			((zt_guiItemUpdate_Func*)zt_functionPointer(gm->item_cache[i].functions.update))(i, dt, gm->item_cache[i].functions.user_data);
 		}
 	}
 
@@ -2307,9 +2322,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowInputMouse, ztInternal ZT_FUNC_GUI_ITE
 		zt_guiSizerRecalcImmediately(item->id);
 		return result;
 	}
-	else {
+	else if (zt_bitIsSet(item->window.flags, ztGuiWindowFlags_AllowDrag)) {
 		return _zt_guiProcessDrag(&item->window.drag_state, gm, &item->pos, input_mouse);
 	}
+
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -2720,12 +2737,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseRender, ztInternal ZT_FUNC_GUI_ITE
 		if (item->label) {
 			txt_size = zt_fontGetExtents(theme->font, item->label);
 			if (zt_bitIsSet(item->button.flags, ztGuiCheckboxFlags_RightText)) {
-				box_pos = ztVec2((item->size.x - box_size.x) / -2.f + theme->padding, 0);
+				box_pos = ztVec2((item->size.x - box_size.x) / -2.f, 0);
 				txt_pos = ztVec2(box_pos.x + box_size.x / 2.f + theme->spacing, 0);
 			}
 			else {
 				txt_pos = ztVec2(item->size.x / -2.f + theme->padding, 0);
-				box_pos = ztVec2((item->size.x / 2.f) - (box_size.x / 2.f + theme->spacing), 0);
+				box_pos = ztVec2((item->size.x / 2.f) - (box_size.x / 2.f), 0);
 			}
 
 			zt_drawListAddText2D(draw_list, theme->font, item->label, zt_strLen(item->label), txt_pos + pos, ztAlign_Left, ztAnchor_Left);
@@ -2992,7 +3009,13 @@ ztInternal ztGuiItemID _zt_guiMakeButtonBase(ztGuiItemID parent, const char *lab
 	item->functions.user_data   = gm;
 
 	if (item->button.live_value) {
-		*item->button.live_value = false;
+		if (!(zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsCheckbox) || zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsRadio) || zt_bitIsSet(flags, ztGuiButtonInternalFlags_IsToggleButton))) {
+			*item->button.live_value = false;
+		}
+		else if (*item->button.live_value) {
+			item->flags |= ztGuiButtonInternalFlags_IsToggled;
+		}
+
 		item->functions.update = _zt_guiButtonBaseUpdate_FunctionID;
 	}
 
@@ -5656,6 +5679,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM
 	ztGuiManager *gm = (ztGuiManager *)user_data;
 	ztGuiItem *item = &gm->item_cache[item_id];
 
+	if (item->combobox.popup_id != ztInvalidID) {
+		zt_guiItemFree(item->combobox.popup_id);
+	}
+
 	zt_fiz(item->combobox.contents_size) {
 		zt_stringFree(item->combobox.contents[i], gm->arena);
 	}
@@ -7146,7 +7173,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleLogMessageCallback, ztInternal v
 		case ztLogMessageLevel_Info: zt_debugConsoleLogCommand(message); break;
 
 		case ztLogMessageLevel_Verbose:
-		case ztLogMessageLevel_Debug: zt_debugConsoleLogCommand("<color=ffffaa>%s</color>", message); break;
+		case ztLogMessageLevel_Debug: zt_debugConsoleLogCommand("<color=44cccc>%s</color>", message); break;
 	}
 }
 
@@ -7942,6 +7969,7 @@ void zt_debugLogGuiHierarchy(ztGuiItemID item_id)
 				case ztGuiItemType_ProgressBar    : type = "ProgressBar"; break;
 				case ztGuiItemType_Sizer          : type = "Sizer"; break;
 				case ztGuiItemType_Custom         : type = "Custom"; break;
+				default: type = "Unknown"; break;
 			}
 
 			char *name = item->name ? item->name : "unnamed";
@@ -7981,4 +8009,5 @@ void zt_debugLogGuiHierarchy(ztGuiItemID item_id)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+#endif // include guard
 #endif // implementation
