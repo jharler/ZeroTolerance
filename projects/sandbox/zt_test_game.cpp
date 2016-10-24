@@ -543,22 +543,6 @@ bool game_loop(r32 dt)
 	}
 
 	if (g_game->vr) {
-		struct vr
-		{
-			static void checkDeviceModel(ztVrTrackedDevice *device, ztScene *scene)
-			{
-				if (device->model == nullptr) {
-					return;
-				}
-
-				if (device->actively_tracking && !zt_sceneHasModel(scene, device->model)) {
-					zt_sceneAddModel(scene, device->model);
-				}
-				else if (!device->actively_tracking && zt_sceneHasModel(g_game->scene, device->model)) {
-					zt_sceneRemoveModel(g_game->scene, device->model);
-				}
-			}
-		};
 
 		if (zt_vrUpdate(g_game->vr)) {
 			static r32 trigger_time = 0;
@@ -572,10 +556,7 @@ bool game_loop(r32 dt)
 				zt_vrControllerTriggerHapticFeedback(g_game->vr, 0, zt_min(1, trigger_time / 5.f));
 			}
 
-			vr::checkDeviceModel(&g_game->vr->headset, g_game->scene);
-			zt_fiz(g_game->vr->controllers_count) {
-				vr::checkDeviceModel(&g_game->vr->controllers[i], g_game->scene);
-			}
+			zt_vrUpdateScene(g_game->vr, g_game->scene, ztVrUpdateSceneFlags_IncludeHeadset | ztVrUpdateSceneFlags_IncludeControllers);
 
 			ztCamera *cameras[2] = { &g_game->vr->camera_left, &g_game->vr->camera_right };
 			ztTextureID textures[2] = { g_game->vr->tex_left, g_game->vr->tex_right };
