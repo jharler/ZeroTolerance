@@ -200,10 +200,17 @@
 #define zt_fiz(end) for(int i = 0; i < (int)(end); ++i)
 #define zt_fjz(end) for(int j = 0; j < (int)(end); ++j)
 #define zt_fkz(end) for(int k = 0; k < (int)(end); ++k)
-#define zt_fizr(beg) for(int i = (int)beg; i >= 0; --i)
-#define zt_fjzr(beg) for(int j = (int)beg; j >= 0; --j)
-#define zt_fkzr(beg) for(int k = (int)beg; k >= 0; --k)
+#define zt_fize(end) for(int i = 0; i < (int)zt_elementsOf((end)); ++i)
+#define zt_fjze(end) for(int j = 0; j < (int)zt_elementsOf((end)); ++j)
+#define zt_fkze(end) for(int k = 0; k < (int)zt_elementsOf((end)); ++k)
+#define zt_fizr(beg) for(int i = (int)(beg); i >= 0; --i)
+#define zt_fjzr(beg) for(int j = (int)(beg); j >= 0; --j)
+#define zt_fkzr(beg) for(int k = (int)(beg); k >= 0; --k)
+#define zt_fizre(beg) for(int i = (int)zt_elementsOf((beg)); i >= 0; --i)
+#define zt_fjzre(beg) for(int j = (int)zt_elementsOf((beg)); j >= 0; --j)
+#define zt_fkzre(beg) for(int k = (int)zt_elementsOf((beg)); k >= 0; --k)
 #define zt_flink(var,start) for(auto *var = start; var != nullptr; var = var->next)
+#define zt_flinknext(var,start,next_var) for(auto *var = start; var != nullptr; var = var->next_var)
 
 #define ztMathPi		 3.14159626f
 #define ztMathPi2		 6.28319252f
@@ -1079,16 +1086,19 @@ ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return zt_sizeof(*value) 
 ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
 
 i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size);
-ztInline bool zt_fileWrite(ztFile *file, i8 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i16 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u8 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u16 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r32 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r64 value)		{ return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, i64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, u64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, r32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, r64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite(ztFile *file, const char *value){ return zt_strLen(value) == zt_fileWrite(file,  value, zt_strLen(value)); }
+
+bool zt_fileWritef(ztFile *file, const char *format, ...);
 
 void zt_fileFlush(ztFile *file);
 
@@ -2382,10 +2392,13 @@ void *zt_functionPointer(ztFunctionID function_id)
 		}
 	}
 
+#	if defined(ZT_DLL)
 	if (zt->functionPointer) {
 		return zt->functionPointer(function_id);
 	}
+#	endif
 
+	zt_assert(false);
 	return nullptr;
 }
 
@@ -5207,9 +5220,11 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, con
 	zt_strCpy(buffer, buffer_size, path, dir_end);
 	buffer += dir_end;
 	buffer_size -= dir_end;
-	zt_strCpy(buffer, buffer_size, ztFilePathSeparatorStr, 1);
-	buffer += 1;
-	buffer_size -= 1;
+	if (!zt_strEndsWith(path, ztFilePathSeparatorStr) && !zt_strStartsWith(file, ztFilePathSeparatorStr)) {
+		zt_strCpy(buffer, buffer_size, ztFilePathSeparatorStr, 1);
+		buffer += 1;
+		buffer_size -= 1;
+	}
 	zt_strCpy(buffer, buffer_size, file);
 
 	return buffer_size_orig - buffer_size;
@@ -5399,6 +5414,20 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 	file->size += bytes_written;
 
 	return (i32)bytes_written;
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_fileWritef(ztFile *file, const char *format, ...)
+{
+#if defined(ZT_WINDOWS)
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
+	char buffer[1024 * 16];
+	vsnprintf_s(buffer, zt_elementsOf(buffer), zt_elementsOf(buffer), format, arg_ptr);
+
+	return zt_fileWrite(file, buffer);
 #endif
 }
 
