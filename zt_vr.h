@@ -115,10 +115,20 @@ struct ztVrSystem
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztVrUpdateSceneFlags_Enum
+{
+	ztVrUpdateSceneFlags_IncludeHeadset     = (1<<0),
+	ztVrUpdateSceneFlags_IncludeControllers = (1<<1),
+};
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_vrIsHeadsetPresent();
 
 ztVrSystem *zt_vrMake();
 void zt_vrFree(ztVrSystem *vr_system);
+
+void zt_vrUpdateScene(ztVrSystem *vr_system, ztScene *scene, i32 flags = ztVrUpdateSceneFlags_IncludeControllers);
 
 bool zt_vrUpdate(ztVrSystem *vr_system);
 bool zt_vrSubmit(ztVrSystem *vr_system);
@@ -150,6 +160,9 @@ void zt_vrControllerTriggerHapticFeedback(ztVrSystem *vr_system, int controller,
 
 #if defined(ZT_VR_IMPLEMENTATION) || defined(ZT_VR_INTERNAL_DECLARATIONS)
 
+#ifndef __zt_vr_h_internal_included__
+#define __zt_vr_h_internal_included__
+
 struct ztVrInternal
 {
 	vr::IVRSystem *system;
@@ -162,9 +175,12 @@ struct ztVrInternal
 	ztMat4 *controllers_matrix;
 };
 
+#endif // include guard
 #endif // internal declarations
 
 #if defined(ZT_VR_IMPLEMENTATION)
+#ifndef __zt_vr_implementation__
+#define __zt_vr_implementation__
 
 #define ZT_GAME_INTERNAL_DECLARATIONS
 #include "zt_game.h"
@@ -488,6 +504,37 @@ ztInternal int _zt_vrControllerAxisIndexForType(ztVrInternal *vr, int tracked_de
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_vrUpdateScene(ztVrSystem *vr_system, ztScene *scene, i32 flags)
+{
+	struct local
+	{
+		static void checkDeviceModel(ztVrTrackedDevice *device, ztScene *scene)
+		{
+			if (device->model == nullptr) {
+				return;
+			}
+
+			if (device->actively_tracking && !zt_sceneHasModel(scene, device->model)) {
+				zt_sceneAddModel(scene, device->model);
+			}
+			else if (!device->actively_tracking && zt_sceneHasModel(scene, device->model)) {
+				zt_sceneRemoveModel(scene, device->model);
+			}
+		}
+	};
+
+	if (zt_bitIsSet(flags, ztVrUpdateSceneFlags_IncludeHeadset)) {
+		local::checkDeviceModel(&vr_system->headset, scene);
+	}
+	if (zt_bitIsSet(flags, ztVrUpdateSceneFlags_IncludeControllers)) {
+		zt_fiz(vr_system->controllers_count) {
+			local::checkDeviceModel(&vr_system->controllers[i], scene);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_vrUpdate(ztVrSystem *vr_system)
 {
 	ztVrInternal *vr = (ztVrInternal*)vr_system->internal_data;
@@ -655,4 +702,5 @@ void zt_vrControllerTriggerHapticFeedback(ztVrSystem *vr_system, int controller,
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+#endif // include guard
 #endif // implementation
