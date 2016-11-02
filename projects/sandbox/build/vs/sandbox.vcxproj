@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\zt_directx.h" />
+    <ClInclude Include="..\..\..\..\zt_dsound.h" />
     <ClInclude Include="..\..\..\..\zt_game.h" />
     <ClInclude Include="..\..\..\..\zt_game_gui.h" />
     <ClInclude Include="..\..\..\..\zt_opengl.h" />

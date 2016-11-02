@@ -91,6 +91,10 @@
 #	include "zt_directx.h"
 #endif
 
+#if !defined(ZT_NO_DSOUND)
+#	include "zt_dsound.h"
+#endif
+
 
 #define ztInvalidID -1
 
@@ -171,21 +175,23 @@ struct ztGameSettings
 {
 	i32 memory; // how much memory should the global arena have?
 
-	i32 screen_w, native_w;
-	i32 screen_h, native_h;
-	ztRenderer_Enum renderer;
-	i32 renderer_target_version_major;
-	i32 renderer_target_version_minor;
-	i32 renderer_flags;
+	i32                                 screen_w, native_w;
+	i32                                 screen_h, native_h;
+	ztRenderer_Enum                     renderer;
+	i32                                 renderer_target_version_major;
+	i32                                 renderer_target_version_minor;
+	i32                                 renderer_flags;
 	ztRendererScreenChangeBehavior_Enum renderer_screen_change_behavior;
-	i32 renderer_memory;
-	i32 pixels_per_unit;
+	i32                                 renderer_memory;
+	i32                                 pixels_per_unit;
 };
 
 // ------------------------------------------------------------------------------------------------
 
 ztRenderer_Enum zt_currentRenderer();
+
 r32 zt_pixelsPerUnit();
+
 
 // ------------------------------------------------------------------------------------------------
 // game details
@@ -198,7 +204,7 @@ struct ztGameDetails
 	const char* app_path;
 	const char* user_path;
 
-	int argc;
+	int    argc;
 	char** argv;
 
 	i32 current_frame;
@@ -320,14 +326,16 @@ struct ztInputKeys
 
 // ------------------------------------------------------------------------------------------------
 
-#define ztInputKeyMaxStrokes	16
+#ifndef ZT_MAX_INPUT_KEYSTROKES
+#define ZT_MAX_INPUT_KEYSTROKES	16
+#endif
 
 // ------------------------------------------------------------------------------------------------
 
 bool         zt_inputThisFrame();
 ztInputKeys* zt_inputKeysAccessState(); // not thread safe
 void         zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
-void         zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes]);
+void         zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ZT_MAX_INPUT_KEYSTROKES]);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1506,6 +1514,23 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 
 
 // ------------------------------------------------------------------------------------------------
+// audio
+
+typedef i32 ztAudioClipID;
+
+ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
+ztAudioClipID zt_audioClipMakeFromFile(const char *file_name);
+
+void zt_audioClipFree(ztAudioClipID audio_clip_id);
+
+void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id);
+void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id);
+
+bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
+bool zt_audioClipStop(ztAudioClipID audio_clip_id);
+
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -1566,6 +1591,15 @@ void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
 #	define zt_noDirectxSupport(code) code
 #endif
 
+#if defined(ZT_DSOUND)
+#	define zt_dsoundSupport(code) code
+#	define zt_noDsoundSupport(code)
+#else
+#	define zt_dsoundSupport(code)
+#	define zt_noDsoundSupport(code) code
+#endif
+
+
 // ------------------------------------------------------------------------------------------------
 // Windows implementation
 
@@ -1586,6 +1620,11 @@ void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
 #if !defined(ZT_NO_DIRECTX)
 #define ZT_DIRECTX_IMPLEMENTATION
 #include "zt_directx.h"
+#endif
+
+#if !defined(ZT_NO_DSOUND)
+#define ZT_DSOUND_IMPLEMENTATION
+#include "zt_dsound.h"
 #endif
 
 
@@ -1740,7 +1779,9 @@ struct ztFont
 	ztMemoryArena *arena;
 };
 
-#define ztFontMaxFonts	64
+#ifndef ZT_MAX_FONTS
+#define ZT_MAX_FONTS	64
+#endif
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1754,7 +1795,32 @@ struct ztMesh
 	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
 };
 
-#define ztMeshMaxMeshes	256
+#ifndef ZT_MAX_MESHES
+#define ZT_MAX_MESHES	256
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztAudioClipFlags_Enum
+{
+	ztAudioClipFlags_Playing = (1<<0),
+	ztAudioClipFlags_Looping = (1<<1),
+};
+
+
+struct ztAudioClip
+{
+	zt_dsoundSupport(ztDirectSoundBuffer *ds_buffer);
+
+	i32 flags;
+
+	r32 length;
+	r32 play_time;
+};
+
+#ifndef ZT_MAX_AUDIO_CLIPS
+#define ZT_MAX_AUDIO_CLIPS  128
+#endif
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1762,21 +1828,26 @@ struct ztGuiManager;
 
 // ------------------------------------------------------------------------------------------------
 
-#define ztMaxWindows	8
-#define ztMaxRendererRequests	8
+#ifndef ZT_MAX_WINDOWS
+#define ZT_MAX_WINDOWS	8
+#endif
+
+#ifndef ZT_MAX_RENDERER_REQUESTS
+#define ZT_MAX_RENDERER_REQUESTS	8
+#endif
 
 struct ztGameGlobals
 {
 #if defined(ZT_WINDOWS)
 	HINSTANCE hinstance = NULL;
-	HICON exe_icon = NULL;
-	HMODULE hmod_xinput = NULL;
+	HICON     exe_icon = NULL;
+	HMODULE   hmod_xinput = NULL;
 
 	typedef DWORD (__stdcall *xinput_getState_Func)(DWORD, XINPUT_STATE *);
 	typedef DWORD (__stdcall *xinput_setState_Func)(DWORD, XINPUT_VIBRATION *);
 	xinput_getState_Func xinput_getState = nullptr;
 	xinput_setState_Func xinput_setState = nullptr;
-	r32 xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
+	r32                  xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 #endif
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
@@ -1786,52 +1857,60 @@ struct ztGameGlobals
 
 	// ----------------------
 
-	ztWindowDetails win_details[ztMaxWindows];
-	ztGameSettings win_game_settings[ztMaxWindows];
-	i32 win_count = 0;
-	ztRendererRequest renderer_requests[ztMaxRendererRequests];
-	i32 renderer_requests_count = 0;
-	byte *renderer_memory;
-	i32 renderer_memory_size;
+	ztWindowDetails   win_details[ZT_MAX_WINDOWS];
+	ztGameSettings    win_game_settings[ZT_MAX_WINDOWS];
+	i32               win_count = 0;
+	ztRendererRequest renderer_requests[ZT_MAX_RENDERER_REQUESTS];
+	i32               renderer_requests_count = 0;
+	byte             *renderer_memory;
+	i32               renderer_memory_size;
 
-	ztGameDetails game_details;
-	i32 last_drawn_frame = 0;
+	ztGameDetails     game_details;
+	i32               last_drawn_frame = 0;
 
 	// ----------------------
 
-	ztShader shaders[ZT_MAX_SHADERS];
-	i32 shaders_count = 0;
+	ztShader   shaders[ZT_MAX_SHADERS];
+	i32        shaders_count = 0;
 
 	ztShaderID default_shader_solid = 0;
 
 	// ----------------------
 
-	ztTexture textures[ztTextureMaxTextures];
-	i32 textures_count = 0;
+	ztTexture  textures[ztTextureMaxTextures];
+	i32        textures_count = 0;
 
 	// ----------------------
 
-	ztFont fonts[ztFontMaxFonts];
-	i32 fonts_count = 0;
+	ztFont     fonts[ZT_MAX_FONTS];
+	i32        fonts_count = 0;
 
 	// ----------------------
 
-	ztMesh meshes[ztMeshMaxMeshes];
-	i32 meshes_count = 0;
+	ztMesh     meshes[ZT_MAX_MESHES];
+	i32        meshes_count = 0;
 
 	// ----------------------
 
-	bool input_this_frame = false;
+	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
 
-	ztInputKeys_Enum input_key_strokes[ztInputKeyMaxStrokes];
-	i32 input_key_strokes_count = 0;
+	ztAudioClip audio_clips[ZT_MAX_AUDIO_CLIPS];
+	i32         audio_clips_count = 0;
 
-	i32 input_keys_mapping[256];
-	ztInputKeys input_keys[ztInputKeys_MAX];
 
-	ztInputMouse input_mouse;
-	bool input_mouse_look = false;
-	i32 input_mouse_captures = 0;
+	// ----------------------
+
+	bool              input_this_frame = false;
+
+	ztInputKeys_Enum  input_key_strokes[ZT_MAX_INPUT_KEYSTROKES];
+	i32               input_key_strokes_count = 0;
+
+	i32               input_keys_mapping[256];
+	ztInputKeys       input_keys[ztInputKeys_MAX];
+
+	ztInputMouse      input_mouse;
+	bool              input_mouse_look = false;
+	i32               input_mouse_captures = 0;
 
 	ztInputController input_controllers[ZT_MAX_INPUT_CONTROLLERS];
 
@@ -2602,9 +2681,9 @@ void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX])
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ztInputKeyMaxStrokes])
+void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ZT_MAX_INPUT_KEYSTROKES])
 {
-	int size = sizeof(ztInputKeys_Enum) * ztInputKeyMaxStrokes;
+	int size = sizeof(ztInputKeys_Enum) * ZT_MAX_INPUT_KEYSTROKES;
 	zt_memCpy(key_strokes, size, zt_game->input_key_strokes, size);
 }
 
@@ -4620,7 +4699,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models)
 	scene->arena = arena;
 
 	scene->directional_light.light = nullptr;
-	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(2048, 2048, ztTextureFlags_DepthMap);
+	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(4096, 4096, ztTextureFlags_DepthMap);
 
 	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
 		scene->lights[i].light = nullptr;
@@ -4814,7 +4893,8 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 		max.z = zt_max(max.z, point.z);
 	}
 
-	ztMat4 mat_proj = ztMat4::makeOrthoProjection(min.x, max.x, max.y, min.y, .1f, .1f + (max.z - min.z));
+	//ztMat4 mat_proj = ztMat4::makeOrthoProjection(min.x, max.x, max.y, min.y, .1f, .1f + (max.z - min.z));
+	ztMat4 mat_proj = ztMat4::makeOrthoProjection(-25, 25, 25, -25, 0.1f, 100.f);
 
 	return mat_proj * mat_view;
 }
@@ -5345,6 +5425,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		}
 
 		ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
+		if(gl_shader == nullptr) {
+			return ztInvalidID;
+		}
 
 		ztShader* shader = &zt_game->shaders[shader_id];
 		shader->renderer = ztRenderer_OpenGL;
@@ -5555,7 +5638,7 @@ void zt_shaderFree(ztShaderID shader_id)
 		return;
 	}
 
-	if (shader->load_type == ztShaderLoadType_Asset) {
+	if (shader->load_type == ztShaderLoadType_Asset && shader->asset_mgr) {
 		zt_assetRemoveReloadCallback(shader->asset_mgr, shader->asset_id, (void*)shader_id);
 	}
 
@@ -8085,7 +8168,7 @@ ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMat
 {
 	zt_returnValOnNull(data, 0);
 
-	int lines = zt_strTokenize(data, "\r\n", nullptr, 0, ztStrTokenizeFlags_TrimWhitespace);
+	int lines = zt_strTokenize(data, data_size, "\r\n", nullptr, 0, ztStrTokenizeFlags_TrimWhitespace);
 
 	ztToken *tokens = zt_mallocStructArray(ztToken, lines);
 	zt_strTokenize(data, "\r\n", tokens, lines, ztStrTokenizeFlags_TrimWhitespace);
@@ -8962,7 +9045,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 				for (int i = 0; i < indices_idx; ++i) {
 					new_verts[i] = verts[indices[i]];
 					if (new_uvs) {
-						new_uvs[i] = uvs[uv_indices[i]];
+						new_uvs[i] = uvs ? uvs[uv_indices[i]] : ztVec2::zero;
 					}
 					if (new_normals) {
 						new_normals[i] = normals[normal_indices[i]];
@@ -9167,6 +9250,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 	}
 	if(curr_mesh_id) {
 		*curr_mesh_id = local::applyToMesh(has_norm_indices, has_uv_indices, indices_idx, verts_idx, verts, uvs, normals, uv_indices, normal_indices, indices, indices_count);
+		group_idx += 1;
 	}
 
 	zt_free(indices);
@@ -9453,6 +9537,216 @@ bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, cons
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h)
 {
 	return !(p_x < rect_x || p_y < rect_y || p_x > rect_x + rect_w || p_y > rect_y + rect_h);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_audioCheckContext()
+{
+#	if defined(ZT_DSOUND)
+	if (zt_game->ds_context == nullptr) {
+		zt_game->ds_context = ztds_contextMake(zt_game->win_details[0].handle);
+	}
+
+	return zt_game->ds_context != nullptr;
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
+{
+	if (!_zt_audioCheckContext()) {
+		return ztInvalidID;
+	}
+
+#	if defined(ZT_DSOUND)
+	ztDirectSoundBuffer *buffer = ztds_bufferMake(zt_game->ds_context, (byte*)data, data_size);
+	if (buffer == nullptr) {
+		return ztInvalidID;
+	}
+
+	zt_assert(zt_game->audio_clips_count < zt_elementsOf(zt_game->audio_clips));
+
+	i32 channels = 0, bits_per_sample = 0, samples_per_second = 0;
+	r32 length = 0;
+	ztds_bufferGetDetails(buffer, &channels, &bits_per_sample, &samples_per_second, &length);
+
+	ztAudioClipID audio_clip_id = zt_game->audio_clips_count++;
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+	audio_clip->ds_buffer = buffer;
+	audio_clip->length    = length;
+	audio_clip->play_time = 0;
+	audio_clip->flags     = 0;
+
+	return audio_clip_id;
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	ztBlockProfiler bp_tex("zt_audioClipMake (from asset)");
+
+	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	zt_logDebug("loading audio asset: %s", asset_mgr->asset_name[asset_id]);
+
+	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_AudioWAV) {
+		return ztInvalidID;
+	}
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		return ztInvalidID;
+	}
+
+	char *data = zt_mallocStructArray(char, size);
+	if (!data) {
+		return ztInvalidID;
+	}
+
+	const char *error = nullptr;
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size);
+	if (audio_clip_id == ztInvalidID) {
+		error = "Unable to process audio data";
+		goto on_error;
+	}
+
+	// TODO: Add reload callback
+
+	zt_free(data);
+	return audio_clip_id;
+
+on_error:
+	zt_logCritical("Unable to load audio clip (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_free(data);
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
+{
+	ztBlockProfiler bp_tex("zt_audioClipMakeFromFile");
+
+	i32 size = 0;
+	void *data = zt_readEntireFile(file_name, &size);
+	if (data == nullptr || size == 0) {
+		return ztInvalidID;
+	}
+
+	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size);
+
+	zt_free(data);
+
+	if (audio_clip_id == ztInvalidID) {
+		zt_logCritical("Unable to load audio clip from file: %s", file_name);
+	}
+
+	return audio_clip_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_audioClipFree(ztAudioClipID audio_clip_id)
+{
+	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
+
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+
+#	if defined(ZT_DSOUND)
+	if (audio_clip->ds_buffer) {
+		ztds_bufferFree(audio_clip->ds_buffer);
+		audio_clip->ds_buffer = nullptr;
+	}
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
+{
+	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+#	if defined(ZT_DSOUND)
+	ztds_bufferPlay(audio_clip->ds_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing;
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
+{
+	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+#	if defined(ZT_DSOUND)
+	ztds_bufferPlayLooping(audio_clip->ds_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id)
+{
+	zt_assertReturnValOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count, false);
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+	return zt_bitIsSet(audio_clip->flags, ztAudioClipFlags_Playing);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_audioClipStop(ztAudioClipID audio_clip_id)
+{
+	zt_assertReturnValOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count, false);
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+
+#	if defined(ZT_DSOUND)
+	zt_assertReturnValOnFail(audio_clip->ds_buffer != nullptr, false);
+	ztds_bufferStop(audio_clip->ds_buffer);
+#	endif
+
+	zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Playing);
+	zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Looping);
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_audioUpdateFrame(r32 dt)
+{
+#	if defined(ZT_DSOUND)
+	if (!zt_game->ds_context) {
+		return;
+	}
+
+	zt_fiz(zt_game->audio_clips_count) {
+		if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
+			zt_game->audio_clips[i].play_time += dt;
+			if (zt_game->audio_clips[i].play_time > zt_game->audio_clips[i].length) {
+				zt_logDebug("Audio stopped");
+				if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Looping)) {
+					zt_game->audio_clips[i].play_time -= zt_game->audio_clips[i].length;
+				}
+				else {
+					zt_bitRemove(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing);
+				}
+			}
+		}
+	}
+#	endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9920,6 +10214,8 @@ int main(int argc, char **argv)
 
 		zt_debugOnly(if (dt > 1.f / 30.f) dt = 1.f / 30.f); // keep the delta time meaningful during debugging
 
+		_zt_audioUpdateFrame(dt);
+
 		if (!_zt_callFuncLoop(dt))
 			break;
 
@@ -9944,6 +10240,7 @@ int main(int argc, char **argv)
 	_zt_callFuncCleanup();
 
 	zt_fiz(zt_game->shaders_count) {
+		zt_game->shaders[i].asset_mgr = nullptr;
 		zt_shaderFree((ztShaderID)i);
 	}
 	zt_fiz(zt_game->textures_count) {
