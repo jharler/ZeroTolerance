@@ -272,11 +272,11 @@ struct ztVertexArrayDX
 
 // ------------------------------------------------------------------------------------------------
 
-ztVertexArrayDX *ztdx_vertexArrayMake(ztContextDX *context, ztVertexEntryDX *entries, int entries_count, void *vert_data, int vert_count);
-ztVertexArrayDX *ztdx_vertexArrayMake(ztMemoryArena *arena, ztContextDX *context, ztVertexEntryDX *entries, int entries_count, void *vert_data, int vert_count);
-void             ztdx_vertexArrayFree(ztVertexArrayDX *vertex_array);
-void             ztdx_vertexArrayUpdate(ztContextDX *context, ztVertexArrayDX *vertex_array, void *vert_data, int vert_count);
-void             ztdx_vertexArrayDraw(ztContextDX *context, ztVertexArrayDX *vertex_array, D3D11_PRIMITIVE_TOPOLOGY topology = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+ztVertexArrayDX *ztdx_vertexArrayMake  (ztContextDX *context, ztVertexEntryDX *entries, int entries_count, void *vert_data, int vert_count);
+ztVertexArrayDX *ztdx_vertexArrayMake  (ztMemoryArena *arena, ztContextDX *context, ztVertexEntryDX *entries, int entries_count, void *vert_data, int vert_count);
+void             ztdx_vertexArrayFree  (ztVertexArrayDX *vertex_array);
+bool             ztdx_vertexArrayUpdate(ztContextDX *context, ztVertexArrayDX *vertex_array, void *vert_data, int vert_count);
+void             ztdx_vertexArrayDraw  (ztContextDX *context, ztVertexArrayDX *vertex_array, D3D11_PRIMITIVE_TOPOLOGY topology = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1791,14 +1791,15 @@ void ztdx_vertexArrayFree(ztVertexArrayDX *vertex_array)
 
 // ------------------------------------------------------------------------------------------------
 
-void ztdx_vertexArrayUpdate(ztContextDX *context, ztVertexArrayDX *vertex_array, void *vert_data, int vert_count)
+bool ztdx_vertexArrayUpdate(ztContextDX *context, ztVertexArrayDX *vertex_array, void *vert_data, int vert_count)
 {
 	D3D11_MAPPED_SUBRESOURCE ms;
-	ztdx_callAndReportOnErrorFast(context->context->Map(vertex_array->buff_vert, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms));
+	ztdx_callAndReturnValOnError(context->context->Map(vertex_array->buff_vert, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms), false);
 	memcpy(ms.pData, vert_data, vertex_array->stride * vert_count);
 	context->context->Unmap(vertex_array->buff_vert, NULL);
 
 	vertex_array->vert_count = vert_count;
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------

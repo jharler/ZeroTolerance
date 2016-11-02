@@ -1060,6 +1060,48 @@ void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controll
 
 
 // ------------------------------------------------------------------------------------------------
+// vertex arrays
+
+enum ztVertexArrayDataType_Enum
+{
+	ztVertexArrayDataType_Float,
+
+	ztVertexArrayDataType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztVertexArrayDrawType_Enum
+{
+	ztVertexArrayDrawType_Triangles,
+	ztVertexArrayDrawType_Lines,
+	ztVertexArrayDrawType_Points,
+
+	ztVertexArrayDrawType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+typedef i32 ztVertexArrayID;
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztVertexArrayEntry
+{
+	ztVertexArrayDataType_Enum type;
+	i32                        size; // sizeof(type) * count of type variables
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count);
+void            zt_vertexArrayFree(ztVertexArrayID vertex_array_id);
+
+bool            zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int vert_count);
+void            zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type = ztVertexArrayDrawType_Triangles);
+
+
+// ------------------------------------------------------------------------------------------------
 // rendering
 
 enum ztDrawCommandType_Enum
@@ -1078,6 +1120,7 @@ enum ztDrawCommandType_Enum
 
 	ztDrawCommandType_Skybox,
 	ztDrawCommandType_Billboard,
+	ztDrawCommandType_VertexArray,
 
 	ztDrawCommandType_MAX,
 };
@@ -1122,24 +1165,24 @@ struct ztDrawCommand
 
 		struct {
 			ztShaderID shader;
-			bool shader_pop;
+			bool       shader_pop;
 		};
 
 		struct {
 			ztColor color;
-			bool color_pop;
+			bool    color_pop;
 		};
 
 		struct {
 			ztTextureID texture[ZT_DRAW_COMMAND_MAX_TEXTURES];
-			i32 texture_count;
-			bool texture_pop;
+			i32         texture_count;
+			bool        texture_pop;
 		};
 
 		struct {
 			ztVec2 clip_center;
 			ztVec2 clip_size;
-			int clip_idx;
+			int    clip_idx;
 		};
 
 		struct {
@@ -1150,7 +1193,12 @@ struct ztDrawCommand
 			ztVec3 billboard_center;
 			ztVec2 billboard_size;
 			ztVec4 billboard_uv;
-			i32 billboard_flags;
+			i32    billboard_flags;
+		};
+
+		struct {
+			ztVertexArrayID            vertex_array;
+			ztVertexArrayDrawType_Enum vertex_array_draw_type;
 		};
 	};
 };
@@ -1206,6 +1254,7 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum);
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
+bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type);
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
@@ -1233,6 +1282,7 @@ enum ztRenderDrawListFlags_Enum
 
 void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
+
 
 // ------------------------------------------------------------------------------------------------
 // lighting
@@ -1748,7 +1798,22 @@ struct ztTexture
 	};
 };
 
-#define ztTextureMaxTextures	256
+#ifndef ZT_MAX_TEXTURES
+#define ZT_MAX_TEXTURES	256
+#endif
+
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztVertexArray
+{
+	zt_openGLSupport(ztVertexArrayGL *gl_va);
+	zt_directxSupport(ztVertexArrayDX *dx_va);
+};
+
+#ifndef ZT_MAX_VERTEX_ARRAYS
+#define ZT_MAX_VERTEX_ARRAYS	32
+#endif
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1870,32 +1935,37 @@ struct ztGameGlobals
 
 	// ----------------------
 
-	ztShader   shaders[ZT_MAX_SHADERS];
-	i32        shaders_count = 0;
+	ztShader      shaders[ZT_MAX_SHADERS];
+	i32           shaders_count = 0;
 
-	ztShaderID default_shader_solid = 0;
-
-	// ----------------------
-
-	ztTexture  textures[ztTextureMaxTextures];
-	i32        textures_count = 0;
+	ztShaderID    default_shader_solid = 0;
 
 	// ----------------------
 
-	ztFont     fonts[ZT_MAX_FONTS];
-	i32        fonts_count = 0;
+	ztTexture     textures[ZT_MAX_TEXTURES];
+	i32           textures_count = 0;
 
 	// ----------------------
 
-	ztMesh     meshes[ZT_MAX_MESHES];
-	i32        meshes_count = 0;
+	ztVertexArray vertex_arrays[ZT_MAX_VERTEX_ARRAYS];
+	i32           vertex_arrays_count = 0;
+
+	// ----------------------
+
+	ztFont        fonts[ZT_MAX_FONTS];
+	i32           fonts_count = 0;
+
+	// ----------------------
+
+	ztMesh        meshes[ZT_MAX_MESHES];
+	i32           meshes_count = 0;
 
 	// ----------------------
 
 	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
 
-	ztAudioClip audio_clips[ZT_MAX_AUDIO_CLIPS];
-	i32         audio_clips_count = 0;
+	ztAudioClip   audio_clips[ZT_MAX_AUDIO_CLIPS];
+	i32           audio_clips_count = 0;
 
 
 	// ----------------------
@@ -3295,6 +3365,21 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_VertexArray;
+	command->vertex_array = vertex_array_id;
+	command->vertex_array_draw_type = draw_type;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 {
 	_zt_drawListCheck(draw_list);
@@ -3751,7 +3836,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					}
 
 					// extract display elements.  we sort them out so that things can be batched efficiently
-					ztDrawCommandType_Enum extract[] = { ztDrawCommandType_Triangle, ztDrawCommandType_Billboard };
+					ztDrawCommandType_Enum extract[] = { ztDrawCommandType_Triangle, ztDrawCommandType_Billboard, ztDrawCommandType_VertexArray };
 
 					zt_fkz(zt_elementsOf(extract)) {
 						cmp_texture = cmp_shader->texture;
@@ -4243,6 +4328,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_ChangeColor: {
 							active_color = cmp_item->command->color;
 						} break;
+
+						case ztDrawCommandType_VertexArray: {
+							zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
+						} break;
 					};
 
 					cmp_item = cmp_item->next;
@@ -4307,9 +4396,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_game->game_details.curr_frame.shader_switches += 1;
 				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
 
-				ztMat4 dxMod = ztMat4::identity.getTranspose();
-				ztMat4 dxView = camera->mat_view.getTranspose();
-				ztMat4 dxProj = camera->mat_proj.getTranspose();
+				ztMat4 dxMod = ztMat4::identity;
+				ztMat4 dxView = camera->mat_view;
+				ztMat4 dxProj = camera->mat_proj;
 
 				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
 				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
@@ -4322,9 +4411,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_game->game_details.curr_frame.shader_switches += 1;
 				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
 
-				ztMat4 dxMod = ztMat4::identity .getTranspose();
-				ztMat4 dxView = camera->mat_view.getTranspose();
-				ztMat4 dxProj = camera->mat_proj.getTranspose();
+				ztMat4 dxMod = ztMat4::identity;
+				ztMat4 dxView = camera->mat_view;
+				ztMat4 dxProj = camera->mat_proj;
 
 				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
 				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
@@ -4523,6 +4612,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_ChangeColor: {
 							active_color = cmp_item->command->color;
 						} break;
+
+						case ztDrawCommandType_VertexArray: {
+							zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
+						} break;
 					};
 
 					cmp_item = cmp_item->next;
@@ -4550,6 +4643,171 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 #endif // ZT_DIRECTX
 	}
 #endif
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
+{
+	zt_returnValOnNull(entries, ztInvalidID);
+	zt_assertReturnValOnFail(zt_game->vertex_arrays_count < zt_elementsOf(zt_game->vertex_arrays), ztInvalidID);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			ztVertexEntryGL *gl_entries = zt_mallocStructArray(ztVertexEntryGL, entries_count);
+			zt_fiz(entries_count) {
+				gl_entries[i].size = entries[i].size;
+
+				switch (entries[i].type)
+				{
+					case ztVertexArrayDataType_Float: {
+						gl_entries[i].type = GL_FLOAT;
+					} break;
+
+					default: zt_assert(false);
+				}
+			}
+			ztVertexArrayGL *gl_va = ztgl_vertexArrayMake(gl_entries, entries_count, vert_data, vert_count);
+			zt_free(gl_entries);
+
+			if (gl_va == nullptr) {
+				return ztInvalidID;
+			}
+
+			ztVertexArrayID va_id = zt_game->vertex_arrays_count++;
+			zt_game->vertex_arrays[va_id].gl_va = gl_va;
+
+			return va_id;
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			ztVertexEntryDX *dx_entries = zt_mallocStructArray(ztVertexEntryDX, entries_count);
+			zt_fiz(entries_count) {
+				dx_entries[i].size = entries[i].size;
+				// DirectX doesn't care about data types here
+			}
+			ztVertexArrayDX *dx_va = ztdx_vertexArrayMake(zt_game->win_details[0].dx_context, dx_entries, entries_count, vert_data, vert_count);
+			zt_free(dx_entries);
+
+			if (dx_va == nullptr) {
+				return ztInvalidID;
+			}
+
+			ztVertexArrayID va_id = zt_game->vertex_arrays_count++;
+			zt_game->vertex_arrays[va_id].dx_va = dx_va;
+
+			return va_id;
+#			endif
+		} break;
+	}
+
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
+{
+	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			ztgl_vertexArrayFree(zt_game->vertex_arrays[vertex_array_id].gl_va);
+			zt_game->vertex_arrays[vertex_array_id].gl_va = nullptr;
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			ztdx_vertexArrayFree(zt_game->vertex_arrays[vertex_array_id].dx_va);
+			zt_game->vertex_arrays[vertex_array_id].dx_va = nullptr;
+#			endif
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int vert_count)
+{
+	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, false);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			return ztgl_vertexArrayUpdate(zt_game->vertex_arrays[vertex_array_id].gl_va, vert_data, vert_count);
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			return ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->vertex_arrays[vertex_array_id].dx_va, vert_data, vert_count);
+#			endif
+		} break;
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type)
+{
+	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			GLenum gl_draw_type = GL_TRIANGLES;
+			switch (draw_type)
+			{
+				case ztVertexArrayDrawType_Triangles: {
+					gl_draw_type = GL_TRIANGLES;
+				} break;
+
+				case ztVertexArrayDrawType_Lines: {
+					gl_draw_type = GL_LINES;
+				} break;
+
+				case ztVertexArrayDrawType_Points: {
+					gl_draw_type = GL_POINTS;
+				} break;
+			}
+			return ztgl_vertexArrayDraw(zt_game->vertex_arrays[vertex_array_id].gl_va, gl_draw_type);
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			D3D11_PRIMITIVE_TOPOLOGY dx_draw_type = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			switch (draw_type)
+			{
+				case ztVertexArrayDrawType_Triangles: {
+					dx_draw_type = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				} break;
+
+				case ztVertexArrayDrawType_Lines: {
+					dx_draw_type = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
+				} break;
+
+				case ztVertexArrayDrawType_Points: {
+					dx_draw_type = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+				} break;
+			}
+			return ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->vertex_arrays[vertex_array_id].dx_va, dx_draw_type);
+#			endif
+		} break;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------

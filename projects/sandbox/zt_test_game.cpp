@@ -78,6 +78,8 @@ struct ztGame
 	ztMaterial material_plane;
 
 	ztVrSystem *vr;
+
+	ztVertexArrayID va;
 };
 
 
@@ -157,7 +159,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	//settings->renderer = ztRenderer_DirectX;
+	settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -388,6 +390,35 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		}
 	}
 
+	{
+		ztVertexArrayEntry entries[] = {
+			{ ztVertexArrayDataType_Float, 3 * zt_sizeof(r32) },
+			{ ztVertexArrayDataType_Float, 2 * zt_sizeof(r32) },
+			{ ztVertexArrayDataType_Float, 3 * zt_sizeof(r32) },
+			{ ztVertexArrayDataType_Float, 4 * zt_sizeof(r32) },
+		};
+
+		struct ztData
+		{
+			ztVec3 pos;
+			ztVec2 uv;
+			ztVec3 normal;
+			ztVec4 color;
+		};
+
+		ztData verts[6];
+		verts[0].pos = ztVec3(-1, 1, 0); verts[0].uv = ztVec2(0, 0); verts[0].normal = ztVec3(0, 0, 0); verts[0].color = ztVec4(1, 0, 0, 1);
+		verts[1].pos = ztVec3(-1, 0, 0); verts[1].uv = ztVec2(0, 0); verts[1].normal = ztVec3(0, 0, 0); verts[1].color = ztVec4(0, 1, 0, 1);
+		verts[2].pos = ztVec3( 0, 0, 0); verts[2].uv = ztVec2(0, 0); verts[2].normal = ztVec3(0, 0, 0); verts[2].color = ztVec4(0, 0, 1, 1);
+		
+		verts[3].pos = ztVec3(-1, 1, 0); verts[3].uv = ztVec2(0, 0); verts[3].normal = ztVec3(0, 0, 0); verts[3].color = ztVec4(1, 0, 0, 1);
+		verts[4].pos = ztVec3( 0, 0, 0); verts[4].uv = ztVec2(0, 0); verts[4].normal = ztVec3(0, 0, 0); verts[4].color = ztVec4(0, 0, 1, 1);
+		verts[5].pos = ztVec3( 0, 1, 0); verts[5].uv = ztVec2(0, 0); verts[5].normal = ztVec3(0, 0, 0); verts[5].color = ztVec4(1, 1, 0, 1);
+
+
+		g_game->va = zt_vertexArrayMake(entries, zt_elementsOf(entries), verts, zt_elementsOf(verts));
+	}
+
 	bool disable_vr = true;
 	g_game->vr = !disable_vr && zt_vrIsHeadsetPresent() ? zt_vrMake() : nullptr;
 
@@ -433,6 +464,8 @@ void game_cleanup()
 		}
 		zt_vrFree(g_game->vr);
 	}
+
+	zt_vertexArrayFree(g_game->va);
 
 	zt_sceneFreeAllModels(g_game->scene);
 	zt_sceneFree(g_game->scene);
@@ -586,6 +619,8 @@ bool game_loop(r32 dt)
 		// draw the world center indicator
 		zt_drawListPushShader(&g_game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 		zt_drawListPushTexture(&g_game->draw_list, 0);
+
+		zt_drawListAddVertexArray(&g_game->draw_list, g_game->va, ztVertexArrayDrawType_Triangles);
 		r32 y = 0.01f;
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 0, 0, 1));
 		zt_drawListAddLine(&g_game->draw_list, ztVec3(0, y, 0), ztVec3(.5f, y, 0));

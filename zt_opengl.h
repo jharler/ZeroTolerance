@@ -311,10 +311,11 @@ struct ztVertexArrayGL
 
 // ------------------------------------------------------------------------------------------------
 
-ztVertexArrayGL *ztgl_vertexArrayMake(ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void             ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array);
-void             ztgl_vertexArrayDraw(ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
+ztVertexArrayGL *ztgl_vertexArrayMake  (ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+ztVertexArrayGL *ztgl_vertexArrayMake  (ztMemoryArena *arena, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void             ztgl_vertexArrayFree  (ztVertexArrayGL *vertex_array);
+bool             ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, void *vert_data, int vert_count);
+void             ztgl_vertexArrayDraw  (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1734,6 +1735,45 @@ void ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array)
 
 	zt_freeArena(vertex_array->entries, vertex_array->arena);
 	zt_freeArena(vertex_array, vertex_array->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, void *vert_data, int vert_count)
+{
+	int vert_size = 0;
+	zt_fiz(vertex_array->entries_count) {
+		vert_size += vertex_array->entries[i].size;
+	}
+
+	ztgl_callAndReportOnError(glBindVertexArray(vertex_array->vao));
+	{
+		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), false);
+		ztgl_callAndReturnValOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_STATIC_DRAW), false);
+
+		int size = 0;
+		zt_fiz(vertex_array->entries_count) {
+			int attrib_size = 0;
+			switch (vertex_array->entries[i].type)
+			{
+				case GL_FLOAT: {
+					attrib_size = 4;
+				} break;
+
+				default: {
+					zt_assert(false);
+				} break;
+			}
+
+			ztgl_callAndReturnValOnError(glVertexAttribPointer(i, vertex_array->entries[i].size / attrib_size, vertex_array->entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
+			ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
+
+			size += vertex_array->entries[i].size;
+		}
+		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, 0), false);
+	}
+	ztgl_callAndReturnValOnError(glBindVertexArray(0), false);
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
