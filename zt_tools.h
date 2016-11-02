@@ -1133,12 +1133,12 @@ enum ztDirectoryMonitorFlags_Enum
 struct ztDirectoryMonitor
 {
 #if defined(ZT_WINDOWS)
-	i32 io;
-	i32 file;
-	i32 flags;
-	byte file_buffer[16 * 256]; // 16 == sizeof(FILE_NOTIFY_INFORMATION)
-	byte overlapped[28];
-	bool recursive;
+	pointer io;
+	pointer file;
+	i32     flags;
+	byte    file_buffer[ztPointerSize + 12 * 256]; // ztPointerSize + 12 == sizeof(FILE_NOTIFY_INFORMATION)
+	byte    overlapped[ztPointerSize * 3 + 8]; // sizeof(OVERLAPPED)
+	bool    recursive;
 #endif
 };
 
@@ -5744,13 +5744,13 @@ bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, boo
 #if defined(ZT_WINDOWS)
 	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 
-	dir_mon->io = (i32)CreateIoCompletionPort((HANDLE)INVALID_HANDLE_VALUE, NULL, 0, 1);
+	dir_mon->io = (pointer)CreateIoCompletionPort((HANDLE)INVALID_HANDLE_VALUE, NULL, 0, 1);
 	if (dir_mon->io == NULL) {
 		zt_logCritical("Unable to monitor directory (completion port) (%s). Error: %d", directory, GetLastError());
 		goto on_error;
 	}
 
-	dir_mon->file = (i32)CreateFileA(directory, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+	dir_mon->file = (pointer)CreateFileA(directory, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 	if (dir_mon->file == NULL) {
 		zt_logCritical("Unable to monitor directory (open directory) (%s). Error: %d", directory, GetLastError());
 		goto on_error;
