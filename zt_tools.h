@@ -2536,7 +2536,7 @@ void  zt_memSet(void *mem, int32 mem_len, byte value)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_memCpy(void *dst, int32 dst_len, void *src, int32 src_len)
+void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 {
 	int max_idx = zt_min(dst_len, src_len);
 
