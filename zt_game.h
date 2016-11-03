@@ -6340,7 +6340,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	ztBlockProfiler bp_tex("zt_textureMake (from asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
-	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, ztInvalidID);
 
 	zt_logDebug("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
 
