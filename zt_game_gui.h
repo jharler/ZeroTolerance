@@ -632,15 +632,15 @@ void zt_guiInitDebug(ztGuiManagerID gui_manager);
 
 #define ztDebugConsoleParams(PARAMS)	char PARAMS[16][256]
 
-#define ZT_FUNC_DEBUG_CONSOLE_COMMAND(name) void name(ztDebugConsoleParams(params), int params_count)
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND(name) void name(ztDebugConsoleParams(params), int params_count, void *user_data)
 typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND(zt_debugConsole_Func);
 
-#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(name) void name(char **params, int params_count, char *auto_fill, int auto_fill_len)
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(name) void name(char **params, int params_count, char *auto_fill, int auto_fill_len, void *user_data)
 typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(zt_debugConsoleAutoComplete_Func);
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_debugConsoleAddCommand(const char *command, const char *help, ztFunctionID command_func, ztFunctionID auto_complete_func);
+void zt_debugConsoleAddCommand(const char *command, const char *help, ztFunctionID command_func, ztFunctionID auto_complete_func, void *user_data = nullptr);
 void zt_debugConsoleRemoveCommand(const char *command);
 
 enum ztDebugConsoleLevel_Enum
@@ -993,6 +993,8 @@ struct ztConsoleCommand
 
 	ztFunctionID on_command;
 	ztFunctionID on_auto_complete;
+
+	void *user_data;
 
 	ztConsoleCommand *next;
 };
@@ -7082,7 +7084,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleInputKey, ztInternal ZT_FUNC_GUI
 				zt_debugConsoleLogWarning("  Command not found: %s", params[0]);
 			}
 			else {
-				((zt_debugConsole_Func*)zt_functionPointer(command->on_command))(params, tokens_count);
+				((zt_debugConsole_Func*)zt_functionPointer(command->on_command))(params, tokens_count, command->user_data);
 			}
 		}
 
@@ -7231,6 +7233,24 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_Exit, ztInternal ZT_FUNC
 
 // ------------------------------------------------------------------------------------------------
 
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_PlayAudio, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_PlayAudio))
+{
+	ztAudioClipID audio_clip_id = zt_strToInt(params[1], ztInvalidID);
+	if(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count) {
+		zt_audioClipPlayOnce(audio_clip_id);
+	}
+	else {
+		if(zt_game->audio_clips_count == 0) {
+			zt_debugConsoleLogCommand("There are no loaded audio clips to play");
+		}
+		else {
+			zt_debugConsoleLogCommand("Please select an ID between 0 and %d", zt_game->audio_clips_count - 1);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal void _zt_guiDebugConsoleAddLoggingCallbacks()
 {
 	if (zt_gui->console_window_id != ztInvalidID) {
@@ -7316,9 +7336,10 @@ ztInternal void _zt_guiDebugConsole()
 	zt_guiSizerAddItem(main_sizer, display_container, 1, 3 / zt_pixelsPerUnit());
 	zt_guiSizerAddItem(main_sizer, dc->command_id, 0, 3 / zt_pixelsPerUnit(), 0, ztGuiItemOrient_Horz);
 
-	zt_debugConsoleAddCommand("list", "Lists the available commands", _zt_guiDebugConsoleCommand_List_FunctionID, ztInvalidID);
-	zt_debugConsoleAddCommand("help",                        nullptr, _zt_guiDebugConsoleCommand_Help_FunctionID, _zt_guiDebugConsoleCommandAutoComplete_Help_FunctionID);
-	zt_debugConsoleAddCommand("exit",            "Quits the program", _zt_guiDebugConsoleCommand_Exit_FunctionID, ztInvalidID);
+	zt_debugConsoleAddCommand("list", "Lists the available commands", _zt_guiDebugConsoleCommand_List_FunctionID     , ztInvalidID);
+	zt_debugConsoleAddCommand("help",                        nullptr, _zt_guiDebugConsoleCommand_Help_FunctionID     , _zt_guiDebugConsoleCommandAutoComplete_Help_FunctionID);
+	zt_debugConsoleAddCommand("exit",            "Quits the program", _zt_guiDebugConsoleCommand_Exit_FunctionID     , ztInvalidID);
+	zt_debugConsoleAddCommand("playaudio",     "Plays an audio clip", _zt_guiDebugConsoleCommand_PlayAudio_FunctionID, ztInvalidID);
 
 	zt_debugConsoleLogCommand("<color=00aa00ff>Welcome to the console.  Type 'help <<cmd>' for help.  Type 'list' for commands.</color>");
 
@@ -7331,13 +7352,14 @@ ztInternal void _zt_guiDebugConsole()
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_debugConsoleAddCommand(const char *command, const char *help, ztFunctionID command_func, ztFunctionID auto_complete_func)
+void zt_debugConsoleAddCommand(const char *command, const char *help, ztFunctionID command_func, ztFunctionID auto_complete_func, void *user_data)
 {
 	ztConsoleCommand *console_command = zt_mallocStructArena(ztConsoleCommand, zt_gui->arena);
 	zt_strCpy(console_command->command, zt_elementsOf(console_command->command), command);
 	zt_strCpy(console_command->help, zt_elementsOf(console_command->help), help);
 	console_command->on_command = command_func;
 	console_command->on_auto_complete = auto_complete_func;
+	console_command->user_data = user_data;
 
 	ztConsoleCommand *prev = nullptr;
 	ztConsoleCommand *link = zt_gui->console_commands;

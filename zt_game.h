@@ -1579,6 +1579,9 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id);
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
 bool zt_audioClipStop(ztAudioClipID audio_clip_id);
 
+void zt_audioSetMute(bool mute);
+bool zt_audioGetMute();
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1966,6 +1969,7 @@ struct ztGameGlobals
 
 	ztAudioClip   audio_clips[ZT_MAX_AUDIO_CLIPS];
 	i32           audio_clips_count = 0;
+	bool          audio_muted = false;
 
 
 	// ----------------------
@@ -9918,6 +9922,10 @@ ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
 
 void zt_audioClipFree(ztAudioClipID audio_clip_id)
 {
+	if (audio_clip_id == ztInvalidID) {
+		return;
+	}
+
 	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
 
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
@@ -9934,6 +9942,10 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 
 void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 {
+	if(zt_game->audio_muted) {
+		return;
+	}
+
 	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 #	if defined(ZT_DSOUND)
@@ -9946,6 +9958,10 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
 {
+	if(zt_game->audio_muted) {
+		return;
+	}
+
 	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 #	if defined(ZT_DSOUND)
@@ -9983,6 +9999,29 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_audioSetMute(bool mute)
+{
+	if(mute) {
+		zt_fiz(zt_game->audio_clips_count) {
+			if(zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
+				zt_audioClipStop(i);
+			}
+		}
+	}
+
+	zt_game->audio_muted = mute;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_audioGetMute()
+{
+	return 	zt_game->audio_muted;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+
 ztInternal void _zt_audioUpdateFrame(r32 dt)
 {
 #	if defined(ZT_DSOUND)
@@ -9994,7 +10033,6 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 		if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
 			zt_game->audio_clips[i].play_time += dt;
 			if (zt_game->audio_clips[i].play_time > zt_game->audio_clips[i].length) {
-				zt_logDebug("Audio stopped");
 				if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Looping)) {
 					zt_game->audio_clips[i].play_time -= zt_game->audio_clips[i].length;
 				}

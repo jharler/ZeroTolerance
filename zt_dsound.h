@@ -273,7 +273,7 @@ ztInternal bool _ztds_bufferFillNextSlot(ztDirectSoundBuffer *buffer, ztDirectSo
 
 	if (!SUCCEEDED(buffer->context->dsound->CreateSoundBuffer(&buffer->buffer_desc, &buffer->buffer[didx], nullptr))) {
 		if(error) *error = ztDirectSoundBufferError_CreateBuffer;
-		zt_logDebug("Unable to create DirectSound sound buffer");
+		zt_logDebug("Unable to create DirectSound sound buffer (%d)", GetLastError());
 		return false;
 	}
 
@@ -282,7 +282,7 @@ ztInternal bool _ztds_bufferFillNextSlot(ztDirectSoundBuffer *buffer, ztDirectSo
 
 	if (!SUCCEEDED(buffer->buffer[didx]->Lock(0, buffer->buffer_size, &region_1, &region_1_size, NULL, NULL, 0))) {
 		if(error) *error = ztDirectSoundBufferError_CopyData;
-		zt_logDebug("Unable to copy audio data to DirectSound buffer");
+		zt_logDebug("Unable to copy audio data to DirectSound buffer (%d)", GetLastError());
 		return false;
 	}
 
@@ -311,24 +311,44 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 		char chunk_id[4];
 		u32  chunk_size;
 		char format[4];
-		char sub_chunk_id[4];
-		u32  sub_chunk_size;
+		//char sub_chunk_id[4];
+		//u32  sub_chunk_size;
+		//u16  audio_format;
+		//u16  num_channels;
+		//u32  sample_rate;
+		//u32  bytes_per_second;
+		//u16  block_align;
+		//u16  bits_per_sample;
+		//char data_chunk_id[4];
+		//u32  data_size;
+	};
+
+	struct ztWavChunkHeader
+	{
+		char chunk_id[4];
+		u32  chunk_size;
+	};
+
+	struct ztWavChunkFormat
+	{
 		u16  audio_format;
 		u16  num_channels;
 		u32  sample_rate;
 		u32  bytes_per_second;
 		u16  block_align;
 		u16  bits_per_sample;
-		char data_chunk_id[4];
-		u32  data_size;
+
+		char padding[32];
 	};
 
 	struct local
 	{
 		static bool checkDataChunk(char *data_chunk, const char *compare_to, const char *error_message)
 		{
-			if (!data_chunk[0] == compare_to[0] && data_chunk[1] == compare_to[1] && data_chunk[2] == compare_to[2] && data_chunk[3] == compare_to[3] ) {
-				zt_logDebug("%s", error_message);
+			if (data_chunk[0] != compare_to[0] || data_chunk[1] != compare_to[1] || data_chunk[2] != compare_to[2] || data_chunk[3] != compare_to[3] ) {
+				if (error_message) {
+					zt_logDebug("%s", error_message);
+				}
 				return false;
 			}
 			return true;
@@ -345,24 +365,58 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 	// todo: support streaming audio
 
 	zt_memCpy(&wfh, zt_sizeof(wfh), audio_data, zt_sizeof(wfh));
+	audio_data += zt_sizeof(wfh);
+	audio_data_len -= zt_sizeof(wfh);
 
-	if( wfh.audio_format != WAVE_FORMAT_PCM ) {
+	if( !local::checkDataChunk(wfh.chunk_id,      "RIFF", "DirectSound: Unsupported data chunk encountered") || 
+		!local::checkDataChunk(wfh.format,        "WAVE", "DirectSound: Unsupported wave format encountered") ) {
+		//!local::checkDataChunk(wfh.sub_chunk_id,  "fmt ", "DirectSound: Unsupported sub chunk id encountered") ||
+		//!local::checkDataChunk(wfh.data_chunk_id, "data", "DirectSound: Unsupported data chunk id encountered") ) {
+		return false;
+	}
+
+	ztWavChunkHeader wch;
+	zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
+	audio_data += zt_sizeof(wch);
+	audio_data_len -= zt_sizeof(wch);
+
+	if(!local::checkDataChunk(wch.chunk_id, "fmt ", "DirectSound: Unsupported sub chunk id encountered")) {
+		return false;
+	}
+
+	ztWavChunkFormat wcf;
+	int size = zt_min(wch.chunk_size, zt_sizeof(wcf));
+	zt_memCpy(&wcf, size, audio_data, audio_data_len);
+	audio_data += size;
+	audio_data_len -= size;
+
+	if( wcf.audio_format != WAVE_FORMAT_PCM ) {
 		zt_logDebug("DirectSound: Unsupported audio format encountered (only PCM supported)");
 		return false;
 	}
 
-	if( !local::checkDataChunk(wfh.chunk_id,      "RIFF", "DirectSound: Unsupported data chunk encountered") || 
-		!local::checkDataChunk(wfh.format,        "WAVE", "DirectSound: Unsupported wave format encountered") ||
-		!local::checkDataChunk(wfh.sub_chunk_id,  "fmt ", "DirectSound: Unsupported sub chunk id encountered") ||
-		!local::checkDataChunk(wfh.data_chunk_id, "data", "DirectSound: Unsupported data chunk id encountered") ) {
-		return false;
+	buffer.channels           = wcf.num_channels;
+	buffer.bits_per_sample    = wcf.bits_per_sample;
+	buffer.samples_per_second = wcf.sample_rate;
+
+	zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
+	audio_data += zt_sizeof(wch);
+	audio_data_len -= zt_sizeof(wch);
+
+	while(!local::checkDataChunk(wch.chunk_id, "data", nullptr)) {
+		audio_data += wfh.chunk_size;
+		audio_data_len -= wfh.chunk_size;
+
+		zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
+		audio_data += zt_sizeof(wch);
+		audio_data_len -= zt_sizeof(wch);
+
+		if(audio_data_len <= 0) {
+			break;
+		}
 	}
 
-	buffer.channels           = wfh.num_channels;
-	buffer.bits_per_sample    = wfh.bits_per_sample;
-	buffer.samples_per_second = wfh.sample_rate;
-
-	byte* data = audio_data + (audio_data_len - wfh.data_size);
+	byte* data = audio_data;
 
 	buffer.wave_fmt = {};
 	buffer.wave_fmt.wFormatTag      = WAVE_FORMAT_PCM;
@@ -376,13 +430,22 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 	buffer.buffer_desc = {};
 	buffer.buffer_desc.dwSize        = sizeof(buffer.buffer_desc);
 	buffer.buffer_desc.dwFlags       = DSBCAPS_CTRLVOLUME | DSBCAPS_CTRLPAN | DSBCAPS_CTRLFREQUENCY;
-	buffer.buffer_desc.dwBufferBytes = audio_data_len;
+	buffer.buffer_desc.dwBufferBytes = wch.chunk_size;
 	buffer.buffer_desc.lpwfxFormat   = &buffer.wave_fmt;
 
-	buffer.buffer_size = wfh.data_size;
-	if (wfh.data_size <= ZT_DSOUND_BUFFER_SIZE_CAP) {
-		buffer.audio_data = zt_mallocStructArray(byte, wfh.data_size);
-		zt_memCpy(buffer.audio_data, wfh.data_size, data, wfh.data_size);
+	buffer.buffer_size = wch.chunk_size;
+
+	//zt_fizr(256) {
+	//	char *info = (char*)data + (wch.chunk_size - i);
+	//	if(info[0] == 'L' && info[1] == 'I' && info[2] == 'S' && info[3] == 'T') {
+	//		buffer.buffer_size -= i;
+	//		break;
+	//	}
+	//}
+
+	if (wch.chunk_size <= ZT_DSOUND_BUFFER_SIZE_CAP) {
+		buffer.audio_data = zt_mallocStructArray(byte, wch.chunk_size);
+		zt_memCpy(buffer.audio_data, wch.chunk_size, data, wch.chunk_size);
 		zt_logDebug("Copying audio data into memory");
 	}
 	else {
@@ -395,6 +458,10 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 			zt_free(buffer.audio_data);
 		}
 		return nullptr;
+	}
+
+	while(_ztds_bufferFillNextSlot(&buffer, error)) {
+		;
 	}
 
 	ztDirectSoundBuffer *result = zt_mallocStruct(ztDirectSoundBuffer);
