@@ -1649,13 +1649,13 @@ void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count,
 			} break;
 		}
 
-		ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)((byte*)vertices + size)));
-		ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
+		ztgl_callAndReportOnErrorFast(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)((byte*)vertices + size)));
+		ztgl_callAndReportOnErrorFast(glEnableVertexAttribArray(i));
 
 		size += entries[i].size;
 	}
 
-	glDrawArrays(mode, 0, vert_count);
+	ztgl_callAndReportOnErrorFast(glDrawArrays(mode, 0, vert_count));
 }
 
 
