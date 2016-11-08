@@ -4754,7 +4754,7 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 	{
 		static void process(i64* number, char** buffer, bool* first, int64 div)
 		{
-			if (*number > div) {
+			if (*number >= div) {
 				int64 num = *number / div;
 				if (*first) {
 					sprintf_s(*buffer, 5, "%lld,", num);
