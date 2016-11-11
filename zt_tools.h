@@ -718,6 +718,9 @@ r32 zt_atan2(r32 x, r32 y);
 r32 zt_sqrt(r32 v);
 r32 zt_pow(r32 v, r32 p);
 
+i32 zt_lerp(i32 v1, i32 v2, r32 percent);
+i32 zt_unlerp(i32 v1, i32 v2, r32 percent);
+
 // ------------------------------------------------------------------------------------------------
 
 void zt_assert_raw(const char *condition_name, const char *file, int file_line);
@@ -1499,6 +1502,20 @@ ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 		return zt_min(var + by, appr);
 
 	return zt_max(var - by, appr);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_lerp(i32 v1, i32 v2, r32 percent)
+{
+	return v1 + (i32)((v2 - v1) * percent);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_unlerp(i32 v1, i32 v2, r32 value)
+{
+	return (v2 - v1) == 0 ? 0 : (i32)((value - v1) / (r32)(v2 - v1));
 }
 
 // ------------------------------------------------------------------------------------------------
