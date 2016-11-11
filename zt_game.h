@@ -991,6 +991,49 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#ifndef CAMERA_SHAKE_MAX_SAMPLES
+#define CAMERA_SHAKE_MAX_SAMPLES	1000
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztCameraShake
+{
+	ztVec3   original_position;
+	r32      duration;
+	r32      current_time;
+
+	r32      frequency;
+	r32      amplitude;
+	i32      sample_count;
+
+	r32      samples_x[CAMERA_SHAKE_MAX_SAMPLES];
+	r32      samples_y[CAMERA_SHAKE_MAX_SAMPLES];
+
+	ztRandom randomizer;
+
+	ztVec2   offset;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+// NOTE: Once prerender is applied, camera matrices need recalculated.  Also after postrender.
+
+ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed);
+void          zt_cameraShakeStart(ztCameraShake *camera_shake);
+void          zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt);
+bool          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera);
+bool          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera);
+
+struct ztDrawList;
+
+void          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
+void          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
+
+// ------------------------------------------------------------------------------------------------
 
 struct ztFrustum
 {
@@ -1117,6 +1160,7 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_ChangeTexture,
 	ztDrawCommandType_ChangeClipping,
 	ztDrawCommandType_ChangeFlags,
+	ztDrawCommandType_ChangeOffset,
 
 	ztDrawCommandType_Skybox,
 	ztDrawCommandType_Billboard,
@@ -1187,6 +1231,11 @@ struct ztDrawCommand
 
 		struct {
 			i32 flags;
+		};
+
+		struct {
+			ztVec3 offset;
+			bool   offset_pop;
 		};
 
 		struct {
@@ -1267,6 +1316,8 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 bool zt_drawListPopClipRegion(ztDrawList *draw_list);
 bool zt_drawListPushDrawFlags(ztDrawList *draw_list, i32 flags);
 bool zt_drawListPopDrawFlags(ztDrawList *draw_list);
+bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset);
+bool zt_drawListPopOffset(ztDrawList *draw_list);
 
 ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list);
 
@@ -1504,6 +1555,9 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len);
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
+
 // fancy fonts allows colors to be added in the middle of text using the format:
 // "This text is <color=ff0000ff>red</color> text.
 // be sure to avoid spaces in the color specifier
@@ -1514,6 +1568,8 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len);
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default);
 
 // ------------------------------------------------------------------------------------------------
 // sprites
@@ -2884,8 +2940,9 @@ void _zt_inputClearState( bool lost_focus )
 				zt_game->input_controllers[i].analog_values[j] = 0;
 			}
 		}
-
 	}
+
+	zt_game->input_this_frame = false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3552,8 +3609,9 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 
 	auto *command = & draw_list->commands[draw_list->commands_count++];
 
-	command->type = ztDrawCommandType_ChangeTexture;
+	command->type          = ztDrawCommandType_ChangeTexture;
 	command->texture_count = 0;
+	command->texture_pop   = false;
 
 	zt_debugOnly(draw_list->active_textures--);
 	return false;
@@ -3590,6 +3648,53 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 	command->clip_idx = 0;
 
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type       = ztDrawCommandType_ChangeOffset;
+	command->offset     = offset;
+	command->offset_pop = false;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPopOffset(ztDrawList *draw_list)
+{
+	int pops = 1;
+	zt_fizr(draw_list->commands_count - 1) {
+		if (draw_list->commands[i].type == ztDrawCommandType_ChangeOffset) {
+			if (draw_list->commands[i].offset_pop) {
+				pops += 1;
+			}
+			else if (pops-- == 0) {
+				auto *command = &draw_list->commands[draw_list->commands_count++];
+				command->type       = ztDrawCommandType_ChangeOffset;
+				command->offset     = draw_list->commands[i].offset;
+				command->offset_pop = true;
+				return true;
+			}
+		}
+	}
+
+	// if we're here, we need to set an empty offset command
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type       = ztDrawCommandType_ChangeOffset;
+	command->offset     = ztVec3::zero;
+	command->offset_pop = false;
+
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4058,6 +4163,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	static ztBuffer buffer;
 	buffer.vertices_count = 0;
 
+	ztVec3 offset = ztVec3::zero;
+
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
@@ -4260,7 +4367,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fkz(3) {
 								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j] + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
@@ -4273,10 +4380,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							zt_game->game_details.curr_frame.triangles_drawn += 2;
 
 							ztVec3 p[4] = {
-								ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(-cmp_item->command->billboard_size.x / 2.f, -cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(+cmp_item->command->billboard_size.x / 2.f, -cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(+cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
+								ztVec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
 							};
 
 							ztVec2 uv[4] = {
@@ -4321,16 +4428,20 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Line: {
-							glVertex3f(cmp_item->command->line[0].x, cmp_item->command->line[0].y, cmp_item->command->line[0].z);
-							glVertex3f(cmp_item->command->line[1].x, cmp_item->command->line[1].y, cmp_item->command->line[1].z);
+							glVertex3f(cmp_item->command->line[0].x + offset.x, cmp_item->command->line[0].y + offset.y, cmp_item->command->line[0].z + offset.z);
+							glVertex3f(cmp_item->command->line[1].x + offset.x, cmp_item->command->line[1].y + offset.y, cmp_item->command->line[1].z + offset.z);
 						} break;
 
 						case ztDrawCommandType_Point: {
-							glVertex3f(cmp_item->command->point.x, cmp_item->command->point.y, cmp_item->command->point.z);
+							glVertex3f(cmp_item->command->point.x+ offset.x, cmp_item->command->point.y + offset.y, cmp_item->command->point.z + offset.z);
 						} break;
 
 						case ztDrawCommandType_ChangeColor: {
 							active_color = cmp_item->command->color;
+						} break;
+
+						case ztDrawCommandType_ChangeOffset: {
+							offset = cmp_item->command->offset;
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -4529,7 +4640,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fkz(3) {
 								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j];
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j] + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
@@ -4542,10 +4653,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							zt_game->game_details.curr_frame.triangles_drawn += 2;
 
 							ztVec3 p[4] = {
-								ztVec3(-cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(-cmp_item->command->billboard_size.x / 2.f, -cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(+cmp_item->command->billboard_size.x / 2.f, -cmp_item->command->billboard_size.y / 2.f, 0),
-								ztVec3(+cmp_item->command->billboard_size.x / 2.f, +cmp_item->command->billboard_size.y / 2.f, 0),
+								ztVec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+								ztVec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
 							};
 
 							ztVec2 uv[4] = {
@@ -4596,7 +4707,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fkz(2) {
 								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j];
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
@@ -4606,7 +4717,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_Point: {
 							zt_fkz(2) {
 								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f);
+								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f) + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
@@ -4615,6 +4726,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_ChangeColor: {
 							active_color = cmp_item->command->color;
+						} break;
+
+						case ztDrawCommandType_ChangeOffset: {
+							offset = cmp_item->command->offset;
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -6936,6 +7051,127 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed)
+{
+	ztCameraShake camera_shake;
+	zt_memSet(&camera_shake, zt_sizeof(ztCameraShake), 0);
+
+	zt_randomInit(&camera_shake.randomizer, seed);
+
+	camera_shake.duration = duration;
+	camera_shake.frequency = 60 * speed; // hertz
+	camera_shake.amplitude = 16 * intensity / zt_pixelsPerUnit(); // units
+	camera_shake.sample_count = zt_min(CAMERA_SHAKE_MAX_SAMPLES - 1, (int)camera_shake.frequency);
+
+	zt_fiz(camera_shake.sample_count) {
+		camera_shake.samples_x[i] = zt_randomVal(&camera_shake.randomizer) * 2.0f - 1.0f;
+		camera_shake.samples_y[i] = zt_randomVal(&camera_shake.randomizer) * 2.0f - 1.0f;
+	}
+	camera_shake.samples_x[camera_shake.sample_count] = 0;
+	camera_shake.samples_y[camera_shake.sample_count] = 0;
+
+	return camera_shake;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraShakeStart(ztCameraShake *camera_shake)
+{
+	zt_returnOnNull(camera_shake);
+	camera_shake->current_time = camera_shake->duration;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt)
+{
+	zt_returnOnNull(camera_shake);
+
+	if (camera_shake->current_time > 0) {
+		camera_shake->current_time -= dt;
+		if (camera_shake->current_time > 0) {
+			r32 percent = 1 - camera_shake->current_time / camera_shake->duration;
+			r32 frequency = percent * camera_shake->frequency;
+
+			r32 sample_x       = frequency;
+			i32 sample_x_idx_0 = zt_convertToi32Floor(sample_x);
+			i32 sample_x_idx_1 = sample_x_idx_0 + 1;
+			r32 amplitude_x    = (camera_shake->samples_x[sample_x_idx_0] + (sample_x - sample_x_idx_0) * (camera_shake->samples_x[sample_x_idx_1] - camera_shake->samples_x[sample_x_idx_0])) * (1 - percent);
+
+			r32 sample_y       = frequency;
+			i32 sample_y_idx_0 = zt_convertToi32Floor(sample_y);
+			i32 sample_y_idx_1 = sample_y_idx_0 + 1;
+			r32 amplitude_y    = (camera_shake->samples_y[sample_y_idx_0] + (sample_y - sample_y_idx_0) * (camera_shake->samples_y[sample_y_idx_1] - camera_shake->samples_y[sample_y_idx_0])) * (1 - percent);
+
+			camera_shake->offset.x = amplitude_x * camera_shake->amplitude;
+			camera_shake->offset.y = amplitude_y * camera_shake->amplitude;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera)
+{
+	zt_returnValOnNull(camera_shake, false);
+	zt_returnValOnNull(camera, false);
+
+	if (camera_shake->current_time <= 0) {
+		return false;
+	}
+
+	camera_shake->original_position = camera->position;
+	camera->position.x += camera_shake->offset.x;
+	camera->position.y += camera_shake->offset.y;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera)
+{
+	zt_returnValOnNull(camera_shake, false);
+	zt_returnValOnNull(camera, false);
+
+	if (camera_shake->current_time <= 0) {
+		return false;
+	}
+
+	camera->position = camera_shake->original_position;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
+{
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(draw_list);
+
+	zt_drawListPushOffset(draw_list, ztVec3(camera_shake->offset, 0));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
+{
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(draw_list);
+
+	zt_drawListPopOffset(draw_list);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation)
@@ -7648,12 +7884,26 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, align_flags, anchor_flags);
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
+{
+	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags)
+{
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
@@ -7669,6 +7919,9 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 
 	int rows = _zt_fontGetRowCount(text, text_len);
 	_zt_fontGetExtents(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height);
+
+	total_width *= scale.x;
+	total_height *= scale.y;
 
 	r32 true_total_width = total_width;
 	r32 true_total_height = total_height;
@@ -7693,14 +7946,16 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	r32 ppu = zt_pixelsPerUnit();
 
 	for (int r = 0; r < rows; ++r) {
-		real32 row_width = 0;
-		real32 row_height = 0;
+		r32 row_width = 0;
+		r32 row_height = 0;
 		if (size.x == 0 && size.y == 0 && rows == 1) {
 			row_width = total_width;
 			row_height = total_height;
 		}
 		else {
 			_zt_fontGetExtents(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height);
+			row_width *= scale.x;
+			row_height *= scale.y;
 		}
 
 		int start_char = 0, length = 0;
@@ -7723,8 +7978,8 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 		ztVec2 units_size;
 		ztVec3 rotation = ztVec3::zero;
 
-		r32 scale_x = 1;
-		r32 scale_y = 1;
+		r32 scale_x = scale.x;
+		r32 scale_y = scale.y;
 
 		ztVec3 dl_pos[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 		ztVec2 dl_uvs[4];
@@ -7749,7 +8004,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			row_height = zt_max(row_height, units_size.y);
 
 			position.x = glyph->offset.x + start_pos_x;
-			position.y = start_pos_y - glyph->offset.y;
+			position.y = start_pos_y - glyph->offset.y * scale_y;
 			zt_alignToPixel(&position.x, ppu);
 			zt_alignToPixel(&position.y, ppu);
 
@@ -7762,7 +8017,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 
 			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
-			start_pos_x += glyph->x_adv;
+			start_pos_x += glyph->x_adv * scale_x;
 		}
 
 		start_pos_y -= font->line_spacing * scale_y;
@@ -7899,12 +8154,26 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, align_flags, anchor_flags);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags)
+{
+	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags)
+{
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags)
 {
 	zt_returnOnNull(draw_list);
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
@@ -7920,6 +8189,9 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 
 	int rows = _zt_fontGetRowCount(text, text_len);
 	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height);
+
+	total_width *= scale.x;
+	total_height *= scale.y;
 
 	r32 true_total_width = total_width;
 	r32 true_total_height = total_height;
@@ -7959,6 +8231,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		}
 		else {
 			_zt_fontGetExtentsFancy(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height);
+			row_width *= scale.x;
+			row_height *= scale.y;
 		}
 
 		int start_char = 0, length = 0;
@@ -7981,8 +8255,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		ztVec2 units_size;
 		ztVec3 rotation = ztVec3::zero;
 
-		r32 scale_x = 1;
-		r32 scale_y = 1;
+		r32 scale_x = scale.x;
+		r32 scale_y = scale.y;
 
 		ztVec3 dl_pos[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 		ztVec2 dl_uvs[4];
@@ -8052,7 +8326,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			row_height = zt_max(row_height, units_size.y);
 
 			position.x = glyph->offset.x + start_pos_x;
-			position.y = start_pos_y - glyph->offset.y;
+			position.y = start_pos_y - glyph->offset.y * scale_y;
 			zt_alignToPixel(&position.x, ppu);
 			zt_alignToPixel(&position.y, ppu);
 
@@ -8065,7 +8339,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 
 			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
-			start_pos_x += glyph->x_adv;
+			start_pos_x += glyph->x_adv * scale_x;
 		}
 
 		start_pos_y -= font->line_spacing * scale_y;
@@ -10534,6 +10808,12 @@ int main(int argc, char **argv)
 	zt_textureFree(0); // free the white tex
 
 	_zt_callFuncCleanup();
+
+#	if defined(ZT_DSOUND)
+	if(zt_game->ds_context != nullptr) {
+		ztds_contextFree(zt_game->ds_context);
+	}
+#	endif
 
 	zt_fiz(zt_game->shaders_count) {
 		zt_game->shaders[i].asset_mgr = nullptr;
