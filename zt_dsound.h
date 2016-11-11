@@ -269,7 +269,7 @@ ztInternal bool _ztds_bufferFillNextSlot(ztDirectSoundBuffer *buffer, ztDirectSo
 		return false;
 	}
 
-	zt_logDebug("Creating DirectSound audio buffer (channels: %d; samples per sec: %d; bits per sample: %d)", buffer->wave_fmt.nChannels, buffer->wave_fmt.nSamplesPerSec, buffer->wave_fmt.wBitsPerSample);
+	//zt_logDebug("Creating DirectSound audio buffer (channels: %d; samples per sec: %d; bits per sample: %d)", buffer->wave_fmt.nChannels, buffer->wave_fmt.nSamplesPerSec, buffer->wave_fmt.wBitsPerSample);
 
 	if (!SUCCEEDED(buffer->context->dsound->CreateSoundBuffer(&buffer->buffer_desc, &buffer->buffer[didx], nullptr))) {
 		if(error) *error = ztDirectSoundBufferError_CreateBuffer;
@@ -446,11 +446,11 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 	if (wch.chunk_size <= ZT_DSOUND_BUFFER_SIZE_CAP) {
 		buffer.audio_data = zt_mallocStructArray(byte, wch.chunk_size);
 		zt_memCpy(buffer.audio_data, wch.chunk_size, data, wch.chunk_size);
-		zt_logDebug("Copying audio data into memory");
+		//zt_logDebug("Copying audio data into memory");
 	}
 	else {
 		buffer.audio_data = (byte*)data;
-		zt_logDebug("Not copying audio data into memory (audio data is too large)");
+		//zt_logDebug("Not copying audio data into memory (audio data is too large)");
 	}
 
 	if (!_ztds_bufferFillNextSlot(&buffer, error)) {
@@ -549,18 +549,10 @@ void ztds_bufferStop(ztDirectSoundBuffer *buffer)
 {
 	zt_returnOnNull(buffer);
 
-	DWORD status = 0;
-	if (buffer->buffer[0] != nullptr) {
-		buffer->buffer[0]->GetStatus(&status);
-		if (zt_bitIsSet(status, DSBSTATUS_PLAYING) || zt_bitIsSet(status, DSBSTATUS_LOOPING)) {
-			_ztds_bufferFillNextSlot(buffer); // make sure we allocate another buffer if needed
-		}
-	}
 	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
 		if (buffer->buffer[i] != nullptr) {
 			buffer->buffer[i]->Stop();
 			buffer->buffer[i]->SetCurrentPosition(0);
-			buffer->buffer[i]->Play(0, 0, 0);
 		}
 	}
 }
