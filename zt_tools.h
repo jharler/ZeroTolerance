@@ -1379,6 +1379,13 @@ public:
 		} \
 	}
 
+#define zt_linkGetLast(item_first_ptr, item_find_ptr) \
+	{ \
+		item_find_ptr = item_first_ptr; \
+		while(item_find_ptr != nullptr) { \
+			if(item_find_ptr->next == nullptr) break; \
+		} \
+	}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2451,8 +2458,10 @@ ztInternal
 void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 {
 #if defined(ZT_COMPILER_MSVC)
-	OutputDebugStringA(message);
-	OutputDebugStringA("\n");
+	if (level < ztLogMessageLevel_Verbose) {
+		OutputDebugStringA(message);
+		OutputDebugStringA("\n");
+	}
 #endif
 
 	zt_fiz(zt->log_callbacks_count) {
