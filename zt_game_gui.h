@@ -4550,7 +4550,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputKey, ztInternal ZT_FUNC_GUI_ITE
 		_zt_guiTextEditCacheText(item);
 	}
 
-	return false;
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7057,6 +7057,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleInputKey, ztInternal ZT_FUNC_GUI
 
 		zt_guiTextEditGetValue(dc->command_id, dc->current_command->command, zt_elementsOf(dc->current_command->command));
 		zt_guiTextEditSetValue(dc->command_id, nullptr);
+
+		if (zt_strLen(dc->current_command->command) == 0) {
+			zt_debugConsoleLogWarning("  Please enter a command.");
+			return;
+		}
 
 		zt_debugConsoleLogUser("> %s", dc->current_command->command);
 
