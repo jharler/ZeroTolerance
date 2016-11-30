@@ -4260,7 +4260,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							cmp_item_last->next = nullptr;
 							cmp_texture->last_item = cmp_item_last;
 						}
-						cmp_texture->cnt_display_items += command->type == ztDrawCommandType_ChangeColor ? 0 : 1;
+						cmp_texture->cnt_display_items += 1;// command->type == ztDrawCommandType_ChangeColor ? 0 : 1;
 					} break;
 				}
 			}
@@ -4460,7 +4460,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 				}
 
-				if (cmp_tex->command) {
+				if (cmp_tex->command && shader_id != ztInvalidID) {
 					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
 					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
@@ -4692,7 +4692,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 				}
 
-				if (cmp_tex->command) {
+				if (cmp_tex->command && shader_id != ztInvalidID) {
 					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
 				}
 
