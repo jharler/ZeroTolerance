@@ -609,7 +609,7 @@ void zt_guiComboBoxSetCallback(ztGuiItemID combobox_id, ztFunctionID on_item_sel
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite);
+void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -937,6 +937,7 @@ struct ztGuiItem
 
 		struct {
 			ztGuiThemeSprite* sprite;
+			r32 scale[2];
 		} sprite_display;
 	};
 };
@@ -5940,7 +5941,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayBestSize, ztInternal ZT_FUNC_GU
 	ztGuiManager *gm = (ztGuiManager *)user_data;
 	ztGuiItem *item = &gm->item_cache[item_id];
 
-	*size = zt_guiThemeSpriteGetSize(item->sprite_display.sprite);
+	*size = zt_guiThemeSpriteGetSize(item->sprite_display.sprite) * ztVec2(item->sprite_display.scale[0], item->sprite_display.scale[1]);
 }
 // ------------------------------------------------------------------------------------------------
 
@@ -5962,6 +5963,7 @@ ztGuiItemID zt_guiMakeSpriteDisplay(ztGuiItemID parent, ztGuiThemeSprite *sprite
 	else {
 		item->sprite_display.sprite->type = ztGuiThemeSpriteType_Invalid;
 	}
+	item->sprite_display.scale[0] = item->sprite_display.scale[1] = 1;
 
 
 	item->functions.render    = _zt_guiSpriteDisplayRender_FunctionID;
@@ -5977,10 +5979,12 @@ ztGuiItemID zt_guiMakeSpriteDisplay(ztGuiItemID parent, ztGuiThemeSprite *sprite
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite)
+void zt_guiSpriteDisplaySetSprite(ztGuiItemID item_id, ztGuiThemeSprite *sprite, const ztVec2& scale)
 {
 	_zt_guiItemTypeFromIDReturnOnError(item, item_id, ztGuiItemType_SpriteDisplay);
 	*item->sprite_display.sprite = *sprite;
+	item->sprite_display.scale[0] = scale.x;
+	item->sprite_display.scale[1] = scale.y;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7818,7 +7822,13 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 
 	ztGuiItemID display_id = zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_DISPLAY_NAME, zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_NAME));
 
-	zt_guiSpriteDisplaySetSprite(display_id, &sprite);
+	ztVec2 scale = ztVec2::one;
+	i32 max = zt_max(zt_game->textures[tex_id].width, zt_game->textures[tex_id].height);
+	if (max > 1024) {
+		scale.x = scale.y = 1.f / (max / 1024.f);
+	}
+
+	zt_guiSpriteDisplaySetSprite(display_id, &sprite, scale);
 	zt_guiItemAutoSize(display_id);
 }
 
