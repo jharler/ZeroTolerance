@@ -489,6 +489,32 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale);
 typedef ztVec4 ztColor;
 #define ztColour ztColor;	// pick your favorite (favourite?)
 
+#define ztColor_White          ztColor(1.0f, 1.0f, 1.0f, 1.f)
+#define ztColor_Black          ztColor( .0f,  .0f,  .0f, 1.f)
+#define ztColor_Gray           ztColor(.50f, .50f, .50f, 1.f)
+#define ztColor_LightGray      ztColor(.83f, .83f, .83f, 1.f)
+#define ztColor_DarkGray       ztColor(.66f, .66f, .66f, 1.f)
+#define ztColor_Red            ztColor(1.0f,  .0f,  .0f, 1.f)
+#define ztColor_LightRed       ztColor(1.0f, .75f, .80f, 1.f)
+#define ztColor_DarkRed        ztColor(.55f,  .0f,  .0f, 1.f)
+#define ztColor_Green          ztColor( .0f, 1.0f,  .0f, 1.f)
+#define ztColor_LightGreen     ztColor(.56f, .93f, .56f, 1.f)
+#define ztColor_DarkGreen      ztColor( .0f, .20f, .13f, 1.f)
+#define ztColor_Blue           ztColor( .0f,  .0f, 1.0f, 1.f)
+#define ztColor_LightBlue      ztColor(.68f, .85f, .90f, 1.f)
+#define ztColor_DarkBlue       ztColor( .0f,  .0f, .55f, 1.f)
+#define ztColor_Purple         ztColor(.50f,  .0f, .50f, 1.f)
+#define ztColor_LightPurple    ztColor(.59f, .48f, .71f, 1.f)
+#define ztColor_DarkPurple     ztColor(.19f, .10f, .20f, 1.f)
+#define ztColor_Cyan           ztColor( .0f, 1.0f, 1.0f, 1.f)
+#define ztColor_Yellow         ztColor(1.0f, 1.0f,  .0f, 1.f)
+#define ztColor_LightYellow    ztColor(1.0f, 1.0f, .88f, 1.f)
+#define ztColor_DarkYellow     ztColor(.61f, .53f, .50f, 1.f)
+#define ztColor_Orange         ztColor(1.0f, .50f,  .0f, 1.f)
+#define ztColor_LightOrange    ztColor(1.0f, .60f, .40f, 1.f)
+#define ztColor_DarkOrange     ztColor(1.0f, .55f,  .0f, 1.f)
+
+
 // ------------------------------------------------------------------------------------------------
 
 enum ztMat4_Enum
@@ -714,6 +740,7 @@ r32 zt_asin(r32 x);
 r32 zt_cos(r32 y);
 r32 zt_acos(r32 y);
 r32 zt_tan(r32 r);
+r32 zt_atan(r32 v);
 r32 zt_atan2(r32 x, r32 y);
 r32 zt_sqrt(r32 v);
 r32 zt_pow(r32 v, r32 p);
@@ -3188,6 +3215,13 @@ r32 zt_acos(r32 y)
 r32 zt_tan(r32 r)
 {
 	return tan(r);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_atan(r32 v)
+{
+	return atanf(v);
 }
 
 // ------------------------------------------------------------------------------------------------
