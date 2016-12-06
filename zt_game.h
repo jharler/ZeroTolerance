@@ -908,6 +908,9 @@ ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth);
 ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w = 1, int grid_d = 1);
 ztMeshID zt_meshMakePrimitiveDiamond(r32 width, r32 top, r32 bottom, int sides);
 
+ztVec3   zt_meshGetAABB(ztMeshID mesh_id);
+void     zt_meshGetOBB(ztMeshID mesh_id, ztVec3 *center, ztVec3 *size);
+
 enum ztMeshPrimativeSphere_Enum
 {
 	ztMeshPrimitiveSphere_TexDuplicatedPerFace, // the quadrilateralised spherical cube maps the same texture on each of the 6 faces
@@ -988,6 +991,8 @@ ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
 ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+
+void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1161,6 +1166,7 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_ChangeClipping,
 	ztDrawCommandType_ChangeFlags,
 	ztDrawCommandType_ChangeOffset,
+	ztDrawCommandType_ChangeTransform,
 
 	ztDrawCommandType_Skybox,
 	ztDrawCommandType_Billboard,
@@ -1236,6 +1242,11 @@ struct ztDrawCommand
 		struct {
 			ztVec3 offset;
 			bool   offset_pop;
+		};
+
+		struct {
+			ztMat4 transform;
+			bool   transform_pop;
 		};
 
 		struct {
@@ -1323,6 +1334,8 @@ bool zt_drawListPushDrawFlags(ztDrawList *draw_list, i32 flags);
 bool zt_drawListPopDrawFlags(ztDrawList *draw_list);
 bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset);
 bool zt_drawListPopOffset(ztDrawList *draw_list);
+bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform);
+bool zt_drawListPopTransform(ztDrawList *draw_list);
 
 ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list);
 
@@ -1426,6 +1439,9 @@ void zt_modelFree(ztModel *model);
 
 ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id);
 
+void zt_modelCalcMatrix(ztModel *model);
+
+
 // ------------------------------------------------------------------------------------------------
 // scenes
 
@@ -1492,8 +1508,12 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
 bool zt_sceneHasModel(ztScene *scene, ztModel *model);
 
 // --------------------------------------------------------
-// Cull models and lights based on camera view
-void zt_sceneCull(ztScene *scene, ztCamera *camera);
+// Calculates matrices for scene models (should be called after physics)
+void zt_scenePrepare(ztScene *scene, ztCamera *camera);
+
+// --------------------------------------------------------
+// Culls models and lights based on camera view (not absolutely necessary)
+void zt_sceneOptimize(ztScene *scene, ztCamera *camera);
 
 // --------------------------------------------------------
 // Generate shadow maps for non-culled lights
@@ -1622,7 +1642,268 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 
 
 // ------------------------------------------------------------------------------------------------
+// physics
+
+enum ztCollisionGeometryType_Enum
+{
+	ztCollisionGeometryType_AxisAlignedBox,
+	ztCollisionGeometryType_OrientedBox,
+	ztCollisionGeometryType_Sphere,
+	
+	ztCollisionGeometryType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztCollisionGeometry
+{
+	ztCollisionGeometryType_Enum type;
+
+	union
+	{
+		struct {
+			ztVec3 aabb_extents;
+		};
+
+		struct {
+			ztVec3 obb_center;
+			ztVec3 obb_extents;
+		};
+
+		struct {
+			ztVec3 sphere_center;
+			r32    sphere_radius;
+		};
+	};
+};
+
+
+// ------------------------------------------------------------------------------------------------
+
+ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents);
+ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents);
+ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 radius);
+
+bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration);
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztRigidBodyFlags_Enum
+{
+	ztRigidBodyFlags_NeedsMatrixCalc = (1<<0),
+
+};
+
+#ifndef ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES
+#define ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES 4
+#endif
+
+#pragma pack(push, 1)
+struct ztRigidBody
+{
+	ztModel *model;
+
+	ztVec3   velocity;
+	ztVec3   angular_velocity;
+	ztVec3   acceleration;
+	ztVec3   force_accum;
+	ztVec3   torque_accum;
+
+	r32      damping;
+	r32      angular_damping;
+	r32      inverse_mass;
+
+	ztVec3   force_gravity;
+
+	ztVec3   prev_acceleration;
+
+	i32      flags;
+
+	i8       collision_layer;        // 1-31
+	i32      collides_with_layers;   // bits to determine which layers this body, when moving, can collide with
+
+	ztCollisionGeometry  cg_bounding;
+	ztCollisionGeometry  cg_details[ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES];
+	int                  cg_details_count;
+};
+#pragma pack(pop)
+
+// ------------------------------------------------------------------------------------------------
+
+#define ztRigidBodyDampingDefaults_Low      .99f
+#define ztRigidBodyDampingDefaults_Medium   .50f
+#define ztRigidBodyDampingDefaults_High     .01f
+
+#define ztRigidBodyMass_Infinite      0
+
+#ifndef ZT_RIGID_BODY_DEFAULT_GRAVITY
+#define ZT_RIGID_BODY_DEFAULT_GRAVITY ztVec3(0, -9.8f, 0)
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
+ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count, r32 damping = ztRigidBodyDampingDefaults_Medium, ztVec3 force_gravity = ZT_RIGID_BODY_DEFAULT_GRAVITY);
+ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry detail, r32 damping = ztRigidBodyDampingDefaults_Medium, ztVec3 force_gravity = ZT_RIGID_BODY_DEFAULT_GRAVITY);
+
+void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt);
+
+void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force);
+void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point);
+void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point);
+
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztForceAnchorType_Enum
+{
+	ztForceAnchorType_RigidBody,
+	ztForceAnchorType_Transform,
+	ztForceAnchorType_Vec3Ptr,
+	ztForceAnchorType_Vec3,
+
+	ztForceAnchorType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztForceAnchor
+{
+	ztForceAnchorType_Enum type;
+
+	union {
+		struct {
+			ztRigidBody *rigid_body;
+			ztVec3       connection_point;
+		};
+
+		ztTransform *transform;
+		struct { ztVec3 *vec3_ptr; };
+		struct { ztVec3  vec3; };
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point = ztVec3::zero);
+ztForceAnchor zt_forceAnchor(ztTransform *transform);
+ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr);
+ztForceAnchor zt_forceAnchor(ztVec3 vec3);
+
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztForceType_Enum
+{
+	ztForceType_Spring,
+	ztForceType_StiffSpring,
+	ztForceType_Bungee,
+	ztForceType_Buoyancy,
+
+	ztForceType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztForce
+{
+	ztForceType_Enum type;
+
+	ztRigidBody *rigid_body;
+	ztVec3       connection_point;
+
+	ztForceAnchor anchor;
+
+	union {
+		struct {
+			r32 spring_constant;
+			r32 rest_length;
+		} spring;
+
+		struct {
+			r32 spring_constant;
+			r32 damping;
+		} stiff_spring;
+
+		struct {
+			r32 max_depth;
+			r32 volume;
+			r32 water_height;
+			r32 liquid_density; // water density is 1000 kg/cubic meter
+		} buoyancy;
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztForce zt_forceMakeSpring      (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
+ztForce zt_forceMakeStiffSpring (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping);
+ztForce zt_forceMakeBungee      (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
+ztForce zt_forceMakeBuoyancy    (ztRigidBody *rigid_body, const ztVec3& connection_point, r32 max_depth, r32 volume, r32 water_height = 0, r32 liquid_density = 1000.f);
+
+void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt);
+
+
+// ------------------------------------------------------------------------------------------------
 // collisions
+
+struct ztRigidBodyCollision
+{
+	ztRigidBody *rigid_bodies[2];
+
+	r32          restitution;
+	ztVec3       contact_normal;
+	r32          penetration;
+};
+
+void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisions_count, r32 dt, int max_iterations);
+
+
+// ------------------------------------------------------------------------------------------------
+// connectors
+
+enum ztConnectorType_Enum
+{
+	ztConnectorType_Cable,
+	ztConnectorType_Rod,
+
+	ztConnectorType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztConnector
+{
+	ztConnectorType_Enum type;
+
+	ztRigidBody *rigid_bodies[2];
+
+	union {
+		struct {
+			r32 max_length;
+			r32 restitution;
+
+		} cable;
+
+		struct {
+			r32 length;
+		} rod;
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztConnector zt_connectorMakeCable(r32 max_length, r32 restitution);
+ztConnector zt_connectorMakeRod(r32 length);
+
+int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_count, ztRigidBodyCollision *collisions, int collisions_size);
+
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigidBodyCollision *collisions, int collisions_size);
+
+
+// ------------------------------------------------------------------------------------------------
 
 // rects have a center and a size
 // the LL functions use a rect with the x/y point being the lower left corner
@@ -1633,6 +1914,60 @@ bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, cons
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
 
 bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point = nullptr);
+
+bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents);
+bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2] = nullptr);
+bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
+bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point = nullptr);
+
+bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2);
+bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3]);
+int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
+bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2] = nullptr);
+
+
+
+// ------------------------------------------------------------------------------------------------
+// physics manager
+
+struct ztPhysics
+{
+	ztRigidBody          *rigid_bodies;
+	int                   rigid_bodies_size;
+	int                   rigid_bodies_count;
+
+	ztForce              *forces;
+	int                   forces_size;
+	int                   forces_count;
+
+	ztConnector          *connectors;
+	int                   connectors_size;
+	int                   connectors_count;
+
+	ztRigidBodyCollision *collisions;
+	int                   collisions_size;
+
+	ztVec3 extents_min;
+	ztVec3 extents_max;
+	r32    extents_restitution;
+
+
+	ztMemoryArena *arena;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors);
+void zt_physicsFree(ztPhysics *physics);
+
+// these return indexes into the respective arrays
+int zt_physicsAddRigidBody (ztPhysics *physics, ztRigidBody *rigid_body);
+int zt_physicsAddForce     (ztPhysics *physics, ztForce *force);
+int zt_physicsAddConnector (ztPhysics *physics, ztConnector *connector);
+
+void zt_physicsUpdate(ztPhysics *physics, r32 dt);
+
 
 // ------------------------------------------------------------------------------------------------
 // audio
@@ -1929,6 +2264,11 @@ struct ztMesh
 {
 	i32 triangles;
 	i32 indices;
+
+	ztVec3 aabb;
+
+	ztVec3 obb_center;
+	ztVec3 obb_size;
 
 	zt_openGLSupport(ztVertexArrayGL *gl_vertex_array);
 	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
@@ -2580,7 +2920,7 @@ ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		//if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		//	return 0;\n		//}\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox_tex;\n\n	void main()\n	{\n		color = vec4(texture(skybox_tex, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube skybox_tex;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return skybox_tex.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
 };
@@ -3657,6 +3997,7 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 	command->type = ztDrawCommandType_ChangeTexture;
 	command->texture[0] = tex_id;
 	command->texture_count = 1;
+	command->texture_pop = false;
 
 	zt_debugOnly(draw_list->active_textures++);
 
@@ -3682,6 +4023,7 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 		command->texture[i] = tex_ids[i];
 	}
 	command->texture_count = tex_count;
+	command->texture_pop = false;
 
 	zt_debugOnly(draw_list->active_textures++);
 
@@ -3717,7 +4059,8 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 	auto *command = & draw_list->commands[draw_list->commands_count++];
 
 	command->type          = ztDrawCommandType_ChangeTexture;
-	command->texture_count = 0;
+	command->texture[0]    = 0;
+	command->texture_count = 1;
 	command->texture_pop   = false;
 
 	zt_debugOnly(draw_list->active_textures--);
@@ -3800,6 +4143,53 @@ bool zt_drawListPopOffset(ztDrawList *draw_list)
 	command->type       = ztDrawCommandType_ChangeOffset;
 	command->offset     = ztVec3::zero;
 	command->offset_pop = true;
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform)
+{
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type          = ztDrawCommandType_ChangeTransform;
+	command->transform     = transform;
+	command->transform_pop = false;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListPopTransform(ztDrawList *draw_list)
+{
+	int pops = 1;
+	zt_fizr(draw_list->commands_count - 1) {
+		if (draw_list->commands[i].type == ztDrawCommandType_ChangeTransform) {
+			if (draw_list->commands[i].transform_pop) {
+				pops += 1;
+			}
+			else if (pops-- == 0) {
+				auto *command = &draw_list->commands[draw_list->commands_count++];
+				command->type          = ztDrawCommandType_ChangeTransform;
+				command->transform     = draw_list->commands[i].transform;
+				command->transform_pop = true;
+				return true;
+			}
+		}
+	}
+
+	// if we're here, we need to set an empty offset command
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type          = ztDrawCommandType_ChangeTransform;
+	command->transform     = ztMat4::identity;
+	command->transform_pop = true;
 
 	return false;
 }
@@ -3989,10 +4379,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					ztDrawList *draw_list = draw_lists[i];
 					zt_assert(draw_list != nullptr);
 
+					ztCompileItem *cmp_item_last = nullptr;
+
 					// extract points next
 					zt_fjz(draw_list->commands_count) {
 						ztDrawCommand *command = &draw_list->commands[j];
-						if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_Point) {
+						if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_Point) {
 							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 							cmp_item->command = command;
 							cmp_item->clip_region = nullptr;
@@ -4004,12 +4396,22 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					// extract lines next
 					zt_fjz(draw_list->commands_count) {
 						ztDrawCommand *command = &draw_list->commands[j];
-						if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_Line) {
+						if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_Line) {
 							ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 							cmp_item->command = command;
 							cmp_item->clip_region = nullptr;
-							zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
-							cmp_texture->cnt_display_items += 1;
+//							zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
+//							cmp_texture->cnt_display_items += 1;
+							if (cmp_item_last == nullptr) {
+								cmp_texture->last_item = cmp_item_last = cmp_item;
+								zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
+							}
+							else {
+								cmp_item_last->next = cmp_item;
+								cmp_item_last = cmp_item;
+								cmp_item_last->next = nullptr;
+								cmp_texture->last_item = cmp_item_last;
+							}
 						}
 					}
 				}
@@ -4362,7 +4764,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						ztCompileItem *item = cmp_tex->item;
 						while (item) {
-							char info[256];
+							char info[1024];
 							switch (item->command->type)
 							{
 								case ztDrawCommandType_Point:          zt_strPrintf(info, zt_elementsOf(info), "Point: %.2f, %.2f, %.2f", item->command->point.x, item->command->point.y, item->command->point.z); break;
@@ -4372,6 +4774,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								case ztDrawCommandType_ChangeClipping: zt_strPrintf(info, zt_elementsOf(info), "Clip: center: %.2f, %.2f; size: %.2f, %.2f", item->command->clip_center.x, item->command->clip_center.y, item->command->clip_size.x, item->command->clip_size.y); break;
 								case ztDrawCommandType_ChangeFlags:    zt_strPrintf(info, zt_elementsOf(info), "Flags: %d", item->command->flags); break;
 								case ztDrawCommandType_ChangeOffset:   zt_strPrintf(info, zt_elementsOf(info), "Offset: %.2f, %.2f, %.2f", item->command->offset.x, item->command->offset.y, item->command->offset.z); if (item->command->offset_pop) tab_count -= 1; break;
+								case ztDrawCommandType_ChangeTransform:zt_strPrintf(info, zt_elementsOf(info), "Transform: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", item->command->transform.values[0], item->command->transform.values[1], item->command->transform.values[2], item->command->transform.values[3], item->command->transform.values[4], item->command->transform.values[5], item->command->transform.values[6], item->command->transform.values[7], item->command->transform.values[8], item->command->transform.values[9], item->command->transform.values[10], item->command->transform.values[11], item->command->transform.values[12], item->command->transform.values[13], item->command->transform.values[14], item->command->transform.values[15] ); if (item->command->transform_pop) tab_count -= 1; break;
 								case ztDrawCommandType_Skybox:         zt_strPrintf(info, zt_elementsOf(info), "Skybox"); break;
 								case ztDrawCommandType_Billboard:      zt_strPrintf(info, zt_elementsOf(info), "Billboard: center: %.2f, %.2f, %.2f; size: %.2f, %.2f; uv: %.2f, %.2f, %.2f, %.2f; flags: %d", item->command->billboard_center.x, item->command->billboard_center.y, item->command->billboard_center.z, item->command->billboard_size.x, item->command->billboard_size.x, item->command->billboard_uv.x, item->command->billboard_uv.y, item->command->billboard_uv.z, item->command->billboard_uv.w, item->command->billboard_flags); break;
 								case ztDrawCommandType_VertexArray:    zt_strPrintf(info, zt_elementsOf(info), "Vertex Array: ID: %d; draw type: %d", item->command->vertex_array, item->command->vertex_array_draw_type); break;
@@ -4428,6 +4831,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		ztCompileClipRegion *curr_clip_region = nullptr;
 
 		ztVec4 active_color = ztVec4::one;
+		ztMat4 *transform = nullptr;
 
 		zt_fiz(shaders_count) {
 			ztShaderID shader_id = shaders[i]->shader;
@@ -4579,6 +4983,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						{
 							case ztDrawCommandType_ChangeColor:
 							case ztDrawCommandType_ChangeOffset:
+							case ztDrawCommandType_ChangeTransform:
 								skipProcess = true;
 								break;
 						}
@@ -4601,6 +5006,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
+
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 
 						} break;
@@ -4641,28 +5050,51 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[0];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 
 								idx = buffer.vertices_count++;
 								buffer.vertices[idx].pos = p[1 + i];
 								buffer.vertices[idx].uv = uv[1 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 
 								idx = buffer.vertices_count++;
 								buffer.vertices[idx].pos = p[2 + i];
 								buffer.vertices[idx].uv = uv[2 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 						} break;
 
 						case ztDrawCommandType_Line: {
-							glVertex3f(cmp_item->command->line[0].x + offset.x, cmp_item->command->line[0].y + offset.y, cmp_item->command->line[0].z + offset.z);
-							glVertex3f(cmp_item->command->line[1].x + offset.x, cmp_item->command->line[1].y + offset.y, cmp_item->command->line[1].z + offset.z);
+							if(transform) {
+								ztVec3 line0 = (*transform) * cmp_item->command->line[0];
+								ztVec3 line1 = (*transform) * cmp_item->command->line[1];
+								glVertex3f(line0.x + offset.x, line0.y + offset.y, line0.z + offset.z);
+								glVertex3f(line1.x + offset.x, line1.y + offset.y, line1.z + offset.z);
+							}
+							else {
+								glVertex3f(cmp_item->command->line[0].x + offset.x, cmp_item->command->line[0].y + offset.y, cmp_item->command->line[0].z + offset.z);
+								glVertex3f(cmp_item->command->line[1].x + offset.x, cmp_item->command->line[1].y + offset.y, cmp_item->command->line[1].z + offset.z);
+							}
 						} break;
 
 						case ztDrawCommandType_Point: {
-							glVertex3f(cmp_item->command->point.x+ offset.x, cmp_item->command->point.y + offset.y, cmp_item->command->point.z + offset.z);
+							if(transform) {
+								ztVec3 p = (*transform) * cmp_item->command->point;
+								glVertex3f(cmp_item->command->point.x+ offset.x, p.y + offset.y, p.z + offset.z);
+							}
+							else {
+								glVertex3f(cmp_item->command->point.x+ offset.x, cmp_item->command->point.y + offset.y, cmp_item->command->point.z + offset.z);
+							}
 						} break;
 
 						case ztDrawCommandType_ChangeColor: {
@@ -4675,6 +5107,15 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_ChangeOffset: {
 							offset = cmp_item->command->offset;
+						} break;
+
+						case ztDrawCommandType_ChangeTransform: {
+							if(cmp_item->command->transform == ztMat4::identity) {
+								transform = nullptr;
+							}
+							else {
+								transform = &cmp_item->command->transform;
+							}
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -4771,6 +5212,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			}
 
 			ztVec4 active_color = ztVec4::one;
+			ztMat4 *transform = nullptr;
+
 			ztCompileTexture *cmp_tex = shaders[i]->texture;
 			while (cmp_tex) {
 				if (cmp_tex->cnt_display_items == 0) {
@@ -4778,7 +5221,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					continue;
 				}
 
-				if (cmp_tex->command) {
+				if (cmp_tex->command && shader_id != ztInvalidID) {
 					zt_game->game_details.curr_frame.texture_switches += 1;
 					static u32 tex_diffuse_hash = zt_strHash("tex_diffuse");
 					zt_shaderSetVariableTex(shader_id, tex_diffuse_hash, cmp_tex->command->texture[0]);
@@ -4889,6 +5332,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
+
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 
 						} break;
@@ -4929,18 +5376,27 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[0];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 
 								idx = buffer.vertices_count++;
 								buffer.vertices[idx].pos = p[1 + i];
 								buffer.vertices[idx].uv = uv[1 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 
 								idx = buffer.vertices_count++;
 								buffer.vertices[idx].pos = p[2 + i];
 								buffer.vertices[idx].uv = uv[2 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 						} break;
 
@@ -4955,6 +5411,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 						} break;
 
@@ -4965,6 +5424,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
+								if(transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
 						} break;
 
@@ -4974,6 +5436,15 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_ChangeOffset: {
 							offset = cmp_item->command->offset;
+						} break;
+
+						case ztDrawCommandType_ChangeTransform: {
+							if(cmp_item->command->transform == ztMat4::identity) {
+								transform = nullptr;
+							}
+							else {
+								transform = &cmp_item->command->transform;
+							}
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -5253,6 +5724,8 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	model->next = nullptr;
 	model->first_child = nullptr;
 	model->parent = parent;
+	model->calculated_mat = ztMat4::identity;
+
 	if (parent != nullptr) {
 		zt_singleLinkAddToEnd(parent->first_child, model);
 	}
@@ -5305,6 +5778,43 @@ ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
 	ztMaterial material = zt_materialMake(texture_id);
 
 	return zt_modelMake(zt_memGetGlobalArena(), mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_modelCalcMatrix(ztModel *model)
+{
+	struct local
+	{
+		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
+		{
+			model->calculated_mat = ztMat4::identity.getTranslate(model->transform.position);
+
+			if (model->transform.rotation != ztQuat::identity) {
+				//model->calculated_mat.rotateEuler(model->transform.rotation);
+				ztMat4 rmat = model->transform.rotation.convertToMat4();
+				model->calculated_mat *= rmat;
+			}
+
+			if (model->transform.scale != ztVec3::one) {
+				ztMat4 scale = ztMat4::identity;
+				scale.scale(model->transform.scale);
+				model->calculated_mat = model->calculated_mat * scale;
+			}
+
+			model->calculated_mat = model->calculated_mat * (*parent_mat);
+
+			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
+				calculateModel(child, &model->calculated_mat);
+			}
+		}
+	};
+
+	while(model->parent) {
+		model = model->parent;
+	}
+
+	local::calculateModel(model, &ztMat4::identity);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5460,37 +5970,17 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_sceneCull(ztScene *scene, ztCamera *camera)
+void zt_scenePrepare(ztScene *scene, ztCamera *camera)
 {
-	struct local
-	{
-		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
-		{
-			model->calculated_mat = ztMat4::identity.getTranslate(model->transform.position);
-
-			if (model->transform.rotation != ztQuat::identity) {
-				//model->calculated_mat.rotateEuler(model->transform.rotation);
-				ztMat4 rmat = model->transform.rotation.convertToMat4();
-				model->calculated_mat *= rmat;
-			}
-
-			if (model->transform.scale != ztVec3::one) {
-				ztMat4 scale = ztMat4::identity;
-				scale.scale(model->transform.scale);
-				model->calculated_mat = model->calculated_mat * scale;
-			}
-
-			model->calculated_mat = model->calculated_mat * (*parent_mat);
-
-			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
-				calculateModel(child, &model->calculated_mat);
-			}
-		}
-	};
-
 	zt_fiz(scene->models_count) {
-		local::calculateModel(scene->models[i].model, &ztMat4::identity);
+		zt_modelCalcMatrix(scene->models[i].model);
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_sceneOptimize(ztScene *scene, ztCamera *camera)
+{
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7292,6 +7782,73 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction)
+{
+#if 0
+	ztVec3 view(zt_linearRemap((r32)sx, 0.f, (r32)camera->width, 1.f, -1.f), zt_linearRemap((r32)sy, 0.f, (r32)camera->height, -1.f, 1.f), 1.f);
+	view.normalize();
+
+	ztVec3 clip(view.x, view.y, -1);
+	ztVec3 eye = camera->mat_proj.getInverse() * clip;
+	eye.z = -1;
+
+	ztVec3 world = camera->mat_view.getInverse() * eye;
+	world.normalize();
+	world *= -1;
+
+	*point = camera->position;
+	*direction = eye;
+	//*direction = camera->direction + world;
+#endif
+
+#if 0
+	ztVec3 h = (camera->position + camera->direction).cross(ztVec3(0, 1, 0));
+	h.normalize();
+
+	ztVec3 v = h.cross(camera->direction);
+	v.normalize();
+
+	r32 rad = camera->fov * ztMathPi180;
+	r32 vlen = zt_tan(rad / 2.f) * camera->near_z;
+	r32 hlen = vlen * (camera->width / (r32)camera->height);
+
+	v *= vlen;
+	h *= hlen;
+
+	r32 x = ((r32)sx - (camera->width / 2.f)) / (camera->width / 2.f);
+	r32 y = ((r32)sy - (camera->height / 2.f)) / (camera->width / 2.f);
+
+	*point = camera->position + (v * camera->near_z) + (h * x) + (v * y);
+	*direction = *point - camera->position;
+	direction->normalize();
+#endif
+
+#if 1
+	r32 x = zt_linearRemap((r32)sx, 0.f, (r32)camera->width , -1, 1);
+	r32 y = zt_linearRemap((r32)sy, 0.f, (r32)camera->height, 1, -1);
+
+	r32 near_height = zt_tan(camera->fov / 2.f) * camera->near_z;
+	r32 far_height = zt_tan(camera->fov / 2.f) * camera->far_z;
+
+	r32 aspect = (r32)camera->width / (r32)camera->height;
+	r32 near_width = near_height * aspect;
+	r32 far_width = far_height * aspect;
+
+	ztVec3 pos_near(near_width * x, near_height * y, -camera->near_z);
+	ztVec3 pos_far(far_width * x, far_height * y, -camera->far_z);
+
+	ztMat4 inv_view = camera->mat_view.getInverse();
+	pos_near = inv_view * pos_near;
+	pos_far  = inv_view * pos_far;
+
+	*point = pos_near;
+	*direction = pos_far - pos_near;
+	direction->normalize();
+
+#endif
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -9354,6 +9911,29 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	mesh->triangles = indices_count / 3;
 	mesh->indices = indices_count;
 
+	{
+		// calculate aabb / obb
+		ztVec3 ext_min = ztVec3::max, ext_max = ztVec3::min;
+		zt_fiz(vert_count) {
+			ext_min.x = zt_min(ext_min.x, verts[i].x);
+			ext_min.y = zt_min(ext_min.y, verts[i].y);
+			ext_min.z = zt_min(ext_min.z, verts[i].z);
+
+			ext_max.x = zt_max(ext_max.x, verts[i].x);
+			ext_max.y = zt_max(ext_max.y, verts[i].y);
+			ext_max.z = zt_max(ext_max.z, verts[i].z);
+		}
+
+		r32 aabb_dist = zt_max(zt_max(zt_max(ext_max.x, ext_max.y), ext_max.z), zt_abs(zt_min(zt_min(ext_min.x, ext_min.y), ext_min.z)));
+		ztVec2 dist_min(-aabb_dist, -aabb_dist), dist_max(aabb_dist, aabb_dist);
+		aabb_dist = dist_max.distance(dist_min);
+
+		mesh->aabb = ztVec3(aabb_dist, aabb_dist, aabb_dist);
+
+		mesh->obb_size = ext_max - ext_min;
+		mesh->obb_center = ztVec3(ext_min.x + mesh->obb_size.x / 2, ext_min.y + mesh->obb_size.y / 2, ext_min.z + mesh->obb_size.z / 2);
+	}
+
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -10047,6 +10627,29 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 // ------------------------------------------------------------------------------------------------
 
+ztVec3 zt_meshGetAABB(ztMeshID mesh_id)
+{
+	zt_assertReturnValOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count, ztVec3::zero);
+
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
+	return mesh->aabb;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_meshGetOBB(ztMeshID mesh_id, ztVec3 *center, ztVec3 *size)
+{
+	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
+	zt_returnOnNull(center);
+	zt_returnOnNull(size);
+
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
+	*center = mesh->obb_center;
+	*size   = mesh->obb_size;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_meshRender(ztMeshID mesh_id)
 {
 	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
@@ -10290,6 +10893,786 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 }
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents)
+{
+	ztCollisionGeometry cg;
+	cg.type = ztCollisionGeometryType_AxisAlignedBox;
+	cg.aabb_extents = extents;
+	return cg;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents)
+{
+	ztCollisionGeometry cg;
+	cg.type = ztCollisionGeometryType_OrientedBox;
+	cg.obb_center = center;
+	cg.obb_extents = extents;
+	return cg;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 radius)
+{
+	ztCollisionGeometry cg;
+	cg.type = ztCollisionGeometryType_Sphere;
+	cg.sphere_center = center;
+	cg.sphere_radius = radius;
+	return cg;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration)
+{
+	zt_returnValOnNull(geo_one, false);
+	zt_returnValOnNull(curr_tran_one, false);
+	//zt_returnValOnNull(prev_tran_one, false);
+	zt_returnValOnNull(geo_two, false);
+	zt_returnValOnNull(curr_tran_two, false);
+	//zt_returnValOnNull(prev_tran_two, false);
+
+	switch(geo_one->type)
+	{
+		case ztCollisionGeometryType_AxisAlignedBox: {
+			switch(geo_two->type)
+			{
+				case ztCollisionGeometryType_AxisAlignedBox: {
+					return zt_collisionAABBInAABB(curr_tran_one->position, geo_one->aabb_extents, curr_tran_two->position, geo_two->aabb_extents);
+				} break;
+
+				default: {
+					zt_assert(false);
+				}
+			}
+		} break;
+
+		case ztCollisionGeometryType_OrientedBox: {
+			switch(geo_two->type)
+			{
+				case ztCollisionGeometryType_OrientedBox: {
+					if(zt_collisionOBBInOBB(curr_tran_one->position + geo_one->obb_center, geo_one->obb_extents, curr_tran_one->rotation, curr_tran_two->position + geo_two->obb_center, geo_two->obb_extents, curr_tran_two->rotation)) {
+						ztVec3 contacts[16];
+						int contacts_count = zt_collisionOBBInOBBGetContactPoints(curr_tran_one->position + geo_one->obb_center, geo_one->obb_extents, curr_tran_one->rotation, curr_tran_two->position + geo_two->obb_center, geo_two->obb_extents, curr_tran_two->rotation, contacts, zt_elementsOf(contacts));
+						ztVec3 average(0,0,0);
+						zt_fiz(contacts_count) {
+							average += contacts[i] - curr_tran_one->position;
+						}
+						if(contacts_count) {
+							average *= 1.f / contacts_count;
+						}
+
+						*penetration = zt_abs(average.distance(ztVec3::zero)) * .2f;
+						return true;
+					}
+				} break;
+
+				default: {
+					zt_assert(false);
+				}
+			}
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}
+
+	return false;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry details, r32 damping, ztVec3 force_gravity)
+{
+	return zt_rigidBodyMake(model, one_over_mass_in_kg, cg_bounding, &details, 1, damping, force_gravity);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count, r32 damping, ztVec3 force_gravity)
+{
+	ztRigidBody result;
+	result.model                  = model;
+	result.velocity               = ztVec3::zero;
+	result.angular_velocity       = ztVec3::zero;
+	result.acceleration           = ztVec3::zero;
+	result.force_accum            = ztVec3::zero;
+	result.torque_accum           = ztVec3::zero;
+	result.damping                = damping;
+	result.angular_damping        = damping;
+	result.inverse_mass           = one_over_mass_in_kg;
+	result.force_gravity          = force_gravity;
+	result.prev_acceleration      = ztVec3::zero;
+	result.flags                   = 0;
+
+	result.cg_bounding = cg_bounding;
+	result.cg_details_count = details_count;
+
+	zt_fiz(details_count) {
+		result.cg_details[i] = details[i];
+	}
+
+	if(model->calculated_mat == ztMat4::identity) {
+		result.flags |= ztRigidBodyFlags_NeedsMatrixCalc;
+	}
+
+	zt_staticAssert(zt_sizeof(ztRigidBody) == (ztPointerSize * 1) + (zt_sizeof(ztCollisionGeometry) * (1 + ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES)) + 109); // if this fails, more fields were added to ztRigidBody so update this function!
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt)
+{
+	if(dt <= 0) return;
+
+	zt_fiz(rbs_count) {
+		ztRigidBody *rigid_body = &rbs[i];
+
+		if (rigid_body->inverse_mass != 0) {
+			// apply gravity
+			if(rigid_body->force_gravity != ztVec3::zero) rigid_body->force_accum += rigid_body->force_gravity * (1.f / rigid_body->inverse_mass);
+
+			rigid_body->prev_acceleration = rigid_body->acceleration;
+			rigid_body->acceleration = (rigid_body->force_accum * rigid_body->inverse_mass);
+
+			if(zt_bitIsSet(rigid_body->flags, ztRigidBodyFlags_NeedsMatrixCalc)) {
+				zt_modelCalcMatrix(rigid_body->model);
+				zt_bitRemove(rigid_body->flags, ztRigidBodyFlags_NeedsMatrixCalc);
+			}
+
+			ztMat4 *pmat = &rigid_body->model->calculated_mat;
+			ztMat4 mat(/* col 0 */pmat->values[0], pmat->values[1], pmat->values[2], 0,
+					   /* col 1 */pmat->values[4], pmat->values[5], pmat->values[6], 0,
+					   /* col 2 */pmat->values[8], pmat->values[9], pmat->values[10], 0,
+					   /* col 3 */0, 0, 0, 0);
+
+			ztVec3 angular_acceleration = mat * rigid_body->torque_accum;
+
+			rigid_body->velocity += rigid_body->acceleration * dt;
+			rigid_body->angular_velocity += angular_acceleration * dt;
+
+			//rigid_body->acceleration = rigid_body->force_accum * rigid_body->inverse_mass;
+
+			// apply drag
+			rigid_body->velocity *= zt_pow(rigid_body->damping, dt);
+			rigid_body->angular_velocity *= zt_pow(rigid_body->angular_damping, dt);
+
+			// apply velocities
+			rigid_body->model->transform.position += rigid_body->velocity * dt;
+			rigid_body->model->transform.rotation = ztQuat::makeFromEuler(rigid_body->angular_velocity * dt) * rigid_body->model->transform.rotation;
+
+			// may want to recalc model matrices here
+
+			// clear force accumulators
+			rigid_body->force_accum = ztVec3::zero;
+			rigid_body->torque_accum = ztVec3::zero;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force)
+{
+	zt_returnOnNull(rigid_body);
+	rigid_body->force_accum += force;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
+{
+	zt_returnOnNull(rigid_body);
+
+	ztVec3 point_world = rigid_body->model->calculated_mat * point;
+	zt_rigidBodyAddForceAtBodyPoint(rigid_body, force, point_world);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
+{
+	zt_returnOnNull(rigid_body);
+
+	rigid_body->force_accum += force;
+	rigid_body->torque_accum += point.cross(force);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point)
+{
+	zt_assert(rigid_body != nullptr);
+	ztForceAnchor anchor;
+	anchor.type = ztForceAnchorType_RigidBody;
+	anchor.rigid_body = rigid_body;
+	anchor.connection_point = connection_point;
+	return anchor;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForceAnchor zt_forceAnchor(ztTransform *transform)
+{
+	zt_assert(transform != nullptr);
+	ztForceAnchor anchor;
+	anchor.type = ztForceAnchorType_Transform;
+	anchor.transform = transform;
+	return anchor;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr)
+{
+	zt_assert(vec3_ptr != nullptr);
+	ztForceAnchor anchor;
+	anchor.type = ztForceAnchorType_Vec3Ptr;
+	anchor.vec3_ptr = vec3_ptr;
+	return anchor;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForceAnchor zt_forceAnchor(ztVec3 vec3)
+{
+	ztForceAnchor anchor;
+	anchor.type = ztForceAnchorType_Vec3;
+	anchor.vec3 = vec3;
+	return anchor;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
+{
+	zt_assert(rigid_body != nullptr);
+
+	ztForce force;
+	force.type                   = ztForceType_Spring;
+	force.rigid_body             = rigid_body;
+	force.connection_point       = connection_point;
+	force.anchor                 = anchor;
+	force.spring.spring_constant = spring_constant;
+	force.spring.rest_length     = rest_length;
+
+	return force;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping)
+{
+	zt_assert(rigid_body != nullptr);
+
+	ztForce force;
+	force.type                         = ztForceType_StiffSpring;
+	force.rigid_body                   = rigid_body;
+	force.connection_point       = connection_point;
+	force.anchor                       = anchor;
+	force.stiff_spring.spring_constant = spring_constant;
+	force.stiff_spring.damping         = damping;
+
+	return force;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
+{
+	zt_assert(rigid_body != nullptr);
+
+	ztForce force;
+	force.type                   = ztForceType_Bungee;
+	force.rigid_body             = rigid_body;
+	force.connection_point       = connection_point;
+	force.anchor                 = anchor;
+	force.spring.spring_constant = spring_constant;
+	force.spring.rest_length     = rest_length;
+
+	return force;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3& connection_point, r32 max_depth, r32 volume, r32 water_height, r32 liquid_density)
+{
+	zt_assert(rigid_body != nullptr);
+
+	ztForce force;
+	force.type                    = ztForceType_Buoyancy;
+	force.rigid_body              = rigid_body;
+	force.connection_point       = connection_point;
+	force.buoyancy.max_depth      = max_depth;
+	force.buoyancy.volume         = volume;
+	force.buoyancy.water_height   = water_height;
+	force.buoyancy.liquid_density = liquid_density;
+
+	return force;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt)
+{
+	ztVec3 force_to_apply;
+
+	zt_fiz(forces_count) {
+		ztForce *force = &forces[i];
+
+		ztVec3 point_body = force->rigid_body->model->calculated_mat * force->connection_point;
+
+#		define getAnchor(force) (force->anchor.type == ztForceAnchorType_RigidBody ? force->anchor.rigid_body->model->calculated_mat * force->anchor.connection_point : \
+								(force->anchor.type == ztForceAnchorType_Transform ? force->anchor.transform->position : \
+								(force->anchor.type == ztForceAnchorType_Vec3Ptr ? *force->anchor.vec3_ptr : force->anchor.vec3)))
+
+		switch (force->type)
+		{
+			case ztForceType_Spring: {
+				force_to_apply = point_body - getAnchor(force);
+
+				r32 magnitude = force_to_apply.length();
+				magnitude = (magnitude - force->spring.rest_length) * force->spring.spring_constant;
+
+				force_to_apply.normalize();
+				force_to_apply *= -magnitude;
+			} break;
+
+			// ------------------------------------------------------------------------------------
+
+			case ztForceType_StiffSpring: {
+				ztVec3 position = point_body;
+				ztVec3 anchor = getAnchor(force);
+				position -= anchor;
+
+				r32 gamma = .5f * zt_sqrt(4 * force->stiff_spring.spring_constant - force->stiff_spring.damping * force->stiff_spring.damping);
+				if (gamma != 0.f) {
+					ztVec3 c = position * (force->stiff_spring.damping / (2.f * gamma)) + force->rigid_body->velocity * (1.f / gamma);
+					ztVec3 target = position * zt_cos(gamma * dt) + c * zt_sin(gamma * dt);
+					target *= zt_exp(-.5f * dt * force->stiff_spring.damping);
+
+					ztVec3 accel = (target - position) * (1.f / dt * dt) - force->rigid_body->velocity * dt;
+					force_to_apply = accel * (1.f / force->rigid_body->inverse_mass * (1.f / dt));
+				}
+			} break;
+
+			// ------------------------------------------------------------------------------------
+
+			case ztForceType_Bungee: {
+				force_to_apply = point_body - getAnchor(force);
+
+				r32 magnitude = force_to_apply.length();
+				if (magnitude > force->spring.rest_length) {
+					magnitude = (magnitude - force->spring.rest_length) * force->spring.spring_constant;
+
+					force_to_apply.normalize();
+					force_to_apply *= -magnitude;
+				}
+			} break;
+
+			// ------------------------------------------------------------------------------------
+
+			case ztForceType_Buoyancy: {
+				r32 depth = point_body.y;
+				if (depth < force->buoyancy.water_height + force->buoyancy.max_depth) {
+					if (depth < force->buoyancy.water_height - force->buoyancy.max_depth) {
+						force_to_apply.y = force->buoyancy.liquid_density * force->buoyancy.volume;
+					}
+					else {
+						force_to_apply.y = force->buoyancy.liquid_density * force->buoyancy.volume * (depth - force->buoyancy.max_depth - force->buoyancy.water_height) / 2.f * force->buoyancy.max_depth;
+					}
+				}
+			} break;
+
+			// ------------------------------------------------------------------------------------
+
+			default: {
+				zt_assert(false);
+			}
+		}
+
+		force->rigid_body->force_accum += force_to_apply;
+		force->rigid_body->torque_accum += point_body.cross(force_to_apply);
+
+#		undef getAnchor
+	}
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+
+void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisions_count, r32 dt, int max_iterations)
+{
+	int iterations = 0;
+	while(iterations++ < max_iterations) {
+		int max_idx = -1;
+		r32 max_separating_velocity = 0;
+
+		zt_fiz(collisions_count) {
+			ztRigidBodyCollision *collision = &collisions[i];
+
+			ztVec3 relative_velocity = collision->rigid_bodies[0]->velocity;
+			if (collision->rigid_bodies[1]) relative_velocity += collision->rigid_bodies[1]->velocity;
+
+			r32 separating_velocity = relative_velocity.dot(collision->contact_normal);
+
+			if(separating_velocity < max_separating_velocity) {
+				max_separating_velocity = separating_velocity;
+				max_idx = i;
+			}
+		}
+
+		if(max_idx < 0) {
+			break;
+		}
+
+		ztRigidBodyCollision *collision = &collisions[max_idx];
+		r32 separating_velocity = max_separating_velocity;
+
+		if(separating_velocity <= 0) {
+			r32 new_separating_velocity = -separating_velocity * collision->restitution;
+
+			ztVec3 accel_caused_velocity = collision->rigid_bodies[0]->acceleration;
+			if(collision->rigid_bodies[1]) accel_caused_velocity -= collision->rigid_bodies[1]->acceleration;
+			r32 accel_caused_sep_velocity = accel_caused_velocity.dot(collision->contact_normal) * dt;
+
+			if(accel_caused_sep_velocity < 0) {
+				new_separating_velocity += collision->restitution * accel_caused_sep_velocity;
+				if (new_separating_velocity < 0) {
+					new_separating_velocity = 0;
+				}
+			}
+
+			r32 delta_velocity = new_separating_velocity - separating_velocity;
+			r32 total_inverse_mass = collision->rigid_bodies[0]->inverse_mass;
+			if(collision->rigid_bodies[1]) total_inverse_mass += collision->rigid_bodies[1]->inverse_mass;
+
+			if(total_inverse_mass > 0) {
+				r32 impulse = delta_velocity / total_inverse_mass;
+				ztVec3 impulse_per_invmass = collision->contact_normal * impulse;
+
+				collision->rigid_bodies[0]->velocity += impulse_per_invmass * collision->rigid_bodies[0]->inverse_mass;
+				if(collision->rigid_bodies[1]) collision->rigid_bodies[1]->velocity += impulse_per_invmass * -collision->rigid_bodies[1]->inverse_mass;
+
+				if(collision->penetration != 0) {
+					//ztVec3 move_per_invmass = collision->contact_normal * (-collision->penetration / total_inverse_mass);
+					//collision->rigid_bodies[0]->model->transform.position += move_per_invmass * collision->rigid_bodies[0]->inverse_mass;
+					//if(collision->rigid_bodies[1]) collision->rigid_bodies[1]->model->transform.position -= (move_per_invmass * -1) * collision->rigid_bodies[1]->inverse_mass;
+				}
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztConnector zt_connectorMakeCable(r32 max_length, r32 restitution)
+{
+	ztConnector connector;
+	connector.type = ztConnectorType_Cable;
+	connector.cable.max_length = max_length;
+	connector.cable.restitution = restitution;
+	return connector;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztConnector zt_connectorMakeRod(r32 length)
+{
+	ztConnector connector;
+	connector.type = ztConnectorType_Rod;
+	connector.rod.length = length;
+	return connector;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_count, ztRigidBodyCollision *collisions, int collisions_size)
+{
+	zt_assert(collisions != nullptr && collisions_size > 0);
+
+	int collisions_idx = 0;
+
+	zt_fiz(connectors_count) {
+		ztConnector *connector = &connectors[i];
+
+		ztVec3 relative_pos = connector->rigid_bodies[0]->model->transform.position - connector->rigid_bodies[1]->model->transform.position;
+		r32 length = relative_pos.length();
+
+		switch(connector->type)
+		{
+			case ztConnectorType_Cable: {
+				if(length > connector->cable.max_length) {
+					ztRigidBodyCollision *collision = &collisions[collisions_idx++];
+					collision->rigid_bodies[0] = connector->rigid_bodies[0];
+					collision->rigid_bodies[1] = connector->rigid_bodies[1];
+
+					collision->contact_normal = connector->rigid_bodies[1]->model->transform.position - connector->rigid_bodies[1]->model->transform.position;
+					collision->contact_normal.normalize();
+					collision->penetration = length - connector->cable.max_length;
+					collision->restitution = connector->cable.restitution;
+
+					if(collisions_idx >= collisions_size) return collisions_idx;
+				}
+			} break;
+
+			case ztConnectorType_Rod: {
+				if(!zt_real32Eq(length, connector->rod.length)) {
+					ztRigidBodyCollision *collision = &collisions[collisions_idx++];
+					collision->rigid_bodies[0] = connector->rigid_bodies[0];
+					collision->rigid_bodies[1] = connector->rigid_bodies[1];
+
+					collision->contact_normal = connector->rigid_bodies[1]->model->transform.position - connector->rigid_bodies[1]->model->transform.position;
+					collision->contact_normal.normalize();
+
+					if(length < connector->rod.length) {
+						collision->contact_normal *= -1;
+						collision->penetration = connector->rod.length - length;
+					}
+					else {
+						collision->penetration = length - connector->rod.length;
+					}
+
+					collision->restitution = 0;
+
+					if(collisions_idx >= collisions_size) return collisions_idx;
+				}
+			} break;
+		}
+	}
+
+	return collisions_idx;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigidBodyCollision *collisions, int collisions_size)
+{
+	int col_idx = 0;
+	zt_fiz(rigid_bodies_count - 1) {
+		for(int j = i + 1; j < rigid_bodies_count; ++j) {
+			if(zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_bounding, &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_bounding, &rigid_bodies[j].model->transform, nullptr, nullptr)) {
+				// bounding volumes are colliding, now check actual collision geometry
+
+				zt_fxz(rigid_bodies[i].cg_details_count) {
+					zt_fyz(rigid_bodies[j].cg_details_count) {
+						r32 penetration = 0;
+						if(zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_details[x], &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_details[y], &rigid_bodies[j].model->transform, nullptr, &penetration)) {
+							if(col_idx < collisions_size) {
+								collisions[col_idx].rigid_bodies[0] = &rigid_bodies[i];
+								collisions[col_idx].rigid_bodies[1] = &rigid_bodies[j];
+								collisions[col_idx].restitution     = .5f;
+								collisions[col_idx].penetration     = penetration;
+								collisions[col_idx].contact_normal  = rigid_bodies[i].model->transform.position - rigid_bodies[j].model->transform.position;
+								collisions[col_idx].contact_normal.normalize();
+								col_idx += 1;
+							}
+							else return col_idx;
+							goto exit_detail_loop;
+						}
+					}
+				}
+
+			exit_detail_loop:
+				;
+			}
+		}
+	}
+
+	return col_idx;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors)
+{
+	ztPhysics *physics = zt_mallocStructArena(ztPhysics, arena);
+
+	physics->arena = arena;
+
+	physics->rigid_bodies_count = 0;
+	physics->rigid_bodies_size  = max_rigid_bodies;
+	physics->rigid_bodies       = zt_mallocStructArrayArena(ztRigidBody, physics->rigid_bodies_size, arena);
+
+	physics->forces_count       = 0;
+	physics->forces_size        = max_forces;
+	physics->forces             = zt_mallocStructArrayArena(ztForce, physics->forces_size, arena);
+
+	physics->connectors_count   = 0;
+	physics->connectors_size    = max_connectors;
+	physics->connectors         = zt_mallocStructArrayArena(ztConnector, physics->connectors_size, arena);
+
+	physics->collisions_size    = 2048;
+	physics->collisions         = zt_mallocStructArrayArena(ztRigidBodyCollision, physics->collisions_size, arena);
+
+	if(physics->rigid_bodies == nullptr || physics->forces == nullptr || physics->connectors == nullptr || physics->collisions == nullptr) {
+		zt_physicsFree(physics);
+		return nullptr;
+	}
+
+	physics->extents_min = ztVec3::min;
+	physics->extents_max = ztVec3::max;
+	physics->extents_restitution = .5f;
+
+	return physics;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_physicsFree(ztPhysics *physics)
+{
+	if (physics == nullptr) {
+		return;
+	}
+
+	if (physics->rigid_bodies) zt_freeArena(physics->rigid_bodies, physics->arena);
+	if (physics->forces      ) zt_freeArena(physics->forces, physics->arena);
+	if (physics->connectors  ) zt_freeArena(physics->connectors, physics->arena);
+	if (physics->collisions  ) zt_freeArena(physics->collisions, physics->arena);
+
+	zt_freeArena(physics, physics->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_physicsAddRigidBody(ztPhysics *physics, ztRigidBody *rigid_body)
+{
+	zt_returnValOnNull(physics, -1);
+	zt_returnValOnNull(rigid_body, -1);
+
+	zt_assertReturnValOnFail(physics->rigid_bodies_count < physics->rigid_bodies_size, -1);
+
+	physics->rigid_bodies[physics->rigid_bodies_count] = *rigid_body;
+	return physics->rigid_bodies_count++;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_physicsAddForce(ztPhysics *physics, ztForce *force)
+{
+	zt_returnValOnNull(physics, -1);
+	zt_returnValOnNull(force, -1);
+
+	zt_assertReturnValOnFail(physics->forces_count < physics->forces_size, -1);
+	physics->forces[physics->forces_count] = *force;
+	return physics->forces_count++;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_physicsAddConnector(ztPhysics *physics, ztConnector *connector)
+{
+	zt_returnValOnNull(physics, -1);
+	zt_returnValOnNull(connector, -1);
+
+	zt_assertReturnValOnFail(physics->connectors_count < physics->connectors_size, -1);
+	physics->connectors[physics->connectors_count] = *connector;
+	return physics->connectors_count++;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_physicsUpdate(ztPhysics *physics, r32 dt)
+{
+	zt_rigidBodiesUpdate(physics->rigid_bodies, physics->rigid_bodies_count, dt);
+
+	int collisions_count = 0;
+
+#	define zt_checkCollisionsCount \
+		{ \
+			if(collisions_count >= physics->collisions_size) { \
+				zt_arrayResizeArenaNoCopy(physics->collisions, ztRigidBodyCollision, physics->collisions_size * 2, physics->arena); \
+				if(physics->collisions == nullptr) { \
+					zt_logCritical("unable to resize physics collision cache"); \
+					physics->collisions = zt_mallocStructArrayArena(ztRigidBodyCollision, physics->collisions_size, physics->arena); \
+					break; \
+				} \
+				else { \
+					zt_logDebug("physics resized collision cache from %d to %d", physics->collisions_size, physics->collisions_size * 2); \
+					physics->collisions_size *= 2; \
+				} \
+			} \
+		}
+
+	if(physics->extents_min != ztVec3::min) {
+		zt_fjz(3) {
+			if(physics->extents_min.values[j] == ztReal32Min) {
+				continue;
+			}
+
+			zt_fiz(physics->rigid_bodies_count) {
+				if (physics->rigid_bodies[i].model->transform.position.values[j] < physics->extents_min.values[j]) {
+					zt_checkCollisionsCount;
+					ztRigidBodyCollision * collision = &physics->collisions[collisions_count++];
+
+					collision->rigid_bodies[0] = &physics->rigid_bodies[i];
+					collision->rigid_bodies[1] = nullptr;
+					collision->contact_normal = ztVec3(j == 0 ? 1.f : 0.f, j == 1 ? 1.f : 0.f, j == 2 ? 1.f : 0.f);
+					collision->penetration = physics->rigid_bodies[i].model->transform.position.values[j] - physics->extents_min.values[j];
+					collision->restitution = physics->extents_restitution;
+				}
+			}
+		}
+	}
+
+	if(physics->extents_max != ztVec3::max) {
+		zt_fjz(3) {
+			if(physics->extents_max.values[j] == ztReal32Max) {
+				continue;
+			}
+
+			zt_fiz(physics->rigid_bodies_count) {
+				if (physics->rigid_bodies[i].model->transform.position.values[j] > physics->extents_max.values[j]) {
+					zt_checkCollisionsCount;
+					ztRigidBodyCollision * collision = &physics->collisions[collisions_count++];
+
+					collision->rigid_bodies[0] = &physics->rigid_bodies[i];
+					collision->rigid_bodies[1] = nullptr;
+					collision->contact_normal = ztVec3(j == 0 ? -1.f : 0.f, j == 1 ? -1.f : 0.f, j == 2 ? -1.f : 0.f);
+					collision->penetration = physics->extents_max.values[j] - physics->rigid_bodies[i].model->transform.position.values[j];
+					collision->restitution = physics->extents_restitution;
+				}
+			}
+		}
+	}
+
+	collisions_count += zt_collisionBrute(physics->rigid_bodies, physics->rigid_bodies_count, physics->collisions + collisions_count, physics->collisions_size - collisions_count);
+
+#	undef zt_checkCollisionsCount
+
+	if (collisions_count > 0) {
+		zt_rigidBodyCollisionsResolve(physics->collisions, collisions_count, dt, zt_convertToi32Floor(collisions_count * 1.25f));
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
 {
@@ -10339,6 +11722,352 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 	}
 	return true;
 }
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+{
+	return point.x >= aabb_center.x - aabb_extents.x / 2.f && point.x <= aabb_center.x + aabb_extents.x / 2.f &&
+		point.y >= aabb_center.y - aabb_extents.y / 2.f && point.y <= aabb_center.y + aabb_extents.y / 2.f &&
+		point.z >= aabb_center.z - aabb_extents.z / 2.f && point.z <= aabb_center.z + aabb_extents.z / 2.f;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point)
+{
+	r32 tmin = 0;
+	r32 tmax = ztReal32Max;
+
+	ztVec3 aabb_min(aabb_center.x - (aabb_extents.x / 2.f), aabb_center.y - (aabb_extents.y / 2.f), aabb_center.z - (aabb_extents.z / 2.f));
+	ztVec3 aabb_max(aabb_center.x + (aabb_extents.x / 2.f), aabb_center.y + (aabb_extents.y / 2.f), aabb_center.z + (aabb_extents.z / 2.f));
+
+	zt_fiz(3) {
+		if(zt_real32Eq(direction.values[i], 0)) {
+			// parallel in this axis
+			if(point.values[i] < aabb_min.values[i] || point.values[i] > aabb_max.values[i]) {
+				return false;
+			}
+		}
+		else {
+			r32 t1, t2;
+			if(direction.values[i] >= 0) {
+				t1 = (aabb_min.values[i] - point.values[i]) / direction.values[i];
+				t2 = (aabb_max.values[i] - point.values[i]) / direction.values[i];
+			}
+			else {
+				t1 = (aabb_max.values[i] - point.values[i]) / direction.values[i];
+				t2 = (aabb_min.values[i] - point.values[i]) / direction.values[i];
+			}
+
+			if(tmin > t2 || t1 > tmax) { return false; }
+
+			if (t1 > tmin) tmin = t1;
+			if (t2 < tmax) tmax = t2;
+
+			if(tmin > tmax) {
+				return false;
+			}
+		}
+	}
+
+	if(intersection_point) {
+		*intersection_point = point + direction * tmin;
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2])
+{
+	r32 tmin = 0;
+	r32 tmax = ztReal32Max;
+
+	ztVec3 direction  = line_1 - line_0;
+	//direction.normalize();
+
+	ztVec3 aabb_min(aabb_center.x - (aabb_extents.x / 2.f), aabb_center.y - (aabb_extents.y / 2.f), aabb_center.z - (aabb_extents.z / 2.f));
+	ztVec3 aabb_max(aabb_center.x + (aabb_extents.x / 2.f), aabb_center.y + (aabb_extents.y / 2.f), aabb_center.z + (aabb_extents.z / 2.f));
+
+	zt_fiz(3) {
+		if(zt_real32Eq(direction.values[i], 0)) {
+			// parallel in this axis
+			if(line_0.values[i] < aabb_min.values[i] || line_0.values[i] > aabb_max.values[i]) {
+				return false;
+			}
+		}
+		else {
+			r32 t1, t2;
+			if(direction.values[i] >= 0) {
+				t1 = (aabb_min.values[i] - line_0.values[i]) / direction.values[i];
+				t2 = (aabb_max.values[i] - line_0.values[i]) / direction.values[i];
+			}
+			else {
+				t1 = (aabb_max.values[i] - line_0.values[i]) / direction.values[i];
+				t2 = (aabb_min.values[i] - line_0.values[i]) / direction.values[i];
+			}
+
+			if(tmin > t2 || t1 > tmax) { return false; }
+
+			if (t1 > tmin) tmin = t1;
+			if (t2 < tmax) tmax = t2;
+
+			if(tmin > tmax) {
+				return false;
+			}
+		}
+	}
+
+	if(tmin < 0 || tmin > 1) {
+		return false;
+	}
+
+	if(intersection_points) {
+		intersection_points[0] = line_0 + direction * tmin;
+		intersection_points[1] = line_0 + direction * zt_min(1, tmax);
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2)
+{
+	ztVec3 aabb_min_1(aabb_center_1.x - (aabb_extents_1.x / 2.f), aabb_center_1.y - (aabb_extents_1.y / 2.f), aabb_center_1.z - (aabb_extents_1.z / 2.f));
+	ztVec3 aabb_max_1(aabb_center_1.x + (aabb_extents_1.x / 2.f), aabb_center_1.y + (aabb_extents_1.y / 2.f), aabb_center_1.z + (aabb_extents_1.z / 2.f));
+
+	ztVec3 aabb_min_2(aabb_center_2.x - (aabb_extents_2.x / 2.f), aabb_center_2.y - (aabb_extents_2.y / 2.f), aabb_center_2.z - (aabb_extents_2.z / 2.f));
+	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
+
+	zt_fiz(3) {
+		if(aabb_max_1.values[i] < aabb_min_2.values[i] || aabb_min_1.values[i] > aabb_max_2.values[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point)
+{
+	zt_assert(false); // not yet implemented
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2)
+{
+	ztVec3 obb_axis_1[3] = {
+		obb_rot_1.rotatePosition(1, 0, 0),
+		obb_rot_1.rotatePosition(0, 1, 0),
+		obb_rot_1.rotatePosition(0, 0, 1),
+	};
+
+	ztVec3 obb_axis_2[3] = {
+		obb_rot_2.rotatePosition(1, 0, 0),
+		obb_rot_2.rotatePosition(0, 1, 0),
+		obb_rot_2.rotatePosition(0, 0, 1),
+	};
+
+	return zt_collisionOBBInOBB(obb_center_1, obb_extents_1, obb_axis_1, obb_center_2, obb_extents_2, obb_axis_2);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3])
+{
+	r32 mat_r[3][3], mat_abs_r[3][3], ra, rb, sp;
+
+	zt_fiz(3) {
+		zt_fjz(3) {
+			mat_r[i][j] = obb_axis_1[i].dot(obb_axis_2[j]);
+			mat_abs_r[i][j] = zt_abs(mat_r[i][j]) + ztReal32Epsilon;
+		}
+	}
+
+	ztVec3 t = obb_center_2 - obb_center_1;
+	t = ztVec3(t.dot(obb_axis_1[0]), t.dot(obb_axis_1[1]), t.dot(obb_axis_1[2]));
+
+	ztVec3 a_ext = obb_extents_1 * .5f;
+	ztVec3 b_ext = obb_extents_2 * .5f;
+
+	r32 spans[15], diffs[15];
+	//r32 axis_min0[15], axis_max0[15], axis_min1[15], axis_max1[15];
+	int axis_idx = 0;
+
+	// axis 0 - x, 1 - y, 2 - z
+
+	// axis A0, A1, A2 (0-2)
+	zt_fiz(3) {
+		ra = a_ext.values[i];
+		rb = b_ext.values[0] * mat_abs_r[i][0] + b_ext.values[1] * mat_abs_r[i][1] + b_ext.values[2] * mat_abs_r[i][2];
+		sp = zt_abs(t.values[i]);
+		if(sp > ra + rb) return false;
+		diffs[axis_idx] = (ra + rb) - sp;
+		spans[axis_idx++] = sp;
+	}
+
+	// axis B0, B1, B2 (3-5)
+	zt_fiz(3) {
+		ra = a_ext.values[0] * mat_abs_r[0][i] + a_ext.values[1] * mat_abs_r[1][i] + a_ext.values[2] * mat_abs_r[2][i];
+		rb = b_ext.values[i];
+		sp = zt_abs(t.values[0] * mat_r[0][i] + t.values[1] *  mat_r[1][i] + t.values[2] * mat_r[2][i]);
+		if(sp > ra + rb) return false;
+		diffs[axis_idx] = (ra + rb) - sp;
+		spans[axis_idx++] = sp;
+	}
+
+	// axis A0 x B0 (6)
+	ra = a_ext.values[1] * mat_abs_r[2][0] + a_ext.values[2] * mat_abs_r[1][0];
+	rb = b_ext.values[1] * mat_abs_r[0][2] + b_ext.values[2] * mat_abs_r[0][1];
+	sp = zt_abs(t.values[2] * mat_r[1][0] - t.values[1] * mat_r[2][0]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A0 x B1 (7)
+	ra = a_ext.values[1] * mat_abs_r[2][1] + a_ext.values[2] * mat_abs_r[1][1];
+	rb = b_ext.values[0] * mat_abs_r[0][2] + b_ext.values[2] * mat_abs_r[0][0];
+	sp = zt_abs(t.values[2] * mat_r[1][1] - t.values[1] * mat_r[2][1]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A0 x B2 (8)
+	ra = a_ext.values[1] * mat_abs_r[2][2] + a_ext.values[2] * mat_abs_r[1][2];
+	rb = b_ext.values[0] * mat_abs_r[0][1] + b_ext.values[1] * mat_abs_r[0][0];
+	sp = zt_abs(t.values[2] * mat_r[1][2] - t.values[1] * mat_r[2][2]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A1 x B0 (9)
+	ra = a_ext.values[0] * mat_abs_r[2][0] + a_ext.values[2] * mat_abs_r[0][0];
+	rb = b_ext.values[1] * mat_abs_r[1][2] + b_ext.values[2] * mat_abs_r[1][1];
+	sp = zt_abs(t.values[0] * mat_r[2][0] - t.values[2] * mat_r[0][0]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A1 x B1 (10)
+	ra = a_ext.values[0] * mat_abs_r[2][1] + a_ext.values[2] * mat_abs_r[0][1];
+	rb = b_ext.values[0] * mat_abs_r[1][2] + b_ext.values[2] * mat_abs_r[1][0];
+	sp = zt_abs(t.values[0] * mat_r[2][1] - t.values[2] * mat_r[0][1]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A1 x B2 (11)
+	ra = a_ext.values[0] * mat_abs_r[2][2] + a_ext.values[2] * mat_abs_r[0][2];
+	rb = b_ext.values[0] * mat_abs_r[1][1] + b_ext.values[1] * mat_abs_r[1][0];
+	sp = zt_abs(t.values[0] * mat_r[2][2] - t.values[2] * mat_r[0][2]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A2 x B0 (12)
+	ra = a_ext.values[0] * mat_abs_r[1][0] + a_ext.values[1] * mat_abs_r[0][0];
+	rb = b_ext.values[1] * mat_abs_r[2][2] + b_ext.values[2] * mat_abs_r[2][1];
+	sp = zt_abs(t.values[1] * mat_r[0][0] - t.values[0] * mat_r[1][0]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A2 x B1 (13)
+	ra = a_ext.values[0] * mat_abs_r[1][1] + a_ext.values[1] * mat_abs_r[0][1];
+	rb = b_ext.values[0] * mat_abs_r[2][2] + b_ext.values[2] * mat_abs_r[2][0];
+	sp = zt_abs(t.values[1] * mat_r[0][1] - t.values[0] * mat_r[0][1]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	// axis A2 x B2 (14)
+	ra = a_ext.values[0] * mat_abs_r[1][2] + a_ext.values[1] * mat_abs_r[0][2];
+	rb = b_ext.values[0] * mat_abs_r[2][1] + b_ext.values[1] * mat_abs_r[2][0];
+	sp = zt_abs(t.values[1] * mat_r[0][2] - t.values[0] * mat_r[1][2]);
+	if(sp > ra + rb) return false;
+	diffs[axis_idx] = (ra + rb) - sp;
+	spans[axis_idx++] = sp;
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size)
+{
+	ztVec3 diff = obb_center_2 - obb_center_1;
+
+	ztVec3 corners[8] = {
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(-obb_extents_2.x / 2.f, +obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(-obb_extents_2.x / 2.f, +obb_extents_2.y / 2.f, -obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(+obb_extents_2.x / 2.f, +obb_extents_2.y / 2.f, -obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(+obb_extents_2.x / 2.f, +obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(-obb_extents_2.x / 2.f, -obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(-obb_extents_2.x / 2.f, -obb_extents_2.y / 2.f, -obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(+obb_extents_2.x / 2.f, -obb_extents_2.y / 2.f, -obb_extents_2.z / 2.f)),
+		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(+obb_extents_2.x / 2.f, -obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
+	};
+
+	ztPoint2 lines[12] = {
+		ztPoint2(0, 1),
+		ztPoint2(1, 2),
+		ztPoint2(2, 3),
+		ztPoint2(3, 0),
+
+		ztPoint2(4, 5),
+		ztPoint2(5, 6),
+		ztPoint2(6, 7),
+		ztPoint2(7, 4),
+
+		ztPoint2(0, 4),
+		ztPoint2(1, 5),
+		ztPoint2(2, 6),
+		ztPoint2(3, 7),
+	};
+
+	int ct_idx = 0;
+	zt_fize(lines) {
+		ztVec3 line_0 = corners[lines[i].x];
+		ztVec3 line_1 = corners[lines[i].y];
+		if(line_0.distance(obb_center_1) < line_1.distance(obb_center_1)) {
+			zt_swap(line_0, line_1);
+		}
+
+		ztVec3 line_intersects[2];
+		if(zt_collisionLineSegmentInOBB(line_0, line_1, obb_center_1, obb_extents_1, obb_rot_1, line_intersects)) {
+			zt_fjz(2) {
+				if(ct_idx < contacts_size && (j != 1 || !line_intersects[1].equalsClose(line_1))) {
+					contacts[ct_idx++] = line_intersects[j];
+				}
+				else return ct_idx;
+			}
+		}
+	}
+
+	return ct_idx;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2])
+{
+	ztQuat to_local = obb_rot.getInverse();
+	if(zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, intersections)) {
+		intersections[0] = obb_rot.rotatePosition(intersections[0]) + obb_center;
+		intersections[1] = obb_rot.rotatePosition(intersections[1]) + obb_center;
+		return true;
+	}
+
+	return false;
+}
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
