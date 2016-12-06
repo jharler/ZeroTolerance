@@ -155,7 +155,7 @@
 #define zt_sizeof(type) ((i32)sizeof(type))
 
 #if defined(ZT_DEBUG)
-#	define zt_assert(cond)	                       if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#	define zt_assert(cond)	                      if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
 #	define zt_assertReturnOnFail(cond)            if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
 #	define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
 
@@ -193,22 +193,34 @@
 #define zt_abs(val) ( (val) < 0 ? -(val) : (val) )
 #define zt_swap(val1, val2) {auto temp = val1; val1 = val2; val2 = temp;}
 
-#define zt_real32Eq(val1, val2) (zt_abs(val1 - val2) < ztReal32Epsilon)
-#define zt_real64Eq(val1, val2) (zt_abs(val1 - val2) < ztReal64Epsilon)
+#define zt_real32Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal32Epsilon)
+#define zt_real64Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal64Epsilon)
 
 // yes, shamelessly "borrowed" from Shawn McGrath
 #define zt_fiz(end) for(int i = 0; i < (int)(end); ++i)
 #define zt_fjz(end) for(int j = 0; j < (int)(end); ++j)
 #define zt_fkz(end) for(int k = 0; k < (int)(end); ++k)
+#define zt_fxz(end) for(int x = 0; x < (int)(end); ++x)
+#define zt_fyz(end) for(int y = 0; y < (int)(end); ++y)
+#define zt_fzz(end) for(int z = 0; z < (int)(end); ++z)
 #define zt_fize(end) for(int i = 0; i < (int)zt_elementsOf((end)); ++i)
 #define zt_fjze(end) for(int j = 0; j < (int)zt_elementsOf((end)); ++j)
 #define zt_fkze(end) for(int k = 0; k < (int)zt_elementsOf((end)); ++k)
+#define zt_fxze(end) for(int x = 0; x < (int)zt_elementsOf((end)); ++x)
+#define zt_fyze(end) for(int y = 0; y < (int)zt_elementsOf((end)); ++y)
+#define zt_fzze(end) for(int z = 0; z < (int)zt_elementsOf((end)); ++z)
 #define zt_fizr(beg) for(int i = (int)(beg); i >= 0; --i)
 #define zt_fjzr(beg) for(int j = (int)(beg); j >= 0; --j)
 #define zt_fkzr(beg) for(int k = (int)(beg); k >= 0; --k)
+#define zt_fxzr(beg) for(int x = (int)(beg); x >= 0; --x)
+#define zt_fyzr(beg) for(int y = (int)(beg); y >= 0; --y)
+#define zt_fzzr(beg) for(int z = (int)(beg); z >= 0; --z)
 #define zt_fizre(beg) for(int i = (int)zt_elementsOf((beg)); i >= 0; --i)
 #define zt_fjzre(beg) for(int j = (int)zt_elementsOf((beg)); j >= 0; --j)
 #define zt_fkzre(beg) for(int k = (int)zt_elementsOf((beg)); k >= 0; --k)
+#define zt_fxzre(beg) for(int x = (int)zt_elementsOf((beg)); x >= 0; --x)
+#define zt_fyzre(beg) for(int y = (int)zt_elementsOf((beg)); y >= 0; --y)
+#define zt_fzzre(beg) for(int z = (int)zt_elementsOf((beg)); z >= 0; --z)
 #define zt_flink(var,start) for(auto *var = start; var != nullptr; var = var->next)
 #define zt_flinknext(var,start,next_var) for(auto *var = start; var != nullptr; var = var->next_var)
 
@@ -333,6 +345,8 @@ struct ztVec2
 
 	static const ztVec2 zero;
 	static const ztVec2 one;
+	static const ztVec2 min;
+	static const ztVec2 max;
 
 #if defined(ZT_VEC2_EXTRAS)
 	ZT_VEC2_EXTRAS	// use this to add conversions to and from your own classes
@@ -378,8 +392,10 @@ struct ztVec3
 	ztVec3& operator*=(r32 v) { x *= v; y *= v; z *= v; return *this; }
 	ztVec3& operator*=(const ztVec3& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
 
-	bool operator==(const ztVec3& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z); }
-	bool operator!=(const ztVec3& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y) || !zt_real32Eq(z, v.z); }
+	bool operator==(const ztVec3& v) const { return x == v.x && y == v.y && z == v.z; }
+	bool operator!=(const ztVec3& v) const { return x != v.x || y != v.y || z != v.z; }
+
+	bool equalsClose(const ztVec3& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z); }
 
 	r32 length() const;
 	r32 dot(const ztVec3& v) const;
@@ -401,6 +417,8 @@ struct ztVec3
 
 	static const ztVec3 zero;
 	static const ztVec3 one;
+	static const ztVec3 min;
+	static const ztVec3 max;
 
 #if defined(ZT_VEC3_EXTRAS)
 	ZT_VEC3_EXTRAS	// use this to add conversions to and from your own classes
@@ -475,6 +493,8 @@ struct ztVec4
 
 	static const ztVec4 zero;
 	static const ztVec4 one;
+	static const ztVec4 min;
+	static const ztVec4 max;
 
 #if defined(ZT_VEC4_EXTRAS)
 	ZT_VEC4_EXTRAS	// use this to add conversions to and from your own classes
@@ -598,6 +618,9 @@ struct ztMat4
 	ztMat4 getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = ztVec3(0, 1, 0)) const;
 
 	void extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale); // does not work well with scaled matrices
+
+	void removeTranslation();
+	ztMat4 getRemoveTranslation();
 
 	ztMat4& operator*=(const ztMat4& mat4);
 	ztMat4& operator*=(const ztVec3& vec3);
@@ -744,6 +767,7 @@ r32 zt_atan(r32 v);
 r32 zt_atan2(r32 x, r32 y);
 r32 zt_sqrt(r32 v);
 r32 zt_pow(r32 v, r32 p);
+r32 zt_exp(r32 v);
 
 i32 zt_lerp(i32 v1, i32 v2, r32 percent);
 i32 zt_unlerp(i32 v1, i32 v2, r32 percent);
@@ -751,6 +775,138 @@ i32 zt_unlerp(i32 v1, i32 v2, r32 percent);
 // ------------------------------------------------------------------------------------------------
 
 void zt_assert_raw(const char *condition_name, const char *file, int file_line);
+
+
+// ------------------------------------------------------------------------------------------------
+// Variant
+
+enum ztVariant_Enum
+{
+	ztVariant_i8,
+	ztVariant_i16,
+	ztVariant_i32,
+	ztVariant_i64,
+	ztVariant_u8,
+	ztVariant_u16,
+	ztVariant_u32,
+	ztVariant_u64,
+	ztVariant_r32,
+	ztVariant_r64,
+	ztVariant_voidp,
+	ztVariant_vec2,
+	ztVariant_vec3,
+	ztVariant_vec4,
+	ztVariant_mat4,
+	ztVariant_quat,
+};
+
+
+struct ztVariant
+{
+	ztVariant_Enum type;
+
+	union
+	{
+		i8    v_i8;
+		i16   v_i16;
+		i32   v_i32;
+		i64   v_i64;
+		u8    v_u8;
+		u16   v_u16;
+		u32   v_u32;
+		u64   v_u64;
+		void *v_voidp;
+		r32   v_vec2[2];
+		r32   v_vec3[3];
+		r32   v_vec4[4];
+		r32   v_mat4[16];
+		r32   v_quat[4];
+	};
+};
+
+struct ztVariantPointer
+{
+	ztVariant_Enum type;
+
+	union
+	{
+		byte   *v_byte;
+		i8     *v_i8;
+		i16    *v_i16;
+		i32    *v_i32;
+		i64    *v_i64;
+		u8     *v_u8;
+		u16    *v_u16;
+		u32    *v_u32;
+		u64    *v_u64;
+		void  **v_voidp;
+		ztVec2 *v_vec2;
+		ztVec3 *v_vec3;
+		ztVec4 *v_vec4;
+		ztMat4 *v_mat4;
+		ztQuat *v_quat;
+	};
+};
+
+ztInline ztVariant zt_variantMake(i8 val);
+ztInline ztVariant zt_variantMake(i16 val);
+ztInline ztVariant zt_variantMake(i32 val);
+ztInline ztVariant zt_variantMake(i64 val);
+ztInline ztVariant zt_variantMake(u8 val);
+ztInline ztVariant zt_variantMake(u16 val);
+ztInline ztVariant zt_variantMake(u32 val);
+ztInline ztVariant zt_variantMake(u64 val);
+ztInline ztVariant zt_variantMake(void *val);
+ztInline ztVariant zt_variantMakeVec2(r32 val[2]);
+ztInline ztVariant zt_variantMakeVec3(r32 val[3]);
+ztInline ztVariant zt_variantMakeVec4(r32 val[4]);
+ztInline ztVariant zt_variantMakeMat4(r32 val[16]);
+ztInline ztVariant zt_variantMakeQuat(r32 val[4]);
+
+ztInline ztVariantPointer zt_variantPointerMake(i8 *val);
+ztInline ztVariantPointer zt_variantPointerMake(i16 *val);
+ztInline ztVariantPointer zt_variantPointerMake(i32 *val);
+ztInline ztVariantPointer zt_variantPointerMake(i64 *val);
+ztInline ztVariantPointer zt_variantPointerMake(u8 *val);
+ztInline ztVariantPointer zt_variantPointerMake(u16 *val);
+ztInline ztVariantPointer zt_variantPointerMake(u32 *val);
+ztInline ztVariantPointer zt_variantPointerMake(u64 *val);
+ztInline ztVariantPointer zt_variantPointerMake(void **val);
+ztInline ztVariantPointer zt_variantPointerMakeVec2(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMakeVec3(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMakeVec4(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMakeMat4(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMakeQuat(r32 *val);
+
+ztInline i8     zt_variantGetAs_i8(ztVariant *variant);
+ztInline i16    zt_variantGetAs_i16(ztVariant *variant);
+ztInline i32    zt_variantGetAs_i32(ztVariant *variant);
+ztInline i64    zt_variantGetAs_i64(ztVariant *variant);
+ztInline u8     zt_variantGetAs_u8(ztVariant *variant);
+ztInline u16    zt_variantGetAs_u16(ztVariant *variant);
+ztInline u32    zt_variantGetAs_u32(ztVariant *variant);
+ztInline u64    zt_variantGetAs_u64(ztVariant *variant);
+ztInline void  *zt_variantGetAs_voidp(ztVariant *variant);
+ztInline ztVec2 zt_variantGetAs_vec2(ztVariant *variant);
+ztInline ztVec3 zt_variantGetAs_vec3(ztVariant *variant);
+ztInline ztVec4 zt_variantGetAs_vec4(ztVariant *variant);
+ztInline ztMat4 zt_variantGetAs_mat4(ztVariant *variant);
+ztInline ztQuat zt_variantGetAs_quat(ztVariant *variant);
+
+ztInline i8     *zt_variantGetAs_i8(ztVariantPointer *variant);
+ztInline i16    *zt_variantGetAs_i16(ztVariantPointer *variant);
+ztInline i32    *zt_variantGetAs_i32(ztVariantPointer *variant);
+ztInline i64    *zt_variantGetAs_i64(ztVariantPointer *variant);
+ztInline u8     *zt_variantGetAs_u8(ztVariantPointer *variant);
+ztInline u16    *zt_variantGetAs_u16(ztVariantPointer *variant);
+ztInline u32    *zt_variantGetAs_u32(ztVariantPointer *variant);
+ztInline u64    *zt_variantGetAs_u64(ztVariantPointer *variant);
+ztInline void  **zt_variantGetAs_voidp(ztVariantPointer *variant);
+ztInline ztVec2 *zt_variantGetAs_vec2(ztVariantPointer *variant);
+ztInline ztVec3 *zt_variantGetAs_vec3(ztVariantPointer *variant);
+ztInline ztVec4 *zt_variantGetAs_vec4(ztVariantPointer *variant);
+ztInline ztMat4 *zt_variantGetAs_mat4(ztVariantPointer *variant);
+ztInline ztQuat *zt_variantGetAs_quat(ztVariantPointer *variant);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1413,6 +1569,28 @@ public:
 			if(item_find_ptr->next == nullptr) break; \
 		} \
 	}
+
+
+// ------------------------------------------------------------------------------------------------
+// arrays
+
+#define zt_arrayResizeArenaCopy(arr, type, old_size, new_size, arena) \
+	{ \
+		type *resized = zt_mallocStructArrayArena(type, new_size, arena); \
+		zt_memCpy(resized, new_size * zt_sizeof(type), arr, old_size * zt_sizeof(type)); \
+		type *copy = arr; \
+		arr = resized; \
+		zt_freeArena(copy, arena); \
+	}
+
+// ------------------------------------------------------------------------------------------------
+
+#define zt_arrayResizeArenaNoCopy(arr, type, new_size, arena) \
+	{ \
+		zt_freeArena(arr, arena); \
+		arr = zt_mallocStructArrayArena(type, new_size, arena); \
+	}
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2278,6 +2456,71 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 	r /= scale;
 	return r;
 }
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVariant        zt_variantMake           (i8            val)          { ztVariant var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
+ztInline ztVariant        zt_variantMake           (i16           val)          { ztVariant var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
+ztInline ztVariant        zt_variantMake           (i32           val)          { ztVariant var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
+ztInline ztVariant        zt_variantMake           (i64           val)          { ztVariant var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
+ztInline ztVariant        zt_variantMake           (u8            val)          { ztVariant var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
+ztInline ztVariant        zt_variantMake           (u16           val)          { ztVariant var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
+ztInline ztVariant        zt_variantMake           (u32           val)          { ztVariant var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
+ztInline ztVariant        zt_variantMake           (u64           val)          { ztVariant var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
+ztInline ztVariant        zt_variantMake           (void         *val)          { ztVariant var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
+ztInline ztVariant        zt_variantMakeVec2       (const ztVec2& val)          { ztVariant var; var.type = ztVariant_vec2 ; zt_fize(val.values) var.v_vec2[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMakeVec3       (const ztVec3& val)          { ztVariant var; var.type = ztVariant_vec3 ; zt_fize(val.values) var.v_vec3[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMakeVec4       (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; zt_fize(val.values) var.v_vec4[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMakeMat4       (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; zt_fize(val.values) var.v_mat4[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMakeQuat       (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; zt_fize(val.values) var.v_quat[i] = val.values[i]; return var; }
+
+ztInline ztVariantPointer zt_variantPointerMake    (i8           *val)          { ztVariantPointer var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (i16          *val)          { ztVariantPointer var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (i32          *val)          { ztVariantPointer var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (i64          *val)          { ztVariantPointer var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (u8           *val)          { ztVariantPointer var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (u16          *val)          { ztVariantPointer var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (u32          *val)          { ztVariantPointer var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (u64          *val)          { ztVariantPointer var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake    (void        **val)          { ztVariantPointer var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMakeVec2(ztVec2       *val)          { ztVariantPointer var; var.type = ztVariant_vec2 ; var.v_vec2  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMakeVec3(ztVec3       *val)          { ztVariantPointer var; var.type = ztVariant_vec3 ; var.v_vec3  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMakeVec4(ztVec4       *val)          { ztVariantPointer var; var.type = ztVariant_vec4 ; var.v_vec4  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMakeMat4(ztMat4       *val)          { ztVariantPointer var; var.type = ztVariant_mat4 ; var.v_mat4  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMakeQuat(ztQuat       *val)          { ztVariantPointer var; var.type = ztVariant_quat ; var.v_quat  = val; return var; }
+
+ztInline i8               zt_variantGetAs_i8       (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
+ztInline i16              zt_variantGetAs_i16      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i16  ); return variant->v_i16; }
+ztInline i32              zt_variantGetAs_i32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i32  ); return variant->v_i32; }
+ztInline i64              zt_variantGetAs_i64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i64  ); return variant->v_i64; }
+ztInline u8               zt_variantGetAs_u8       (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u8   ); return variant->v_u8; }
+ztInline u16              zt_variantGetAs_u16      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u16  ); return variant->v_u16; }
+ztInline u32              zt_variantGetAs_u32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u32  ); return variant->v_u32; }
+ztInline u64              zt_variantGetAs_u64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u64  ); return variant->v_u64; }
+ztInline void            *zt_variantGetAs_voidp    (ztVariant *variant)         { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
+ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return ztVec2(variant->v_vec2[0], variant->v_vec2[1]); }
+ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return ztVec3(variant->v_vec3[0], variant->v_vec3[1], variant->v_vec3[2]); }
+ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return ztVec4(variant->v_vec4[0], variant->v_vec4[1], variant->v_vec4[2], variant->v_vec4[3]); }
+ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return ztMat4(variant->v_mat4); }
+ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return ztQuat(variant->v_quat); }
+
+ztInline i8              *zt_variantGetAs_i8       (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
+ztInline i16             *zt_variantGetAs_i16      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i16  ); return variant->v_i16; }
+ztInline i32             *zt_variantGetAs_i32      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i32  ); return variant->v_i32; }
+ztInline i64             *zt_variantGetAs_i64      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i64  ); return variant->v_i64; }
+ztInline u8              *zt_variantGetAs_u8       (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u8   ); return variant->v_u8; }
+ztInline u16             *zt_variantGetAs_u16      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u16  ); return variant->v_u16; }
+ztInline u32             *zt_variantGetAs_u32      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u32  ); return variant->v_u32; }
+ztInline u64             *zt_variantGetAs_u64      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u64  ); return variant->v_u64; }
+ztInline void           **zt_variantGetAs_voidp    (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
+ztInline ztVec2          *zt_variantGetAs_vec2     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec2 ); return variant->v_vec2; }
+ztInline ztVec3          *zt_variantGetAs_vec3     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec3 ); return variant->v_vec3; }
+ztInline ztVec4          *zt_variantGetAs_vec4     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec4 ); return variant->v_vec4; }
+ztInline ztMat4          *zt_variantGetAs_mat4     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_mat4 ); return variant->v_mat4; }
+ztInline ztQuat          *zt_variantGetAs_quat     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_quat ); return variant->v_quat; }
+
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -3169,13 +3412,19 @@ void zt_memFreeGlobal(void *data)
 // ------------------------------------------------------------------------------------------------
 
 /*static*/ const ztVec2 ztVec2::zero = ztVec2(0, 0);
-/*static*/ const ztVec2 ztVec2::one = ztVec2(1, 1);
+/*static*/ const ztVec2 ztVec2::one  = ztVec2(1, 1);
+/*static*/ const ztVec2 ztVec2::min  = ztVec2(ztReal32Min, ztReal32Min);
+/*static*/ const ztVec2 ztVec2::max  = ztVec2(ztReal32Max, ztReal32Max);
 
 /*static*/ const ztVec3 ztVec3::zero = ztVec3(0, 0, 0);
-/*static*/ const ztVec3 ztVec3::one = ztVec3(1, 1, 1);
+/*static*/ const ztVec3 ztVec3::one  = ztVec3(1, 1, 1);
+/*static*/ const ztVec3 ztVec3::min  = ztVec3(ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec3 ztVec3::max  = ztVec3(ztReal32Max, ztReal32Max, ztReal32Max);
 
 /*static*/ const ztVec4 ztVec4::zero = ztVec4(0, 0, 0, 0);
-/*static*/ const ztVec4 ztVec4::one = ztVec4(1, 1, 1, 1);
+/*static*/ const ztVec4 ztVec4::one  = ztVec4(1, 1, 1, 1);
+/*static*/ const ztVec4 ztVec4::min  = ztVec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec4 ztVec4::max  = ztVec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
 
 /*static*/ const ztMat4 ztMat4::zero = ztMat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 /*static*/ const ztMat4 ztMat4::identity = ztMat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
@@ -3245,6 +3494,12 @@ r32 zt_pow(r32 v, r32 p)
 	return powf(v, p);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_exp(r32 v)
+{
+	return expf(v);
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -3515,6 +3770,23 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) // does 
 		scale->y = ztVec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
 		scale->z = ztVec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztMat4::removeTranslation()
+{
+	values[ztMat4_Col3Row0] = values[ztMat4_Col3Row1] = values[ztMat4_Col3Row2] = 0;
+	//values[ztMat4_Col0Row3] = values[ztMat4_Col1Row3] = values[ztMat4_Col2Row3] = 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztMat4 ztMat4::getRemoveTranslation()
+{
+	ztMat4 copy(*this);
+	copy.removeTranslation();
+	return copy;
 }
 
 // ------------------------------------------------------------------------------------------------
