@@ -1970,6 +1970,139 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt);
 
 
 // ------------------------------------------------------------------------------------------------
+// animation
+
+
+// ------------------------------------------------------------------------------------------------
+// ztAnimKey
+// 
+// Represents a single key frame in an animation.  Can point to any ztVariant value.
+
+struct ztAnimKey
+{
+	ztVariantPointer      target;
+
+	ztVariant             value_beg;
+	ztVariant             value_end;
+
+	r32                   time;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time);
+
+
+// ------------------------------------------------------------------------------------------------
+// ztAnimLayer
+//
+// Represents a collection of key frames for a single variable
+
+enum ztAnimLayerState_Enum
+{
+	ztAnimLayerState_Sleeping,
+	ztAnimLayerState_Transitioning,
+	ztAnimLayerState_Playing,
+};
+
+
+struct ztAnimLayer
+{
+	ztAnimKey            *keys;
+	int                   keys_count;
+
+	ztAnimLayerState_Enum state;
+	int                   current_key;
+	r32                   current_time;
+
+	ztVariant             value_beg;
+	ztVariant             value_end;
+	r32                   target_time;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count);
+void        zt_animLayerFree(ztAnimLayer *layer);
+
+
+// ------------------------------------------------------------------------------------------------
+// ztAnimSequence
+//
+// Represents a group of layers combined together, such as a walking animation that has
+// arms, legs and bodies all keyframed together
+
+enum ztAnimSequenceType_Enum
+{
+	ztAnimSequenceType_Synchronous,     // only one of these can be running at the same time (running, jumping, idle, etc)
+	ztAnimSequenceType_Asynchronous,    // any number of these can be running at the same time (blinking, breathing, talking)
+
+	ztAnimSequenceType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztAnimTransition_Enum
+{
+	ztAnimTransition_Snap,      // the target value snaps to the beginning value at the start of the animation
+	ztAnimTransition_Interp,    // the target value will move to the beginning value over the transition time
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztAnimSequence
+{
+	ztAnimSequenceType_Enum type;
+
+	ztAnimLayer            *layers;
+	int                     layers_count;
+
+	ztAnimTransition_Enum   transition_type;
+	r32                     transition_time;
+
+	bool                    loops;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops);
+void            zt_animSequenceFree(ztAnimSequence *sequence);
+
+r32             zt_animSequencePercentComplete(ztAnimSequence *sequence);
+
+
+// ------------------------------------------------------------------------------------------------
+// ztAnimController
+//
+// Represents a collection of animation sequences for a single actor/game object
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztAnimController
+{
+	i32              *sequences_name_hash;
+	ztString         *sequences_name;
+	ztAnimSequence  **sequences;
+	int               sequences_size;
+	int               sequences_count;
+
+	ztAnimSequence   *anim_sync;
+	ztAnimSequence  **anim_async;
+	int               anim_async_count;
+
+	i32               queued;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztAnimController *zt_animControllerMake(int max_sequences, int max_async = 4);
+void              zt_animControllerFree(ztAnimController *controller);
+i32               zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence);
+void              zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash);
+void              zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt);
+
+
+// ------------------------------------------------------------------------------------------------
 // audio
 
 typedef i32 ztAudioClipID;
@@ -1987,6 +2120,7 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id);
 
 void zt_audioSetMute(bool mute);
 bool zt_audioGetMute();
+
 
 
 // ------------------------------------------------------------------------------------------------
@@ -2300,10 +2434,6 @@ struct ztAudioClip
 #ifndef ZT_MAX_AUDIO_CLIPS
 #define ZT_MAX_AUDIO_CLIPS  128
 #endif
-
-// ------------------------------------------------------------------------------------------------
-
-struct ztGuiManager;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -12067,6 +12197,377 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 
 	return false;
 }
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time)
+{
+	ztAnimKey anim_key;
+	anim_key.target    = target;
+	anim_key.value_beg = value_beg;
+	anim_key.value_end = value_end;
+	anim_key.time      = time;
+
+	return anim_key;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count)
+{
+	ztAnimLayer layer;
+
+	layer.keys = zt_mallocStructArray(ztAnimKey, keys_count);
+	layer.keys_count = keys_count;
+	zt_fiz(keys_count) {
+		layer.keys[i] = keys[i];
+	}
+
+	layer.state        = ztAnimLayerState_Sleeping;
+	layer.current_key  = 0;
+	layer.current_time = 0;
+	layer.target_time  = 0;
+
+	return layer;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_animLayerFree(ztAnimLayer *layer)
+{
+	if (layer == nullptr) {
+		return;
+	}
+
+	zt_free(layer->keys);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline void _zt_animLayerTransitionInto(ztAnimLayer *layer, r32 transition_time)
+{
+	zt_variantAssignValue(&layer->value_beg, zt_variantMake(&layer->keys[0].target));
+	zt_variantAssignValue(&layer->value_end, layer->keys[0].value_beg);
+	layer->state        = ztAnimLayerState_Transitioning;
+	layer->current_time = 0;
+	layer->current_key  = 0;
+	layer->target_time  = transition_time;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline void _zt_animLayerStart(ztAnimLayer *layer)
+{
+	zt_variantAssignValue(&layer->value_beg, layer->keys[0].value_beg);
+	zt_variantAssignValue(&layer->value_end, layer->keys[0].value_end);
+	zt_variantAssignValue(&layer->keys[0].target, layer->keys[0].value_beg);
+	layer->state        = ztAnimLayerState_Playing;
+	layer->current_time = 0;
+	layer->current_key  = 0;
+	layer->target_time  = layer->keys[0].time;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
+{
+	if (layer->state == ztAnimLayerState_Sleeping) {
+		return false;
+	}
+
+	layer->current_time += dt;
+
+	ztAnimKey *key = &layer->keys[layer->current_key];
+
+	zt_variantAssignValue(&key->target, zt_variantLerp(&layer->value_beg, &layer->value_end, zt_min(1, layer->current_time / layer->target_time)));
+
+	if (layer->current_time > layer->target_time) {
+		layer->current_time -= layer->target_time;
+
+		if (layer->state == ztAnimLayerState_Transitioning) {
+			_zt_animLayerStart(layer);
+		}
+		else {
+			layer->current_key += 1;
+			if (layer->current_key >= layer->keys_count) {
+				layer->state = ztAnimLayerState_Sleeping;
+				return false;
+			}
+			else {
+				layer->target_time = layer->keys[layer->current_key].time;
+			}
+
+			zt_variantAssignValue(&layer->value_beg, layer->keys[layer->current_key].value_beg);
+			zt_variantAssignValue(&layer->value_end, layer->keys[layer->current_key].value_end);
+			zt_variantAssignValue(&layer->keys[layer->current_key].target, layer->keys[layer->current_key].value_beg);
+		}
+	}
+
+	return true;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops)
+{
+	ztAnimSequence *sequence = zt_mallocStruct(ztAnimSequence);
+
+	sequence->type = type;
+
+	sequence->layers = zt_mallocStructArray(ztAnimLayer, layers_count);
+	sequence->layers_count = layers_count;
+	zt_fiz(layers_count) {
+		sequence->layers[i] = layers[i];
+	}
+
+	sequence->transition_type = transition_type;
+	sequence->transition_time = transition_time;
+	sequence->loops = loops;
+
+	return sequence;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_animSequenceFree(ztAnimSequence *sequence)
+{
+	if (sequence == nullptr) {
+		return;
+	}
+	zt_fiz(sequence->layers_count) {
+		zt_animLayerFree(&sequence->layers[i]);
+	}
+	zt_free(sequence->layers);
+	zt_free(sequence);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
+{
+	r32 longest_layer_time = 0;
+	r32 longest_layer_curr = 0;
+
+	zt_fiz(sequence->layers_count) {
+		if (sequence->layers[i].state != ztAnimLayerState_Sleeping) {
+			longest_layer_time = zt_max(longest_layer_time, sequence->layers[i].target_time);
+			longest_layer_curr = zt_max(longest_layer_curr, sequence->layers[i].current_time);
+		}
+	}
+
+	if (longest_layer_time == 0) {
+		return 1;
+	}
+
+	return longest_layer_curr / longest_layer_time;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence)
+{
+	if(sequence->transition_type == ztAnimTransition_Interp) {
+		zt_fiz(sequence->layers_count) {
+			_zt_animLayerTransitionInto(&sequence->layers[i], sequence->transition_time);
+		}
+	}
+	else {
+		zt_fiz(sequence->layers_count) {
+			_zt_animLayerStart(&sequence->layers[i]);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
+{
+	int layers_processed = 0;
+	zt_fiz(sequence->layers_count) {
+		if(sequence->layers[i].state == ztAnimLayerState_Sleeping) {
+			continue;
+		}
+
+		if(_zt_animLayerUpdate(&sequence->layers[i], dt)) {
+			layers_processed += 1;
+		}
+	}
+
+	if(layers_processed == 0 && sequence->loops) {
+		_zt_animSequenceStart(sequence);
+		return true;
+	}
+
+	return layers_processed != 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztAnimController *zt_animControllerMake(int max_sequences, int max_async)
+{
+	ztAnimController *controller = zt_mallocStruct(ztAnimController);
+
+	controller->sequences_name_hash = zt_mallocStructArray(i32, max_sequences);
+	controller->sequences_name      = zt_mallocStructArray(ztString, max_sequences);
+	controller->sequences           = zt_mallocStructArray(ztAnimSequence*, max_sequences);
+	controller->sequences_size      = max_sequences;
+	controller->sequences_count     = 0;
+
+	controller->anim_sync           = nullptr;
+
+	controller->anim_async_count = max_async;
+	controller->anim_async = max_async > 0 ? zt_mallocStructArray(ztAnimSequence*, max_async) : nullptr;
+
+	zt_fiz(max_async) {
+		controller->anim_async[i] = nullptr;
+	}
+
+	controller->queued = 0;
+
+	return controller;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_animControllerFree(ztAnimController *controller)
+{
+	if (controller == nullptr) {
+		return;
+	}
+
+	zt_fiz(controller->sequences_count) {
+		zt_stringFree(controller->sequences_name[i]);
+		zt_animSequenceFree(controller->sequences[i]);
+	}
+
+	if (controller->anim_async) {
+		zt_free(controller->anim_async);
+	}
+
+	zt_free(controller->sequences);
+	zt_free(controller->sequences_name);
+	zt_free(controller->sequences_name_hash);
+	zt_free(controller);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence)
+{
+	zt_returnValOnNull(controller, -1);
+	zt_returnValOnNull(sequence_name, -1);
+	zt_returnValOnNull(sequence, -1);
+	zt_assertReturnValOnFail(sequence->layers_count > 0, -1);
+
+	if (controller->sequences_count >= controller->sequences_size) {
+		return -1;
+	}
+
+	int idx = controller->sequences_count++;
+	controller->sequences          [idx] = sequence;
+	controller->sequences_name     [idx] = zt_stringMakeFrom(sequence_name);
+	controller->sequences_name_hash[idx] = zt_strHash(sequence_name);
+
+	return controller->sequences_name_hash[idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash)
+{
+	ztAnimSequence *sequence = nullptr;
+
+	zt_fiz(controller->sequences_count) {
+		if (controller->sequences_name_hash[i] == sequence_name_hash) {
+			sequence = controller->sequences[i];
+			break;
+		}
+	}
+
+	if (!sequence) return;
+
+	if (sequence->type == ztAnimSequenceType_Synchronous) {
+		controller->anim_sync = sequence;
+	}
+	else if (sequence->type == ztAnimSequenceType_Asynchronous) {
+		int idx = -1;
+		zt_fxz(3) {
+			r32 most_complete = 0;
+			zt_fiz(controller->anim_async_count) {
+				r32 pct = controller->anim_async[i] == nullptr ? 1 : zt_animSequencePercentComplete(controller->anim_async[i]);
+
+				if (x == 0 && pct == 1) {
+					idx = i;
+					break;
+				}
+				else if (x == 1 && controller->anim_async[i]->layers[0].state == ztAnimLayerState_Transitioning) {
+					if (1 - pct > most_complete) {
+						most_complete = 1 - pct;
+						idx = i;
+					}
+				}
+				else if (x == 2) {
+					if (pct > most_complete) {
+						most_complete = pct;
+						idx = i;
+					}
+				}
+			}
+			if (idx != -1) {
+				controller->anim_async[idx] = sequence;
+				break;
+			}
+		}
+		if(idx == -1) {
+			return;
+		}
+	}
+
+	_zt_animSequenceStart(sequence);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt)
+{
+	zt_fiz(controllers_count) {
+		ztAnimController *controller = controllers[i];
+
+		if(controller->anim_sync) {
+			if(!_zt_animSequenceUpdate(controller->anim_sync, dt)) {
+				if (controller->queued != 0) {
+					i32 queued = controller->queued;
+					controller->queued = 0;
+					zt_animControllerStartSequence(controller, queued);
+				}
+				else {
+					controller->anim_sync = nullptr;
+				}
+			}
+		}
+
+		zt_fiz(controller->anim_async_count) {
+			if(controller->anim_async[i] == nullptr) {
+				continue;
+			}
+			if(!_zt_animSequenceUpdate(controller->anim_async[i], dt)) {
+				controller->anim_async[i] = nullptr;
+			}
+		}
+	}
+}
+
 
 
 // ------------------------------------------------------------------------------------------------
