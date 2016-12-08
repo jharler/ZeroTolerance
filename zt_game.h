@@ -2098,8 +2098,41 @@ struct ztAnimController
 ztAnimController *zt_animControllerMake(int max_sequences, int max_async = 4);
 void              zt_animControllerFree(ztAnimController *controller);
 i32               zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence);
-void              zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash);
+int               zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash);
 void              zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt);
+
+
+// ------------------------------------------------------------------------------------------------
+// sprite animation
+
+struct ztSpriteAnimController
+{
+	struct Sequence
+	{
+		ztSprite *sprites;
+		int       sprites_size;
+		int       current_sprite;
+	};
+
+	Sequence         *sequences;
+	int               sequences_size;
+	int               sequences_count;
+
+	int               active_sequence;
+
+	ztAnimController *controller;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences);
+void zt_spriteAnimControllerFree(ztSpriteAnimController *controller);
+
+void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, const char *sequence_name, ztSprite *sprites, r32 *times, int sprites_count, bool loops);
+void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i32 sequence_name_hash);
+void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int controllers_count, r32 dt);
+
+ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -5002,7 +5035,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					}
 				}
 
-				if (shader_id == ztInvalidID) {
+				if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 					glColor4fv(active_color.values);
 				}
 
@@ -5230,7 +5263,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_ChangeColor: {
 							active_color = cmp_item->command->color;
 
-							if (shader_id == ztInvalidID) {
+							if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 								glColor4fv(active_color.values);
 							}
 						} break;
@@ -12484,18 +12517,20 @@ i32 zt_animControllerAddSequence(ztAnimController *controller, const char *seque
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash)
+int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash)
 {
 	ztAnimSequence *sequence = nullptr;
 
+	int result = -1;
 	zt_fiz(controller->sequences_count) {
 		if (controller->sequences_name_hash[i] == sequence_name_hash) {
 			sequence = controller->sequences[i];
+			result = i;
 			break;
 		}
 	}
 
-	if (!sequence) return;
+	if (!sequence) return -1;
 
 	if (sequence->type == ztAnimSequenceType_Synchronous) {
 		controller->anim_sync = sequence;
@@ -12530,11 +12565,13 @@ void zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_n
 			}
 		}
 		if(idx == -1) {
-			return;
+			return -1;
 		}
 	}
 
 	_zt_animSequenceStart(sequence);
+
+	return result;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -12568,6 +12605,125 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 	}
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences)
+{
+	ztSpriteAnimController *controller = zt_mallocStruct(ztSpriteAnimController);
+	controller->sequences = zt_mallocStructArray(ztSpriteAnimController::Sequence, max_sequences);
+	controller->sequences_size = max_sequences;
+	controller->sequences_count = 0;
+
+	controller->controller = zt_animControllerMake(max_sequences, 0);
+
+	return controller;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteAnimControllerFree(ztSpriteAnimController *controller)
+{
+	if(controller == nullptr) {
+		return;
+	}
+
+	zt_animControllerFree(controller->controller);
+
+	zt_fiz(controller->sequences_count) {
+		zt_free(controller->sequences[i].sprites);
+	}
+
+	zt_free(controller->sequences);
+	zt_free(controller);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, const char *sequence_name, ztSprite *sprites, r32 *times, int sprites_count, bool loops)
+{
+	zt_returnOnNull(controller);
+	zt_returnOnNull(sequence_name);
+	zt_returnOnNull(sprites);
+	zt_returnOnNull(times);
+	zt_assertReturnOnFail(sprites_count > 0);
+	zt_assertReturnOnFail(controller->sequences_count < controller->sequences_size);
+
+	ztSpriteAnimController::Sequence *sequence = &controller->sequences[controller->sequences_count++];
+
+	ztAnimKey *keys = zt_mallocStructArray(ztAnimKey, sprites_count);
+	zt_fiz(sprites_count) {
+		keys[i] = zt_animKeyMake(zt_variantPointerMake(&sequence->current_sprite), zt_variantMake(i), zt_variantMake(i+1), times[i]);
+	}
+
+	ztAnimLayer layer = zt_animLayerMake(keys, sprites_count);
+
+	zt_free(keys);
+
+	ztAnimSequence *a_sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, &layer, 1, ztAnimTransition_Snap, 0, loops);
+	zt_animControllerAddSequence(controller->controller, sequence_name, a_sequence);
+
+	sequence->sprites = zt_mallocStructArray(ztSprite, sprites_count);
+	sequence->sprites_size = sprites_count;
+	sequence->current_sprite = -1;
+
+	zt_fiz(sprites_count) {
+		sequence->sprites[i] = sprites[i];
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i32 sequence_name_hash)
+{
+	zt_returnOnNull(controller);
+
+	int active = zt_animControllerStartSequence(controller->controller, sequence_name_hash);
+	if(active == -1 ) {
+		return;
+	}
+
+	controller->active_sequence = active;
+	controller->sequences[active].current_sprite = 0;
+	return;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int controllers_count, r32 dt)
+{
+	zt_fiz(controllers_count) {
+		zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
+
+		if(controllers[i]->active_sequence >= 0 && controllers[i]->active_sequence < controllers[i]->sequences_count) {
+
+			ztSpriteAnimController::Sequence *sequence = &controllers[i]->sequences[controllers[i]->active_sequence];
+
+			if(sequence->current_sprite >= 0 && sequence->current_sprite < sequence->sprites_size) {
+				zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller)
+{
+	if(controller->active_sequence < 0 || controller->active_sequence >= controller->sequences_count) {
+		return nullptr;
+	}
+
+	ztSpriteAnimController::Sequence *sequence = &controller->sequences[controller->active_sequence];
+
+	if (sequence->current_sprite < 0 || sequence->current_sprite >= sequence->sprites_size) {
+		return nullptr;
+	}
+
+	return &sequence->sprites[sequence->current_sprite];
+}
 
 
 // ------------------------------------------------------------------------------------------------
