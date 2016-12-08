@@ -357,6 +357,7 @@ ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator*(const ztVec2& v1, r32 scale);
+ztInline ztVec2 operator*(r32 scale, const ztVec2& v1);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -429,6 +430,7 @@ ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator*(const ztVec3& v1, r32 scale);
+ztInline ztVec3 operator*(r32 scale, const ztVec3& v1);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -505,6 +507,7 @@ ztInline ztVec4 operator+(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale);
+ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
 
 typedef ztVec4 ztColor;
 #define ztColour ztColor;	// pick your favorite (favourite?)
@@ -1905,6 +1908,13 @@ ztInline ztVec2 operator*(const ztVec2& v1, r32 scale)
 }
 
 // ------------------------------------------------------------------------------------------------
+
+ztInline ztVec2 operator*(r32 scale, const ztVec2& v1)
+{
+	return ztVec2(v1.x * scale, v1.y * scale);
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2037,6 +2047,12 @@ ztInline ztVec3 operator*(const ztVec3& v1, r32 scale)
 	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
+{
+	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -2106,6 +2122,13 @@ ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2)
 // ------------------------------------------------------------------------------------------------
 
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
+{
+	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
 	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
