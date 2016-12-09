@@ -2136,6 +2136,118 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 
 
 // ------------------------------------------------------------------------------------------------
+// Pathfinding
+
+#ifndef ZT_PATH_NODE_MAX_NEIGHBORS
+#define ZT_PATH_NODE_MAX_NEIGHBORS 16
+#endif
+
+#define ztPathNodeValue_Reset       -1
+#define ztPathNodeValue_Impassable  -100
+
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztPathNodeFlags_Enum
+{
+	ztPathNodeFlags_Ignore      = (1<<0),
+	ztPathNodeFlags_Waypoint    = (1<<1),
+	ztPathNodeFlags_Obstructed  = (1<<2),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztPathNode
+{
+	ztVec3      position; // not necessarily world coords, but used to determine node distances
+	void       *user_data; // passed to the path cost function
+	u8          flags;
+
+	ztPathNode *neighbors[ZT_PATH_NODE_MAX_NEIGHBORS];
+	int         neighbors_count;
+
+	r32        _my_move_cost;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_PATH_NODE_COST_FUNCTION(name)   r32 name(ztPathNode *origin, ztPathNode *destination, void *user_data)
+typedef ZT_PATH_NODE_COST_FUNCTION(ztPathNodeCost_Func);
+
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztPathGridSquare
+{
+	int rows;
+	int cols;
+
+	ztPathNode *nodes;
+};
+
+ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals);
+void              zt_pathGridSquareFree(ztPathGridSquare *grid);
+ztPathNode       *zt_pathGridSquareAccessNode(ztPathGridSquare *grid, int row, int col);
+bool              zt_pathGridSquareGetCoords(ztPathGridSquare *grid, ztPathNode *node, int *row, int *col);
+bool              zt_pathGridSquareGetNodeIndex(ztPathGridSquare *grid, ztPathNode *node, int *index);
+r32               zt_pathNodeGetDistance(ztPathNode *node_one, ztPathNode *node_two);
+ztPathNode       *zt_pathGridSquareGetNode(ztPathGridSquare *grid, int col, int row);
+
+struct ztPathProgress;
+void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgress *progress);
+
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztPathProgress
+{
+	ztPathNode    *origin;
+	ztPathNode    *destination;
+
+	ztPathNode   **frontier;
+	int            frontier_len;
+
+	ztPathNode   **visited;
+	int            visited_len;
+
+	ztPathNode   **path;
+	int            path_size;
+	int            path_count;
+
+	int            frontier_idx;
+	int            visited_idx;
+
+	ztMemoryArena *arena;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_PATH_EARLY_EXIT_FUNCTION(name)	bool name(ztPathProgress *progress, void *user_data);
+typedef ZT_PATH_EARLY_EXIT_FUNCTION(ztPathEarlyExit_Func);
+
+// ------------------------------------------------------------------------------------------------
+
+ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena);
+void zt_pathProgressFree(ztPathProgress *progress);
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztPathType_Enum
+{
+	ztPathType_Dijkstra,  // dijkstra's algorithm - prioritize by movement cost
+	ztPathType_Heuristic, // heuristic search - prioritize by distance from goal
+	ztPathType_Astar,     // a* uses both movement cost and distance from goal
+
+	ztPathType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_node_cost_func, void *path_cost_user_data, ztPathEarlyExit_Func *early_exit_func, void *early_exit_user_data, ztPathType_Enum path_type);
+
+
+
+// ------------------------------------------------------------------------------------------------
 // audio
 
 typedef i32 ztAudioClipID;
@@ -12723,6 +12835,424 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 	}
 
 	return &sequence->sprites[sequence->current_sprite];
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals)
+{
+	ztPathGridSquare *grid = zt_mallocStruct(ztPathGridSquare);
+	grid->rows = rows;
+	grid->cols = cols;
+
+	grid->nodes = zt_mallocStructArray(ztPathNode, rows * cols);
+
+#	define get_idx(R,C) (((R) < 0 || (R) > rows - 1 || (C) < 0 || (C) > cols - 1) ? -1 : ((R) * cols) + (C))
+
+	int nodes = rows * cols;
+
+	for (int r = 0; r < rows; ++r) {
+		for (int c = 0; c < cols; ++c) {
+			int idx = (r * cols) + c;
+			grid->nodes[idx].position.x = (r32)c;
+			grid->nodes[idx].position.y = (r32)r;
+			grid->nodes[idx].position.z = 0.0f;
+			grid->nodes[idx].flags = 0;
+
+			int neighbors = (r == 0 ? 0 : 1) + (r == rows - 1 ? 0 : 1) + (c == 0 ? 0 : 1) + (c == cols - 1 ? 0 : 1);
+
+			if (allow_diagonals) {
+				neighbors +=
+					(r > 0 && c < cols - 1 ? 1 : 0) + // ne
+					(r < rows - 1 && c < cols - 1 ? 1 : 0) + // se
+					(r < rows - 1 && c > 0 ? 1 : 0) + // sw
+					(r > 0 && c > 0 ? 1 : 0);// nw
+			}
+
+			zt_assert(neighbors <= ZT_PATH_NODE_MAX_NEIGHBORS);
+
+			grid->nodes[idx].neighbors_count = neighbors;
+
+			int idx_n = get_idx(r - 1, c);
+			int idx_s = get_idx(r + 1, c);
+			int idx_e = get_idx(r, c + 1);
+			int idx_w = get_idx(r, c - 1);
+
+			int idx_ne = allow_diagonals ? get_idx(r - 1, c + 1) : -1;
+			int idx_se = allow_diagonals ? get_idx(r + 1, c + 1) : -1;
+			int idx_sw = allow_diagonals ? get_idx(r + 1, c - 1) : -1;
+			int idx_nw = allow_diagonals ? get_idx(r - 1, c - 1) : -1;
+
+			int n_idx = 0;
+			if (idx_n != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_n];
+			if (idx_ne != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_ne];
+			if (idx_s != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_s];
+			if (idx_se != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_se];
+			if (idx_e != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_e];
+			if (idx_sw != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_sw];
+			if (idx_w != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_w];
+			if (idx_nw != -1) grid->nodes[idx].neighbors[n_idx++] = &grid->nodes[idx_nw];
+
+			zt_assert(n_idx == grid->nodes[idx].neighbors_count);
+		}
+	}
+
+#	undef get_idx
+
+	return grid;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_pathGridSquareFree(ztPathGridSquare *grid)
+{
+	if (grid == nullptr) {
+		return;
+	}
+
+	if (grid->nodes) {
+		zt_free(grid->nodes);
+	}
+	zt_free(grid);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztPathNode *zt_pathGridSquareAccessNode(ztPathGridSquare *grid, int row, int col)
+{
+	zt_returnValOnNull(grid, nullptr);
+	if (row < 0 || row >= grid->rows || col < 0 || col >= grid->cols) {
+		return nullptr;
+	}
+
+	int idx = (row * grid->cols) + col;
+	return &grid->nodes[idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_pathGridSquareGetCoords(ztPathGridSquare *grid, ztPathNode *node, int *row, int *col)
+{
+	zt_returnValOnNull(grid, false);
+	zt_returnValOnNull(node, false);
+	zt_returnValOnNull(row, false);
+	zt_returnValOnNull(col, false);
+
+	int max = grid->rows * grid->cols;
+	for (int i = 0; i < max; ++i) {
+		if (node == &grid->nodes[i]) {
+			*row = i / grid->cols;
+			*col = i - ((*row) * grid->cols);
+			return true;
+		}
+	}
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_pathGridSquareGetNodeIndex(ztPathGridSquare *grid, ztPathNode *node, int *index)
+{
+	zt_returnValOnNull(grid, false);
+	zt_returnValOnNull(node, false);
+	zt_returnValOnNull(index, false);
+
+	int max = grid->rows * grid->cols;
+	for (int i = 0; i < max; ++i) {
+		if (node == &grid->nodes[i]) {
+			*index = i;
+			return true;
+		}
+	}
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_pathNodeGetDistance(ztPathNode *node_one, ztPathNode *node_two)
+{
+	zt_returnValOnNull(node_one, 0);
+	zt_returnValOnNull(node_two, 0);
+
+	return node_one->position.distance(node_two->position);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztPathNode *zt_pathGridSquareGetNode(ztPathGridSquare *grid, int col, int row)
+{
+	zt_returnValOnNull(grid, nullptr);
+	return &grid->nodes[col + row * grid->cols];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgress *progress)
+{
+	int max = grid->rows * grid->cols;
+	zt_fiz(max) {
+		zt_bitRemove(grid->nodes[i].flags, ztPathNodeFlags_Ignore);
+		grid->nodes[i]._my_move_cost = ztPathNodeValue_Reset;
+	}
+
+	progress->frontier_idx = 0;
+	progress->visited_idx = 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline bool _zt_pathNodeArrayContains(ztPathNode **arr, int len, ztPathNode *node)
+{
+	zt_fiz(len) {
+		if (arr[i] == node) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline bool _zt_pathArrayInsertBefore(ztPathNode **arr, int len, int *index, int before_index, ztPathNode *node)
+{
+	if (*index == len) {
+		return false;
+	}
+	for (int i = *index; i > before_index; --i) {
+		arr[i] = arr[i - 1];
+	}
+	arr[before_index] = node;
+	*index += 1;
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline bool _zt_pathArrayAddToBegin(ztPathNode **arr, int len, int *index, ztPathNode *node)
+{
+	return _zt_pathArrayInsertBefore(arr, len, index, 0, node);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline bool _zt_pathArrayAddToEnd(ztPathNode **arr, int len, int* index, ztPathNode *node)
+{
+	if (*index == len) {
+		return false;
+	}
+	arr[(*index)++] = node;
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline void _zt_pathArrayRemoveFromBegin(ztPathNode **arr, int len, int* index)
+{
+	for (int i = 1; i < *index; ++i) {
+		arr[i - 1] = arr[i];
+	}
+	*index -= 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena)
+{
+	zt_returnValOnNull(grid, nullptr);
+
+	if (arena == nullptr) {
+		arena = zt_memGetGlobalArena();
+	}
+
+	ztPathProgress *progress = zt_mallocStructArena(ztPathProgress, arena);
+
+	progress->arena = arena;
+
+	progress->origin = nullptr;
+	progress->destination = nullptr;
+
+	int nodes = grid->rows * grid->cols;
+
+	progress->frontier_len = nodes;
+	progress->frontier = zt_mallocStructArrayArena(ztPathNode *, progress->frontier_len, arena);
+
+	progress->visited_len = nodes;
+	progress->visited = zt_mallocStructArrayArena(ztPathNode *, progress->visited_len, arena);
+
+	progress->path_size = nodes;
+	progress->path = zt_mallocStructArrayArena(ztPathNode *, progress->path_size, arena);
+
+	return progress;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_pathProgressFree(ztPathProgress *progress)
+{
+	if (progress == nullptr) {
+		return;
+	}
+
+	zt_freeArena(progress->path, progress->arena);
+	zt_freeArena(progress->visited, progress->arena);
+	zt_freeArena(progress->frontier, progress->arena);
+	zt_freeArena(progress, progress->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal int _zt_pathGridGetSteps(ztPathNode *origin, ztPathNode *destination, ztPathNode **path, int path_max)
+{
+	int steps = 0;
+	bool no_mem = false;
+
+	if (steps >= path_max) {
+		steps += 1;
+		no_mem = true;
+	}
+	else {
+		path[steps++] = destination;
+	}
+
+	ztPathNode *current = destination;
+	while (current != origin) {
+		r32 lowest_movement_cost = ztReal32Max;
+		int lowest_movement_idx = -1;
+		zt_fiz(current->neighbors_count) {
+			if (current->neighbors[i]->_my_move_cost >= 0 && (current->neighbors[i]->_my_move_cost < lowest_movement_cost || lowest_movement_cost == ztPathNodeValue_Impassable)) {
+				lowest_movement_cost = current->neighbors[i]->_my_move_cost;
+				lowest_movement_idx = i;
+			}
+		}
+
+		if (lowest_movement_idx == -1) {
+			return 0;
+		}
+
+		zt_fiz(current->neighbors_count) {
+			if (i != lowest_movement_idx) {
+				//current->neighbors[i]->_my_move_cost = ztPathNodeValue_Impassable; // prevent revisiting old nodes
+			}
+		}
+
+		if (steps >= path_max) {
+			no_mem = true;
+		}
+		else {
+			path[steps] = current->neighbors[lowest_movement_idx];
+		}
+		steps += 1;
+		//current->neighbors[lowest_movement_idx]->_my_move_cost = ztPathNodeValue_Impassable;
+		current = current->neighbors[lowest_movement_idx];
+
+		zt_assert(steps < 100000); // if you're here, you probably forgot to call zt_pathGridSquarePrepareForPathfinding - the movement costs need cleared after the last pathfinding
+	}
+
+	// now we have to reverse the array
+	if (!no_mem) {
+		zt_fiz(steps / 2) {
+			int idx1 = i;
+			int idx2 = steps - (i + 1);
+
+			auto* temp = path[idx1];
+			path[idx1] = path[idx2];
+			path[idx2] = temp;
+		}
+	}
+
+	return steps * (no_mem ? -1 : 1);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_node_cost_func, void *path_cost_user_data, ztPathEarlyExit_Func *early_exit_func, void *early_exit_user_data, ztPathType_Enum path_type)
+{
+	zt_returnValOnNull(progress, 0);
+
+	if (progress->visited_idx == 0) {
+		progress->origin->_my_move_cost = 0;
+		progress->frontier[progress->frontier_idx++] = progress->origin;
+	}
+
+	while (progress->frontier_idx > 0) {
+		// find and remove a location in the frontier
+		ztPathNode *location = progress->frontier[0];
+		_zt_pathArrayRemoveFromBegin(progress->frontier, progress->frontier_len, &progress->frontier_idx);
+
+		if (location == progress->destination) {
+			break;
+		}
+
+		// mark as visited so we don't process it again
+		if (!_zt_pathNodeArrayContains(progress->visited, progress->visited_idx, location)) {
+			//if (!array_add_to_begin(visited, visited_len, visited_idx, location)) {
+			if (!_zt_pathArrayAddToBegin(progress->visited, progress->visited_len, &progress->visited_idx, location)) {
+				return 0;
+			}
+		}
+
+		for (int n = 0; n < location->neighbors_count; ++n) {
+			ztPathNode *neighbor = location->neighbors[n];
+			if (zt_bitIsSet(neighbor->flags, ztPathNodeFlags_Ignore) || zt_bitIsSet(neighbor->flags, ztPathNodeFlags_Obstructed)) {
+				continue;
+			}
+
+			if (!_zt_pathNodeArrayContains(progress->frontier, progress->frontier_idx, neighbor)) {
+				r32 path_cost = (neighbor == progress->destination) ? 0.01f : (path_node_cost_func == nullptr ? zt_abs(location->position.distance(neighbor->position)) : path_node_cost_func(location, neighbor, path_cost_user_data));
+				if (path_cost == ztPathNodeValue_Impassable) {
+					continue;
+				}
+				r32 new_cost = location->_my_move_cost + path_cost;
+				bool add_to_frontier = true;
+				if (_zt_pathNodeArrayContains(progress->visited, progress->visited_idx, neighbor)) {
+					add_to_frontier = neighbor->_my_move_cost > new_cost;
+				}
+				if (add_to_frontier) {
+					neighbor->_my_move_cost = new_cost;
+
+					r32 dist = progress->destination->position.distance(neighbor->position);
+					int idx;
+					for (idx = 0; idx < progress->frontier_idx; ++idx) {
+						if (path_type == ztPathType_Dijkstra) {
+							if (progress->frontier[idx]->_my_move_cost > new_cost) {
+								break;
+							}
+						}
+						else if (path_type == ztPathType_Heuristic) {
+							if (progress->destination->position.distance(progress->frontier[idx]->position) > dist) {
+								break;
+							}
+						}
+						else if (path_type == ztPathType_Astar) {
+							if (progress->destination->position.distance(progress->frontier[idx]->position) > dist || progress->frontier[idx]->_my_move_cost > new_cost) {
+								break;
+							}
+						}
+					}
+					if (idx != progress->frontier_idx) {
+						if (!_zt_pathArrayInsertBefore(progress->frontier, progress->frontier_len, &progress->frontier_idx, idx, neighbor)) {
+							return 0;
+						}
+					}
+					else {
+						if (!_zt_pathArrayAddToEnd(progress->frontier, progress->frontier_len, &progress->frontier_idx, neighbor)) {
+							return 0;
+						}
+					}
+				}
+			}
+		}
+
+		if (early_exit_func && early_exit_func(progress, early_exit_user_data)) {
+			return -1;
+		}
+	}
+
+	progress->path_count = _zt_pathGridGetSteps(progress->origin, progress->destination, progress->path, progress->path_size);
+	return progress->path_count;
 }
 
 
