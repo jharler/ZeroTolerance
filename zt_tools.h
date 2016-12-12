@@ -722,6 +722,7 @@ struct ztQuat
 	static ztQuat makeFromEuler(r32 pitch, r32 yaw, r32 roll);
 	static ztQuat makeFromEuler(const ztVec3& euler) { return makeFromEuler(euler.x, euler.y, euler.z); }
 	static ztQuat makeFromMat4(const ztMat4& mat);
+	static ztQuat makeFromDirection(const ztVec3& dir, const ztVec3& up = ztVec3(0, 1, 0));
 
 	static ztQuat lerp(const ztQuat& q1, const ztQuat& q2, r32 percent);
 	static ztQuat nLerp(const ztQuat& q1, const ztQuat& q2, r32 percent);
@@ -820,6 +821,8 @@ struct ztVariant
 		u16   v_u16;
 		u32   v_u32;
 		u64   v_u64;
+		r32   v_r32;
+		r64   v_r64;
 		void *v_voidp;
 		r32   v_vec2[2];
 		r32   v_vec3[3];
@@ -844,6 +847,8 @@ struct ztVariantPointer
 		u16    *v_u16;
 		u32    *v_u32;
 		u64    *v_u64;
+		r32    *v_r32;
+		r64    *v_r64;
 		void  **v_voidp;
 		ztVec2 *v_vec2;
 		ztVec3 *v_vec3;
@@ -853,37 +858,41 @@ struct ztVariantPointer
 	};
 };
 
-ztInline ztVariant zt_variantMake(i8 val);
-ztInline ztVariant zt_variantMake(i16 val);
-ztInline ztVariant zt_variantMake(i32 val);
-ztInline ztVariant zt_variantMake(i64 val);
-ztInline ztVariant zt_variantMake(u8 val);
-ztInline ztVariant zt_variantMake(u16 val);
-ztInline ztVariant zt_variantMake(u32 val);
-ztInline ztVariant zt_variantMake(u64 val);
-ztInline ztVariant zt_variantMake(void *val);
-ztInline ztVariant zt_variantMakeVec2(r32 val[2]);
-ztInline ztVariant zt_variantMakeVec3(r32 val[3]);
-ztInline ztVariant zt_variantMakeVec4(r32 val[4]);
-ztInline ztVariant zt_variantMakeMat4(r32 val[16]);
-ztInline ztVariant zt_variantMakeQuat(r32 val[4]);
+ztInline ztVariant zt_variantMake_i8(i8 val);
+ztInline ztVariant zt_variantMake_i16(i16 val);
+ztInline ztVariant zt_variantMake_i32(i32 val);
+ztInline ztVariant zt_variantMake_i64(i64 val);
+ztInline ztVariant zt_variantMake_u8(u8 val);
+ztInline ztVariant zt_variantMake_u16(u16 val);
+ztInline ztVariant zt_variantMake_u32(u32 val);
+ztInline ztVariant zt_variantMake_u64(u64 val);
+ztInline ztVariant zt_variantMake_r32(r32 val);
+ztInline ztVariant zt_variantMake_r64(r64 val);
+ztInline ztVariant zt_variantMake_voidp(void *val);
+ztInline ztVariant zt_variantMake_vec2(r32 val[2]);
+ztInline ztVariant zt_variantMake_vec3(r32 val[3]);
+ztInline ztVariant zt_variantMake_vec4(r32 val[4]);
+ztInline ztVariant zt_variantMake_mat4(r32 val[16]);
+ztInline ztVariant zt_variantMake_quat(r32 val[4]);
 
 ztInline ztVariant zt_variantMake(ztVariantPointer *variant);
 
-ztInline ztVariantPointer zt_variantPointerMake(i8 *val);
-ztInline ztVariantPointer zt_variantPointerMake(i16 *val);
-ztInline ztVariantPointer zt_variantPointerMake(i32 *val);
-ztInline ztVariantPointer zt_variantPointerMake(i64 *val);
-ztInline ztVariantPointer zt_variantPointerMake(u8 *val);
-ztInline ztVariantPointer zt_variantPointerMake(u16 *val);
-ztInline ztVariantPointer zt_variantPointerMake(u32 *val);
-ztInline ztVariantPointer zt_variantPointerMake(u64 *val);
-ztInline ztVariantPointer zt_variantPointerMake(void **val);
-ztInline ztVariantPointer zt_variantPointerMakeVec2(r32 *val);
-ztInline ztVariantPointer zt_variantPointerMakeVec3(r32 *val);
-ztInline ztVariantPointer zt_variantPointerMakeVec4(r32 *val);
-ztInline ztVariantPointer zt_variantPointerMakeMat4(r32 *val);
-ztInline ztVariantPointer zt_variantPointerMakeQuat(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_i8(i8 *val);
+ztInline ztVariantPointer zt_variantPointerMake_i16(i16 *val);
+ztInline ztVariantPointer zt_variantPointerMake_i32(i32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_i64(i64 *val);
+ztInline ztVariantPointer zt_variantPointerMake_u8(u8 *val);
+ztInline ztVariantPointer zt_variantPointerMake_u16(u16 *val);
+ztInline ztVariantPointer zt_variantPointerMake_u32(u32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_u64(u64 *val);
+ztInline ztVariantPointer zt_variantPointerMake_r32(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_r64(r64 *val);
+ztInline ztVariantPointer zt_variantPointerMake_voidp(void **val);
+ztInline ztVariantPointer zt_variantPointerMake_vec2(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_vec3(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_vec4(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_mat4(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_quat(r32 *val);
 
 ztInline i8     zt_variantGetAs_i8(ztVariant *variant);
 ztInline i16    zt_variantGetAs_i16(ztVariant *variant);
@@ -893,6 +902,8 @@ ztInline u8     zt_variantGetAs_u8(ztVariant *variant);
 ztInline u16    zt_variantGetAs_u16(ztVariant *variant);
 ztInline u32    zt_variantGetAs_u32(ztVariant *variant);
 ztInline u64    zt_variantGetAs_u64(ztVariant *variant);
+ztInline r32    zt_variantGetAs_r32(ztVariant *variant);
+ztInline r64    zt_variantGetAs_r64(ztVariant *variant);
 ztInline void  *zt_variantGetAs_voidp(ztVariant *variant);
 ztInline ztVec2 zt_variantGetAs_vec2(ztVariant *variant);
 ztInline ztVec3 zt_variantGetAs_vec3(ztVariant *variant);
@@ -908,6 +919,8 @@ ztInline u8     *zt_variantGetAs_u8(ztVariantPointer *variant);
 ztInline u16    *zt_variantGetAs_u16(ztVariantPointer *variant);
 ztInline u32    *zt_variantGetAs_u32(ztVariantPointer *variant);
 ztInline u64    *zt_variantGetAs_u64(ztVariantPointer *variant);
+ztInline r32    *zt_variantGetAs_r32(ztVariantPointer *variant);
+ztInline r64    *zt_variantGetAs_r64(ztVariantPointer *variant);
 ztInline void  **zt_variantGetAs_voidp(ztVariantPointer *variant);
 ztInline ztVec2 *zt_variantGetAs_vec2(ztVariantPointer *variant);
 ztInline ztVec3 *zt_variantGetAs_vec3(ztVariantPointer *variant);
@@ -932,6 +945,12 @@ void        *zt_functionPointer(ztFunctionID function_id);
 #define ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
         function_decl; \
         ztFunctionID function_name##_FunctionID = zt_registerFunctionPointer(#function_decl, function_name); \
+        function_decl
+
+// This must be accompanied by a call to ZT_FUNCTION_POINTER_REGISTER in a source file
+#define ZT_FUNCTION_POINTER_REGISTER_EXTERN(function_name, function_decl)	\
+        function_decl; \
+        extern ztFunctionID function_name##_FunctionID; \
         function_decl
 
 /*
@@ -2507,58 +2526,64 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztInline ztVariant        zt_variantMake           (i8            val)          { ztVariant var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
-ztInline ztVariant        zt_variantMake           (i16           val)          { ztVariant var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
-ztInline ztVariant        zt_variantMake           (i32           val)          { ztVariant var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
-ztInline ztVariant        zt_variantMake           (i64           val)          { ztVariant var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
-ztInline ztVariant        zt_variantMake           (u8            val)          { ztVariant var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
-ztInline ztVariant        zt_variantMake           (u16           val)          { ztVariant var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
-ztInline ztVariant        zt_variantMake           (u32           val)          { ztVariant var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
-ztInline ztVariant        zt_variantMake           (u64           val)          { ztVariant var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
-ztInline ztVariant        zt_variantMake           (void         *val)          { ztVariant var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
-ztInline ztVariant        zt_variantMakeVec2       (const ztVec2& val)          { ztVariant var; var.type = ztVariant_vec2 ; zt_fize(val.values) var.v_vec2[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMakeVec3       (const ztVec3& val)          { ztVariant var; var.type = ztVariant_vec3 ; zt_fize(val.values) var.v_vec3[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMakeVec4       (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; zt_fize(val.values) var.v_vec4[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMakeMat4       (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; zt_fize(val.values) var.v_mat4[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMakeQuat       (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; zt_fize(val.values) var.v_quat[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_i8        (i8            val)          { ztVariant var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
+ztInline ztVariant        zt_variantMake_i16       (i16           val)          { ztVariant var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
+ztInline ztVariant        zt_variantMake_i32       (i32           val)          { ztVariant var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
+ztInline ztVariant        zt_variantMake_i64       (i64           val)          { ztVariant var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
+ztInline ztVariant        zt_variantMake_u8        (u8            val)          { ztVariant var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
+ztInline ztVariant        zt_variantMake_u16       (u16           val)          { ztVariant var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
+ztInline ztVariant        zt_variantMake_u32       (u32           val)          { ztVariant var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
+ztInline ztVariant        zt_variantMake_u64       (u64           val)          { ztVariant var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
+ztInline ztVariant        zt_variantMake_r32       (r32           val)          { ztVariant var; var.type = ztVariant_r32  ; var.v_r32   = val; return var; }
+ztInline ztVariant        zt_variantMake_r64       (r64           val)          { ztVariant var; var.type = ztVariant_r64  ; var.v_r64   = val; return var; }
+ztInline ztVariant        zt_variantMake_voidp     (void         *val)          { ztVariant var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
+ztInline ztVariant        zt_variantMake_vec2      (const ztVec2& val)          { ztVariant var; var.type = ztVariant_vec2 ; zt_fize(val.values) var.v_vec2[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_vec3      (const ztVec3& val)          { ztVariant var; var.type = ztVariant_vec3 ; zt_fize(val.values) var.v_vec3[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_vec4      (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; zt_fize(val.values) var.v_vec4[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_mat4      (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; zt_fize(val.values) var.v_mat4[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_quat      (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; zt_fize(val.values) var.v_quat[i] = val.values[i]; return var; }
 
 ztInline ztVariant        zt_variantMake(ztVariantPointer *variant)
 {
 	switch (variant->type)
 	{
-		case ztVariant_i8   : return zt_variantMake    (*variant->v_i8);
-		case ztVariant_i16  : return zt_variantMake    (*variant->v_i16);
-		case ztVariant_i32  : return zt_variantMake    (*variant->v_i32);
-		case ztVariant_i64  : return zt_variantMake    (*variant->v_i64);
-		case ztVariant_u8   : return zt_variantMake    (*variant->v_u8);
-		case ztVariant_u16  : return zt_variantMake    (*variant->v_u16);
-		case ztVariant_u32  : return zt_variantMake    (*variant->v_u32);
-		case ztVariant_u64  : return zt_variantMake    (*variant->v_u64);
-		case ztVariant_voidp: return zt_variantMake    (*variant->v_voidp);
-		case ztVariant_vec2 : return zt_variantMakeVec2(*variant->v_vec2);
-		case ztVariant_vec3 : return zt_variantMakeVec3(*variant->v_vec3);
-		case ztVariant_vec4 : return zt_variantMakeVec4(*variant->v_vec4);
-		case ztVariant_mat4 : return zt_variantMakeMat4(*variant->v_mat4);
-		case ztVariant_quat : return zt_variantMakeQuat(*variant->v_quat);
+		case ztVariant_i8   : return zt_variantMake_i8   (*variant->v_i8);
+		case ztVariant_i16  : return zt_variantMake_i16  (*variant->v_i16);
+		case ztVariant_i32  : return zt_variantMake_i32  (*variant->v_i32);
+		case ztVariant_i64  : return zt_variantMake_i64  (*variant->v_i64);
+		case ztVariant_u8   : return zt_variantMake_u8   (*variant->v_u8);
+		case ztVariant_u16  : return zt_variantMake_u16  (*variant->v_u16);
+		case ztVariant_u32  : return zt_variantMake_u32  (*variant->v_u32);
+		case ztVariant_u64  : return zt_variantMake_u64  (*variant->v_u64);
+		case ztVariant_r32  : return zt_variantMake_r32  (*variant->v_r32);
+		case ztVariant_r64  : return zt_variantMake_r64  (*variant->v_r64);
+		case ztVariant_voidp: return zt_variantMake_voidp(*variant->v_voidp);
+		case ztVariant_vec2 : return zt_variantMake_vec2 (*variant->v_vec2);
+		case ztVariant_vec3 : return zt_variantMake_vec3 (*variant->v_vec3);
+		case ztVariant_vec4 : return zt_variantMake_vec4 (*variant->v_vec4);
+		case ztVariant_mat4 : return zt_variantMake_mat4 (*variant->v_mat4);
+		case ztVariant_quat : return zt_variantMake_quat (*variant->v_quat);
 	}
 
 	ztVariant v = { ztVariant_Invalid }; return v;
 }
 
-ztInline ztVariantPointer zt_variantPointerMake    (i8           *val)          { ztVariantPointer var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (i16          *val)          { ztVariantPointer var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (i32          *val)          { ztVariantPointer var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (i64          *val)          { ztVariantPointer var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (u8           *val)          { ztVariantPointer var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (u16          *val)          { ztVariantPointer var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (u32          *val)          { ztVariantPointer var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (u64          *val)          { ztVariantPointer var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMake    (void        **val)          { ztVariantPointer var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMakeVec2(ztVec2       *val)          { ztVariantPointer var; var.type = ztVariant_vec2 ; var.v_vec2  = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMakeVec3(ztVec3       *val)          { ztVariantPointer var; var.type = ztVariant_vec3 ; var.v_vec3  = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMakeVec4(ztVec4       *val)          { ztVariantPointer var; var.type = ztVariant_vec4 ; var.v_vec4  = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMakeMat4(ztMat4       *val)          { ztVariantPointer var; var.type = ztVariant_mat4 ; var.v_mat4  = val; return var; }
-ztInline ztVariantPointer zt_variantPointerMakeQuat(ztQuat       *val)          { ztVariantPointer var; var.type = ztVariant_quat ; var.v_quat  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_i8    (i8           *val)          { ztVariantPointer var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_i16   (i16          *val)          { ztVariantPointer var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_i32   (i32          *val)          { ztVariantPointer var; var.type = ztVariant_i32  ; var.v_i32   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_i64   (i64          *val)          { ztVariantPointer var; var.type = ztVariant_i64  ; var.v_i64   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_u8    (u8           *val)          { ztVariantPointer var; var.type = ztVariant_u8   ; var.v_u8    = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_u16   (u16          *val)          { ztVariantPointer var; var.type = ztVariant_u16  ; var.v_u16   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_u32   (u32          *val)          { ztVariantPointer var; var.type = ztVariant_u32  ; var.v_u32   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_u64   (u64          *val)          { ztVariantPointer var; var.type = ztVariant_u64  ; var.v_u64   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_r32   (r32          *val)          { ztVariantPointer var; var.type = ztVariant_r32  ; var.v_r32   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_r64   (r64          *val)          { ztVariantPointer var; var.type = ztVariant_r64  ; var.v_r64   = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_voidp (void        **val)          { ztVariantPointer var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_vec2  (ztVec2       *val)          { ztVariantPointer var; var.type = ztVariant_vec2 ; var.v_vec2  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_vec3  (ztVec3       *val)          { ztVariantPointer var; var.type = ztVariant_vec3 ; var.v_vec3  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_vec4  (ztVec4       *val)          { ztVariantPointer var; var.type = ztVariant_vec4 ; var.v_vec4  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_mat4  (ztMat4       *val)          { ztVariantPointer var; var.type = ztVariant_mat4 ; var.v_mat4  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_quat  (ztQuat       *val)          { ztVariantPointer var; var.type = ztVariant_quat ; var.v_quat  = val; return var; }
 
 ztInline i8               zt_variantGetAs_i8       (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
 ztInline i16              zt_variantGetAs_i16      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i16  ); return variant->v_i16; }
@@ -2566,8 +2591,10 @@ ztInline i32              zt_variantGetAs_i32      (ztVariant *variant)         
 ztInline i64              zt_variantGetAs_i64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i64  ); return variant->v_i64; }
 ztInline u8               zt_variantGetAs_u8       (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u8   ); return variant->v_u8; }
 ztInline u16              zt_variantGetAs_u16      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u16  ); return variant->v_u16; }
-ztInline u32              zt_variantGetAs_u32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u32  ); return variant->v_u32; }
-ztInline u64              zt_variantGetAs_u64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u64  ); return variant->v_u64; }
+ztInline u32              zt_variantGetAs_u32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u32); return variant->v_u32; }
+ztInline u64              zt_variantGetAs_u64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_u64); return variant->v_u64; }
+ztInline r32              zt_variantGetAs_r32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r32); return variant->v_r32; }
+ztInline r64              zt_variantGetAs_r64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r64); return variant->v_r64; }
 ztInline void            *zt_variantGetAs_voidp    (ztVariant *variant)         { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
 ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return ztVec2(variant->v_vec2[0], variant->v_vec2[1]); }
 ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return ztVec3(variant->v_vec3[0], variant->v_vec3[1], variant->v_vec3[2]); }
@@ -2583,6 +2610,8 @@ ztInline u8              *zt_variantGetAs_u8       (ztVariantPointer *variant)  
 ztInline u16             *zt_variantGetAs_u16      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u16  ); return variant->v_u16; }
 ztInline u32             *zt_variantGetAs_u32      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u32  ); return variant->v_u32; }
 ztInline u64             *zt_variantGetAs_u64      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_u64  ); return variant->v_u64; }
+ztInline r32             *zt_variantGetAs_r32      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_r32  ); return variant->v_r32; }
+ztInline r64             *zt_variantGetAs_r64      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_r64  ); return variant->v_r64; }
 ztInline void           **zt_variantGetAs_voidp    (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
 ztInline ztVec2          *zt_variantGetAs_vec2     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec2 ); return variant->v_vec2; }
 ztInline ztVec3          *zt_variantGetAs_vec3     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec3 ); return variant->v_vec3; }
@@ -2605,6 +2634,8 @@ ztInline void zt_variantAssignValue(ztVariantPointer *variant, ztVariant value)
 		case ztVariant_u16: *variant->v_u16 = value.v_u16; break;
 		case ztVariant_u32: *variant->v_u32 = value.v_u32; break;
 		case ztVariant_u64: *variant->v_u64 = value.v_u64; break;
+		case ztVariant_r32: *variant->v_r32 = value.v_r32; break;
+		case ztVariant_r64: *variant->v_r64 = value.v_r64; break;
 		case ztVariant_voidp: *variant->v_voidp = value.v_voidp; break;
 		case ztVariant_vec2: variant->v_vec2->x = value.v_vec2[0]; variant->v_vec2->y = value.v_vec2[1]; break;
 		case ztVariant_vec3: variant->v_vec3->x = value.v_vec3[0]; variant->v_vec3->y = value.v_vec3[1]; variant->v_vec3->z = value.v_vec3[2]; break;
@@ -2619,20 +2650,22 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 	zt_assert(beg->type == end->type);
 	switch (beg->type)
 	{
-		case ztVariant_i8   : return zt_variantMake(( i8)zt_lerp((i32)beg->v_i8 , (i32)end->v_i8 , pct));
-		case ztVariant_i16  : return zt_variantMake((i16)zt_lerp((i32)beg->v_i16, (i32)end->v_i16, pct));
-		case ztVariant_i32  : return zt_variantMake((i32)zt_lerp((i32)beg->v_i32, (i32)end->v_i32, pct));
-		case ztVariant_i64  : return zt_variantMake((i64)zt_lerp((i32)beg->v_i64, (i32)end->v_i64, pct));
-		case ztVariant_u8   : return zt_variantMake(( u8)zt_lerp((i32)beg->v_u8 , (i32)end->v_u8 , pct));
-		case ztVariant_u16  : return zt_variantMake((u16)zt_lerp((i32)beg->v_u16, (i32)end->v_u16, pct));
-		case ztVariant_u32  : return zt_variantMake((u32)zt_lerp((i32)beg->v_u32, (i32)end->v_u32, pct));
-		case ztVariant_u64  : return zt_variantMake((u64)zt_lerp((i32)beg->v_u64, (i32)end->v_u64, pct));
-		case ztVariant_voidp: zt_assert(false); // can't lerp void pointers
-		case ztVariant_vec2 : return zt_variantMakeVec2(ztVec2::lerp(ztVec2(beg->v_vec2[0], beg->v_vec2[1]), ztVec2(end->v_vec2[0], end->v_vec2[1]), pct));
-		case ztVariant_vec3 : return zt_variantMakeVec3(ztVec3::lerp(ztVec3(beg->v_vec3[0], beg->v_vec3[1], beg->v_vec3[2]), ztVec3(end->v_vec3[0], end->v_vec3[1], end->v_vec3[2]), pct));
-		case ztVariant_vec4 : return zt_variantMakeVec4(ztVec4::lerp(ztVec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), ztVec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
+		case ztVariant_i8   : return zt_variantMake_i8   (( i8)zt_lerp((i32)beg->v_i8 , (i32)end->v_i8 , pct));
+		case ztVariant_i16  : return zt_variantMake_i16  ((i16)zt_lerp((i32)beg->v_i16, (i32)end->v_i16, pct));
+		case ztVariant_i32  : return zt_variantMake_i32  ((i32)zt_lerp((i32)beg->v_i32, (i32)end->v_i32, pct));
+		case ztVariant_i64  : return zt_variantMake_i64  ((i64)zt_lerp((i32)beg->v_i64, (i32)end->v_i64, pct));
+		case ztVariant_u8   : return zt_variantMake_u8   (( u8)zt_lerp((i32)beg->v_u8 , (i32)end->v_u8 , pct));
+		case ztVariant_u16  : return zt_variantMake_u16  ((u16)zt_lerp((i32)beg->v_u16, (i32)end->v_u16, pct));
+		case ztVariant_u32: return zt_variantMake_u32((u32)zt_lerp((i32)beg->v_u32, (i32)end->v_u32, pct));
+		case ztVariant_u64: return zt_variantMake_u64((u64)zt_lerp((i32)beg->v_u64, (i32)end->v_u64, pct));
+		case ztVariant_r32: return zt_variantMake_r32((r32)zt_lerp((r32)beg->v_r32, (r32)end->v_r32, pct));
+		case ztVariant_r64: return zt_variantMake_r64((r64)zt_lerp((r32)beg->v_r64, (r32)end->v_r64, pct));
+		case ztVariant_voidp: zt_assert(false); // _voidpcan't lerp void pointers
+		case ztVariant_vec2 : return zt_variantMake_vec2(ztVec2::lerp(ztVec2(beg->v_vec2[0], beg->v_vec2[1]), ztVec2(end->v_vec2[0], end->v_vec2[1]), pct));
+		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(ztVec3(beg->v_vec3[0], beg->v_vec3[1], beg->v_vec3[2]), ztVec3(end->v_vec3[0], end->v_vec3[1], end->v_vec3[2]), pct));
+		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(ztVec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), ztVec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
 		case ztVariant_mat4 : zt_assert(false); // can't lerp mat4s... use quats instead
-		case ztVariant_quat: return zt_variantMakeQuat(ztQuat::lerp(ztQuat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), ztQuat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
+		case ztVariant_quat: return zt_variantMake_quat(ztQuat::lerp(ztQuat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), ztQuat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
 	}
 
 	ztVariant v = { ztVariant_Invalid }; return v;
@@ -4001,6 +4034,16 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	}
 
 	return ztQuat::identity;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/*static*/ ztQuat ztQuat::makeFromDirection(const ztVec3& dir, const ztVec3& up)
+{
+	ztMat4 mat = ztMat4::identity;
+	mat.lookAt(ztVec3::zero, ztVec3(dir.x, dir.y, -dir.z), up);
+
+	return ztQuat::makeFromMat4(mat);
 }
 
 // ------------------------------------------------------------------------------------------------
