@@ -1990,6 +1990,9 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine    );
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
+ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
+ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
+
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
@@ -3024,7 +3027,16 @@ bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name,
 
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
 {
-	return zt_assetLoad(asset_mgr, zt_strHash(asset));
+	ztAssetID asset_id = zt_assetLoad(asset_mgr, zt_strHash(asset));
+	
+	if(asset_id == ztInvalidID) {
+		zt_logDebug("Unable to load asset: %s", asset);
+	}
+	else {
+		zt_logDebug("Loaded asset: %s (%d)", asset, asset_id);
+	}
+
+	return asset_id;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3236,7 +3248,6 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 			}
 		}
 	}
-
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4169,7 +4180,7 @@ bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
 {
 	r32 max_x = center.x + width / 2.f;
-	r32 max_z = center.z + width / 2.f;
+	r32 max_z = center.z + depth / 2.f;
 
 	r32 x = center.x - width / 2.f;
 	r32 z = center.z - depth / 2.f;
@@ -4378,6 +4389,8 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 	command->texture[0] = tex_id;
 	command->texture_count = 1;
 	command->texture_pop = false;
+
+	zt_assert(zt_game->textures[tex_id].renderer != ztRenderer_Invalid);
 
 	zt_debugOnly(draw_list->active_textures++);
 
@@ -6373,9 +6386,9 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	r32 shadow_far  = lighting_rules ? lighting_rules->shadow_max_distance * 2 : 60.f;
 
 	if(camera_copy.type == ztCameraType_Perspective) {
-		camera_copy.near_z = shadow_near;
-		camera_copy.far_z = lighting_rules ? lighting_rules->shadow_max_distance : 30.f;
-		camera = &camera_copy;
+		//camera_copy.near_z = shadow_near;
+		//camera_copy.far_z = lighting_rules ? lighting_rules->shadow_max_distance : 30.f;
+		//camera = &camera_copy;
 	}
 
 	ztMat4 mat_view = ztMat4::identity.getLookAt(light->position.getNormal(), ztVec3::zero);
@@ -8747,6 +8760,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	i32 x_adv_ttl = 0;
 	r32 base_offset = base == 0 ? 0 : base / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 
+	font->space_width = 0;
+
 	for (int i = chars_line; i < lines; ++i) {
 		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
 		line_buff[lines_tok[i].len] = 0;
@@ -8804,11 +8819,17 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (*codepoint != -1) {
 			glyph->tex_uv.z += glyph->tex_uv.x;
 			glyph->tex_uv.w += glyph->tex_uv.y;
+
+			if (*codepoint == ' ') {
+				font->space_width = glyph->x_adv;
+			}
 		}
 	}
 
 	font->line_spacing = ((r32)font->size_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
-	font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
+	if (font->space_width == 0) {
+		font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
+	}
 
 	if (asset_mgr) {
 		zt_free(data);
@@ -12574,11 +12595,27 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 
 // ------------------------------------------------------------------------------------------------
 
+ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
+{
+	return ztVec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
+		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
+{
+	return ztVec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return ztVec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
-	              zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
-	              zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
+		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
+		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -12586,8 +12623,8 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return ztVec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
-	              zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
-	              zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13014,7 +13051,7 @@ void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, cons
 
 	ztAnimKey *keys = zt_mallocStructArray(ztAnimKey, sprites_count);
 	zt_fiz(sprites_count) {
-		keys[i] = zt_animKeyMake(zt_variantPointerMake(&sequence->current_sprite), zt_variantMake(i), zt_variantMake(i+1), times[i]);
+		keys[i] = zt_animKeyMake(zt_variantPointerMake_i32(&sequence->current_sprite), zt_variantMake_i32(i), zt_variantMake_i32(i+1), times[i]);
 	}
 
 	ztAnimLayer layer = zt_animLayerMake(keys, sprites_count);
@@ -13095,13 +13132,13 @@ ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings
 	emitter.settings = *settings;
 	emitter.sprite   = *sprite;
 
-	emitter.particles_count = zt_max(ZT_MAX_PARTICLES, zt_convertToi32Ceil(settings->emission_rate * settings->lifetime));
+	emitter.particles_count = zt_min(ZT_MAX_PARTICLES, zt_convertToi32Ceil(settings->emission_rate * (settings->burst_emit ? 1 : settings->lifetime)));
 	zt_fiz(emitter.particles_count) {
 		emitter.particles[i].life = 0;
 	}
 
 	emitter.live_particles         = 0;
-	emitter.time_between_particles = 1.0f / (zt_min(settings->emission_rate, ZT_MAX_PARTICLES) / settings->lifetime);
+	emitter.time_between_particles = settings->burst_emit ? 0 : 1.0f / (zt_min(settings->emission_rate, ZT_MAX_PARTICLES) / settings->lifetime);
 	emitter.time_last_particle     = 0;
 
 	zt_randomInit(&emitter.randomizer, seed);
@@ -13143,11 +13180,12 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 		}
 	}
 	else {
+		bool first = emitter->time_last_particle == 0;
 		emitter->time_last_particle += dt;
 		while (emitter->time_last_particle > emitter->time_between_particles) {
 			emitter->time_last_particle -= emitter->time_between_particles;
-			if (emitter->live_particles >= emitter->particles_count || (emitter->settings.burst_emit && emitter->live_particles > 0)) {
-				continue;
+			if ((!first && emitter->live_particles >= emitter->particles_count) || (!first && emitter->settings.burst_emit)) {
+				break;
 			}
 
 			zt_fiz(emitter->particles_count) {
@@ -13164,7 +13202,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 					                                                   (zt_randomVal(&emitter->randomizer) * emitter->settings.size.y) - emitter->settings.size.y / 2,
 					                                                   (zt_randomVal(&emitter->randomizer) * emitter->settings.size.z) - emitter->settings.size.z / 2);
 					emitter->particles[i].speed               = emitter->settings.velocity_speed - (emitter->settings.velocity_speed * (emitter->settings.velocity_speed_random * zt_randomVal(&emitter->randomizer)));
-					emitter->particles[i].rotation            = emitter->settings.random_rotation ? zt_randomVal(&emitter->randomizer) * 360 : 0;
+					emitter->particles[i].rotation            = (emitter->settings.rotation * 360) * (1 - (zt_randomVal(&emitter->randomizer) * emitter->settings.rotation_random));
 
 					if (emitter->settings.random_rotation) {
 						emitter->particles[i].transform.rotation = ztQuat::makeFromEuler(0, 0, zt_randomVal(&emitter->randomizer) * 360);
@@ -13182,6 +13220,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 						break;
 					}
 					else if(emitter->live_particles == emitter->particles_count) {
+						first = false;
 						break;
 					}
 				}
@@ -13231,10 +13270,10 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 
 		if (emitter->particles[i].rotation) {
 			ztVec3 p[4] = {
-				ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
-				ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				ztVec3( emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				ztVec3( emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
+				emitter->particles[i].transform.scale * ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
+				emitter->particles[i].transform.scale * ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
+				emitter->particles[i].transform.scale * ztVec3( emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
+				emitter->particles[i].transform.scale * ztVec3( emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
 			};
 
 			zt_fjze(p) {
