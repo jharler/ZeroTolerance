@@ -434,6 +434,8 @@ void zt_guiSetActiveManager(ztGuiManagerID gui_manager);
 void zt_guiManagerSetKeyboardFocus(ztGuiManagerID gui_manager, bool keyboard_focus = true);
 bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager);
 
+bool zt_guiManagerMouseOverGui(ztGuiManagerID gui_manager);
+
 // ------------------------------------------------------------------------------------------------
 
 ztGuiItemID zt_guiMakeWindow(const char *title, i32 flags = ztGuiWindowFlags_Default);
@@ -469,6 +471,7 @@ void zt_guiItemSetName(ztGuiItemID item_id, const char *name);
 void zt_guiItemSetLabel(ztGuiItemID item_id, const char *label);
 void zt_guiItemSetTooltip(ztGuiItemID item_id, const char *tooltip);
 void zt_guiItemSetThemeType(ztGuiItemID item_id, const char *theme_type);
+void zt_guiItemSetTheme(ztGuiItemID item_id, ztGuiTheme *theme);
 
 ztString zt_guiItemGetName(ztGuiItemID item_id);
 ztString zt_guiItemGetLabel(ztGuiItemID item_id);
@@ -2095,6 +2098,14 @@ bool zt_guiManagerHasKeyboardFocus(ztGuiManagerID gui_manager)
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_guiManagerMouseOverGui(ztGuiManagerID gui_manager)
+{
+	_zt_guiManagerCheckAndGet(gm, gui_manager);
+	return gm->mouse_over_gui;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiManager *gm, ztVec2* pos, ztInputMouse *input_mouse)
 {
 	if (drag_state->dragging) {
@@ -2859,7 +2870,9 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseRender, ztInternal ZT_FUNC_GUI_ITE
 			zt_drawListAddSprite(draw_list, item->button.icon, ztVec3(icon_pos, 0));
 		}
 		if (item->label) {
-			zt_drawListAddText2D(draw_list, theme->font, item->label, pos + text_pos);
+			zt_drawListPushColor(draw_list, theme->font_color);
+			zt_drawListAddFancyText2D(draw_list, theme->font, item->label, pos + text_pos, item->align_flags);
+			zt_drawListPopColor(draw_list);
 		}
 	}
 }
@@ -6432,6 +6445,14 @@ void zt_guiItemSetThemeType(ztGuiItemID item_id, const char *theme_type)
 {
 	_zt_guiItemAndManagerReturnOnError(gm, item, item_id);
 	item->theme_type = zt_stringOverwrite(item->theme_type, theme_type, gm->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiItemSetTheme(ztGuiItemID item_id, ztGuiTheme *theme)
+{
+	_zt_guiItemFromID(item, item_id);
+	item->theme = theme;
 }
 
 // ------------------------------------------------------------------------------------------------
