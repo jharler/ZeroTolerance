@@ -584,6 +584,7 @@ ztInternal void _ztgl_win_loadFunctions()
 void ztgl_win_contextDisplay(ztContextGL *context)
 {
 	SwapBuffers(context->hdc);
+	glFinish();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1549,8 +1550,8 @@ void ztgl_textureFree(ztTextureGL *texture)
 
 void ztgl_textureBindReset(ztShaderGL *shader)
 {
-	ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_2D, 0));
-	ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+	ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
+	ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
 	shader->textures_bound = 0;
 }
 
