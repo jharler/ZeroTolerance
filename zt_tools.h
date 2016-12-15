@@ -2803,37 +2803,6 @@ void  _zt_call_free(void*);
 
 // ------------------------------------------------------------------------------------------------
 
-#if defined(ZT_WINDOWS)
-
-struct ztThread
-{
-	ztThreadID          thread_id;
-	i32                 thread_handle;
-	ztThread_Func      *thread;
-	void               *thread_user_data;
-	ztThreadExit_Func  *exit_test;
-	void               *exit_test_user_data;
-	bool                running;
-};
-
-// ------------------------------------------------------------------------------------------------
-
-struct ztThreadMutex
-{
-	CRITICAL_SECTION cs;
-};
-
-// ------------------------------------------------------------------------------------------------
-
-struct ztThreadMonitor
-{
-	i32 event_handle;
-};
-
-#endif
-
-// ------------------------------------------------------------------------------------------------
-
 struct ztGlobals
 {
 	zt_logCallback_Func   *log_callbacks[ZT_MAX_LOG_CALLBACKS];
@@ -2904,6 +2873,40 @@ ztGlobals zt_local = {};
 #ifndef ZT_MAX_FUNCTION_POINTER_ENTRIES
 #define ZT_MAX_FUNCTION_POINTER_ENTRIES  256
 #endif
+
+// ------------------------------------------------------------------------------------------------
+
+#if defined(ZT_WINDOWS)
+
+struct ztThread
+{
+	ztThreadID          thread_id;
+	i64                 thread_handle;
+	ztThread_Func      *thread;
+	void               *thread_user_data;
+	ztThreadExit_Func  *exit_test;
+	void               *exit_test_user_data;
+	bool                running;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMutex
+{
+	CRITICAL_SECTION cs;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMonitor
+{
+	i64 event_handle;
+};
+
+#endif
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 //these aren't in ztGlobals because they must be process-specific:
 ztInternal void *_zt_function_pointers[ZT_MAX_FUNCTION_POINTER_ENTRIES];
