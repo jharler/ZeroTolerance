@@ -1366,6 +1366,80 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon);
 
 
 // ------------------------------------------------------------------------------------------------
+// threading
+
+typedef i32 ztThreadID;
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThread;
+
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_FUNC_THREAD_EXIT(name) bool (name)(void *user_data)
+typedef ZT_FUNC_THREAD_EXIT(ztThreadExit_Func);
+
+#define ZT_FUNC_THREAD(name)	int (name)(ztThreadID thread_id, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data)
+typedef ZT_FUNC_THREAD(ztThread_Func);
+
+// ------------------------------------------------------------------------------------------------
+
+ztThread  *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id);
+void       zt_threadFree(ztThread *thread);
+void       zt_threadJoin(ztThread *thread); // pause execution of the current thread until the given thread is complete
+bool       zt_threadIsRunning(ztThread *thread);
+ztThreadID zt_threadGetCurrentID();        // get the id of the current thread
+void       zt_threadYield();
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMutex;
+
+// ------------------------------------------------------------------------------------------------
+
+ztThreadMutex *zt_threadMutexMake();
+void           zt_threadMutexFree(ztThreadMutex *mutex);
+
+void           zt_threadMutexLock(ztThreadMutex *mutex);
+void           zt_threadMutexUnlock(ztThreadMutex *mutex);
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMutexLocker
+{
+	ztThreadMutex *mutex;
+
+	ztThreadMutexLocker(ztThreadMutex *_mutex) : mutex(_mutex) {
+		zt_threadMutexLock(mutex);
+	}
+
+	~ztThreadMutexLocker() {
+		zt_threadMutexUnlock(mutex);
+	}
+};
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMonitor;
+
+// ------------------------------------------------------------------------------------------------
+
+ztThreadMonitor *zt_threadMonitorMake();
+void             zt_threadMonitorFree(ztThreadMonitor *monitor);
+
+void             zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor);
+void             zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor);
+void             zt_threadMonitorReset(ztThreadMonitor *monitor);
+
+// ------------------------------------------------------------------------------------------------
+
+
+// ------------------------------------------------------------------------------------------------
 // serialization
 
 // This serializer allows for storage formats to change without completely breaking old versions and to allow for new code
@@ -2729,6 +2803,37 @@ void  _zt_call_free(void*);
 
 // ------------------------------------------------------------------------------------------------
 
+#if defined(ZT_WINDOWS)
+
+struct ztThread
+{
+	ztThreadID          thread_id;
+	i32                 thread_handle;
+	ztThread_Func      *thread;
+	void               *thread_user_data;
+	ztThreadExit_Func  *exit_test;
+	void               *exit_test_user_data;
+	bool                running;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMutex
+{
+	CRITICAL_SECTION cs;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadMonitor
+{
+	i32 event_handle;
+};
+
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztGlobals
 {
 	zt_logCallback_Func   *log_callbacks[ZT_MAX_LOG_CALLBACKS];
@@ -2765,6 +2870,7 @@ extern ztGlobals *zt;
 #	include <windows.h>
 #	include <WinBase.h>
 #	include <shlobj.h>
+#	include <process.h>
 #endif
 
 ztGlobals zt_local = {};
@@ -6324,6 +6430,182 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 	return key != NULL;
 #endif
 }
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#if defined(ZT_WINDOWS)
+
+unsigned int __stdcall _zt_threadProc(LPVOID param)
+{
+	ztThread *thread = (ztThread*)param;
+
+	if(thread == nullptr || thread->thread == nullptr) {
+		return 1;
+	}
+
+	int result = thread->thread(thread->thread_id, thread->thread_user_data, thread->exit_test, thread->exit_test_user_data);
+	thread->running = false;
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id)
+{
+	ztThread *thread = zt_mallocStruct(ztThread);
+	thread->thread              = thread_func;
+	thread->thread_user_data    = user_data;
+	thread->exit_test           = exit_test;
+	thread->exit_test_user_data = exit_test_user_data;
+	thread->running             = true;
+
+	unsigned int thread_id = 0;
+	thread->thread_handle = _beginthreadex(nullptr, 0, &_zt_threadProc, thread, 0, &thread_id);
+	thread->thread_id = (ztThreadID)thread_id;
+
+	if (out_thread_id) {
+		*out_thread_id = thread_id;
+	}
+
+	return thread;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadFree(ztThread *thread)
+{
+	if(thread == nullptr) {
+		return;
+	}
+
+	if(thread->running) {
+		zt_threadJoin(thread);
+	}
+
+	zt_free(thread);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJoin(ztThread *thread)
+{
+	zt_returnOnNull(thread);
+	WaitForSingleObject((HANDLE)thread->thread_handle, INFINITE);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_threadIsRunning(ztThread *thread)
+{
+	zt_returnValOnNull(thread, false);
+	return thread->running;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztThreadID zt_threadGetCurrentID()
+{
+	return GetCurrentThreadId();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadYield()
+{
+	zt_sleep(0);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztThreadMutex *zt_threadMutexMake()
+{
+	ztThreadMutex *mutex = zt_mallocStruct(ztThreadMutex);
+	InitializeCriticalSection(&mutex->cs);
+	return mutex;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMutexFree(ztThreadMutex *mutex)
+{
+	if(mutex == nullptr) {
+		return;
+	}
+
+	DeleteCriticalSection(&mutex->cs);
+	zt_free(mutex);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMutexLock(ztThreadMutex *mutex)
+{
+	zt_returnOnNull(mutex);
+	EnterCriticalSection(&mutex->cs);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMutexUnlock(ztThreadMutex *mutex)
+{
+	zt_returnOnNull(mutex);
+	LeaveCriticalSection(&mutex->cs);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztThreadMonitor *zt_threadMonitorMake()
+{
+	ztThreadMonitor *monitor = zt_mallocStruct(ztThreadMonitor);
+	monitor->event_handle = (i32)CreateEvent(NULL, TRUE, FALSE, NULL);
+	return monitor;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMonitorFree(ztThreadMonitor *monitor)
+{
+	if(monitor == nullptr) {
+		return;
+	}
+
+	CloseHandle((HANDLE)monitor->event_handle);
+	zt_free(monitor);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
+{
+	zt_returnOnNull(monitor);
+	WaitForSingleObject((HANDLE)monitor->event_handle, INFINITE);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
+{
+	zt_returnOnNull(monitor);
+	SetEvent((HANDLE)monitor->event_handle);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadMonitorReset(ztThreadMonitor *monitor)
+{
+	zt_returnOnNull(monitor);
+	ResetEvent((HANDLE)monitor->event_handle);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+#endif
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
