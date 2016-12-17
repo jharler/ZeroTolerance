@@ -173,7 +173,7 @@ enum ztRendererScreenChangeBehavior_Enum
 
 struct ztGameSettings
 {
-	i32 memory; // how much memory should the global arena have?
+	i32                                 memory; // how much memory should the global arena have?
 
 	i32                                 screen_w, native_w;
 	i32                                 screen_h, native_h;
@@ -184,6 +184,9 @@ struct ztGameSettings
 	ztRendererScreenChangeBehavior_Enum renderer_screen_change_behavior;
 	i32                                 renderer_memory;
 	i32                                 pixels_per_unit;
+
+	i32                                 threaded_frame_jobs;
+	i32                                 threaded_background_jobs;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -219,6 +222,28 @@ struct ztGameDetails
 
 
 // ------------------------------------------------------------------------------------------------
+// threading
+
+typedef i32 ztThreadJobID;
+
+ztThreadJobID zt_threadJobQueueForFrame(ztThread_Func thread_func, void *user_data, r32 anticipated_length = 1); // use for jobs that will complete in the time of a frame
+ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *user_data, r32 anticipated_length = 1); // use for jobs that will take multiple frames to complete
+
+bool          zt_threadJobIsComplete(ztThreadJobID job_id);
+void          zt_threadJobCancel(ztThreadJobID job_id);
+
+void          zt_threadJobQueueStartFrameJobs();
+void          zt_threadJobQueueWaitForFrameJobs();      // waits until all frame jobs are completed (called after the game loop if jobs are pending)
+void          zt_threadJobQueueWaitForBackgroundJobs(); // waits until all background jobs are completed
+void          zt_threadJobQueueWaitForAllJobs();        // waits until all jobs are completed
+
+void          zt_threadJobQueueDllLoad();
+void          zt_threadJobQueueDllUnload();
+
+int           zt_threadGetIndex();
+
+
+// ------------------------------------------------------------------------------------------------
 // profiling
 
 // ------------------------------------------------------------------------------------------------
@@ -231,6 +256,7 @@ struct ztProfiledSection;
 struct ztProfilerRenderState
 {
 	int display_frame = -1;
+	int display_thread = 0;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -256,7 +282,7 @@ void               zt_profilerRender             (ztDrawList *draw_list, const z
 void               zt_profilerFrameBegin         ();
 void               zt_profilerFrameEnd           ();
 
-ztProfiledSection *zt_profiledSectionEnter       (const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx = 0);
+ztProfiledSection *zt_profiledSectionEnter       (const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx = zt_threadGetIndex());
 void               zt_profiledSectionExit        (ztProfiledSection *section);
 
 
@@ -268,7 +294,7 @@ struct ztProfileBlock
 
 	// --------------------
 
-	ztProfileBlock(const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx = 0) {
+	ztProfileBlock(const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx = zt_threadGetIndex()) {
 		profiled_section = zt_profiledSectionEnter(section, section_hash, system, system_hash, thread_idx);
 	}
 
@@ -2627,7 +2653,7 @@ struct ztProfiledThread
 // ------------------------------------------------------------------------------------------------
 
 #ifndef ZT_MAX_THREADS
-#define ZT_MAX_THREADS	4
+#define ZT_MAX_THREADS	5
 #endif
 
 #ifndef ZT_PROFILER_FRAMES_KEPT
@@ -2648,6 +2674,68 @@ struct ztProfiler
 	int              current_frame;      // current frame we're using
 };
 
+
+// ------------------------------------------------------------------------------------------------
+
+#define ZT_THREAD_JOB_QUEUE_SIZE		256
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztThreadJobType_Enum
+{
+	ztThreadJobType_Frame,
+	ztThreadJobType_Background,
+
+	ztThreadJobType_MAX,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadJob
+{
+	ztThreadJobID         id;
+	ztThreadJobType_Enum  type;
+	ztThread_Func        *thread_func;
+	void                 *thread_func_user_data;
+	r32                   anticipated_length;
+
+	ztAtomicBool          completed;
+	ztAtomicBool          cancelled;
+
+	ztThreadJob          *next;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadJobThreadData
+{
+	ztThread            *thread;
+	ztThreadID           thread_id;
+	ztThreadJobType_Enum type;
+
+	ztThreadMonitor     *start;
+	ztThreadMonitor     *finish;
+
+	ztAtomicBool         should_exit;
+	ztAtomicBool         processing;
+
+	ztThreadJob         *next_job;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztThreadJobQueue
+{
+	ztThreadJobThreadData  *threads;
+	int                     threads_count;
+
+	int                     frame_threads;
+	int                     background_threads;
+
+	ztThreadJob             job_queue[ZT_THREAD_JOB_QUEUE_SIZE];
+
+	i32                     total_job_count;
+};
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2873,9 +2961,12 @@ struct ztGameGlobals
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
 
-	ztProfiler* profiler = nullptr;
-
 	bool quit_requested = false;
+
+	ztProfiler       *profiler         = nullptr;
+
+	ztThreadID        main_thread_id   = ztInvalidID;
+	ztThreadJobQueue *thread_job_queue = nullptr;
 
 	// ----------------------
 
@@ -3026,6 +3117,346 @@ extern "C" {
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztInternal ZT_FUNC_THREAD_EXIT(_zt_threadJobJobExit)
+{
+	ztThreadJob *job = (ztThreadJob*)user_data;
+	return zt_atomicBoolGet(&job->cancelled);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ZT_FUNC_THREAD(_zt_threadJobThread)
+{
+	ztThreadJobThreadData *thread_data = (ztThreadJobThreadData*)user_data;
+
+	zt_atomicBoolSet(&thread_data->should_exit, false);
+	zt_atomicBoolSet(&thread_data->processing, false);
+	zt_threadMonitorTriggerSignal(thread_data->finish);
+
+	while (!zt_atomicBoolGet(&thread_data->should_exit)) {
+		zt_threadMonitorWaitForSignal(thread_data->start); // sleep until we have a job to do or are exiting
+		zt_threadMonitorReset(thread_data->finish);
+		zt_atomicBoolSet(&thread_data->processing, true);
+		zt_threadMonitorReset(thread_data->start);
+
+		if (zt_atomicBoolGet(&thread_data->should_exit)) {
+			zt_atomicBoolSet(&thread_data->processing, false);
+			return 0;
+		}
+
+		ZT_PROFILE_GAME("Thread Main");
+
+		while (thread_data->next_job && !zt_atomicBoolGet(&thread_data->should_exit)) {
+			thread_data->next_job->thread_func(thread_data->thread_id, thread_data->next_job->thread_func_user_data, _zt_threadJobJobExit, thread_data->next_job);
+			zt_atomicBoolSet(&thread_data->next_job->completed, true);
+			thread_data->next_job = thread_data->next_job->next;
+		}
+
+		zt_atomicBoolSet(&thread_data->processing, false);
+		zt_threadMonitorTriggerSignal(thread_data->finish);
+	}
+
+	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_threadJobQueueInit(int max_frame_threads, int max_background_threads)
+{
+	zt_assert(max_frame_threads + max_background_threads <= ZT_MAX_THREADS);
+
+	ztThreadJobQueue *queue   = zt_game->thread_job_queue = zt_mallocStruct(ztThreadJobQueue);
+	queue->threads_count      = max_frame_threads + max_background_threads;
+	queue->threads            = zt_mallocStructArray(ztThreadJobThreadData, queue->threads_count);
+	queue->frame_threads      = max_frame_threads;
+	queue->background_threads = max_background_threads;
+
+	zt_fiz(queue->threads_count) {
+		queue->threads[i].thread = zt_threadMake(_zt_threadJobThread, &queue->threads[i], nullptr, nullptr, &queue->threads[i].thread_id);
+		queue->threads[i].type = i < max_frame_threads ? ztThreadJobType_Frame : ztThreadJobType_Background;
+		queue->threads[i].start = zt_threadMonitorMake();
+		queue->threads[i].finish = zt_threadMonitorMake();
+		zt_atomicBoolSet(&queue->threads[i].should_exit, false);
+		zt_atomicBoolSet(&queue->threads[i].processing, false);
+		queue->threads[i].next_job = nullptr;
+	}
+
+	zt_fize(queue->job_queue) {
+		queue->job_queue[i].id                    = ztInvalidID;
+		queue->job_queue[i].type                  = ztThreadJobType_MAX;
+		queue->job_queue[i].thread_func           = nullptr;
+		queue->job_queue[i].thread_func_user_data = nullptr;
+		queue->job_queue[i].next                  = nullptr;
+		zt_atomicBoolSet(&queue->job_queue[i].completed, true);
+		zt_atomicBoolSet(&queue->job_queue[i].cancelled, false);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_threadJobQueueFree()
+{
+	zt_threadJobQueueDllUnload();
+
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(queue->threads_count) {
+		zt_threadMonitorFree(queue->threads[i].start);
+		zt_threadMonitorFree(queue->threads[i].finish);
+	}
+
+	zt_free(queue->threads);
+	zt_free(queue);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_threadJobQueueUpdate()
+{
+	ZT_PROFILE_PLATFORM("_zt_threadJobQueueUpdate");
+	if(zt_game->thread_job_queue == nullptr || zt_game->thread_job_queue->threads_count <= 0) {
+		return;
+	}
+
+	zt_threadJobQueueWaitForFrameJobs();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueDllLoad()
+{
+	ztThreadJobQueue *queue = zt_mallocStruct(ztThreadJobQueue);
+	zt_fiz(queue->threads_count) {
+		zt_atomicBoolSet(&queue->threads[i].should_exit, false);
+		queue->threads[i].thread = zt_threadMake(_zt_threadJobThread, &queue->threads[i], nullptr, nullptr, &queue->threads[i].thread_id);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueDllUnload()
+{
+	zt_threadJobQueueWaitForAllJobs();
+
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+	zt_fiz(queue->threads_count) {
+		zt_atomicBoolSet(&queue->threads[i].should_exit, true);
+		zt_threadMonitorTriggerSignal(queue->threads[i].start);
+		zt_threadJoin(queue->threads[i].thread);
+		zt_threadFree(queue->threads[i].thread);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *user_data, r32 anticipated_length, ztThreadJobType_Enum type)
+{
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	if(queue->threads_count <= 0) {
+		thread_func(0, user_data, nullptr, nullptr);
+		return -2;
+	}
+
+	r32 lowest_val = ztReal32Max;
+	int lowest_idx = -1;
+
+	zt_fiz(queue->threads_count) {
+		if (queue->threads[i].type == type && !zt_atomicBoolGet(&queue->threads[i].processing)) {
+			r32 val = 0;
+			zt_flink(job, queue->threads[i].next_job) {
+				val += job->anticipated_length;
+			}
+			if (val < lowest_val) {
+				lowest_val = val;
+				lowest_idx = i;
+			}
+		}
+	}
+
+	if (lowest_idx == -1) {
+		// there are no waiting frame threads, so we need to wait
+		if(type == ztThreadJobType_Frame) {
+			zt_threadJobQueueWaitForFrameJobs();
+		}
+		else {
+			// TODO: should maintain a separate queue so we aren't stalling here
+			zt_threadJobQueueWaitForBackgroundJobs();
+		}
+		return _zt_threadJobQueueFor(thread_func, user_data, anticipated_length, type);
+	}
+
+	ztThreadJobThreadData *thread_data = &queue->threads[lowest_idx];
+
+	ztThreadJob *job = nullptr;
+	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
+		if(zt_atomicBoolGet(&queue->job_queue[i].completed)) {
+			job = &queue->job_queue[i];
+			break;
+		}
+	}
+	if(job == nullptr) {
+		// there are no free job slots, so we need to wait
+		if(type == ztThreadJobType_Frame) {
+			zt_threadJobQueueWaitForFrameJobs();
+		}
+		else {
+			zt_threadJobQueueWaitForBackgroundJobs();
+		}
+		zt_threadJobQueueWaitForFrameJobs();
+		return _zt_threadJobQueueFor(thread_func, user_data, anticipated_length, type);
+	}
+
+	job->id                     = ++queue->total_job_count;
+	job->type                   = type;
+	job->thread_func            = thread_func;
+	job->thread_func_user_data  = user_data;
+	job->anticipated_length     = anticipated_length;
+	job->next                   = nullptr;
+
+	zt_atomicBoolSet(&job->completed, false);
+	zt_atomicBoolSet(&job->cancelled, false);
+
+	zt_singleLinkAddToEnd(thread_data->next_job, job);
+
+	if (type == ztThreadJobType_Background) {
+		zt_threadMonitorTriggerSignal(thread_data->start);
+	}
+
+	return job->id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztThreadJobID zt_threadJobQueueForFrame(ztThread_Func thread_func, void *user_data, r32 anticipated_length)
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueForFrame");
+	return _zt_threadJobQueueFor(thread_func, user_data, anticipated_length, ztThreadJobType_Frame);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *user_data, r32 anticipated_length)
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueForBackground");
+	if(zt_game->thread_job_queue->background_threads == 0) {
+		thread_func(0, user_data, nullptr, nullptr);
+		return -2;
+	}
+	else {
+		return _zt_threadJobQueueFor(thread_func, user_data, anticipated_length, ztThreadJobType_Background);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_threadJobIsComplete(ztThreadJobID job_id)
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobIsComplete");
+	if(job_id == -2) {
+		return true;
+	}
+
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
+		if(queue->job_queue[i].id == job_id) {
+			return zt_atomicBoolGet(&queue->job_queue[i].completed);
+		}
+	}
+
+	return true; // if the job isn't found, it's been pushed out of the queue
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobCancel(ztThreadJobID job_id)
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobCancel");
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
+		if(queue->job_queue[i].id == job_id) {
+			zt_atomicBoolSet(&queue->job_queue[i].cancelled, true);
+			break;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueStartFrameJobs()
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueStartFrameJobs");
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(queue->threads_count) {
+		if (queue->threads[i].type == ztThreadJobType_Frame && !zt_atomicBoolGet(&queue->threads[i].processing)) {
+			zt_threadMonitorTriggerSignal(queue->threads[i].start);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueWaitForFrameJobs()
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueWaitForFrameJobs");
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(queue->threads_count) {
+		if (queue->threads[i].type == ztThreadJobType_Frame && zt_atomicBoolGet(&queue->threads[i].processing)) {
+			zt_threadMonitorWaitForSignal(queue->threads[i].finish);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueWaitForBackgroundJobs()
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueWaitForBackgroundJobs");
+	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	zt_fiz(queue->threads_count) {
+		if (queue->threads[i].type == ztThreadJobType_Background && zt_atomicBoolGet(&queue->threads[i].processing)) {
+			zt_threadMonitorWaitForSignal(queue->threads[i].finish);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_threadJobQueueWaitForAllJobs()
+{
+	ZT_PROFILE_PLATFORM("zt_threadJobQueueWaitForAllJobs");
+	zt_threadJobQueueWaitForFrameJobs();
+	zt_threadJobQueueWaitForBackgroundJobs();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_threadGetIndex()
+{
+	ztThreadID thread_id = zt_threadGetCurrentID();
+	if(thread_id == zt_game->main_thread_id) {
+		return 0;
+	}
+
+	zt_fiz(zt_game->thread_job_queue->threads_count) {
+		if(zt_game->thread_job_queue->threads[i].thread_id == thread_id) {
+			return i + 1;
+		}
+	}
+
+	zt_assert(false);
+	return -1;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 ztInternal void _zt_profilerInit()
 {
 #	if !defined(ZT_NO_PROFILE)
@@ -3152,22 +3583,15 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 	ztVec2 timeline_size(size.x - 10 / ppu, 30 / ppu);
 	ztVec2 timeline_pos(pos.x, pos.y + ((size.y - timeline_size.y) / 2) - (5 / ppu));
 
-	r32 pixel_gap = 2 / ppu;
-	r32 width_per_frame = (timeline_size.x - ((ZT_PROFILER_FRAMES_KEPT + 1) * pixel_gap)) / ZT_PROFILER_FRAMES_KEPT;
-
-	int max_idx = ZT_PROFILER_FRAMES_KEPT;
-	zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
-		if(!zt_game->profiler->threads[0].roots[i]) {
-			max_idx = i;
-			break;
-		}
-	}
-	if(max_idx == 0) return;
+	r32 pixel_size = 2 / ppu;
+	r32 width_per_frame = (timeline_size.x - ((ZT_PROFILER_FRAMES_KEPT + 1) * pixel_size)) / ZT_PROFILER_FRAMES_KEPT;
 
 	int display_frame = zt_game->profiler->current_frame - 1;
 	if (display_frame < 0) {
 		display_frame = ZT_PROFILER_FRAMES_KEPT - 1;
 	}
+
+	int display_thread = render_state ? zt_clamp(render_state->display_thread, 0, zt_elementsOf(zt_game->profiler->threads)) : 0;
 
 	if(render_state) {
 		if(render_state->display_frame >= 0 && render_state->display_frame < ZT_PROFILER_FRAMES_KEPT && render_state->display_frame != zt_game->profiler->current_frame) {
@@ -3183,9 +3607,9 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 
 		zt_drawListPushColor(draw_list, ztColor_Gray);
 
-		ztVec2 frame_size(width_per_frame, timeline_size.y - (pixel_gap * 2));
-		r32 x = (timeline_pos.x - (timeline_size.x / 2)) + (width_per_frame / 2) + pixel_gap;
-		zt_fiz(max_idx) {
+		ztVec2 frame_size(width_per_frame, timeline_size.y - (pixel_size * 2));
+		r32 x = (timeline_pos.x - (timeline_size.x / 2)) + (width_per_frame / 2) + pixel_size;
+		zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
 			ztVec2 fpos(x, timeline_pos.y);
 			if (mouse_clicked && render_state && i != zt_game->profiler->current_frame && zt_collisionPointInRect(mouse_pos, fpos, frame_size)) {
 				if(render_state->display_frame == i) {
@@ -3204,7 +3628,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 			}
 
 			zt_drawListAddFilledRect2D(draw_list, fpos, frame_size, ztVec2::zero, ztVec2::one);
-			x += width_per_frame + pixel_gap;
+			x += width_per_frame + pixel_size;
 
 			if(i == zt_game->profiler->current_frame || i == display_frame) {
 				zt_drawListPopColor(draw_list);
@@ -3222,116 +3646,143 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 		zt_drawListPopColor(draw_list);
 
 		r64 max = 0;
-		zt_fiz(max_idx) {
-			if(i == zt_game->profiler->current_frame) {
+		zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
+			if (i == zt_game->profiler->current_frame || zt_game->profiler->threads[display_thread].roots[i] == nullptr) {
 				continue;
 			}
 
-			max = zt_max(max, zt_game->profiler->threads[0].roots[i]->time_accum);
+			max = zt_max(max, zt_game->profiler->threads[display_thread].roots[i]->time_accum);
 		}
 
 		max *= 1.1f;
 		//max = 1000 / 60.f;
 
 		if(max) {
-			r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_gap;
+			r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_size;
 			zt_drawListPushColor(draw_list, ztColor_Green);
-			ztVec2 frame_size(width_per_frame, timegraph_size.y - (pixel_gap * 2));
-			zt_fiz(max_idx) {
-				if(i == zt_game->profiler->current_frame) {
-					x += width_per_frame + pixel_gap;
+			ztVec2 frame_size(width_per_frame, timegraph_size.y - (pixel_size * 2));
+			zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
+				if (i == zt_game->profiler->current_frame || zt_game->profiler->threads[display_thread].roots[i] == nullptr) {
+					x += width_per_frame + pixel_size;
 					continue;
 				}
 
-				r32 pct = (r32)(zt_game->profiler->threads[0].roots[i]->time_accum / max);
+				r32 pct = (r32)(zt_game->profiler->threads[display_thread].roots[i]->time_accum / max);
 
-				zt_drawListAddFilledRect2D(draw_list, ztVec2(x, timegraph_pos.y - ((frame_size.y * (1 - pct)) / 2)), ztVec2(frame_size.x, zt_max(pixel_gap, frame_size.y * pct)), ztVec2::zero, ztVec2::one);
-				x += width_per_frame + pixel_gap;
+				zt_drawListAddFilledRect2D(draw_list, ztVec2(x, timegraph_pos.y - ((frame_size.y * (1 - pct)) / 2)), ztVec2(frame_size.x, zt_max(pixel_size, frame_size.y * pct)), ztVec2::zero, ztVec2::one);
+				x += width_per_frame + pixel_size;
 			}
 			zt_drawListPopColor(draw_list);
 		}
 	}
 
 	{
-		r32 button_w = pixel_gap * 40;
-		ztVec2 button_pos = ztVec2(timegraph_pos.x - ((timegraph_size.x - button_w) / 2) + (pixel_gap * 2), timegraph_pos.y - (timegraph_size.y / 2) - pixel_gap * 7);
-		ztVec2 button_size = ztVec2(button_w, pixel_gap * 10);
+		r32 button_w = pixel_size * 50;
+		r32 button_x = timegraph_pos.x - ((timegraph_size.x - button_w) / 2) + (pixel_size * 2);
+		zt_fiz(zt_elementsOf(zt_game->profiler->threads) + 1) {
+			ztVec2 button_pos = ztVec2(button_x, timegraph_pos.y - (timegraph_size.y / 2) - pixel_size * 7);
+			ztVec2 button_size = ztVec2(button_w, pixel_size * 12);
 
-		ztColor button_clr = zt_game->profiler->paused ? ztColor_DarkRed : ztColor_Gray;
-		if(zt_collisionPointInRect(mouse_pos, button_pos, button_size)) {
-			button_clr *= 1.25f;
+			button_x += button_w + pixel_size * 10;
 
-			if(mouse_clicked) {
-				zt_game->profiler->paused = !zt_game->profiler->paused;
+			ztColor button_clr = ztColor_Gray;
+			
+			if (i == 0 && zt_game->profiler->paused) {
+				button_clr = ztColor_DarkRed;
+			}
+			else if(i - 1 == display_thread) {
+				button_clr = ztColor_DarkGreen;
+			}
+
+			if(zt_collisionPointInRect(mouse_pos, button_pos, button_size)) {
+				button_clr *= 1.25f;
+
+				if(mouse_clicked) {
+					if(i == 0) {
+						zt_game->profiler->paused = !zt_game->profiler->paused;
+					}
+					else if(render_state) {
+						render_state->display_thread = i - 1;
+					}
+				}
+			}
+
+			zt_drawListPushColor(draw_list, button_clr);
+			zt_drawListAddFilledRect2D(draw_list, button_pos, button_size, ztVec2::zero, ztVec2::one);
+			zt_drawListPopColor(draw_list);
+			button_pos.y += pixel_size;
+			if (i == 0) {
+				zt_drawListAddText2D(draw_list, 0, zt_game->profiler->paused ? "Resume" : "Pause", button_pos);
+			}
+			else if (i == 1) {
+				zt_drawListAddText2D(draw_list, 0, "Main Thread", button_pos);
+			}
+			else {
+				zt_strMakePrintf(thread_name, 128, "Thread %d", i - 1);
+				zt_drawListAddText2D(draw_list, 0, thread_name, button_pos);
 			}
 		}
-
-		zt_drawListPushColor(draw_list, button_clr);
-		zt_drawListAddFilledRect2D(draw_list, button_pos, button_size, ztVec2::zero, ztVec2::one);
-		zt_drawListPopColor(draw_list);
-		zt_drawListAddText2D(draw_list, 0, zt_game->profiler->paused ? "Resume" : "Pause", button_pos);
-
 	}
 
 	ztProfiledSection *ps_details = nullptr;
 	{
-		ztProfiledSection *ps = zt_game->profiler->threads[0].roots[display_frame];
+		ztProfiledSection *ps = zt_game->profiler->threads[display_thread].roots[display_frame];
+		r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_size;
+		r32 y = (timegraph_pos.y - (timegraph_size.y / 2)) - 15 * pixel_size;
 
-		r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_gap;
-		r32 y = (timegraph_pos.y - (timegraph_size.y / 2)) - 15 * pixel_gap;
+		if (ps) {
+			int sections = zt_game->profiler->threads[display_thread].sections[display_frame];
 
-		int sections = zt_game->profiler->threads[0].sections[display_frame];
+			r64 self_times[ZT_PROFILER_MAX_SECTIONS_PER_FRAME];
 
-		r64 self_times[ZT_PROFILER_MAX_SECTIONS_PER_FRAME];
+			zt_fiz(sections) {
+				self_times[i] = zt_game->profiler->threads[display_thread].allocations[display_frame][i].time_accum;
 
-		zt_fiz(sections) {
-			self_times[i] = zt_game->profiler->threads[0].allocations[display_frame][i].time_accum;
-
-			zt_flink(child, zt_game->profiler->threads[0].allocations[display_frame][i].children) {
-				self_times[i] -= child->time_accum;
-			}
-		}
-
-		zt_fiz(sections) {
-			r64 current = 0;
-			int current_idx = 0;
-			zt_fjz(sections) {
-				if (self_times[j] >= current) {
-					current = self_times[j];
-					current_idx = j;
+				zt_flink(child, zt_game->profiler->threads[display_thread].allocations[display_frame][i].children) {
+					self_times[i] -= child->time_accum;
 				}
 			}
-			r64 self_time = self_times[current_idx];
-			self_times[current_idx] = 0;
 
-			if(self_time == 0) break;
+			zt_fiz(sections) {
+				r64 current = 0;
+				int current_idx = 0;
+				zt_fjz(sections) {
+					if (self_times[j] >= current) {
+						current = self_times[j];
+						current_idx = j;
+					}
+				}
+				r64 self_time = self_times[current_idx];
+				self_times[current_idx] = 0;
 
-			ztProfiledSection *ps = &zt_game->profiler->threads[0].allocations[display_frame][current_idx];
+				if (self_time == 0) break;
 
-			zt_strMakePrintf(display, 512, "%12.4f . %s", (r32)self_time * 1000000, ps->section);
+				ztProfiledSection *ps = &zt_game->profiler->threads[display_thread].allocations[display_frame][current_idx];
 
-			ztVec2 text_pos(x, y);
-			ztVec2 text_size;
+				zt_strMakePrintf(display, 512, "%10.4f . %s", (r32)self_time * 1000000, ps->section);
 
-			zt_drawListAddText2D(draw_list, 0, display, ztVec2(x, y), ztAlign_Top|ztAlign_Left, ztAnchor_Top|ztAnchor_Left, &text_size);
+				ztVec2 text_pos(x, y);
+				ztVec2 text_size;
 
-			text_pos.x += text_size.x / 2.f;
-			text_pos.y -= text_size.y / 2.f;
-			if(zt_collisionPointInRect(mouse_pos, text_pos, text_size)) {
-				ps_details = ps;
+				zt_drawListAddText2D(draw_list, 0, display, ztVec2(x, y), ztAlign_Top | ztAlign_Left, ztAnchor_Top | ztAnchor_Left, &text_size);
+
+				text_pos.x += text_size.x / 2.f;
+				text_pos.y -= text_size.y / 2.f;
+				if (zt_collisionPointInRect(mouse_pos, text_pos, text_size)) {
+					ps_details = ps;
+				}
+
+				y -= pixel_size * 10;
+
+				if (y - pixel_size * 10 < pos.y - (size.y / 2.f)) break;
 			}
-
-			y -= pixel_gap * 10;
-
-			if (y - pixel_gap * 10 < pos.y - (size.y / 2.f)) break;
 		}
 
-		x = pos.x + pixel_gap;
-		y = (timegraph_pos.y - (timegraph_size.y / 2)) - 15 * pixel_gap;
+		x = pos.x + pixel_size;
+		y = (timegraph_pos.y - (timegraph_size.y / 2)) - 15 * pixel_size;
 
 		struct local
 		{
-
 			static int compare(const void *a, const void *b)
 			{
 				ztProfiledSection *pa = *(ztProfiledSection**)a;
@@ -3346,7 +3797,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 				return 0;
 			}
 
-			static void displaySection(ztDrawList *draw_list, ztProfiledSection *section, r32 x, r32 *y, r32 pixel_gap, r32 right, r32 y_max, int indent)
+			static void displaySection(ztDrawList *draw_list, ztProfiledSection *section, r32 x, r32 *y, r32 pixel_size, r32 right, r32 y_max, int indent)
 			{
 				if (section == nullptr || *y < y_max) {
 					return;
@@ -3361,20 +3812,20 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 					}
 				}
 
-				ztVec2 pos(x + (indent * pixel_gap * 10), *y);
+				ztVec2 pos(x + (indent * pixel_size * 10), *y);
 
-				zt_strMakePrintf(time, 512, "%12.4f %12.4f . ", tm_total * 1000000, tm_alone * 1000000);
+				zt_strMakePrintf(time, 512, " %10.4f %12.4f . ", tm_total * 1000000, tm_alone * 1000000);
 				zt_drawListAddText2D(draw_list, 0, time, pos, ztAlign_Top|ztAlign_Left, ztAnchor_Top|ztAnchor_Left, &ext_label);
 
 				zt_strMakePrintf(func, 512, "%s", section->section);
 				zt_drawListAddText2D(draw_list, 0, func, ztVec2(pos.x + ext_label.x, *y), ztAlign_Top|ztAlign_Left, ztAnchor_Top|ztAnchor_Left, &ext_label);
 
 				if(indent > 0) {
-					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_gap * 10), *y - ext_label.y / 2, 0), ztVec3(x + (indent * pixel_gap * 10), *y - ext_label.y / 2, 0));
-					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_gap * 10), *y + ext_label.y / 2, 0), ztVec3(x + ((indent - 1) * pixel_gap * 10), *y - ext_label.y / 2, 0));
+					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_size * 10), *y - ext_label.y / 2, 0), ztVec3(x + (indent * pixel_size * 10), *y - ext_label.y / 2, 0));
+					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_size * 10), *y + ext_label.y / 2 + pixel_size * 2, 0), ztVec3(x + ((indent - 1) * pixel_size * 10), *y - (ext_label.y + pixel_size) / 2, 0));
 				}
 
-				*y -= pixel_gap * 10;
+				*y -= pixel_size * 10;
 
 				ztProfiledSection *children[ZT_PROFILER_MAX_SECTIONS_PER_FRAME];
 				{
@@ -3386,20 +3837,20 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 					qsort(children, idx, zt_sizeof(ztProfiledSection*), compare);
 
 					zt_fiz(idx) {
-						displaySection(draw_list, children[i], x, y , pixel_gap, right, y_max, indent + 1);
+						displaySection(draw_list, children[i], x, y , pixel_size, right, y_max, indent + 1);
 					}
 				}
 
 //				int idx = 0;
 //				zt_flink(child, section->children) {
 //					idx += 1;
-//					displaySection(draw_list, child, x, y, pixel_gap, right, y_max, indent + 1);
+//					displaySection(draw_list, child, x, y, pixel_size, right, y_max, indent + 1);
 //				}
 			}
 		};
 
 		if(ps_details) {
-			local::displaySection(draw_list, ps_details, pos.x - pixel_gap * 100, &y, pixel_gap, (pos.x + size.x / 2) - pixel_gap * 10, (pos.y - (size.y / 2.f)) + pixel_gap * 10, 0);//pos.x + (size.x / 2) - 10 / ppu);
+			local::displaySection(draw_list, ps_details, pos.x - pixel_size * 100, &y, pixel_size, (pos.x + size.x / 2) - pixel_size * 10, (pos.y - (size.y / 2.f)) + pixel_size * 10, 0);//pos.x + (size.x / 2) - 10 / ppu);
 		}
 	}
 
@@ -3424,6 +3875,24 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 	bool ps_existing = false;
 
 	if (pt->root == nullptr || pt->allocations_current_frame != zt_game->profiler->current_frame) {
+
+		if (pt->allocations_current_frame < zt_game->profiler->current_frame) {
+			for (int i = pt->allocations_current_frame + 1; i < zt_game->profiler->current_frame; ++i) {
+				pt->roots[i] = nullptr;
+				pt->sections[i] = 0;
+			}
+		}
+		else {
+			for (int i = pt->allocations_current_frame + 1; i < ZT_PROFILER_FRAMES_KEPT; ++i) {
+				pt->roots[i] = nullptr;
+				pt->sections[i] = 0;
+			}
+			for (int i = 0; i < zt_game->profiler->current_frame; ++i) {
+				pt->roots[i] = nullptr;
+				pt->sections[i] = 0;
+			}
+		}
+
 		pt->allocations_current_frame   = zt_game->profiler->current_frame;
 		pt->allocations_current_section = 0;
 
@@ -3508,7 +3977,6 @@ void zt_profiledSectionExit(ztProfiledSection *section)
 	}
 #	endif
 }
-
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -15278,6 +15746,8 @@ int main(int argc, char **argv)
 		zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0);
 	}
 
+	zt_game->main_thread_id = zt_threadGetCurrentID();
+
 	ztWindowDetails *win_details;
 
 	_zt_profilerInit();
@@ -15316,6 +15786,14 @@ int main(int argc, char **argv)
 		game_settings->renderer_flags = ztRendererFlags_Windowed | ztRendererFlags_LockAspect;
 		game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
 		game_settings->renderer_memory = zt_megabytes(16);
+
+		game_settings->threaded_frame_jobs      = zt_max(0, ZT_MAX_THREADS - 2);
+		game_settings->threaded_background_jobs = 1;
+
+		if(game_settings->threaded_frame_jobs > 3) {
+			game_settings->threaded_frame_jobs -= 1;
+			game_settings->threaded_background_jobs += 1;
+		}
 
 		if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
 			return 1;
@@ -15373,6 +15851,8 @@ int main(int argc, char **argv)
 
 		if (!_zt_callFuncInit(&zt_game->game_details, game_settings))
 			return 1;
+
+		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
 
 		_zt_callFuncScreenChange(game_settings);
 	}
@@ -15448,6 +15928,8 @@ int main(int argc, char **argv)
 		_zt_win_processMessages();
 		_zt_winControllerInputUpdate(dt);
 
+		_zt_threadJobQueueUpdate();
+
 		++zt_game->game_details.current_frame;
 
 		zt_profilerFrameEnd();
@@ -15457,6 +15939,8 @@ int main(int argc, char **argv)
 	{
 		ZT_PROFILE_PLATFORM("main(cleanup)");
 		zt_textureFree(0); // free the white tex
+
+		_zt_threadJobQueueFree();
 
 		zt_fiz(zt_game->fonts_count_system) {
 			zt_fontFree(i);
