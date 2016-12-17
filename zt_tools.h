@@ -1436,6 +1436,27 @@ void             zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor);
 void             zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor);
 void             zt_threadMonitorReset(ztThreadMonitor *monitor);
 
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+typedef long volatile ztAtomicInt;
+
+i32 zt_atomicIntInc(ztAtomicInt *atomic_int);
+i32 zt_atomicIncDec(ztAtomicInt *atomic_int);
+i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value);
+i32 zt_atomicIntGet(ztAtomicInt *atomic_int);
+i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val);
+i32 zt_atomicIntOr (ztAtomicInt *atomic_int, i32 or_val);
+i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val);
+
+typedef long volatile ztAtomicBool;
+
+bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value);
+bool zt_atomicBoolGet(ztAtomicBool *atomic_bool);
+bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool);
+
 // ------------------------------------------------------------------------------------------------
 
 
@@ -6607,6 +6628,76 @@ void zt_threadMonitorReset(ztThreadMonitor *monitor)
 }
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
+{
+	return InterlockedIncrement(atomic_int);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
+{
+	return InterlockedDecrement(atomic_int);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
+{
+	return InterlockedExchange(atomic_int, value);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
+{
+	return InterlockedExchange(atomic_int, *atomic_int);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
+{
+	return InterlockedAnd(atomic_int, and_val);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
+{
+	return InterlockedOr(atomic_int, or_val);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
+{
+	return InterlockedXor(atomic_int, xor_val);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
+{
+	return InterlockedExchange(atomic_bool, value ? 1 : 0) != 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
+{
+	return InterlockedExchange(atomic_bool, *atomic_bool) != 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
+{
+	return zt_atomicBoolSet(atomic_bool, !zt_atomicBoolGet(atomic_bool));
+}
 
 #endif
 
