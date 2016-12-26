@@ -183,6 +183,7 @@
 #define zt_gigabytes(gb)	(zt_megabytes(gb) * 1024LL)
 #define zt_terabytes(tb)	(zt_gigabytes(tb) * 1024LL)
 
+#define zt_bit(num)             (1<<(num))
 #define zt_bitAdd(var, flag)    ((var) |= (flag))
 #define zt_bitRemove(var, flag) ((var) &= ~(flag))
 #define zt_bitIsSet(var, flag)  (((var) & (flag)) != 0)
