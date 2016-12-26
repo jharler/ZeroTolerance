@@ -60,7 +60,7 @@ struct ztGame
 
 	ztDrawList draw_list;
 
-	ztGuiManagerID gui_manager;
+	ztGuiManager *gui_manager;
 
 	ztMeshID plane, cube;
 
@@ -102,8 +102,8 @@ void zt_logCallback(ztLogMessageLevel_Enum level, const char * message)
 
 void makePngCpp(ztGameDetails* game_details)
 {
-	zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png", game_details->user_path);
-	zt_strMakePrintf(gui_cpp, ztFileMaxPath, "%s\\run\\data\\textures\\gui.png.cpp", game_details->user_path);
+	zt_strMakePrintf(gui_tex, ztFileMaxPath, "%s\\run\\data\\textures\\font.png", game_details->user_path);
+	zt_strMakePrintf(gui_cpp, ztFileMaxPath, "%s\\run\\data\\textures\\font.png.cpp", game_details->user_path);
 	if (!zt_fileExists(gui_cpp) && zt_fileExists(gui_tex)) {
 		i32 size = 0;
 		byte *data = (byte*)zt_readEntireFile(gui_tex, &size);
@@ -159,7 +159,7 @@ bool game_settings(ztGameDetails* details, ztGameSettings* settings)
 	settings->native_w = settings->screen_w = zt_iniFileGetValue(ini_file, "general", "resolution_w", (i32)1920);
 	settings->native_h = settings->screen_h = zt_iniFileGetValue(ini_file, "general", "resolution_h", (i32)1080);
 	settings->renderer = ztRenderer_OpenGL;
-	settings->renderer = ztRenderer_DirectX;
+	//settings->renderer = ztRenderer_DirectX;
 
 	char cfg_renderer[128] = { 0 };
 	zt_iniFileGetValue(ini_file, "general", "renderer", nullptr, cfg_renderer, sizeof(cfg_renderer));
@@ -230,6 +230,8 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 		return false;
 	}
 
+	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
+	if (g_game->tex_skybox == ztInvalidID) return false;
 	g_game->tex_id_crate = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube.png"), 0);
 	if (g_game->tex_id_crate == ztInvalidID) return false;
 	g_game->tex_id_crate_spec = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/cube_s.png"), 0);
@@ -242,8 +244,6 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	if (g_game->tex_id_floor_spec == ztInvalidID) return false;
 	g_game->tex_id_floor_norm = zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/floor_tile_n.png"), 0 | ztTextureFlags_MipMaps);
 	if (g_game->tex_id_floor_norm == ztInvalidID) return false;
-	g_game->tex_skybox = zt_textureMakeCubeMap(&g_game->asset_mgr, "textures/skybox_%s.png");
-	if (g_game->tex_skybox == ztInvalidID) return false;
 
 	g_game->gui_manager = zt_guiManagerMake(&g_game->gui_camera, nullptr, zt_memGetGlobalArena());
 	zt_guiInitDebug(g_game->gui_manager);
@@ -363,28 +363,28 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	zt_sceneAddLight(g_game->scene, &g_game->directional_light);
 
 	if(true){
-		ztGuiItemID slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
+		ztGuiItem *slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);
 
-		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.intensity);
+		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.intensity);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.4f));
 
-		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.r);
+		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.r);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.8f));
 
-		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.g);
+		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.g);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(1, -.8f));
 
-		slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->directional_light.color.b);
+		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.b);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
 		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(2, -.8f));
 
 		zt_fiz(4) {
-			slider = zt_guiMakeSlider(ztInvalidID, ztGuiItemOrient_Horz, &g_game->point_lights[i].intensity);
+			slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->point_lights[i].intensity);
 			zt_guiItemSetSize(slider, ztVec2(3, .3f));
 			zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1.2f - (i * .4f)));
 		}
@@ -501,6 +501,7 @@ void game_cleanup()
 }
 
 // ------------------------------------------------------------------------------------------------
+void _zt_sceneLightingDrawDebug(ztDrawList *draw_list, ztScene *scene, ztCamera *camera);
 
 bool game_loop(r32 dt)
 {
@@ -596,7 +597,8 @@ bool game_loop(r32 dt)
 
 			g_game->vr->headset.model->flags |= ztModelFlags_Hidden;
 			zt_fiz(2) {
-				zt_sceneCull(g_game->scene, cameras[i]);
+				zt_scenePrepare(g_game->scene, cameras[i]);
+				zt_sceneOptimize(g_game->scene, cameras[i]);
 				zt_sceneLighting(g_game->scene, cameras[i]);
 
 				zt_textureRenderTargetPrepare(textures[i]);
@@ -611,7 +613,8 @@ bool game_loop(r32 dt)
 	}
 
 	zt_rendererClear(ztVec4(0, 0, 0, 0));
-	zt_sceneCull(g_game->scene, &g_game->camera);
+	zt_scenePrepare(g_game->scene, &g_game->camera);
+	zt_sceneOptimize(g_game->scene, &g_game->camera);
 	zt_sceneLighting(g_game->scene, &g_game->camera);
 	zt_sceneRender(g_game->scene, &g_game->camera);
 
@@ -634,6 +637,8 @@ bool game_loop(r32 dt)
 		zt_drawListPushColor(&g_game->draw_list, ztVec4(1, 1, 1, 1));
 		zt_drawListPopTexture(&g_game->draw_list);
 		zt_drawListPopShader(&g_game->draw_list);
+
+		//_zt_sceneLightingDrawDebug(&g_game->draw_list, g_game->scene, &g_game->camera);
 
 		if (g_game->vr) {
 
@@ -678,7 +683,7 @@ bool game_loop(r32 dt)
 	{
 #if 1
 		zt_drawListPushShader(&g_game->draw_list, g_game->shader_id);
-		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list);
+		zt_guiManagerRender(g_game->gui_manager, &g_game->draw_list, dt);
 		zt_drawListPopShader(&g_game->draw_list);
 		zt_renderDrawList(&g_game->gui_camera, &g_game->draw_list, ztColor::zero, ztRenderDrawListFlags_NoClear | ztRenderDrawListFlags_NoDepthTest);
 
