@@ -913,6 +913,8 @@ enum ztShaderDefault_Enum
 	ztShaderDefault_Skybox,
 	ztShaderDefault_ShadowDirectional,
 
+	ztShaderDefault_SignedDistanceField,
+
 	ztShaderDefault_MAX,
 };
 
@@ -2875,26 +2877,36 @@ struct ztVertexArray
 
 struct ztFont
 {
-	char name[128];
-	i32 size_pixels;
-	ztTextureID texture;
+	char           name[128];
+	i32            size_pixels;
+	ztTextureID    texture;
 
-	i32 *glyph_code_point;
+	i32           *glyph_code_point;
 
-	struct ztGlyph
+	struct Kerning
 	{
-		ztVec2 offset;
-		ztVec2 size;
-		ztVec4 tex_uv;
-		r32 x_adv;
+		i32        next_code;
+		r32        spacing;
+		Kerning   *next;
 	};
 
-	ztGlyph *glyphs;
-	i32 glyph_count;
+	struct Glyph
+	{
+		ztVec2     offset;
+		ztVec2     size;
+		ztVec4     tex_uv;
+		r32        x_adv;
+		Kerning   *kerning;
+	};
 
-	r32 line_height;
-	r32 line_spacing;
-	r32 space_width;
+	Glyph         *glyphs;
+	i32            glyph_count;
+	Kerning       *kernings;
+	i32            kernings_count;
+
+	r32            line_height;
+	r32            line_spacing;
+	r32            space_width;
 
 	ztMemoryArena *arena;
 };
@@ -4450,7 +4462,8 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-lit",
 	"shader-litshadow",
 	"shader-skybox",
-	"shader-shadowdirectional"
+	"shader-shadowdirectional",
+	"shader-signeddistancefield"
 };
 
 ztInternal const char *_zt_default_shaders[] = {
@@ -4460,6 +4473,7 @@ ztInternal const char *_zt_default_shaders[] = {
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		//if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		//	return 0;\n		//}\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox_tex;\n\n	void main()\n	{\n		color = vec4(texture(skybox_tex, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube skybox_tex;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return skybox_tex.Sample(sample_type, input.positionL);\n	}\n]>>\n",
 	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
+	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	const float smoothing = 1.0 / 64.0;\n	\n	void main()\n	{\n		float distance = texture(tex_diffuse, fs_in.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * fs_in.color.a;\n		frag_color = vec4(fs_in.color.rgb, alpha);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	static const float smoothing = 1.0 / 64.0;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float distance = tex_diffuse.Sample(sample_type, input.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		return float4(input.color.rgb, alpha);\n	}\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -10062,7 +10076,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	ztFontID font_id = ztInvalidID;
 	const char *error = nullptr;
 
-	ztToken lines_tok[2048];
+	ztToken lines_tok[4096];
 	int lines = zt_strTokenize((char*)data, "\r\n", lines_tok, zt_elementsOf(lines_tok), 0);
 	if (lines < 4) {
 		error = "bitmap font file has an invalid header";
@@ -10115,6 +10129,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	int chars = 0;
 	int chars_line = 0;
 	int base = 0;
+	int kernings = 0;
 
 	zt_fiz(lines) {
 		if (lines_tok[i].len >= zt_elementsOf(line_buff)) {
@@ -10130,8 +10145,10 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (zt_strStartsWith(line_buff, "char id")) {
 			if (chars_line == 0) {
 				chars_line = i;
-				break;
 			}
+		}
+		else if(zt_strStartsWith(line_buff, "kerning ")) {
+			kernings += 1;
 		}
 		else {
 			ztToken toks[32];
@@ -10218,7 +10235,9 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 	font->glyph_count = chars;
 	font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
-	font->glyphs = zt_mallocStructArrayArena(ztFont::ztGlyph, chars, font->arena);
+	font->glyphs = zt_mallocStructArrayArena(ztFont::Glyph, chars, font->arena);
+	font->kernings_count = kernings;
+	font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
 
 	r32 tex_w = (r32)zt_game->textures[font->texture].width;
 	r32 tex_h = (r32)zt_game->textures[font->texture].height;
@@ -10229,6 +10248,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 	font->space_width = 0;
 
+	int kerning = 0;
 	for (int i = chars_line; i < lines; ++i) {
 		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
 		line_buff[lines_tok[i].len] = 0;
@@ -10243,11 +10263,13 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			continue;
 		}
 
-		if (glyph_idx >= chars)
+		if (glyph_idx >= chars) {
 			break;
+		}
 
 		int* codepoint = &font->glyph_code_point[glyph_idx];
-		ztFont::ztGlyph *glyph = &font->glyphs[glyph_idx];
+		ztFont::Glyph *glyph = &font->glyphs[glyph_idx];
+		glyph->kerning = nullptr;
 		glyph_idx += 1;
 		*codepoint = -1;
 
@@ -10296,6 +10318,56 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	font->line_spacing = ((r32)font->size_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
 	if (font->space_width == 0) {
 		font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
+	}
+
+	if (kernings > 0) {
+		int kidx = 0;
+		for (int i = chars_line; i < lines; ++i) {
+			zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
+			line_buff[lines_tok[i].len] = 0;
+
+			if (!zt_strStartsWith(line_buff, "kerning ")) {
+				continue;
+			}
+
+			ztToken toks[32];
+			int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes);
+			if (toks_cnt > zt_elementsOf(toks)) {
+				continue;
+			}
+
+			int first = -1, second = -1, amount = 0;
+
+			zt_fjz(toks_cnt) {
+				char* start = line_buff + toks[j].beg;
+				int val = local::getIntAfterEquals(start, toks[j].len);
+
+				if(zt_strStartsWith(start, "first=")) {
+					first = val;
+				}
+				else if(zt_strStartsWith(start, "second=")) {
+					second = val;
+				}
+				else if(zt_strStartsWith(start, "amount=")) {
+					amount = val;
+				}
+			}
+
+			if(first != -1 && second != -1 && amount != 0) {
+				zt_fjz(font->glyph_count) {
+					if(font->glyph_code_point[j] == first) {
+						ztFont::Kerning *kerning = &font->kernings[kidx++];
+
+						kerning->next_code = second;
+						kerning->spacing = (r32)amount / zt_game->win_game_settings[0].pixels_per_unit;
+						kerning->next = nullptr;
+
+						zt_singleLinkAddToEnd(font->glyphs[j].kerning, kerning);
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	if (asset_mgr) {
@@ -10373,6 +10445,9 @@ void zt_fontFree(ztFontID font_id)
 	}
 	if (font->glyphs) {
 		zt_freeArena(font->glyphs, font->arena);
+	}
+	if (font->kernings) {
+		zt_freeArena(font->kernings, font->arena);
 	}
 
 	zt_memSet(font, zt_sizeof(ztFont), 0);
@@ -10667,6 +10742,8 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 		ztVec2 dl_uvs[4];
 		ztVec3 dl_nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
+		ztFont::Glyph *prev_glyph = nullptr;
+
 		for (int i = start_char; i < start_char + length; ++i) {
 			int glyph_idx = glyphs_idx[i];
 			if (glyph_idx < 0) {
@@ -10679,7 +10756,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 				continue;
 			}
 
-			ztFont::ztGlyph* glyph = &font->glyphs[glyph_idx];
+			ztFont::Glyph* glyph = &font->glyphs[glyph_idx];
 
 			units_size.x = glyph->size.x * scale_x;
 			units_size.y = glyph->size.y * scale_y;
@@ -10687,6 +10764,16 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 
 			position.x = glyph->offset.x + start_pos_x;
 			position.y = start_pos_y - glyph->offset.y * scale_y;
+
+			if (prev_glyph) {
+				zt_flink(kerning, prev_glyph->kerning) {
+					if (kerning->next_code == font->glyph_code_point[glyph_idx]) {
+						position.x += kerning->spacing * scale_x;
+						break;
+					}
+				}
+			}
+
 			zt_alignToPixel(&position.x, ppu);
 			zt_alignToPixel(&position.y, ppu);
 
@@ -10700,6 +10787,8 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
 			start_pos_x += glyph->x_adv * scale_x;
+
+			prev_glyph = glyph;
 		}
 
 		start_pos_y -= font->line_spacing * scale_y;
@@ -10952,6 +11041,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		ztVec2 dl_uvs[4];
 		ztVec3 dl_nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
+		ztFont::Glyph *prev_glyph = nullptr;
+
 		for (int i = start_char; i < start_char + length; ++i) {
 			int glyph_idx = glyphs_idx[i];
 			char ch;
@@ -11009,7 +11100,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 				continue;
 			}
 
-			ztFont::ztGlyph* glyph = &font->glyphs[glyph_idx];
+			ztFont::Glyph* glyph = &font->glyphs[glyph_idx];
 
 			units_size.x = glyph->size.x * scale_x;
 			units_size.y = glyph->size.y * scale_y;
@@ -11017,6 +11108,16 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 
 			position.x = glyph->offset.x + start_pos_x;
 			position.y = start_pos_y - glyph->offset.y * scale_y;
+
+			if (prev_glyph) {
+				zt_flink(kerning, prev_glyph->kerning) {
+					if (kerning->next_code == font->glyph_code_point[glyph_idx]) {
+						position.x += kerning->spacing * scale_x;
+						break;
+					}
+				}
+			}
+
 			zt_alignToPixel(&position.x, ppu);
 			zt_alignToPixel(&position.y, ppu);
 
@@ -11030,6 +11131,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
 			start_pos_x += glyph->x_adv * scale_x;
+
+			prev_glyph = glyph;
 		}
 
 		start_pos_y -= font->line_spacing * scale_y;
@@ -26726,9 +26829,11 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	font->glyph_count = charset_size;
 	
 	font->glyph_code_point = zt_mallocStructArray(i32, charset_size);
-	font->glyphs = zt_mallocStructArray(ztFont::ztGlyph, charset_size);
+	font->glyphs = zt_mallocStructArray(ztFont::Glyph, charset_size);
 
 	r32 min_size_x = 9999, max_size_x = 0;
+
+	bool font_info_kerning[2048];
 
 	i32 space_idx = -1;
 	zt_fiz(charset_size) {
@@ -26737,12 +26842,17 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		int g = stbtt_FindGlyphIndex(&f, code_point);
 		stbtt_GetGlyphHMetrics(&f, g, &advance, &lsb);
 		stbtt_GetGlyphBitmapBox(&f, g, scale, scale, &x0, &y0, &x1, &y1);
+
+		font_info_kerning[i] = f.kern != 0;
+
 		gw = x1 - x0;
 		gh = y1 - y0;
-		if (x + gw + spacing >= tex_size)
+		if (x + gw + spacing >= tex_size) {
 			y = bottom_y, x = spacing; // advance to next row
-		if (y + gh + spacing >= tex_size) // check if it fits vertically AFTER potentially moving to next row
+		}
+		if (y + gh + spacing >= tex_size) { // check if it fits vertically AFTER potentially moving to next row
 			return ztInvalidID;
+		}
 
 		zt_assert(x + gw < tex_size);
 		zt_assert(y + gh < tex_size);
@@ -26761,14 +26871,60 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		font->glyphs[i].offset.x = (r32)x0 / zt_game->win_game_settings[0].pixels_per_unit;
 		font->glyphs[i].offset.y = (r32)y0 / zt_game->win_game_settings[0].pixels_per_unit;
 
+		font->glyphs[i].kerning = nullptr;
+
 		font->glyphs[i].x_adv = (scale * advance) / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 
 		x = x + gw + spacing;
-		if (y + gh + spacing > bottom_y)
+		if (y + gh + spacing > bottom_y) {
 			bottom_y = y + gh + spacing;
+		}
 
-		if (code_point == ' ')
+		if (code_point == ' ') {
 			space_idx = i;
+		}
+	}
+
+	int kernings = 0;
+	zt_fiz(charset_size) {
+		if (font_info_kerning[i]) {
+			i32 code_point = zt_strCodepoint(charset, i);
+			int g = stbtt_FindGlyphIndex(&f, code_point);
+
+			zt_fjz(charset_size) {
+				if(j == i) continue;
+				i32 code_point_2 = zt_strCodepoint(charset, j);
+				int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
+				if(adv) {
+					kernings += 1;
+				}
+			}
+		}
+	}
+
+	font->kernings_count = kernings;
+	font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
+	if(kernings) {
+		int kidx = 0;
+		zt_fiz(charset_size) {
+			if (font_info_kerning[i]) {
+				i32 code_point = zt_strCodepoint(charset, i);
+				int g = stbtt_FindGlyphIndex(&f, code_point);
+
+				zt_fjz(charset_size) {
+					if(j == i) continue;
+					i32 code_point_2 = zt_strCodepoint(charset, j);
+					int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
+					if(adv) {
+						ztFont::Kerning *kerning = &font->kernings[kidx++];
+						kerning->next_code = code_point_2;
+						kerning->spacing = (r32)adv / zt_game->win_game_settings[0].pixels_per_unit;
+						kerning->next = nullptr;
+						zt_singleLinkAddToEnd(font->glyphs[i].kerning, kerning);
+					}
+				}
+			}
+		}
 	}
 
 	font->line_spacing = ((r32)size_in_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
