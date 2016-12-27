@@ -365,28 +365,28 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	if(true){
 		ztGuiItem *slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.ambient);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
-		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1));
 
 		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.intensity);
 		zt_guiItemSetSize(slider, ztVec2(3, .3f));
-		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.4f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1.4f));
 
 		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.r);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
-		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -.8f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1.8f));
 
 		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.g);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
-		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(1, -.8f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(1, -1.8f));
 
 		slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->directional_light.color.b);
 		zt_guiItemSetSize(slider, ztVec2(1, .3f));
-		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(2, -.8f));
+		zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(2, -1.8f));
 
 		zt_fiz(4) {
 			slider = zt_guiMakeSlider(nullptr, ztGuiItemOrient_Horz, &g_game->point_lights[i].intensity);
 			zt_guiItemSetSize(slider, ztVec2(3, .3f));
-			zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -1.2f - (i * .4f)));
+			zt_guiItemSetPosition(slider, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(0, -2.2f - (i * .4f)));
 		}
 	}
 
@@ -511,8 +511,6 @@ bool game_loop(r32 dt)
 
 	ztInputKeys_Enum input_keystrokes[16];
 	zt_inputGetKeyStrokes(input_keystrokes);
-
-	zt_guiManagerUpdate(g_game->gui_manager, dt);
 
 	bool gui_input = false;
 	if (zt_inputMouseIsLook()) {

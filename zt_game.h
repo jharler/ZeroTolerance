@@ -2673,7 +2673,7 @@ struct ztProfiledThread
 #endif
 
 #ifndef ZT_PROFILER_MAX_SECTIONS_PER_FRAME
-#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	128
+#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	256
 #endif
 
 // ------------------------------------------------------------------------------------------------
@@ -3582,7 +3582,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 	zt_drawListPushTexture(draw_list, 0);
 
-	zt_drawListPushColor(draw_list, ztColor(0, 0, .1f, .95f));
+	zt_drawListPushColor(draw_list, ztColor(0, 0, 0, .95f));
 	zt_drawListAddFilledRect2D(draw_list, pos, size, ztVec2::zero, ztVec2::one);
 	zt_drawListPopColor(draw_list);
 
