@@ -76,6 +76,15 @@
 #	define ztReal64Min		2.2250738585072014e-308
 #	define ztReal64Epsilon	2.2204460492503131e-016
 
+#	define ztInt32Max       2147483647
+#	define ztInt32Min      -2147483648
+#	define ztUint32Max      4294967295
+#	define ztUint32Min      0
+#	define ztInt64Max       9223372036854775807
+#	define ztInt64Min      -9223372036854775808
+#	define ztUint64Max      18446744073709551615 
+#	define ztUint64Min      0
+
 #	if !defined(_SIZE_T_DEFINED)
 #		define _SIZE_T_DEFINED
 #		if defined(ZT_WIN32)
@@ -1098,6 +1107,7 @@ const char *zt_strCodepoint(const char *s, i32* code_point);
 i32 zt_strCodepoint(const char *s, int pos);
 
 bool zt_strEquals(const char *s1, const char *s2, bool test_case = true);
+bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len, bool test_case = true);
 int zt_strLen(const char *s);
 int zt_strSize(const char *s); // size in bytes including null terminator
 const char *zt_strMoveForward(const char *s, int characters);
@@ -1105,13 +1115,28 @@ const char *zt_strMoveForward(const char *s, int characters);
 int zt_strCmp(const char *s1, const char *s2);
 int zt_striCmp(const char *s1, const char *s2);
 
+int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len);
+int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len);
+
 int zt_strCpy(char *scopy, int scopy_len, const char *sfrom);
 int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
 
-i32 zt_strToInt(const char *s, i32 def, bool* success = nullptr);
-i32 zt_strToInt(const char *s, int s_len, i32 def, bool* success = nullptr);
-u32 zt_strToIntHex(const char *s, u32 def, bool* success = nullptr);
-u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool* success = nullptr);
+int zt_strCat(char *scopy, int scopy_len, const char *sfrom);
+int zt_strCat(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
+
+bool zt_strIsInt(char *s);
+bool zt_strIsInt(char *s, int s_len);
+bool zt_strIsIntHex(char *s);
+bool zt_strIsIntHex(char *s, int s_len);
+bool zt_strIsReal32(char *s);
+bool zt_strIsReal32(char *s, int s_len);
+bool zt_strIsReal64(char *s);
+bool zt_strIsReal64(char *s, int s_len);
+
+i32 zt_strToInt(const char *s, i32 def, bool *success = nullptr);
+i32 zt_strToInt(const char *s, int s_len, i32 def, bool *success = nullptr);
+u32 zt_strToIntHex(const char *s, u32 def, bool *success = nullptr);
+u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool *success = nullptr);
 
 r32 zt_strToReal32(const char *s, r32 def, bool* success = nullptr);
 r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
@@ -1208,6 +1233,7 @@ typedef char* ztString;
 ztString zt_stringMake(int size, ztMemoryArena *arena = nullptr);
 ztString zt_stringResize(ztString string, int size, ztMemoryArena *arena = nullptr);
 ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena = nullptr);
+ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena = nullptr);
 ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena = nullptr);
 void zt_stringFree(ztString string, ztMemoryArena *arena = nullptr);
 int zt_stringSize(ztString string);
@@ -3437,7 +3463,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next, arena->alloc_cnt);
 	// conditional break: allocation->alloc_idx == 0 && allocation->start == 0x0
-	zt_memValidateArena(arena);
+	//zt_memValidateArena(arena);
 	return (void*)allocation->start;
 }
 
@@ -4193,6 +4219,18 @@ bool zt_strEquals(const char *s1, const char *s2, bool test_case)
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len, bool test_case)
+{
+	if (test_case) {
+		return zt_strCmp(s1, s1_len, s2, s2_len) == 0;
+	}
+	else {
+		return zt_striCmp(s1, s1_len, s2, s2_len) == 0;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_strValid(const char *s, const char **invalid_ch)
 {
 	while ('\0' != *s) {
@@ -4377,6 +4415,22 @@ int zt_strCmp(const char *s1, const char *s2)
 
 // ------------------------------------------------------------------------------------------------
 
+int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len)
+{
+	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
+		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
+		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
+		return 0;
+	}
+
+	while (s1 && s2 && s1_len-- && s2_len-- && *s1 && *s2 && *s1 == *s2) { ++s1; ++s2; }
+	if (*s1 == *s2) return 0;
+	if (*s1 < *s2) return -1;
+	return 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 int zt_striCmp(const char *s1, const char *s2)
 {
 	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
@@ -4386,6 +4440,31 @@ int zt_striCmp(const char *s1, const char *s2)
 	}
 
 	while (*s1 && *s2) {
+		char c1 = *s1++;
+		char c2 = *s2++;
+
+		if (c1 >= 97 && c1 <= 122) c1 -= 32;
+		if (c2 >= 97 && c2 <= 122) c2 -= 32;
+
+		if (c1 != c2) {
+			return c1 < c2 ? -1 : 1;
+		}
+	}
+
+	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
+{
+	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
+		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
+		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
+		return 0;
+	}
+
+	while (*s1 && *s2 && s1_len-- && s2_len--) {
 		char c1 = *s1++;
 		char c2 = *s2++;
 
@@ -4442,6 +4521,111 @@ int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
 	}
 	scopy[max_idx] = 0;
 	return max_idx;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strCat(char *scopy, int scopy_len, const char *sfrom)
+{
+	return zt_strCat(scopy, scopy_len, sfrom, zt_strLen(sfrom));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strCat(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
+{
+	if (!scopy || scopy_len <= 0) {
+		return 0;
+	}
+	if (!sfrom || sfrom_len <= 0) {
+		scopy[0] = 0;
+		return 0;
+	}
+
+	int start = 0;
+	while (*scopy) {
+		start += 1;
+		scopy++;
+	}
+
+	int max_idx = zt_min((scopy_len - start) - 1, sfrom_len);
+	zt_fiz(max_idx) {
+		scopy[i] = sfrom[i];
+	}
+	scopy[max_idx] = 0;
+	return max_idx + start;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsInt(char *s)
+{
+	bool success = false;
+	zt_strToInt(s, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsInt(char *s, int s_len)
+{
+	bool success = false;
+	zt_strToInt(s, s_len, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsIntHex(char *s)
+{
+	bool success = false;
+	zt_strToIntHex(s, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsIntHex(char *s, int s_len)
+{
+	bool success = false;
+	zt_strToIntHex(s, s_len, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsReal32(char *s)
+{
+	bool success = false;
+	zt_strToReal32(s, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsReal32(char *s, int s_len)
+{
+	bool success = false;
+	zt_strToReal32(s, s_len, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsReal64(char *s)
+{
+	bool success = false;
+	zt_strToReal64(s, 0, &success);
+	return success;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_strIsReal64(char *s, int s_len)
+{
+	bool success = false;
+	zt_strToReal64(s, s_len, 0, &success);
+	return success;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5227,6 +5411,7 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 	bool trim_whitespace = zt_bitIsSet(flags, ztStrTokenizeFlags_TrimWhitespace);
 
 	bool in_quotes = false;
+	bool prev_was_escape = false;
 	int whitespace_run = 0;
 	int t_idx = 0;
 
@@ -5256,8 +5441,12 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 				}
 				in_quotes = false;
 			}
-			else if (ctok)
-				ctok->len += 1;
+			else {
+				if (ctok)  {
+					ctok->len += 1;
+				}
+				prev_was_escape = s[i] == '\\';
+			}
 		}
 		else {
 			if (process_quotes && s[i] == '\"') {
@@ -5271,8 +5460,9 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 						ctok->len = keep_quotes ? 1 : 0;
 					}
 				}
-				else if (ctok)
+				else if (ctok) {
 					ctok->len += 1;
+				}
 				in_quotes = true;
 			}
 			else {
@@ -5447,7 +5637,10 @@ ztString zt_stringMake(int size, ztMemoryArena *arena)
 	void *data = zt_memAlloc(arena, size);
 	*((i32*)data) = size - zt_sizeof(i32);
 
-	return (char*)data + zt_sizeof(i32);
+	char *result = (char*)data + zt_sizeof(i32);
+	*result = 0;
+
+	return result;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5458,6 +5651,21 @@ ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
 	if (size == 0) {
 		return nullptr;
 	}
+
+	ztString result = zt_stringMake(size, arena);
+	zt_strCpy(result, size, str);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena)
+{
+	int size = s_len;
+	if (size == 0) {
+		return nullptr;
+	}
+	size += 1;
 
 	ztString result = zt_stringMake(size, arena);
 	zt_strCpy(result, size, str);
