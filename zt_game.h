@@ -775,6 +775,7 @@ void      zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr);
 typedef i32 ztShaderID;
 
 ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
+ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len);
 void       zt_shaderFree(ztShaderID shader_id);
 
 // --------------------------------------------------------
@@ -2548,6 +2549,267 @@ void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------------------------------
+// This is the data for the custom shader language used by zt_game.  Each renderer system should
+// provide a function that turns the syntax tree into a valid shader program for that api.
+
+enum ztShLangTokenType_Enum
+{
+	ztShLangTokenType_Invalid,
+
+	// groupings
+	ztShLangTokenType_ParenOpen,
+	ztShLangTokenType_ParenClose,
+	ztShLangTokenType_BraceOpen,
+	ztShLangTokenType_BraceClose,
+	ztShLangTokenType_BracketOpen,
+	ztShLangTokenType_BracketClose,
+	ztShLangTokenType_Comma,
+
+	// maths
+	ztShLangTokenType_Equal,
+	ztShLangTokenType_DoubleEqual,
+	ztShLangTokenType_Plus,
+	ztShLangTokenType_PlusEqual,
+	ztShLangTokenType_DoublePlus,
+	ztShLangTokenType_Minus,
+	ztShLangTokenType_MinusEqual,
+	ztShLangTokenType_DoubleMinus,
+	ztShLangTokenType_Multiply,
+	ztShLangTokenType_MultiplyEqual,
+	ztShLangTokenType_Divide,
+	ztShLangTokenType_DivideEqual,
+	ztShLangTokenType_GreaterThan,
+	ztShLangTokenType_GreaterThanOrEqual,
+	ztShLangTokenType_LessThan,
+	ztShLangTokenType_LessThanOrEqual,
+	ztShLangTokenType_Mod,
+	ztShLangTokenType_ModEqual,
+	ztShLangTokenType_Not,
+	ztShLangTokenType_NotEqual,
+	ztShLangTokenType_And,
+	ztShLangTokenType_Or,
+
+	// bitwise
+	ztShLangTokenType_BitwiseAnd,
+	ztShLangTokenType_BitwiseAndEqual,
+	ztShLangTokenType_BitwiseOr,
+	ztShLangTokenType_BitwiseOrEqual,
+	ztShLangTokenType_BitwiseNot,
+	ztShLangTokenType_BitwiseXor,
+	ztShLangTokenType_BitwiseXorEqual,
+	ztShLangTokenType_BitwiseShiftLeft,
+	ztShLangTokenType_BitwiseShiftRight,
+
+	// language features
+	ztShLangTokenType_EndCommand,
+	ztShLangTokenType_Question,
+	ztShLangTokenType_Colon,
+
+	ztShLangTokenType_QuotedChar,
+	ztShLangTokenType_QuotedString,
+
+	ztShLangTokenType_Comment,
+
+	ztShLangTokenType_If,
+	ztShLangTokenType_Else,
+	ztShLangTokenType_For,
+	ztShLangTokenType_While,
+	ztShLangTokenType_Const,
+	ztShLangTokenType_Struct,
+	ztShLangTokenType_Return,
+	ztShLangTokenType_Break,
+	ztShLangTokenType_Continue,
+
+	// data types
+	ztShLangTokenType_void,
+	ztShLangTokenType_int,
+	ztShLangTokenType_uint,
+	ztShLangTokenType_float,
+	ztShLangTokenType_double,
+	ztShLangTokenType_bool,
+	ztShLangTokenType_vec2,
+	ztShLangTokenType_vec3,
+	ztShLangTokenType_vec4,
+	ztShLangTokenType_mat3,
+	ztShLangTokenType_mat4,
+	ztShLangTokenType_texture2d,
+	ztShLangTokenType_textureCube,
+
+	ztShLangTokenType_NumberInteger,
+	ztShLangTokenType_NumberFloat,
+	ztShLangTokenType_True,
+	ztShLangTokenType_False,
+
+	ztShLangTokenType_Program,
+
+	ztShLangTokenType_Identifier,
+	ztShLangTokenType_PreprocessCommand,
+
+	ztShLangTokenType_Access,
+
+	_ztShLangTokenType_MAX
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztShLangTokenFlags_Enum
+{
+	ztShLangTokenFlags_Operator = (1 << 1),
+	ztShLangTokenFlags_ConditionOperator = (1 << 2),
+	ztShLangTokenFlags_DataType = (1 << 3),
+	ztShLangTokenFlags_Command = (1 << 4),
+	ztShLangTokenFlags_String = (1 << 5),
+	ztShLangTokenFlags_Number = (1 << 6),
+	ztShLangTokenFlags_Bool = (1 << 7),
+	ztShLangTokenFlags_ScopeChange = (1 << 8),
+	ztShLangTokenFlags_VariableDeclaration = (1 << 9),
+	ztShLangTokenFlags_IdentifierWithAccess = (1 << 10),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztShLangToken
+{
+	ztShLangTokenType_Enum type;
+	i32                    token_beg;
+	int                    token_len;
+	int                    line;
+	int                    col;
+	i32                    flags;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztShLangSyntaxNodeType_Enum
+{
+	ztShLangSyntaxNodeType_Scope,
+	ztShLangSyntaxNodeType_Structure,
+	ztShLangSyntaxNodeType_VariableDecl,
+	ztShLangSyntaxNodeType_ProgramDecl,
+	ztShLangSyntaxNodeType_FunctionDecl,
+	ztShLangSyntaxNodeType_ConditionTest,
+	ztShLangSyntaxNodeType_Return,
+	ztShLangSyntaxNodeType_Loop,
+	ztShLangSyntaxNodeType_Continue,
+	ztShLangSyntaxNodeType_Break,
+	ztShLangSyntaxNodeType_Variable,
+	ztShLangSyntaxNodeType_Operation,
+	ztShLangSyntaxNodeType_FunctionCall,
+	ztShLangSyntaxNodeType_Group,
+	ztShLangSyntaxNodeType_ValueNumberInt,
+	ztShLangSyntaxNodeType_ValueNumberFloat,
+	ztShLangSyntaxNodeType_ValueString,
+	ztShLangSyntaxNodeType_ValueBool,
+	ztShLangSyntaxNodeType_ValueEmpty,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztShLangSyntaxNode;
+
+struct ztShLangSyntaxNodeCache
+{
+	ztShLangSyntaxNode *cache;
+	int                 cache_size;
+	int                 cache_used;
+
+	char               *string_cache;
+	int                 string_cache_size;
+	int                 string_cache_used;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztShLangSyntaxNode
+{
+	ztShLangSyntaxNodeType_Enum type;
+
+	ztShLangSyntaxNode         *next;
+	ztShLangSyntaxNode         *parent;
+	ztShLangSyntaxNode         *first_child;
+	ztShLangToken              *token;
+
+	ztShLangSyntaxNodeCache    *cache;
+
+	union {
+		struct {
+			char                  *name;
+		} scope;
+
+		struct {
+			char                  *name;
+		} structure;
+
+		struct {
+			char                  *name;
+			ztShLangTokenType_Enum type;
+			char                  *type_name;
+			char                  *qualifier;
+			int                    array_size;
+			bool                   is_const;
+		} variable_decl;
+
+		struct {
+			char                  *name;
+		} program;
+
+		struct {
+			char                  *name;
+			char                  *returns_name;
+			ztShLangTokenType_Enum returns;
+		} function_decl;
+
+		struct {
+			ztShLangTokenType_Enum op;
+			ztShLangSyntaxNode    *expr;
+			ztShLangSyntaxNode    *if_true;
+			ztShLangSyntaxNode    *if_false;
+			bool                   is_inline;
+		} condition;
+
+		struct {
+			ztShLangSyntaxNode *init;
+			ztShLangSyntaxNode *condition;
+			ztShLangSyntaxNode *loop;
+		} loop;
+
+		struct {
+			char                  *name;
+			ztShLangTokenType_Enum token_type;
+			ztShLangSyntaxNode    *decl;
+		} variable_val;
+
+		struct {
+			ztShLangSyntaxNode    *left;
+			ztShLangSyntaxNode    *right;
+			ztShLangTokenType_Enum op;
+			ztShLangTokenType_Enum returns;
+		} operation;
+
+		struct {
+			char                  *name;
+			ztShLangSyntaxNode    *decl;
+		} function_call;
+
+		struct {
+			char                  *value;
+		} value;
+	};
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name);
+bool                _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node);
+bool                _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name);
+bool                _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name);
+char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type);
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 #endif // include guard
 
 #if defined(ZT_GAME_IMPLEMENTATION) || defined(ZT_GAME_INTERNAL_DECLARATIONS)
@@ -2690,6 +2952,8 @@ struct ztProfiler
 
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 #define ZT_THREAD_JOB_QUEUE_SIZE		256
 
@@ -2752,6 +3016,8 @@ struct ztThreadJobQueue
 };
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 enum ztRendererRequest_Enum
 {
@@ -2775,6 +3041,8 @@ struct ztRendererRequest
 	};
 };
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 enum ztShaderLoadType_Enum
@@ -2817,6 +3085,8 @@ struct ztShader
 	int textures_bound;
 };
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 enum ztTextureLoadType_Enum
@@ -2861,6 +3131,8 @@ struct ztTexture
 
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 struct ztVertexArray
 {
@@ -2873,6 +3145,8 @@ struct ztVertexArray
 #endif
 
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 struct ztFont
@@ -2917,6 +3191,8 @@ struct ztFont
 
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 struct ztMesh
 {
@@ -2936,6 +3212,8 @@ struct ztMesh
 #define ZT_MAX_MESHES	256
 #endif
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 enum ztAudioClipFlags_Enum
@@ -2959,6 +3237,8 @@ struct ztAudioClip
 #define ZT_MAX_AUDIO_CLIPS  128
 #endif
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 #ifndef ZT_MAX_WINDOWS
@@ -3061,6 +3341,9 @@ struct ztGameGlobals
 	// ----------------------
 };
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 #define ZT_GAME_GLOBALS_VERSION   1 // update this any time ztGameGlobals is changed
 
 ztGameGlobals *zt_game = nullptr;
@@ -3126,6 +3409,8 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 #	endif
 #endif
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 typedef unsigned char stbi_uc;
@@ -4467,13 +4752,21 @@ ztInternal const char *_zt_default_shaders_names[] = {
 };
 
 ztInternal const char *_zt_default_shaders[] = {
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		//if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		//	return 0;\n		//}\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox_tex;\n\n	void main()\n	{\n		color = vec4(texture(skybox_tex, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube skybox_tex;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return skybox_tex.Sample(sample_type, input.positionL);\n	}\n]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
-	"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	const float smoothing = 1.0 / 64.0;\n	\n	void main()\n	{\n		float distance = texture(tex_diffuse, fs_in.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * fs_in.color.a;\n		frag_color = vec4(fs_in.color.rgb, alpha);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	static const float smoothing = 1.0 / 64.0;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float distance = tex_diffuse.Sample(sample_type, input.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		return float4(input.color.rgb, alpha);\n	}\n]>>\n",
+	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.color = input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, PixelOutput output : output)\n	{\n		output.color = input.color;\n	}\n}",
+	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.uv = input.uv;\n		output.color = input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = textureSample(textures.diffuse_tex, input.uv) * input.color;\n	}\n}",
+	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return input.normal;\n	}\n	normal = normalize(input.normal * 2.0 - 1.0);\n	normal = normalize(input.tbn * input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput input, Textures textures)\n{\n	return 0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, input, textures);\n\n	float distance = length(light.pos - input.frag_pos);\n	float constant = 1;\n	float linear = 0.7 - (.693 * light.intensity);\n	float quadratic = 1.8 - (1.7998 * light.intensity);\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.frag_pos = vec3(uniforms.model * vec4(input.position, 1.0));\n		output.normal = normalize(transpose(inverse(mat3(uniforms.model))) * input.normal);\n		output.uv = input.uv;\n		output.color = input.color;\n		output.frag_pos_light_space = uniforms.light_matrix * vec4(output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(input.normal, 0)));\n		output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, input.uv) * input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], input, uniforms, textures);\n		}\n        \n		output.color = vec4(lighting.xyz, 1);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return input.normal;\n	}\n	normal = normalize(input.normal * 2.0 - 1.0);\n	normal = normalize(input.tbn * input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput input, Textures textures)\n{\n	vec3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		return 0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0f;\n		}\n	}\n	shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, input, textures);\n\n	float distance = length(light.pos - input.frag_pos);\n	float constant = 1;\n	float linear = 0.7 - (.693 * light.intensity);\n	float quadratic = 1.8 - (1.7998 * light.intensity);\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.frag_pos = vec3(uniforms.model * vec4(input.position, 1.0));\n		output.normal = normalize(transpose(inverse(mat3(uniforms.model))) * input.normal);\n		output.uv = input.uv;\n		output.color = input.color;\n		output.frag_pos_light_space = uniforms.light_matrix * vec4(output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(input.normal, 0)));\n		output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, input.uv) * input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], input, uniforms, textures);\n		}\n        \n		output.color = vec4(lighting.xyz, 1);\n	}\n}",
+	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(input.position, 1.0);\n		output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		output.uv = input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = vec4(textureSample(textures.skybox_tex, input.uv).rgb, 1);\n	}\n}",
+	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.light_matrix * uniforms.model * vec4(input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = vec4(input.position.z, input.position.z, input.position.z, 1);\n	}\n}",
+	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.uv = input.uv;\n		output.color = input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		output.color = vec4(input.color.rgb, alpha);\n	}\n}",
+
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 3) in vec4 vert_color;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	\n	out vec4 color;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		color = vert_color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in vec4 color;\n\n	void main()\n	{\n		frag_color = color;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float4 color : COLOR0;\n	};\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = input.color;\n		return color;\n	}\n]>>\n",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	void main()\n	{\n		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;\n		frag_color = clr;\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;\n		return color;\n	}\n]>>\n",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		return 0;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n	layout (location = 4) in vec4 tangent;\n	layout (location = 5) in vec4 bitangent;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.frag_pos = vec3(model * vec4(position, 1.0));\n		vs_out.normal = normalize(transpose(inverse(mat3(model))) * normal);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n		vs_out.frag_pos_light_space = light_matrix * vec4(vs_out.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(model * tangent));\n		vec3 b = normalize(vec3(model * bitangent));\n		vec3 n = normalize(vec3(model * vec4(normal, 0)));\n		vs_out.tbn = mat3(t, b, n);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n		vec4 frag_pos_light_space;\n		mat3 tbn;\n	} fs_in;\n\n	uniform sampler2D diffuse_tex;\n	uniform sampler2D specular_tex;\n	uniform sampler2D normal_tex;\n	uniform sampler2D shadowmap_directional_tex;\n	uniform vec4 diffuse_color;\n	uniform vec4 specular_color;\n	uniform float shininess;\n	\n	uniform vec3 view_pos;\n\n	uniform vec3 light_pos;\n	uniform float light_ambient;\n	uniform float light_intensity;\n	uniform vec4 light_color;\n	\n	struct PointLight\n	{\n		vec3 pos;\n		\n		float intensity;\n\n		vec3 ambient_color;\n		vec3 diffuse_color;\n		vec3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	uniform PointLight point_lights[MAX_POINT_LIGHTS];\n	uniform int point_lights_count;\n	\n	vec3 normalCalculation()\n	{\n		vec3 normal = texture(normal_tex, fs_in.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return fs_in.normal;\n		}\n		normal = normalize(normal * 2.0 - 1.0);\n		normal = normalize(fs_in.tbn * normal);\n		return normal;\n	}\n	\n	float shadowCalculation(vec3 light_dir, vec3 normal)\n	{\n		vec3 proj_coords = fs_in.frag_pos_light_space.xyz / fs_in.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n			return 0;\n		}\n		\n		float current_depth = proj_coords.z;\n		\n		float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		vec2 texel_size = 1.0 / textureSize(shadowmap_directional_tex, 0);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = texture(shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir)\n	{\n		vec3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = texture(specular_tex, fs_in.tex_coord).r;\n		return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n	}\n	\n	vec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir)\n	{\n		vec4 light_clr = light_color * light_intensity;\n        \n		vec3 light_dir = normalize(light_pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(light_dir, normal);\n\n		vec4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n	\n	vec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light)\n	{\n		vec4 light_clr = vec4(light.ambient_color, 1);\n        \n		vec3 light_dir = normalize(light.pos - fs_in.frag_pos);\n		float diff = max(dot(light_dir, normal), 0.0);\n		vec4 diffuse = diff * light_clr;\n     \n		vec4 specular = specularCalculation(light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float distance    = length(light.pos - fs_in.frag_pos);\n		float constant = 1;\n		float linear = 0.7 - (.693 * light.intensity);\n		float quadratic = 1.8 - (1.7998 * light.intensity);\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n	\n	void main()\n	{\n		vec4 clr = texture(diffuse_tex, fs_in.tex_coord) * fs_in.color * diffuse_color;\n		vec3 normal = normalCalculation();\n		vec3 view_dir = normalize(view_pos - fs_in.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, point_lights[i]);\n		}\n        \n		frag_color = vec4(lighting.xyz, 1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n		matrix light_matrix;\n		float3 light_pos;\n		float3 view_pos;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n		float4 tangent : TANGENT;\n		float4 bitangent : BINORMAL;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		output.frag_pos = float4(mul(position4, model).xyz, 1);\n		output.frag_pos_light_space = mul(output.frag_pos, light_matrix);\n\n		output.normal = normalize(mul(input.normal, transpose((float3x3)model)));\n\n		output.light_pos = float4(light_pos, 1);\n		output.view_pos = float4(view_pos, 1);\n		\n		output.tbn_t = normalize(mul(model, input.tangent)).xyz;\n		output.tbn_b = normalize(mul(model, input.bitangent)).xyz;\n		output.tbn_n = normalize(mul(model, float4(input.normal, 0))).xyz;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 normal : NORMAL0;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n		float4 frag_pos : POSITION0;\n		float4 frag_pos_light_space : POSITION1;\n		float4 light_pos : POSITION2;\n		float4 view_pos : POSITION3;\n		float3 tbn_t : NORMAL1;\n		float3 tbn_b : NORMAL2;\n		float3 tbn_n : NORMAL3;\n	};\n\n	struct PointLight\n	{\n		float3 pos;\n		\n		float intensity;\n\n		float3 ambient_color;\n		float3 diffuse_color;\n		float3 specular_color;\n	};\n	\n	#define MAX_POINT_LIGHTS 4\n\n	Texture2D diffuse_tex;\n	Texture2D specular_tex;\n	Texture2D normal_tex;\n	Texture2D shadowmap_directional_tex;\n	SamplerState sample_type;\n\n	cbuffer VariableBuffer : register(b0)\n	{\n		float4 diffuse_color;\n		float4 specular_color;\n		float  shininess;\n		float  light_ambient;\n		float  light_intensity;\n		float4 light_color;\n		int point_lights_count;\n		PointLight point_lights[MAX_POINT_LIGHTS];\n	};\n\n\n	float3 normalCalculation(FragmentInputType input)\n	{\n		float3 normal = normal_tex.Sample(sample_type, input.tex_coord).rgb;\n		if(normal.x == 1 && normal.y == 1 && normal.z == 1) {\n			return input.normal;\n		}\n\n		float3x3 tbn = transpose(float3x3(input.tbn_t, input.tbn_b, input.tbn_n));\n		normal = normalize(mul(normal, 2.0) - float3(1.0, 1.0, 1.0));\n		normal = normalize(mul(tbn, normal));\n		return normal;\n	}\n\n	float shadowCalculation(FragmentInputType input, float3 light_dir, float3 normal)\n	{\n		float3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n		proj_coords = proj_coords * 0.5 + 0.5;\n		proj_coords.y = 1 - proj_coords.y;		\n		//if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		//	return 0;\n		//}\n		\n		float current_depth = input.frag_pos_light_space.z;\n		float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n		\n		float shadow = 0.0;\n		uint tex_w = 0, tex_h = 0;\n		shadowmap_directional_tex.GetDimensions(tex_w, tex_h);\n		float2 texel_size = 1.0 / float2(tex_w, tex_h);\n		\n		const int samples = 3;\n		for(int x = -samples; x <= samples; ++x) {\n			for(int y = -samples; y <= samples; ++y) {\n				float pcf_depth = shadowmap_directional_tex.Sample(sample_type, proj_coords.xy + float2(x, y) * texel_size).r;\n				shadow += current_depth - bias > pcf_depth ? 1: 0.0f;\n			}\n		}\n		shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n		return shadow;\n	}\n	\n	float specularCalculation(FragmentInputType input, float3 light_dir, float3 normal, float3 view_dir)\n	{\n		float3 halfway_dir = normalize(light_dir + view_dir);\n		float spec_value = specular_tex.Sample(sample_type, input.tex_coord).r;\n		float spec = pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5 * spec_value;\n		return spec;\n	}\n	\n	float4 directionalLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir)\n	{\n		float4 light_clr = light_color * light_intensity;\n		\n		float3 light_dir = normalize(input.light_pos - input.frag_pos).xyz;\n		float diff = max(dot(light_dir, normal), 0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr * specular_color;\n		float shadow = shadowCalculation(input, light_dir, normal);\n		\n		float4 ambient_clr = clr * light_ambient;\n		return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n	}\n\n	float4 pointLightCalculation(FragmentInputType input, float4 clr, float3 normal, float3 view_dir, PointLight light)\n	{\n		float4 light_clr = float4(light.ambient_color, 1);\n        \n		float3 light_dir = normalize(light.pos - input.frag_pos.xyz);\n		float diff = max(dot(light_dir, normal), 0.0);\n		float4 diffuse = diff * light_clr;\n		\n		float4 specular = specularCalculation(input, light_dir, normal, view_dir) * light_clr;// * specular_color;\n		float shadow = 0;//shadowCalculation(light_dir, normal);\n\n		float attenuation = 1.0 * light.intensity;\n		\n		return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n	}\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float4 clr = diffuse_tex.Sample(sample_type, input.tex_coord) * input.color * diffuse_color;\n		float3 normal = normalCalculation(input);\n		float3 view_dir = normalize(input.view_pos - input.frag_pos).xyz;\n		float4 lighting = directionalLightCalculation(input, clr, normal, view_dir);\n		\n		for(int i = 0; i < point_lights_count; ++i) {\n			lighting += pointLightCalculation(input, clr, normal, view_dir, point_lights[i]);\n		}\n\n		return float4(lighting.xyz, 1);\n	}\n]>>",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	out vec3 the_tex_coord;\n\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		vec4 pos = projection * view * vec4(position, 1.0);\n		gl_Position = pos.xyww;\n		the_tex_coord = position;\n	};\n\n]>>\n\n<<[glsl_fs]>>\n<<[\n	\n	#version 330 core\n	in vec3 the_tex_coord;\n	out vec4 color;\n\n	uniform samplerCube skybox_tex;\n\n	void main()\n	{\n		color = vec4(texture(skybox_tex, the_tex_coord).rgb, 1);\n		if (color.rgb == vec3(0,0,0)) color = vec4(0,0,1,1);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		output.position = float4(input.position, 1);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection) * 1000;\n\n		output.positionL = input.position * 1000;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	TextureCube skybox_tex;\n	\n	SamplerState sample_type\n	{\n		Filter = MIN_MAG_MIP_LINEAR;\n		AddressU = Wrap;\n		AddressV = Wrap;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float3 positionL : POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return skybox_tex.Sample(sample_type, input.positionL);\n	}\n]>>\n",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n\n	uniform mat4 model;\n	uniform mat4 light_matrix;\n\n	void main()\n	{\n		gl_Position = light_matrix * model * vec4(position, 1.0);\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n\n	void main()\n	{\n		//gl_FragDepth = gl_FragCoord.z;\n	}\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix light_matrix;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, light_matrix);\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		return float4(input.position.z,input.position.z,input.position.z,1);\n	}]>>\n",
+	//"<<[glsl_vs]>>\n<<[\n	#version 330 core\n	layout (location = 0) in vec3 position;\n	layout (location = 1) in vec2 tex_coord; \n	layout (location = 2) in vec3 normal;\n	layout (location = 3) in vec4 color;\n\n	out VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} vs_out;\n\n	uniform mat4 model;\n	uniform mat4 projection;\n	uniform mat4 view;\n\n	void main()\n	{\n		gl_Position = projection * view * model * vec4(position, 1.0);\n		vs_out.tex_coord = tex_coord;\n		vs_out.color = color;\n	}\n]>>\n\n<<[glsl_fs]>>\n<<[\n	#version 330 core\n	out vec4 frag_color;\n\n	in VS_OUT {\n		vec3 frag_pos;\n		vec3 normal;\n		vec2 tex_coord;\n		vec4 color;\n	} fs_in;\n\n	uniform sampler2D tex_diffuse;\n\n	const float smoothing = 1.0 / 64.0;\n	\n	void main()\n	{\n		float distance = texture(tex_diffuse, fs_in.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * fs_in.color.a;\n		frag_color = vec4(fs_in.color.rgb, alpha);\n	};\n]>>\n\n<<[hlsl_vs, vertexShader]>>\n<<[\n	cbuffer MatrixBuffer : register(b0)\n	{\n		matrix model;\n		matrix view;\n		matrix projection;\n	};\n\n	struct VertexInputType\n	{\n		float3 position : POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float3 normal : NORMAL;\n		float4 color : COLOR;\n	};\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	FragmentInputType vertexShader(VertexInputType input)\n	{\n		FragmentInputType output;\n		float4 position4 = float4(input.position, 1);\n		output.position = mul(position4, model);\n		output.position = mul(output.position, view);\n		output.position = mul(output.position, projection);\n		\n		output.tex_coord = input.tex_coord;\n		output.color = input.color;\n		\n		return output;\n	}\n]>>\n\n<<[hlsl_fs, fragmentShader]>>\n<<[\n	Texture2D tex_diffuse;\n	SamplerState sample_type;\n\n	static const float smoothing = 1.0 / 64.0;\n\n	struct FragmentInputType\n	{\n		float4 position : SV_POSITION;\n		float2 tex_coord : TEXCOORD0;\n		float4 color : COLOR0;\n	};\n\n\n	float4 fragmentShader(FragmentInputType input) : SV_TARGET\n	{\n		float distance = tex_diffuse.Sample(sample_type, input.tex_coord).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		return float4(input.color.rgb, alpha);\n	}\n]>>\n",
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -8217,6 +8510,2558 @@ void zt_rendererRequestFullscreen()
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len, int *shader_tokens_size)
+{
+	//TODO: Numbers not recognized
+	//# not recognized
+	// comments not working
+
+	ztToken *tokens = nullptr;
+	int tokens_size = 0;
+
+	while (true) {
+		int tokens_count = zt_strTokenize(data, data_len, " \t\r\n,<>-+=!@$%^&*()[]{}\\|;:\'\"/?", tokens, tokens_size, ztStrTokenizeFlags_IncludeTokens | ztStrTokenizeFlags_ProcessQuotes | ztStrTokenizeFlags_KeepQuotes | ztStrTokenizeFlags_TrimWhitespace);
+		if (tokens == nullptr) {
+			tokens_size = tokens_count;
+			tokens = zt_mallocStructArray(ztToken, tokens_count);
+		}
+		else break;
+	}
+
+	ztShLangToken *shader_tokens = nullptr;
+	int shader_tokens_count = 0;
+	int shader_idx = 0;
+
+	while (shader_tokens_count == 0) {
+		int line_count = 1;
+		int line_idx = 0;
+
+		char token[2048];
+
+		ztShLangToken prev_token_local = {}, curr_token_local = {};
+		ztShLangToken *prev_token, *curr_token;
+
+		prev_token_local.type = ztShLangTokenType_Invalid;
+		prev_token = &prev_token_local;
+
+		curr_token = nullptr;
+
+		if (shader_idx != 0) {
+			shader_tokens_count = shader_idx + 1;
+			shader_tokens = zt_mallocStructArray(ztShLangToken, shader_tokens_count);
+		}
+		shader_idx = 0;
+
+		bool reuse_token = false;
+		bool comment_until_eol = false;
+		bool comment_until_eoc = false;
+		bool comment_until_eoc_pe = false;
+
+		int whitespace_count = 0;
+
+		zt_fiz(tokens_size) {
+			zt_strCpy(token, zt_elementsOf(token), data + tokens[i].beg, tokens[i].len);
+
+			if (comment_until_eol) {
+				if (token[0] == '\n') {
+					comment_until_eol = false;
+				}
+				else {
+					prev_token->token_len += tokens[i].len;
+					continue;
+				}
+			}
+			else if (comment_until_eoc) {
+				prev_token->token_len += tokens[i].len;
+				if (token[0] == '\n') {
+					line_count += 1;
+				}
+
+				if (comment_until_eoc_pe) {
+					if (token[0] == '/') {
+						comment_until_eoc = comment_until_eoc_pe = false;
+					}
+					else {
+						comment_until_eoc_pe = token[0] == '*';
+					}
+				}
+				else {
+					comment_until_eoc_pe = token[0] == '*';
+				}
+				continue;
+			}
+
+			if (!reuse_token) {
+				if (shader_idx >= shader_tokens_count) {
+					shader_idx += 1;
+					prev_token_local = curr_token_local;
+					prev_token = &prev_token_local;
+					curr_token = &curr_token_local;
+					zt_memSet(curr_token, zt_sizeof(ztShLangToken), 0);
+				}
+				else {
+					prev_token = curr_token;
+					curr_token = &shader_tokens[shader_idx++];
+
+					if (prev_token == nullptr) {
+						prev_token = &prev_token_local;
+						zt_memSet(prev_token, zt_sizeof(ztShLangToken), 0);
+					}
+				}
+			}
+
+			reuse_token = false;
+
+			curr_token->line      = line_count;
+			curr_token->col       = tokens[i].beg - line_idx;
+			curr_token->token_beg = tokens[i].beg;
+			curr_token->token_len = tokens[i].len;
+
+			ztShLangTokenType_Enum type = ztShLangTokenType_Invalid;
+			i32 flags = 0;
+
+			if (tokens[i].len == 1) {
+				switch (token[0])
+				{
+					case '\n': {
+						line_count += 1;
+						line_idx = tokens[i].beg + 1;
+						reuse_token = true;
+						whitespace_count += 1;
+						comment_until_eol = false;
+					} break;
+
+					case '\t':
+					case ' ':
+					case '\r': {
+						reuse_token = true;
+						whitespace_count += 1;
+					} break;
+
+					default: {
+						switch (token[0])
+						{
+							case '(': type = ztShLangTokenType_ParenOpen; break;
+							case ')': type = ztShLangTokenType_ParenClose; break;
+							case '[': type = ztShLangTokenType_BracketOpen; break;
+							case ']': type = ztShLangTokenType_BracketClose; break;
+							case ',': type = ztShLangTokenType_Comma; break;
+							case '%': type = ztShLangTokenType_Mod; flags |= ztShLangTokenFlags_Operator; break;
+							case '!': type = ztShLangTokenType_Not; flags |= ztShLangTokenFlags_Operator | ztShLangTokenFlags_ConditionOperator; break;
+							case '~': type = ztShLangTokenType_BitwiseNot; flags |= ztShLangTokenFlags_Operator; break;
+							case '^': type = ztShLangTokenType_BitwiseXor; flags |= ztShLangTokenFlags_Operator; break;
+							case ';': type = ztShLangTokenType_EndCommand; break;
+							case '?': type = ztShLangTokenType_Question; break;
+							case ':': type = ztShLangTokenType_Colon; break;
+
+
+							case '{': {
+								type = ztShLangTokenType_BraceOpen;
+								flags |= ztShLangTokenFlags_ScopeChange;
+							} break;
+
+							case '}': {
+								type = ztShLangTokenType_BraceClose;
+								flags |= ztShLangTokenFlags_ScopeChange;
+							} break;
+
+							case '*': {
+								if (prev_token->type == ztShLangTokenType_Divide) {
+									prev_token->type = ztShLangTokenType_Comment;
+									prev_token->token_len += 1;
+									zt_bitRemove(prev_token->flags, ztShLangTokenFlags_Operator);
+									comment_until_eoc = true;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_Multiply;
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '/': {
+								if (prev_token->type == ztShLangTokenType_Divide) {
+									prev_token->type = ztShLangTokenType_Comment;
+									prev_token->token_len += 1;
+									zt_bitRemove(prev_token->flags, ztShLangTokenFlags_Operator);
+									comment_until_eol = true;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_Divide;
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '>': {
+								if (prev_token->type == ztShLangTokenType_GreaterThan) {
+									prev_token->type = ztShLangTokenType_BitwiseShiftRight;
+									prev_token->token_len += 1;
+									zt_bitRemove(prev_token->flags, ztShLangTokenFlags_ConditionOperator);
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_GreaterThan;
+									flags |= ztShLangTokenFlags_Operator | ztShLangTokenFlags_ConditionOperator;
+								}
+							} break;
+
+							case '<': {
+								if (prev_token->type == ztShLangTokenType_LessThan) {
+									prev_token->type = ztShLangTokenType_BitwiseShiftLeft;
+									prev_token->token_len += 1;
+									zt_bitRemove(prev_token->flags, ztShLangTokenFlags_ConditionOperator);
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_LessThan;
+									flags |= ztShLangTokenFlags_Operator | ztShLangTokenFlags_ConditionOperator;
+								}
+							} break;
+
+							case '&': {
+								if (prev_token->type == ztShLangTokenType_BitwiseAnd) {
+									prev_token->type = ztShLangTokenType_And;
+									prev_token->token_len += 1;
+									prev_token->flags |= ztShLangTokenFlags_ConditionOperator;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_BitwiseAnd;
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '|': {
+								if (prev_token->type == ztShLangTokenType_BitwiseOr) {
+									prev_token->type = ztShLangTokenType_Or;
+									prev_token->token_len += 1;
+									prev_token->flags |= ztShLangTokenFlags_ConditionOperator;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_BitwiseOr;
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '=': {
+								type = ztShLangTokenType_Equal;
+								flags |= ztShLangTokenFlags_Operator;
+
+								ztShLangTokenType_Enum new_type = ztShLangTokenType_Invalid;
+
+								switch (prev_token->type)
+								{
+									case ztShLangTokenType_Equal:       new_type = ztShLangTokenType_DoubleEqual; break;
+									case ztShLangTokenType_Plus:        new_type = ztShLangTokenType_PlusEqual; break;
+									case ztShLangTokenType_Minus:       new_type = ztShLangTokenType_MinusEqual; break;
+									case ztShLangTokenType_Multiply:    new_type = ztShLangTokenType_MultiplyEqual; break;
+									case ztShLangTokenType_Divide:      new_type = ztShLangTokenType_DivideEqual; break;
+									case ztShLangTokenType_GreaterThan: new_type = ztShLangTokenType_GreaterThanOrEqual; break;
+									case ztShLangTokenType_LessThan:    new_type = ztShLangTokenType_LessThanOrEqual; break;
+									case ztShLangTokenType_Mod:         new_type = ztShLangTokenType_ModEqual; break;
+									case ztShLangTokenType_Not:         new_type = ztShLangTokenType_NotEqual; break;
+									case ztShLangTokenType_BitwiseAnd:  new_type = ztShLangTokenType_BitwiseAndEqual; break;
+									case ztShLangTokenType_BitwiseOr:   new_type = ztShLangTokenType_BitwiseOrEqual; break;
+									case ztShLangTokenType_BitwiseXor:  new_type = ztShLangTokenType_BitwiseXorEqual; break;
+								}
+
+								if (whitespace_count == 0 && new_type != ztShLangTokenType_Invalid) {
+									prev_token->type = new_type;
+									prev_token->token_len += 1;
+									prev_token->flags |= ztShLangTokenFlags_ConditionOperator;
+									type = ztShLangTokenType_Invalid;
+									reuse_token = true;
+								}
+
+							} break;
+
+							case '+': {
+								if (prev_token->type == ztShLangTokenType_Plus) {
+									prev_token->type = ztShLangTokenType_DoublePlus;
+									prev_token->token_len += 1;
+									type = ztShLangTokenType_Invalid;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_Plus;
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '-': {
+								if (prev_token->type == ztShLangTokenType_Minus) {
+									prev_token->type = ztShLangTokenType_DoubleMinus;
+									prev_token->token_len += 1;
+									type = ztShLangTokenType_Invalid;
+									reuse_token = true;
+								}
+								else {
+									type = ztShLangTokenType_Minus; 
+									flags |= ztShLangTokenFlags_Operator;
+								}
+							} break;
+
+							case '0':
+							case '1':
+							case '2':
+							case '3':
+							case '4':
+							case '5':
+							case '6':
+							case '7':
+							case '8':
+							case '9':
+								type = ztShLangTokenType_NumberInteger;
+								flags |= ztShLangTokenFlags_Number;
+								break;
+
+							default:
+								type = ztShLangTokenType_Identifier;
+								break;
+						}
+
+						whitespace_count = 0;
+					} break;
+				}
+			}
+			else {
+				whitespace_count = 0;
+
+				if (token[0] == '\"') {
+					type = ztShLangTokenType_QuotedString;
+					flags = ztShLangTokenFlags_String;
+				}
+				else if (token[0] == '#') {
+					type = ztShLangTokenType_PreprocessCommand;
+				}
+				else {
+					bool is_number = false;
+					zt_strToInt(token, 0, &is_number);
+					if (!is_number) {
+						zt_strToIntHex(token, 0, &is_number);
+					}
+					if (is_number) {
+						type = ztShLangTokenType_NumberInteger;
+						flags = ztShLangTokenFlags_Number;
+					}
+					else {
+						zt_strToReal32(token, 0, &is_number);
+						if (!is_number) {
+							zt_strToReal64(token, 0, &is_number);
+						}
+						if (is_number) {
+							type = ztShLangTokenType_NumberFloat;
+							flags = ztShLangTokenFlags_Number;
+						}
+					}
+
+					if (!is_number) {
+						type = ztShLangTokenType_Identifier;
+
+						     if (zt_strEquals(token, "if"             )) { type = ztShLangTokenType_If;          flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "else"           )) { type = ztShLangTokenType_Else;        flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "for"            )) { type = ztShLangTokenType_For;         flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "while"          )) { type = ztShLangTokenType_While;       flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "const"          )) { type = ztShLangTokenType_Const;       flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "struct"         )) { type = ztShLangTokenType_Struct;      flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "return"         )) { type = ztShLangTokenType_Return;      flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "break"          )) { type = ztShLangTokenType_Break;       flags = ztShLangTokenFlags_Command; }
+						else if (zt_strEquals(token, "continue"       )) { type = ztShLangTokenType_Continue;    flags = ztShLangTokenFlags_Command; }
+
+						else if (zt_strEquals(token, "void"           )) { type = ztShLangTokenType_void;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "int"            )) { type = ztShLangTokenType_int;         flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "uint"           )) { type = ztShLangTokenType_uint;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "float"          )) { type = ztShLangTokenType_float;       flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "double"         )) { type = ztShLangTokenType_double;      flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "bool"           )) { type = ztShLangTokenType_bool;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "vec2"           )) { type = ztShLangTokenType_vec2;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "vec3"           )) { type = ztShLangTokenType_vec3;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "vec4"           )) { type = ztShLangTokenType_vec4;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "mat3"           )) { type = ztShLangTokenType_mat3;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "mat4"           )) { type = ztShLangTokenType_mat4;        flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "texture2d"      )) { type = ztShLangTokenType_texture2d;   flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "textureCube"    )) { type = ztShLangTokenType_textureCube; flags = ztShLangTokenFlags_DataType; }
+
+						else if (zt_strEquals(token, "true"           )) { type = ztShLangTokenType_True;        flags = ztShLangTokenFlags_Bool; }
+						else if (zt_strEquals(token, "false"          )) { type = ztShLangTokenType_False;       flags = ztShLangTokenFlags_Bool; }
+
+						else if (zt_strEquals(token, "program"        )) { type = ztShLangTokenType_Program; }
+
+						else {
+							if (zt_strFind(token, ".")) {
+								flags |= ztShLangTokenFlags_IdentifierWithAccess;
+							}
+						}
+					}
+				}
+			}
+
+			if (type != ztShLangTokenType_Invalid) {
+				curr_token->type = type;
+				curr_token->flags = flags;
+			}
+		}
+	}
+
+	while(shader_idx > 0 && shader_tokens[shader_idx-1].type == ztShLangTokenType_Invalid) {
+		shader_idx -= 1;
+		shader_tokens_count -= 1;
+	}
+
+	zt_free(tokens);
+
+	*shader_tokens_size = shader_tokens_count;
+	return shader_tokens;
+}
+
+// ------------------------------------------------------------------------------------------------
+#include <stdio.h> 
+
+ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *global_node, ztShLangToken *token, ztString *error, char *file_data, char *message, ...)
+{
+#	if defined(ZT_COMPILER_MSVC)
+	va_list arg_ptr; \
+		va_start(arg_ptr, message); \
+		char message_buffer[1024 * 16]; \
+		vsnprintf_s(message_buffer, zt_elementsOf(message_buffer), message, arg_ptr);
+#	else
+#		error "Unsupported compiler"
+#	endif
+
+	int line_beg = zt_max(0, zt_strFindLastPos(file_data, "\n", token->token_beg) + 1);
+	int line_end = zt_strFindPos(file_data, "\n", token->token_beg + token->token_len);
+	if (line_end == ztStrPosNotFound) {
+		line_end = token->token_beg + token->token_len;
+	}
+	int token_ch = zt_max(0, token->token_beg - line_beg);
+	if (line_end - line_beg > 100) {
+		token_ch -= (line_end - line_beg) - 100;
+		line_beg = line_end - 100;
+	}
+
+	char line_ch[101] = { 0 };
+	zt_fiz(token_ch) {
+		if (file_data[line_beg + i] == '\t') {
+			line_ch[i] = '\t';
+		}
+		else {
+			line_ch[i] = ' ';
+		}
+	}
+	line_ch[token_ch] = '^';
+
+	char line_err[101];
+	zt_strCpy(line_err, zt_elementsOf(line_err), file_data + line_beg, zt_min(line_end - line_beg, 100));
+
+	zt_strMakePrintf(err_buff, 2048, "line %d: error: %s\n+\t%s\n+\t%s", token->line, message_buffer, line_err, line_ch);
+	*error = zt_stringMakeFrom(err_buff);
+
+	return nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
+{
+	switch (node->type)
+	{
+		case ztShLangSyntaxNodeType_Scope:              return "scope";
+		case ztShLangSyntaxNodeType_Structure:          return "structure declaration";
+		case ztShLangSyntaxNodeType_VariableDecl:       return "variable declaration";
+		case ztShLangSyntaxNodeType_ProgramDecl:        return "program declaration";
+		case ztShLangSyntaxNodeType_FunctionDecl:       return "function declaration";
+		case ztShLangSyntaxNodeType_ConditionTest:      return "conditional test";
+		case ztShLangSyntaxNodeType_Return:             return "return";
+		case ztShLangSyntaxNodeType_Loop:               return "loop";
+		case ztShLangSyntaxNodeType_Continue:           return "continue";
+		case ztShLangSyntaxNodeType_Break:              return "break";
+		case ztShLangSyntaxNodeType_Variable:           return "variable";
+		case ztShLangSyntaxNodeType_Operation:          return "operation";
+		case ztShLangSyntaxNodeType_FunctionCall:       return "function call";
+		case ztShLangSyntaxNodeType_ValueNumberInt:     return "integer";
+		case ztShLangSyntaxNodeType_ValueNumberFloat:   return "floating point";
+		case ztShLangSyntaxNodeType_ValueString:        return "string";
+		case ztShLangSyntaxNodeType_ValueBool:          return "boolean";
+		default: zt_assert(false);
+	}
+
+	return "<unknown syntax node type";
+}
+
+// ------------------------------------------------------------------------------------------------
+
+char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
+{
+	switch (token_type)
+	{
+		case ztShLangTokenType_Invalid:            return "<invalid>";
+
+		case ztShLangTokenType_ParenOpen:          return "(";
+		case ztShLangTokenType_ParenClose:         return ")";
+		case ztShLangTokenType_BraceOpen:          return "{";
+		case ztShLangTokenType_BraceClose:         return "}";
+		case ztShLangTokenType_BracketOpen:        return "[";
+		case ztShLangTokenType_BracketClose:       return "]";
+		case ztShLangTokenType_Comma:              return ",";
+
+		case ztShLangTokenType_Equal:              return "=";
+		case ztShLangTokenType_DoubleEqual:        return "==";
+		case ztShLangTokenType_Plus:               return "+";
+		case ztShLangTokenType_PlusEqual:          return "+=";
+		case ztShLangTokenType_DoublePlus:         return "++";
+		case ztShLangTokenType_Minus:              return "-";
+		case ztShLangTokenType_MinusEqual:         return "-=";
+		case ztShLangTokenType_DoubleMinus:        return "--";
+		case ztShLangTokenType_Multiply:           return "*";
+		case ztShLangTokenType_MultiplyEqual:      return "*=";
+		case ztShLangTokenType_Divide:             return "/";
+		case ztShLangTokenType_DivideEqual:        return "/=";
+		case ztShLangTokenType_GreaterThan:        return ">";
+		case ztShLangTokenType_GreaterThanOrEqual: return ">=";
+		case ztShLangTokenType_LessThan:           return "<";
+		case ztShLangTokenType_LessThanOrEqual:    return "<=";
+		case ztShLangTokenType_Mod:                return "%";
+		case ztShLangTokenType_ModEqual:           return "%=";
+		case ztShLangTokenType_Not:                return "!";
+		case ztShLangTokenType_NotEqual:           return "!=";
+		case ztShLangTokenType_And:                return "&&";
+		case ztShLangTokenType_Or:                 return "||";
+
+		case ztShLangTokenType_BitwiseAnd:         return "&";
+		case ztShLangTokenType_BitwiseAndEqual:    return "&=";
+		case ztShLangTokenType_BitwiseOr:          return "|";
+		case ztShLangTokenType_BitwiseOrEqual:     return "|=";
+		case ztShLangTokenType_BitwiseNot:         return "~";
+		case ztShLangTokenType_BitwiseXor:         return "^";
+		case ztShLangTokenType_BitwiseXorEqual:    return "^=";
+		case ztShLangTokenType_BitwiseShiftLeft:   return "<<";
+		case ztShLangTokenType_BitwiseShiftRight:  return ">>";
+
+		case ztShLangTokenType_EndCommand:         return ";";
+		case ztShLangTokenType_Question:           return "?";
+		case ztShLangTokenType_Colon:              return ":";
+
+		case ztShLangTokenType_QuotedChar:         return "\"string\"";
+		case ztShLangTokenType_QuotedString:       return "\'char\'";
+
+		case ztShLangTokenType_Comment:            return "// or /* ... */";
+
+		case ztShLangTokenType_If:                 return "if";
+		case ztShLangTokenType_Else:               return "else";
+		case ztShLangTokenType_For:                return "for";
+		case ztShLangTokenType_While:              return "while";
+		case ztShLangTokenType_Const:              return "const";
+		case ztShLangTokenType_Struct:             return "struct";
+		case ztShLangTokenType_Return:             return "return";
+		case ztShLangTokenType_Break:              return "break";
+		case ztShLangTokenType_Continue:           return "continue";
+
+		case ztShLangTokenType_void:               return "void";
+		case ztShLangTokenType_int:                return "int";
+		case ztShLangTokenType_uint:               return "uint";
+		case ztShLangTokenType_float:              return "float";
+		case ztShLangTokenType_double:             return "double";
+		case ztShLangTokenType_bool:               return "bool";
+		case ztShLangTokenType_vec2:               return "vec2";
+		case ztShLangTokenType_vec3:               return "vec3";
+		case ztShLangTokenType_vec4:               return "vec4";
+		case ztShLangTokenType_mat3:               return "mat3";
+		case ztShLangTokenType_mat4:               return "mat4";
+		case ztShLangTokenType_texture2d:          return "texture2d";
+		case ztShLangTokenType_textureCube:        return "textureCube";
+
+		case ztShLangTokenType_NumberInteger:      return "<integer>";
+		case ztShLangTokenType_NumberFloat:        return "<floating point>";
+		case ztShLangTokenType_True:               return "true";
+		case ztShLangTokenType_False:              return "false";
+
+		case ztShLangTokenType_Program:            return "program";
+
+		case ztShLangTokenType_Identifier:         return "<identifier>";
+		case ztShLangTokenType_PreprocessCommand:  return "<preprocess>";
+
+		case ztShLangTokenType_Access:             return ".";
+	}
+
+	return "<unknown>";
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShLangTokenType_Enum _zt_shaderLangTokenTypeFromDesc(char *desc, int desc_len = -1)
+{
+	if (zt_strEquals(desc, "(")) return ztShLangTokenType_ParenOpen;
+	if (zt_strEquals(desc, ")")) return ztShLangTokenType_ParenClose;
+	if (zt_strEquals(desc, "{")) return ztShLangTokenType_BraceOpen;
+	if (zt_strEquals(desc, "}")) return ztShLangTokenType_BraceClose;
+	if (zt_strEquals(desc, "[")) return ztShLangTokenType_BracketOpen;
+	if (zt_strEquals(desc, "]")) return ztShLangTokenType_BracketClose;
+	if (zt_strEquals(desc, ",")) return ztShLangTokenType_Comma;
+
+	if (zt_strEquals(desc, "=")) return ztShLangTokenType_Equal;
+	if (zt_strEquals(desc, "==")) return ztShLangTokenType_DoubleEqual;
+	if (zt_strEquals(desc, "+")) return ztShLangTokenType_Plus;
+	if (zt_strEquals(desc, "+=")) return ztShLangTokenType_PlusEqual;
+	if (zt_strEquals(desc, "++")) return ztShLangTokenType_DoublePlus;
+	if (zt_strEquals(desc, "-")) return ztShLangTokenType_Minus;
+	if (zt_strEquals(desc, "-=")) return ztShLangTokenType_MinusEqual;
+	if (zt_strEquals(desc, "--")) return ztShLangTokenType_DoubleMinus;
+	if (zt_strEquals(desc, "*")) return ztShLangTokenType_Multiply;
+	if (zt_strEquals(desc, "*=")) return ztShLangTokenType_MultiplyEqual;
+	if (zt_strEquals(desc, "/")) return ztShLangTokenType_Divide;
+	if (zt_strEquals(desc, "/=")) return ztShLangTokenType_DivideEqual;
+	if (zt_strEquals(desc, ">")) return ztShLangTokenType_GreaterThan;
+	if (zt_strEquals(desc, ">=")) return ztShLangTokenType_GreaterThanOrEqual;
+	if (zt_strEquals(desc, "<")) return ztShLangTokenType_LessThan;
+	if (zt_strEquals(desc, "<=")) return ztShLangTokenType_LessThanOrEqual;
+	if (zt_strEquals(desc, "%")) return ztShLangTokenType_Mod;
+	if (zt_strEquals(desc, "%=")) return ztShLangTokenType_ModEqual;
+	if (zt_strEquals(desc, "!")) return ztShLangTokenType_Not;
+	if (zt_strEquals(desc, "!=")) return ztShLangTokenType_NotEqual;
+	if (zt_strEquals(desc, "&&")) return ztShLangTokenType_And;
+	if (zt_strEquals(desc, "||")) return ztShLangTokenType_Or;
+
+	if (zt_strEquals(desc, "&")) return ztShLangTokenType_BitwiseAnd;
+	if (zt_strEquals(desc, "&=")) return ztShLangTokenType_BitwiseAndEqual;
+	if (zt_strEquals(desc, "|")) return ztShLangTokenType_BitwiseOr;
+	if (zt_strEquals(desc, "|=")) return ztShLangTokenType_BitwiseOrEqual;
+	if (zt_strEquals(desc, "~")) return ztShLangTokenType_BitwiseNot;
+	if (zt_strEquals(desc, "^")) return ztShLangTokenType_BitwiseXor;
+	if (zt_strEquals(desc, "^=")) return ztShLangTokenType_BitwiseXorEqual;
+	if (zt_strEquals(desc, "<<")) return ztShLangTokenType_BitwiseShiftLeft;
+	if (zt_strEquals(desc, ">>")) return ztShLangTokenType_BitwiseShiftRight;
+
+	if (zt_strEquals(desc, ";")) return ztShLangTokenType_EndCommand;
+	if (zt_strEquals(desc, "?")) return ztShLangTokenType_Question;
+	if (zt_strEquals(desc, ":")) return ztShLangTokenType_Colon;
+
+	if (zt_strStartsWith(desc, "\"")) return ztShLangTokenType_QuotedChar;
+	if (zt_strStartsWith(desc, "\'")) return ztShLangTokenType_QuotedString;
+
+	if (zt_strEquals(desc, "if")) return ztShLangTokenType_If;
+	if (zt_strEquals(desc, "else")) return ztShLangTokenType_Else;
+	if (zt_strEquals(desc, "for")) return ztShLangTokenType_For;
+	if (zt_strEquals(desc, "while")) return ztShLangTokenType_While;
+	if (zt_strEquals(desc, "const")) return ztShLangTokenType_Const;
+	if (zt_strEquals(desc, "struct")) return ztShLangTokenType_Struct;
+	if (zt_strEquals(desc, "return")) return ztShLangTokenType_Return;
+	if (zt_strEquals(desc, "break")) return ztShLangTokenType_Break;
+	if (zt_strEquals(desc, "continue")) return ztShLangTokenType_Continue;
+
+	if (zt_strEquals(desc, "void")) return ztShLangTokenType_void;
+	if (zt_strEquals(desc, "int")) return ztShLangTokenType_int;
+	if (zt_strEquals(desc, "uint")) return ztShLangTokenType_uint;
+	if (zt_strEquals(desc, "float")) return ztShLangTokenType_float;
+	if (zt_strEquals(desc, "double")) return ztShLangTokenType_double;
+	if (zt_strEquals(desc, "bool")) return ztShLangTokenType_bool;
+	if (zt_strEquals(desc, "vec2")) return ztShLangTokenType_vec2;
+	if (zt_strEquals(desc, "vec3")) return ztShLangTokenType_vec3;
+	if (zt_strEquals(desc, "vec4")) return ztShLangTokenType_vec4;
+	if (zt_strEquals(desc, "mat3")) return ztShLangTokenType_mat3;
+	if (zt_strEquals(desc, "mat4")) return ztShLangTokenType_mat4;
+	if (zt_strEquals(desc, "texture2d")) return ztShLangTokenType_texture2d;
+	if (zt_strEquals(desc, "textureCube")) return ztShLangTokenType_textureCube;
+
+	if (zt_strEquals(desc, "true")) return ztShLangTokenType_True;
+	if (zt_strEquals(desc, "false")) return ztShLangTokenType_False;
+
+	if (zt_strEquals(desc, "program")) return ztShLangTokenType_Program;
+
+	if (zt_strEquals(desc, "<identifier>")) return ztShLangTokenType_Identifier;
+	if (zt_strEquals(desc, "<preprocess>")) return ztShLangTokenType_PreprocessCommand;
+
+	if (zt_strStartsWith(desc, "//")) return ztShLangTokenType_Comment;
+	if (zt_strStartsWith(desc, "/*")) return ztShLangTokenType_Comment;
+
+	if (zt_strIsInt(desc) || zt_strIsIntHex(desc)) return ztShLangTokenType_NumberInteger;
+	if (zt_strIsReal32(desc) || zt_strIsReal64(desc)) return ztShLangTokenType_NumberFloat;
+
+	return ztShLangTokenType_Identifier;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangToken *tokens, int tokens_count, ztString *error)
+{
+#	define tokens_left	(tokens_count - (token_idx+1))
+#	define make_node(var, token_type, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = nullptr; var->token = tok
+#	define make_node_with_parent(var, token_type, parent_node, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = parent_node; zt_singleLinkAddToEnd(parent_node->first_child, var); var->token = tok
+
+#	define err_to_string(tok)	 local::tokenToString(tok, file_data, error_buff_1, zt_elementsOf(error_buff_1))
+#	define err_to_string2(tok)	 local::tokenToString(tok, file_data, error_buff_2, zt_elementsOf(error_buff_2))
+#	define error_ueof() _zt_shaderLangErrorMessage(global_node, &tokens[tokens_count - 1], error, file_data, "Unexpected end of file")
+#	define error_ute(tok) _zt_shaderLangErrorMessage(global_node, tok, error, file_data, "Unexpected token encountered")
+#	define read_next_token(var)	if(tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment) { if(tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
+#	define push_back_token()	token_idx--
+#	define make_string(tok) local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, file_data + tok->token_beg, tok->token_len)
+#	define make_parent(node_c, node_p)	zt_singleLinkAddToEnd(node_p->first_child, node_c); node_c->parent = node_p;
+
+	struct local
+	{
+		static char *makeString(char *cache, int *cache_used, char *source, int source_len)
+		{
+			zt_strCpy(cache + (*cache_used), source_len + 1, source, source_len);
+
+			*cache_used += source_len + 1;
+			return cache + ((*cache_used) - (source_len + 1));
+		}
+
+		static char *tokenToString(ztShLangToken *token, char *file_data, char *buffer, int buffer_len)
+		{
+			zt_strCpy(buffer, buffer_len, file_data + token->token_beg, token->token_len);
+			return buffer;
+		}
+
+		// ---------------------------------------------
+
+		static ztShLangSyntaxNode *readVariable(ztShLangSyntaxNode *global_node, ztString *error, char *file_data, ztShLangToken *tokens, int tokens_count, int &token_idx, bool error_out_if_not_variable, bool allow_const)
+		{
+			bool is_const = false;
+
+			read_next_token(data_type);
+
+			if (data_type->type == ztShLangTokenType_Const) {
+				if (!allow_const) {
+					return error_out_if_not_variable ? _zt_shaderLangErrorMessage(global_node, data_type, error, file_data, "Const variable declarations are not valid here") : nullptr;
+				}
+				is_const = true;
+				read_next_token(data_type_next);
+				data_type = data_type_next;
+			}
+
+			if (!zt_bitIsSet(data_type->flags, ztShLangTokenFlags_DataType) && data_type->type != ztShLangTokenType_Identifier) {
+				return error_out_if_not_variable ? _zt_shaderLangErrorMessage(global_node, data_type, error, file_data, "Expecting data type to variable declaration") : nullptr;
+			}
+
+			read_next_token(var_name);
+			if (var_name->type != ztShLangTokenType_Identifier) {
+				return error_out_if_not_variable ? _zt_shaderLangErrorMessage(global_node, var_name, error, file_data, "Invalid variable name") : nullptr;
+			}
+
+			read_next_token(var_op);
+
+			if (var_op->type == ztShLangTokenType_ParenOpen) { // this is a function declaration
+				return error_out_if_not_variable ? _zt_shaderLangErrorMessage(global_node, var_op, error, file_data, "Expecting variable declaration.  Function declaration is not legal here") : nullptr;
+			}
+
+			int array_size = -1;
+			if (var_op->type == ztShLangTokenType_BracketOpen) {
+				read_next_token(array_size_tok);
+				if (array_size_tok->type != ztShLangTokenType_NumberInteger) {
+					return _zt_shaderLangErrorMessage(global_node, array_size_tok, error, file_data, "Expecting array size");
+				}
+				array_size = zt_strToInt(file_data + array_size_tok->token_beg, array_size_tok->token_len, 0);
+				if (array_size <= 0) {
+					return _zt_shaderLangErrorMessage(global_node, array_size_tok, error, file_data, "Invalid array size");
+				}
+				read_next_token(close_bracket);
+				if (close_bracket->type != ztShLangTokenType_BracketClose) {
+					return _zt_shaderLangErrorMessage(global_node, close_bracket, error, file_data, "Expected ']'");
+				}
+
+				read_next_token(var_op_next);
+				var_op = var_op_next;
+			}
+
+			ztShLangToken *tok_qualifier = nullptr;
+			if (var_op->type == ztShLangTokenType_Colon) {
+				read_next_token(tok_qual);
+				tok_qualifier = tok_qual;
+
+				read_next_token(var_op_next);
+				var_op = var_op_next;
+			}
+
+			if (var_op->type != ztShLangTokenType_Equal && var_op->type != ztShLangTokenType_EndCommand && var_op->type != ztShLangTokenType_ParenClose && var_op->type != ztShLangTokenType_Comma) {
+				return _zt_shaderLangErrorMessage(global_node, var_op, error, file_data, "Unexpected token encountered after variable declaration");
+			}
+
+			push_back_token();
+
+			make_node(variable, ztShLangSyntaxNodeType_VariableDecl, var_name);
+
+			variable->variable_decl.type_name  = make_string(data_type);
+			variable->variable_decl.type       = _zt_shaderLangTokenTypeFromDesc(variable->variable_decl.type_name);
+			variable->variable_decl.name       = make_string(var_name);
+			variable->variable_decl.qualifier  = tok_qualifier ? make_string(tok_qualifier) : nullptr;
+			variable->variable_decl.array_size = array_size;
+
+			return variable;
+		}
+
+		// ---------------------------------------------
+
+		static ztShLangSyntaxNode *readExpression(ztShLangSyntaxNode *global_node, ztString *error, char *file_data, ztShLangToken *tokens, int tokens_count, int &token_idx, bool can_declare, bool is_condition)
+		{
+			read_next_token(expr_begin);
+
+			char error_buff_1[256];
+
+			ztShLangSyntaxNode *result = nullptr;
+
+			//bool check_for_further_expressions = !is_condition;
+			bool check_for_further_expressions = true;
+
+			bool is_const = false;
+			if (expr_begin->type == ztShLangTokenType_Const) {
+				is_const = true;
+				read_next_token(after_const);
+				expr_begin = after_const;
+			}
+
+			bool is_data_type = zt_bitIsSet(expr_begin->flags, ztShLangTokenFlags_DataType);
+			if (expr_begin->type == ztShLangTokenType_Identifier || is_data_type) {
+				read_next_token(ident_op);
+				if (!is_data_type && zt_bitIsSet(ident_op->flags, ztShLangTokenFlags_Operator)) {
+					bool condition = zt_bitIsSet(ident_op->flags, ztShLangTokenFlags_ConditionOperator);
+
+					ztShLangSyntaxNode *expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, condition);
+					if (expr == nullptr) {
+						return nullptr;
+					}
+
+					make_node(var_left, ztShLangSyntaxNodeType_Variable, expr_begin);
+					var_left->variable_val.name = make_string(expr_begin);
+					var_left->variable_val.token_type = expr_begin->type;
+
+					make_node(operation, ztShLangSyntaxNodeType_Operation, ident_op);
+					operation->operation.left = var_left;
+					make_parent(var_left, operation);
+					operation->operation.right = expr;
+					make_parent(expr, operation);
+					operation->operation.op = ident_op->type;
+					operation->operation.returns = ztShLangTokenType_Invalid;
+
+					result = operation;
+				}
+				else if (ident_op->type == ztShLangTokenType_ParenOpen) {
+					// function call
+					make_node(func_node, ztShLangSyntaxNodeType_FunctionCall, expr_begin);
+					func_node->function_call.name = make_string(expr_begin);
+					func_node->function_call.decl = nullptr;
+					while (true) {
+						read_next_token(func_param);
+						if (func_param->type == ztShLangTokenType_ParenClose) {
+							break;
+						}
+
+						if (func_param->type == ztShLangTokenType_Comma) {
+							// noop
+						}
+						else {
+							push_back_token();
+						}
+
+						ztShLangSyntaxNode *param = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+						if (param == nullptr) {
+							if (zt_strLen(*error) == 0) {
+								return _zt_shaderLangErrorMessage(global_node, func_param, error, file_data, "Expecting expression for function parameter");
+							}
+							return nullptr;
+						}
+						make_parent(param, func_node);
+					}
+
+					result = func_node;
+				}
+				else {
+					if (can_declare) { // declaring a variable
+						if (is_data_type || ident_op->type == ztShLangTokenType_Identifier) {
+							push_back_token();
+							push_back_token();
+							if (is_const) {
+								push_back_token();
+							}
+							result = readVariable(global_node, error, file_data, tokens, tokens_count, token_idx, true, true);
+							if (result == nullptr) {
+								return nullptr;
+							}
+						}
+						else {
+							return _zt_shaderLangErrorMessage(global_node, expr_begin, error, file_data, "Unexpected data type encountered");
+						}
+					}
+					else {
+						push_back_token();
+					}
+				}
+
+				if (result == nullptr) {
+					make_node(var_ident, ztShLangSyntaxNodeType_Variable, expr_begin);
+					var_ident->variable_val.name = make_string(expr_begin);
+					var_ident->variable_val.token_type = expr_begin->type;
+					result = var_ident;
+
+					read_next_token(bracket_test);
+					if (bracket_test->type == ztShLangTokenType_BracketOpen) {
+						ztShLangSyntaxNode *index_expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+						if (index_expr == nullptr) {
+							return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, bracket_test, error, file_data, "Expecting valid expression for variable array index") : nullptr;
+						}
+						make_parent(index_expr, result);
+
+						read_next_token(bracket_end);
+						if (bracket_end->type != ztShLangTokenType_BracketClose) {
+							return _zt_shaderLangErrorMessage(global_node, bracket_test, error, file_data, "Expecting ']' following variable array index expression");
+						}
+					}
+					else {
+						push_back_token();
+					}
+				}
+			}
+			else if (zt_bitIsSet(expr_begin->flags, ztShLangTokenFlags_String)) {
+				make_node(var_val, ztShLangSyntaxNodeType_ValueString, expr_begin);
+				var_val->value.value = make_string(expr_begin);
+				result = var_val;
+			}
+			else if (zt_bitIsSet(expr_begin->flags, ztShLangTokenFlags_Number)) {
+				make_node(var_val, expr_begin->type == ztShLangTokenType_NumberInteger ? ztShLangSyntaxNodeType_ValueNumberInt : ztShLangSyntaxNodeType_ValueNumberFloat, expr_begin);
+				var_val->value.value = make_string(expr_begin);
+				result = var_val;
+			}
+			else if (zt_bitIsSet(expr_begin->flags, ztShLangTokenFlags_Bool)) {
+				make_node(var_val, ztShLangSyntaxNodeType_ValueBool, expr_begin);
+				var_val->value.value = make_string(expr_begin);
+				result = var_val;
+			}
+			else if (zt_bitIsSet(expr_begin->flags, ztShLangTokenFlags_Command)) {
+				if (expr_begin->type == ztShLangTokenType_If || expr_begin->type == ztShLangTokenType_While) {
+					if (!can_declare) {
+						return _zt_shaderLangErrorMessage(global_node, expr_begin, error, file_data, "'%s' is not valid here", err_to_string(expr_begin));
+					}
+
+					read_next_token(paren_open);
+					if (paren_open->type != ztShLangTokenType_ParenOpen) {
+						return _zt_shaderLangErrorMessage(global_node, paren_open, error, file_data, "Expecting '('");
+					}
+					read_next_token(cond_expr_tok);
+					push_back_token();
+					ztShLangSyntaxNode *cond_expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+					if (cond_expr == nullptr) {
+						return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, cond_expr_tok, error, file_data, "Expecting expression for '%s' statement", err_to_string(expr_begin)) : nullptr;
+					}
+					read_next_token(paren_close);
+					if (paren_close->type != ztShLangTokenType_ParenClose) {
+						return _zt_shaderLangErrorMessage(global_node, paren_close, error, file_data, "Expecting ')' following '%s' expression", err_to_string(expr_begin));
+					}
+
+					make_node(cond_node, ztShLangSyntaxNodeType_ConditionTest, expr_begin);
+					make_parent(cond_expr, cond_node);
+
+					cond_node->condition.op        = expr_begin->type;
+					cond_node->condition.expr      = cond_expr;
+					cond_node->condition.if_true   = nullptr;
+					cond_node->condition.if_false  = nullptr;
+					cond_node->condition.is_inline = false;
+
+					read_next_token(cond_begin);
+
+					int statements = ztInt32Max;
+					if (cond_begin->type != ztShLangTokenType_BraceOpen) {
+						push_back_token();
+						statements = 1;
+					}
+
+					make_node_with_parent(cond_scope, ztShLangSyntaxNodeType_Scope, cond_node, expr_begin);
+					cond_scope->scope.name = nullptr;
+					cond_node->condition.if_true = cond_scope;
+
+					while (statements-- > 0) {
+						read_next_token(statment_tok);
+						push_back_token();
+						ztShLangSyntaxNode *statement = readStatement(global_node, error, file_data, tokens, tokens_count, token_idx, cond_scope);
+						if (statement == nullptr) {
+							return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, statment_tok, error, file_data, "Expecting statement for '%s'", err_to_string(expr_begin)) : nullptr;
+						}
+
+						if (statements > 0) {
+							read_next_token(brace_close);
+							if (brace_close->type == ztShLangTokenType_BraceClose) {
+								break;
+							}
+							else {
+								push_back_token();
+							}
+						}
+					}
+
+					if (expr_begin->type == ztShLangTokenType_If) {
+						read_next_token(else_tok);
+						if (else_tok->type != ztShLangTokenType_Else) {
+							push_back_token();
+						}
+						else {
+							make_node_with_parent(else_scope, ztShLangSyntaxNodeType_Scope, cond_node, else_tok);
+							else_scope->scope.name = nullptr;
+							cond_node->condition.if_false = else_scope;
+
+							int statements = ztInt32Max;
+							read_next_token(brace_open);
+							if (brace_open->type != ztShLangTokenType_BraceOpen) {
+								push_back_token();
+								statements = 1;
+							}
+
+							while (statements-- > 0) {
+								read_next_token(statment_tok);
+								push_back_token();
+								ztShLangSyntaxNode *statement = readStatement(global_node, error, file_data, tokens, tokens_count, token_idx, else_scope);
+								if (statement == nullptr) {
+									return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, statment_tok, error, file_data, "Expecting statement for 'else'") : nullptr;
+								}
+
+								if (statements > 0) {
+									read_next_token(brace_close);
+									if (brace_close->type == ztShLangTokenType_BraceClose) {
+										break;
+									}
+									else {
+										push_back_token();
+									}
+								}
+							}
+
+						}
+					}
+
+					result = cond_node;
+					check_for_further_expressions = false;
+				}
+				else if (expr_begin->type == ztShLangTokenType_For) {
+					read_next_token(paren_open);
+					if (paren_open->type != ztShLangTokenType_ParenOpen) {
+						return _zt_shaderLangErrorMessage(global_node, paren_open, error, file_data, "Expecting '(' after 'for'");
+					}
+
+					ztShLangSyntaxNode *init_node = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, true, false);
+					if (init_node == nullptr && *error != nullptr) {
+						return nullptr;
+					}
+
+					read_next_token(init_end);
+					if (init_end->type != ztShLangTokenType_EndCommand) {
+						return error_ute(init_end);
+					}
+
+					ztShLangSyntaxNode *cond_node = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, true, false);
+					if (cond_node == nullptr && *error != nullptr) {
+						return nullptr;
+					}
+
+					read_next_token(cond_end);
+					if (cond_end->type != ztShLangTokenType_EndCommand) {
+						return error_ute(cond_end);
+					}
+
+					ztShLangSyntaxNode *loop_node = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, true, false);
+					if (loop_node == nullptr && *error != nullptr) {
+						return nullptr;
+					}
+
+					read_next_token(loop_end);
+					if (loop_end->type != ztShLangTokenType_ParenClose) {
+						return error_ute(loop_end);
+					}
+
+					int statements = ztInt32Max;
+
+					read_next_token(for_beg);
+					if (for_beg->type != ztShLangTokenType_BraceOpen) {
+						push_back_token();
+						statements = 1;
+					}
+
+
+					make_node(for_node, ztShLangSyntaxNodeType_Loop, expr_begin);
+					make_node(for_scope, ztShLangSyntaxNodeType_Scope, for_beg);
+
+					for_node->loop.init = init_node;
+					if (init_node) {
+						make_parent(init_node, for_node);
+					}
+
+					for_node->loop.condition = cond_node;
+					if (cond_node) {
+						make_parent(cond_node, for_node);
+					}
+
+					for_node->loop.loop = loop_node;
+					if (loop_node) {
+						make_parent(loop_node, for_node);
+					}
+
+					make_parent(for_scope, for_node);
+
+					while (statements-- > 0) {
+						read_next_token(statment_tok);
+						push_back_token();
+						ztShLangSyntaxNode *statement = readStatement(global_node, error, file_data, tokens, tokens_count, token_idx, for_scope);
+						if (statement == nullptr) {
+							return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, statment_tok, error, file_data, "Expecting statement for 'for'") : nullptr;
+						}
+
+						if (statements > 0) {
+							read_next_token(brace_close);
+							if (brace_close->type == ztShLangTokenType_BraceClose) {
+								break;
+							}
+							else {
+								push_back_token();
+							}
+						}
+					}
+
+					result = for_node;
+					check_for_further_expressions = false;
+				}
+				else if (expr_begin->type == ztShLangTokenType_Break) {
+					make_node(loop_control_node, ztShLangSyntaxNodeType_Break, expr_begin);
+					result = loop_control_node;
+					check_for_further_expressions = false;
+				}
+				else if (expr_begin->type == ztShLangTokenType_Continue) {
+					make_node(loop_control_node, ztShLangSyntaxNodeType_Continue, expr_begin);
+					result = loop_control_node;
+					check_for_further_expressions = false;
+				}
+				else if (expr_begin->type == ztShLangTokenType_Return) {
+					make_node(ret_node, ztShLangSyntaxNodeType_Return, expr_begin);
+
+					read_next_token(void_check);
+					if (void_check->type != ztShLangTokenType_EndCommand) {
+						push_back_token();
+
+						ztShLangSyntaxNode *ret_expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+						if (ret_expr == nullptr) {
+							return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, void_check, error, file_data, "Expecting expression following 'return'") : nullptr;
+						}
+						make_parent(ret_expr, ret_node);
+					}
+
+					result = ret_node;
+					//check_for_further_expressions = false;
+				}
+			}
+			if (expr_begin->type == ztShLangTokenType_ParenOpen) {
+				make_node(group_node, ztShLangSyntaxNodeType_Group, expr_begin);
+				ztShLangSyntaxNode *expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, can_declare, is_condition);
+
+				make_parent(expr, group_node);
+
+				read_next_token(paren_close);
+				if (paren_close->type != ztShLangTokenType_ParenClose) {
+					return error_ute(paren_close);
+				}
+
+				result = group_node;
+			}
+
+			if (result == nullptr) {
+				if (expr_begin->type == ztShLangTokenType_Minus || expr_begin->type == ztShLangTokenType_DoubleMinus || expr_begin->type == ztShLangTokenType_DoublePlus) {
+					ztShLangSyntaxNode *expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+
+					if (expr != nullptr) {
+						make_node(operation, ztShLangSyntaxNodeType_Operation, expr_begin);
+
+						make_node_with_parent(left_zero, ztShLangSyntaxNodeType_ValueEmpty, operation, expr_begin);
+						left_zero->value.value = nullptr;
+
+						operation->operation.left = left_zero;
+						operation->operation.right = expr;
+						operation->operation.op = expr_begin->type;
+						operation->operation.returns = ztShLangTokenType_Invalid;
+
+						make_parent(expr, operation);
+
+						result = operation;
+					}
+				}
+			}
+
+			if (result == nullptr) {
+				push_back_token();
+				if (expr_begin->type == ztShLangTokenType_EndCommand || expr_begin->type == ztShLangTokenType_ParenClose || expr_begin->type == ztShLangTokenType_Comma || expr_begin->type == ztShLangTokenType_Colon) {
+					return nullptr;
+				}
+				if (expr_begin->type == ztShLangTokenType_ParenOpen) {
+					result = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+				}
+				else {
+					return error_ute(expr_begin);
+				}
+			}
+
+			if (check_for_further_expressions) {
+
+				read_next_token(ident_next);
+				if (ident_next->type == ztShLangTokenType_ParenClose || ident_next->type == ztShLangTokenType_Comma || ident_next->type == ztShLangTokenType_Colon || ident_next->type == ztShLangTokenType_BracketOpen || ident_next->type == ztShLangTokenType_BracketClose) {
+					push_back_token();
+				}
+				else if (ident_next->type == ztShLangTokenType_Identifier && *(file_data + ident_next->token_beg) == '.') {
+					make_node(operation, ztShLangSyntaxNodeType_Operation, expr_begin);
+
+					make_parent(result, operation);
+					make_node_with_parent(right_zero, ztShLangSyntaxNodeType_ValueEmpty, operation, expr_begin);
+					right_zero->value.value = zt_stringMakeFrom(file_data + ident_next->token_beg, ident_next->token_len);;
+
+					operation->operation.left = result;
+					operation->operation.right = right_zero;
+					operation->operation.op = ztShLangTokenType_Access;
+					operation->operation.returns = ztShLangTokenType_Invalid;
+					result = operation;
+				}
+				else if (ident_next->type != ztShLangTokenType_EndCommand) {
+					if (zt_bitIsSet(ident_next->flags, ztShLangTokenFlags_Operator)) {
+						{
+							ztShLangSyntaxNode *vardecl_node = nullptr;
+							if (result->type == ztShLangSyntaxNodeType_VariableDecl) {
+								vardecl_node = result;
+
+								make_node(var_node, ztShLangSyntaxNodeType_Variable, vardecl_node->token);
+								var_node->variable_val.name = zt_stringMakeFrom(vardecl_node->variable_decl.name);
+								var_node->variable_val.token_type = vardecl_node->token->type;
+								result = var_node;
+							}
+
+							ztShLangSyntaxNode *return_node = result->type == ztShLangSyntaxNodeType_Return ? result : nullptr;
+
+							if (return_node) {
+								result = return_node->first_child;
+							}
+
+							make_node(operation, ztShLangSyntaxNodeType_Operation, ident_next);
+							operation->operation.op = ident_next->type;
+							operation->operation.returns = ztShLangTokenType_Invalid;
+							operation->operation.left = result;
+
+							ztShLangSyntaxNode *expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, zt_bitIsSet(ident_next->flags, ztShLangTokenFlags_ConditionOperator));
+							if (expr == nullptr) {
+								return nullptr;
+							}
+
+							operation->operation.right = expr;
+
+
+							make_parent(result, operation);
+							make_parent(expr, operation);
+
+							result = operation;
+
+							if (vardecl_node) {
+								make_parent(operation, vardecl_node);
+								result = vardecl_node;
+							}
+
+							if (return_node) {
+								return_node->first_child = operation;
+								operation->parent = return_node;
+								result = return_node;
+							}
+
+							read_next_token(check_for_question);
+							if(check_for_question->type == ztShLangTokenType_Question) {
+								make_node(inl_cond_node, ztShLangSyntaxNodeType_ConditionTest, ident_next);
+								inl_cond_node->condition.op = check_for_question->type;
+								inl_cond_node->condition.is_inline = true;
+
+								ztShLangSyntaxNode *if_true = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+								if (if_true == nullptr) {
+									return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, ident_next, error, file_data, "Expecting true condition for '?' operator") : nullptr;
+								}
+								read_next_token(colon);
+								if (colon->type != ztShLangTokenType_Colon) {
+									return _zt_shaderLangErrorMessage(global_node, colon, error, file_data, "Expecting ':' for '?' operator");
+								}
+								ztShLangSyntaxNode *if_false = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+								if (if_false == nullptr) {
+									return *error == nullptr ? _zt_shaderLangErrorMessage(global_node, colon, error, file_data, "Expecting false condition for '?' operator") : nullptr;
+								}
+
+								inl_cond_node->condition.expr = result;
+								make_parent(result, inl_cond_node);
+
+								inl_cond_node->condition.if_true = if_true;
+								make_parent(if_true, inl_cond_node);
+
+								inl_cond_node->condition.if_false = if_false;
+								make_parent(if_false, inl_cond_node);
+
+								result = inl_cond_node;
+							}
+							else {
+								push_back_token();
+							}
+						}
+					}
+					else if (ident_next->type == ztShLangTokenType_Question) {
+						if(is_condition) {
+							push_back_token();
+						}
+						else {
+							zt_assert(false);
+						}
+					}
+					else if (ident_next->type == ztShLangTokenType_BracketOpen) {
+						if (result->type == ztShLangSyntaxNodeType_Variable) {
+							ztShLangSyntaxNode *index_node = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, false, false);
+							read_next_token(bracket_close);
+							if (bracket_close->type != ztShLangTokenType_BracketClose) {
+								return error_ute(bracket_close);
+							}
+
+							make_parent(index_node, result);
+						}
+						else {
+							return error_ute(ident_next);
+						}
+					}
+					else {
+						return error_ute(ident_next);
+					}
+				}
+				else {
+					push_back_token(); // push end command token back on the stack
+				}
+			}
+
+			return result;
+		}
+		// ---------------------------------------------
+
+		static ztShLangSyntaxNode *readStatement(ztShLangSyntaxNode *global_node, ztString *error, char *file_data, ztShLangToken *tokens, int tokens_count, int &token_idx, ztShLangSyntaxNode *scope)
+		{
+			ztShLangSyntaxNode *expr = readExpression(global_node, error, file_data, tokens, tokens_count, token_idx, true, false);
+			if (expr) {
+				expr->parent = scope;
+				zt_singleLinkAddToEnd(scope->first_child, expr);
+
+				read_next_token(end_cmd);
+				if (end_cmd->type != ztShLangTokenType_EndCommand) {
+					switch (expr->type)
+					{
+						case ztShLangSyntaxNodeType_VariableDecl:
+						case ztShLangSyntaxNodeType_Return:
+						case ztShLangSyntaxNodeType_Continue:
+						case ztShLangSyntaxNodeType_Break:
+						case ztShLangSyntaxNodeType_Operation:
+						case ztShLangSyntaxNodeType_FunctionCall:
+						case ztShLangSyntaxNodeType_ValueNumberInt:
+						case ztShLangSyntaxNodeType_ValueNumberFloat:
+						case ztShLangSyntaxNodeType_ValueString:
+						case ztShLangSyntaxNodeType_ValueBool:
+							return _zt_shaderLangErrorMessage(global_node, end_cmd, error, file_data, "Expecting ';'");
+
+						default:
+							push_back_token();
+					}
+				}
+			}
+			return expr;
+		}
+	};
+
+	// ---------------------------------------------
+
+	ztShLangSyntaxNodeCache *cache = zt_mallocStruct(ztShLangSyntaxNodeCache);
+	cache->cache_size = tokens_count + 128; // extra to account for the built in functions and types
+	cache->cache_used = 0;
+	cache->cache = zt_mallocStructArray(ztShLangSyntaxNode, cache->cache_size);
+	zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0);
+	cache->string_cache_size = zt_strLen(file_data);
+	cache->string_cache_used = 0;
+	cache->string_cache = zt_mallocStructArray(char, cache->string_cache_size);
+
+	ztShLangSyntaxNode *global_node = &cache->cache[cache->cache_used++];
+	global_node->type = ztShLangSyntaxNodeType_Scope;
+	global_node->next = nullptr;
+	global_node->parent = nullptr;
+	global_node->token = nullptr;
+	global_node->cache = cache;
+	global_node->scope.name = zt_stringMakeFrom("global");
+
+	ztShLangSyntaxNode *active_scope = global_node;
+
+	char error_buff_1[256] = { 0 }, error_buff_2[256] = { 0 };
+	*error = nullptr;
+
+	int paren_count = 0;
+
+	int token_idx = 0;
+
+	while (tokens_left > 0) {
+		read_next_token(token);
+
+		if (token->type == ztShLangTokenType_Invalid) {
+			return _zt_shaderLangErrorMessage(global_node, token, error, file_data, "Unexpected token encountered: %s", err_to_string(token));
+		}
+		if (token->type == ztShLangTokenType_Comment) {
+			continue;
+		}
+
+		if (active_scope == global_node) {
+			if (token->type == ztShLangTokenType_Struct) {
+				read_next_token(identifier);
+				if (identifier->type != ztShLangTokenType_Identifier) {
+					return _zt_shaderLangErrorMessage(global_node, token, error, file_data, "Expected identifier after struct declaration");
+				}
+				read_next_token(brace_open);
+				if (brace_open->type != ztShLangTokenType_BraceOpen) {
+					return _zt_shaderLangErrorMessage(global_node, brace_open, error, file_data, "Expected '{' after struct '%s' declaration", err_to_string(identifier));
+				}
+
+				make_node_with_parent(struct_node, ztShLangSyntaxNodeType_Structure, active_scope, identifier);
+
+				struct_node->structure.name = make_string(identifier);
+
+				while (true) {
+					read_next_token(struct_tok);
+					if (struct_tok->type == ztShLangTokenType_BraceClose) {
+						break;
+					}
+					push_back_token();
+
+					ztShLangSyntaxNode *var_node = local::readVariable(global_node, error, file_data, tokens, tokens_count, token_idx, true, false);
+					if (!var_node) {
+						return nullptr;
+					}
+
+					make_parent(var_node, struct_node);
+
+					read_next_token(post_var_decl);
+					if (post_var_decl->type != ztShLangTokenType_EndCommand) {
+						return error_ute(post_var_decl);
+					}
+				}
+
+				continue;
+			}
+		}
+
+		if (zt_bitIsSet(token->flags, ztShLangTokenFlags_DataType) || token->type == ztShLangTokenType_Const || token->type == ztShLangTokenType_Identifier) {
+			bool is_const = false;
+			if (token->type == ztShLangTokenType_Const) {
+				is_const = true;
+				read_next_token(token_next);
+				token = token_next;
+			}
+
+			if (zt_bitIsSet(token->flags, ztShLangTokenFlags_DataType) || token->type == ztShLangTokenType_Identifier) {
+				read_next_token(identifier);
+				if (identifier->type == ztShLangTokenType_Identifier) {
+					read_next_token(paren);
+					if (paren->type == ztShLangTokenType_ParenOpen) {
+						make_node_with_parent(func_node, ztShLangSyntaxNodeType_FunctionDecl, active_scope, identifier);
+
+						func_node->function_decl.returns_name = make_string(token);
+						func_node->function_decl.returns      = _zt_shaderLangTokenTypeFromDesc(func_node->function_decl.returns_name);
+						func_node->function_decl.name         = make_string(identifier);
+
+						while (true) {
+							read_next_token(func_param);
+							if (func_param->type == ztShLangTokenType_ParenClose) {
+								break;
+							}
+							if (func_param->type != ztShLangTokenType_Comma) {
+								if (!(zt_bitIsSet(func_param->flags, ztShLangTokenFlags_DataType) || func_param->type == ztShLangTokenType_Const || func_param->type == ztShLangTokenType_Identifier)) {
+									return error_ute(func_param);
+								}
+								push_back_token();
+							}
+
+							ztShLangSyntaxNode *var_node = local::readVariable(global_node, error, file_data, tokens, tokens_count, token_idx, true, true);
+							if (var_node == nullptr) {
+								return nullptr;
+							}
+
+							make_parent(var_node, func_node);
+						}
+
+						read_next_token(brace_open);
+						if (brace_open->type != ztShLangTokenType_BraceOpen) {
+							return error_ute(brace_open);
+						}
+
+						make_node_with_parent(func_scope, ztShLangSyntaxNodeType_Scope, func_node, identifier);
+						active_scope = func_scope;
+
+						while (true) {
+							ztShLangSyntaxNode *statement = local::readStatement(global_node, error, file_data, tokens, tokens_count, token_idx, active_scope);
+							if (statement == nullptr) {
+								if (*error) {
+									return nullptr;
+								}
+							}
+
+							read_next_token(brace_check);
+							if (brace_check->type == ztShLangTokenType_BraceClose) {
+								break;
+							}
+							push_back_token();
+						}
+
+						active_scope = active_scope->parent->parent;
+						// if we're here, the closing brace has already been read
+					}
+					else { // this is not a function, but a variable declaration
+						push_back_token(); // what we thought was paren open
+						push_back_token(); // identifier
+						push_back_token(); // data type
+
+						if (is_const) {
+							push_back_token();
+						}
+
+						ztShLangSyntaxNode *var_node = local::readVariable(global_node, error, file_data, tokens, tokens_count, token_idx, true, true);
+						if (!var_node) {
+							return nullptr;
+						}
+					}
+				}
+				else {
+					push_back_token();
+				}
+			}
+			continue;
+		}
+
+		if (token->type == ztShLangTokenType_Program) {
+			if (active_scope != global_node) {
+				return _zt_shaderLangErrorMessage(global_node, token, error, file_data, "Program may only be declared in the global scope");
+			}
+			read_next_token(program_name);
+			if (program_name->type != ztShLangTokenType_Identifier) {
+				return _zt_shaderLangErrorMessage(global_node, program_name, error, file_data, "Expecting program name");
+			}
+			read_next_token(brace_open);
+			if (brace_open->type != ztShLangTokenType_BraceOpen) {
+				return _zt_shaderLangErrorMessage(global_node, brace_open, error, file_data, "Expecting opening brace for program");
+			}
+
+			make_node_with_parent(program_node, ztShLangSyntaxNodeType_ProgramDecl, active_scope, program_name);
+			program_node->parent = active_scope;
+			program_node->program.name = zt_stringMakeFrom(make_string(program_name));
+			active_scope = program_node;
+			continue;
+		}
+
+		if (token->type == ztShLangTokenType_BraceClose) {
+			if (active_scope == global_node) {
+				return _zt_shaderLangErrorMessage(global_node, token, error, file_data, "Unexpected end of scope");
+			}
+
+			active_scope = active_scope->parent;
+			while (active_scope->type != ztShLangSyntaxNodeType_Scope) {
+				active_scope = active_scope->parent;
+			}
+
+			continue;
+		}
+
+		_zt_shaderLangErrorMessage(global_node, token, error, file_data, "Unexpected token encountered in global scope: %s", err_to_string(token));
+		return global_node;
+	}
+
+	// add the built-in functions
+	{
+		// function name,<param data types>,return data type
+		char *built_in_functions[] = {
+			"textureSample,texture2d,vec2,vec4",
+			"textureSample,textureCube,vec3,vec4",
+			"textureSize,texture2d,vec2",
+			"atan,float,float",
+			"lerp,float,float,float,float",
+			"clamp,float,float,float,float",
+			"min,float,float,float",
+			"max,float,float,float",
+			"normalize,vec2,vec2",
+			"normalize,vec3,vec3",
+			"normalize,vec4,vec4",
+			"pow,float,float,float",
+			"dot,vec2,vec2,float",
+			"dot,vec3,vec3,float",
+			"dot,vec4,vec4,float",
+			"length,vec2,float",
+			"length,vec3,float",
+			"transpose,mat3,mat3",
+			"transpose,mat4,mat4",
+			"inverse,mat3,mat3",
+			"inverse,mat4,mat4",
+			"smoothstep,float,float,float,float",
+
+			"int,int,int",
+			"int,uint,int",
+			"int,float,int",
+			"int,double,int",
+			"uint,uint,uint",
+			"uint,int,uint",
+			"uint,float,uint",
+			"uint,double,uint",
+			"float,float,float",
+			"float,int,float",
+			"float,uint,float",
+			"float,double,float",
+			"double,double,float",
+			"double,float,float",
+			"double,int,float",
+			"double,uint,float",
+			"bool,int,bool",
+			"bool,uint,bool",
+			"bool,float,bool",
+			"bool,double,bool",
+			"vec2,vec2,vec2",
+			"vec2,float,float,vec2",
+			"vec3,vec3,vec3",
+			"vec3,float,float,float,vec3",
+			"vec3,vec2,float,vec3",
+			"vec3,float,vec3",
+			"vec3,vec4,vec3",
+			"vec4,vec4,vec4",
+			"vec4,float,float,float,float,vec4",
+			"vec4,vec2,float,float,vec4",
+			"vec4,vec2,vec2,vec4",
+			"vec4,vec3,float,vec4",
+			"vec4,float,vec4",
+			"mat3,mat3,mat3",
+			"mat3,float,float,float,float,float,float,float,float,float,mat3",
+			"mat3,vec3,vec3,vec3,mat3",
+			"mat3,mat4,mat3",
+			"mat4,mat4,mat4",
+			"mat4,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,mat4",
+			"mat4,vec4,vec4,vec4,vec4,mat4",
+		};
+
+		zt_fize(built_in_functions) {
+			ztToken tokens[32];
+			int tokens_count = zt_strTokenize(built_in_functions[i], ", ", tokens, zt_elementsOf(tokens));
+			zt_assert(tokens_count > 1);
+
+			make_node_with_parent(func_node, ztShLangSyntaxNodeType_FunctionDecl, global_node, nullptr);
+			func_node->function_decl.returns_name = zt_stringMakeFrom(built_in_functions[i] + tokens[tokens_count - 1].beg, tokens[tokens_count - 1].len);
+			func_node->function_decl.returns      = _zt_shaderLangTokenTypeFromDesc(func_node->function_decl.returns_name);
+			func_node->function_decl.name         = zt_stringMakeFrom(built_in_functions[i] + tokens[0].beg, tokens[0].len);
+
+			for (int j = 1; j < tokens_count - 1; ++j) {
+				make_node_with_parent(variable, ztShLangSyntaxNodeType_VariableDecl, func_node, nullptr);
+
+				variable->variable_decl.type_name  = zt_stringMakeFrom(built_in_functions[i] + tokens[j].beg, tokens[j].len);
+				variable->variable_decl.type       = _zt_shaderLangTokenTypeFromDesc(variable->variable_decl.type_name);
+				variable->variable_decl.name       = nullptr;
+				variable->variable_decl.qualifier  = nullptr;
+				variable->variable_decl.array_size = -1;
+			}
+		}
+	}
+	// add the built-in structs
+	{
+		char *built_in_structs[] = {
+			"vec2,float x,float y",
+			"vec3,float x,float y,float z,float r,float g,float b,vec2 xy",
+			"vec4,float x,float y,float z,float w,float r,float g,float b,float a,vec3 xyz,vec3 rgb",
+		};
+
+		zt_fize(built_in_structs) {
+			ztToken tokens[32];
+			int tokens_count = zt_strTokenize(built_in_structs[i], ", ", tokens, zt_elementsOf(tokens));
+			zt_assert(tokens_count > 1);
+
+			make_node_with_parent(struct_node, ztShLangSyntaxNodeType_Structure, global_node, nullptr);
+			struct_node->structure.name = zt_stringMakeFrom(built_in_structs[i] + tokens[0].beg, tokens[0].len);
+
+			for (int j = 1; j < tokens_count; j += 2) {
+				make_node_with_parent(variable, ztShLangSyntaxNodeType_VariableDecl, struct_node, nullptr);
+
+				variable->variable_decl.type_name = zt_stringMakeFrom(built_in_structs[i] + tokens[j].beg, tokens[j].len);
+				variable->variable_decl.type = _zt_shaderLangTokenTypeFromDesc(variable->variable_decl.type_name);
+				variable->variable_decl.name = zt_stringMakeFrom(built_in_structs[i] + tokens[j + 1].beg, tokens[j + 1].len);;
+				variable->variable_decl.qualifier = nullptr;
+				variable->variable_decl.array_size = -1;
+			}
+		}
+
+	}
+
+	return global_node;
+
+#	undef tokens_left
+#	undef make_node
+#	undef make_node_with_parent
+#	undef err_to_string
+#	undef err_to_string
+#	undef error_ueof
+#	undef error_ute
+#	undef read_next_token
+#	undef push_back_token
+#	undef make_string
+#	undef make_parent
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
+{
+	switch (node->type)
+	{
+		case ztShLangSyntaxNodeType_Scope: {
+			if (node->scope.name) {
+				//zt_stringFree(node->scope.name);
+			}
+		} break;
+
+		case ztShLangSyntaxNodeType_Structure: {
+			if (node->structure.name) {
+				//zt_stringFree(node->structure.name);
+			}
+		} break;
+
+		case ztShLangSyntaxNodeType_VariableDecl: {
+			if (node->variable_decl.name) {
+				//zt_stringFree(node->variable_decl.name);
+			}
+			if (node->variable_decl.type_name) {
+				//zt_stringFree(node->variable_decl.type_name);
+			}
+			if (node->variable_decl.qualifier) {
+				//zt_stringFree(node->variable_decl.qualifier);
+			}
+		} break;
+
+		case ztShLangSyntaxNodeType_FunctionDecl: {
+			if (node->function_decl.name) {
+				//zt_stringFree(node->function_decl.name);
+			}
+			if (node->function_decl.returns_name) {
+				//zt_stringFree(node->function_decl.returns_name);
+			}
+		} break;
+
+		case ztShLangSyntaxNodeType_Variable: {
+			if (node->variable_val.name) {
+				//zt_stringFree(node->variable_val.name);
+			}
+		} break;
+
+		case ztShLangSyntaxNodeType_FunctionCall: {
+			if (node->function_call.name) {
+				//zt_stringFree(node->function_call.name);
+			}
+		} break;
+	}
+
+	zt_flink(child, node->first_child) {
+		_zt_shaderLangFreeSyntaxTree(child);
+	}
+
+	if (node->cache) {
+		zt_free(node->cache->cache);
+		zt_free(node->cache->string_cache);
+		zt_free(node->cache);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name)
+{
+	ztShLangSyntaxNode *global_node = node;
+	while (global_node->parent) {
+		global_node = global_node->parent;
+	}
+
+	zt_flink(child, global_node->first_child) {
+		if (child->type == ztShLangSyntaxNodeType_Structure && zt_strEquals(child->structure.name, name)) {
+			return child;
+		}
+	}
+
+	return nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope, char *file_data, ztString *error)
+{
+	struct local
+	{
+		static bool isAllowedHere(char *file_data, ztShLangSyntaxNode *var_node, ztShLangSyntaxNodeType_Enum *allowed_types, int allowed_types_count, char *scope_name, ztString *error)
+		{
+			zt_fiz(allowed_types_count) {
+				if (var_node->type == allowed_types[i]) {
+					return true;
+				}
+			}
+			_zt_shaderLangErrorMessage(nullptr, var_node->token, error, file_data, "%s is illegal in %s", _zt_shaderLangSyntaxNodeDesc(var_node), scope_name);
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ztString findDataType(ztShLangSyntaxNode *scope, ztShLangSyntaxNode *var_node, char *ident)
+		{
+			zt_assert(var_node == nullptr || var_node->type == ztShLangSyntaxNodeType_Variable);
+
+			zt_flink(child, scope->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_VariableDecl) {
+					if (zt_strEquals(child->variable_decl.name, ident)) {
+						if (var_node && var_node->variable_val.decl == nullptr) {
+							var_node->variable_val.decl = child;
+						}
+						return child->variable_decl.type_name;
+					}
+				}
+			}
+
+			if (scope->parent) {
+				return findDataType(scope->parent, var_node, ident);
+			}
+
+			return nullptr;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool variableInScope(char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
+		{
+			zt_assert(var_node->type == ztShLangSyntaxNodeType_Variable);
+			var_node->variable_val.decl = nullptr;
+
+			ztToken tokens[16];
+			int tokens_count = 0;
+
+			char *name = var_node->value.value;
+
+			if (zt_bitIsSet(var_node->token->flags, ztShLangTokenFlags_IdentifierWithAccess)) {
+				tokens_count = zt_strTokenize(name, ".", tokens, zt_elementsOf(tokens));
+			}
+			else {
+				tokens_count = 1;
+				tokens[0].beg = 0;
+				tokens[0].len = zt_strLen(name);
+			}
+
+			ztShLangSyntaxNode *global_scope = var_node;
+			while (global_scope->parent) {
+				global_scope = global_scope->parent;
+			}
+
+			ztShLangSyntaxNode *orig_var_node = var_node;
+			zt_fiz(tokens_count) {
+				char token[256];
+				zt_strCpy(token, zt_elementsOf(token), name + tokens[i].beg, tokens[i].len);
+
+				ztString data_type = findDataType(var_node, (i == tokens_count - 1 ? orig_var_node : nullptr), token);
+				if (data_type == nullptr) {
+					_zt_shaderLangErrorMessage(nullptr, orig_var_node->token, error, file_data, "Undeclared identifier");
+					return false;
+				}
+
+				var_node = nullptr;
+				zt_flink(struct_node, global_scope->first_child) {
+					if (struct_node->type == ztShLangSyntaxNodeType_Structure) {
+						if (zt_strEquals(struct_node->structure.name, data_type)) {
+							var_node = struct_node;
+							break;
+						}
+					}
+				}
+				if (var_node == nullptr) {
+
+					char *built_in_datatypes[] = {
+						"int",
+						"uint",
+						"float",
+						"double",
+						"bool",
+						"vec2",
+						"vec3",
+						"vec4",
+						"mat3",
+						"mat4",
+						"texture2d",
+						"textureCube",
+					};
+
+					zt_fize(built_in_datatypes) {
+						if (zt_strEquals(built_in_datatypes[i], data_type)) {
+							return true;
+						}
+					}
+
+					_zt_shaderLangErrorMessage(nullptr, orig_var_node->token, error, file_data, "'%s' is not a valid data type", data_type);
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ztShLangTokenType_Enum getExpressionDataType(ztShLangSyntaxNode *node, ztString *error, char *file_data)
+		{
+			if (node->type == ztShLangSyntaxNodeType_Variable) {
+				return node->variable_val.decl->variable_decl.type;
+			}
+			if (node->type == ztShLangSyntaxNodeType_FunctionCall) {
+				ztShLangSyntaxNode *global_scope = node->parent;
+				while (global_scope && global_scope->parent) {
+					global_scope = global_scope->parent;
+				}
+				zt_flink(func_node, global_scope->first_child) {
+					if (func_node->type == ztShLangSyntaxNodeType_FunctionDecl) {
+						if (zt_strEquals(func_node->function_decl.name, node->function_call.name)) {
+							return _zt_shaderLangTokenTypeFromDesc(func_node->function_decl.returns_name);
+						}
+					}
+				}
+			}
+			if (node->type == ztShLangSyntaxNodeType_ValueNumberInt) {
+				return ztShLangTokenType_int;
+			}
+			if (node->type == ztShLangSyntaxNodeType_ValueNumberFloat) {
+				return ztShLangTokenType_float;
+			}
+			if (node->type == ztShLangSyntaxNodeType_Operation) {
+				return getOperationType(node, error, file_data);
+			}
+			if (node->type == ztShLangSyntaxNodeType_Group) {
+				return getExpressionDataType(node->first_child, error, file_data);
+			}
+			return ztShLangTokenType_Invalid;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ztShLangSyntaxNode *findFunction(ztShLangSyntaxNode *node, bool *found, ztString *error, char *file_data)
+		{
+			ztShLangSyntaxNode *global_scope = node->parent;
+			while (global_scope->parent) {
+				global_scope = global_scope->parent;
+			}
+
+			zt_flink(child, global_scope->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_FunctionDecl) {
+					if (zt_strEquals(child->function_decl.name, node->function_call.name)) {
+						if(found) *found = true;
+
+						// check parameters
+						bool params_match = true;
+
+						ztShLangSyntaxNode *param_decl = child->first_child;
+						ztShLangSyntaxNode *param_call = node->first_child;
+
+						while (param_decl && param_call) {
+							if (param_decl->type != ztShLangSyntaxNodeType_VariableDecl) {
+								break;
+							}
+
+							ztShLangTokenType_Enum decl_type = param_decl->variable_decl.type;
+							ztShLangTokenType_Enum call_type = getExpressionDataType(param_call, error, file_data);
+
+							if (decl_type != call_type) {
+								if (!((decl_type == ztShLangTokenType_int   && call_type == ztShLangTokenType_float) ||
+									(decl_type == ztShLangTokenType_float && call_type == ztShLangTokenType_int))) {
+									break;
+								}
+							}
+
+							if (decl_type == ztShLangTokenType_Identifier) {
+								// todo: struct parameter... make sure they match
+							}
+
+							param_decl = param_decl->next;
+							param_call = param_call->next;
+						}
+
+						//if (param_decl && !param_call && param_decl->type == ztShLangSyntaxNodeType_Scope) {
+						if ((param_decl == nullptr || param_decl->type == ztShLangSyntaxNodeType_Scope) && param_call == nullptr) {
+							if (node->function_call.decl == nullptr) {
+								node->function_call.decl = child;
+							}
+
+							return child;
+						}
+					}
+				}
+			}
+
+			return nullptr;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool isValidFunction(ztShLangSyntaxNode *global_scope, ztShLangSyntaxNode *func_node, char *file_data, ztString *error)
+		{
+			bool found = false;
+			if (findFunction(func_node, &found, error, file_data)) {
+				return true;
+			}
+
+			_zt_shaderLangErrorMessage(nullptr, func_node->token, error, file_data, (found ? "parameter mismatch for function '%s'" : "'%s' is not a valid function"), func_node->function_call.name);
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static ztShLangTokenType_Enum getOperationType(ztShLangSyntaxNode *op_node, ztString *error, char *file_data)
+		{
+			if (op_node->type != ztShLangSyntaxNodeType_Operation) {
+				return ztShLangTokenType_Invalid;
+			}
+
+			if (op_node->operation.returns != ztShLangTokenType_Invalid) {
+				return op_node->operation.returns;
+			}
+
+			struct sublocal
+			{
+				static ztShLangSyntaxNode *findFunctionDecl(ztShLangSyntaxNode *node, ztString *error, char *file_data)
+				{
+					bool found = false;
+					ztShLangSyntaxNode *func_decl_node = findFunction(node, &found, error, file_data);
+					if (func_decl_node) {
+						return func_decl_node;
+					}
+
+					_zt_shaderLangErrorMessage(nullptr, node->token, error, file_data, (found ? "parameter mismatch for function '%s'" : "'%s' is not a valid function"), node->function_call.name);
+					return nullptr;
+				}
+
+				static ztShLangTokenType_Enum getType(ztShLangSyntaxNode *node, ztString *error, char *file_data)
+				{
+					if (node->type == ztShLangSyntaxNodeType_ValueNumberInt) {
+						return ztShLangTokenType_int;
+					}
+					if (node->type == ztShLangSyntaxNodeType_ValueNumberFloat) {
+						return ztShLangTokenType_float;
+					}
+					if (node->type == ztShLangSyntaxNodeType_ValueBool || node->type == ztShLangSyntaxNodeType_ConditionTest) {
+						return ztShLangTokenType_bool;
+					}
+					if (node->type == ztShLangSyntaxNodeType_Variable) {
+						return node->variable_val.decl->variable_decl.type;
+					}
+					if (node->type == ztShLangSyntaxNodeType_FunctionCall) {
+						if (node->function_call.decl == nullptr) {
+							ztShLangSyntaxNode *func_decl_node = findFunctionDecl(node, error, file_data);
+							node->function_call.decl = func_decl_node;
+						}
+						return node->function_call.decl ? node->function_call.decl->function_decl.returns : ztShLangTokenType_Invalid;
+					}
+					if (node->type == ztShLangSyntaxNodeType_Operation) {
+						return local::getOperationType(node, error, file_data);
+					}
+					if (node->type == ztShLangSyntaxNodeType_Group) {
+						return getType(node->first_child, error, file_data);
+					}
+
+					return ztShLangTokenType_Identifier;
+				}
+
+				static char *getTypeString(ztShLangSyntaxNode *node, ztShLangTokenType_Enum result_type, ztString *error, char *file_data)
+				{
+					if (result_type != ztShLangTokenType_Identifier) {
+						return _zt_shaderLangTokenTypeDesc(result_type);
+					}
+
+					return nullptr;
+				}
+
+				static ztShLangTokenType_Enum convertToLCD(ztShLangTokenType_Enum type)
+				{
+					switch (type)
+					{
+						case ztShLangTokenType_int:
+						case ztShLangTokenType_uint:
+						case ztShLangTokenType_double:
+						case ztShLangTokenType_bool:
+							return ztShLangTokenType_float;
+					}
+
+					return type;
+				}
+			};
+
+			ztShLangTokenType_Enum left_orig = sublocal::getType(op_node->operation.left, error, file_data);
+			ztShLangTokenType_Enum right_orig = sublocal::getType(op_node->operation.right, error, file_data);
+
+			ztShLangTokenType_Enum left = zt_min(left_orig, right_orig);
+			ztShLangTokenType_Enum right = zt_max(left_orig, right_orig);
+
+			if (left == right) {
+				op_node->operation.returns = left;
+				return left;
+			}
+			else {
+				if (op_node->operation.op == ztShLangTokenType_Access) {
+					char *left_type = sublocal::getTypeString(op_node->operation.left, left_orig, error, file_data);
+					ztShLangSyntaxNode *struct_node = _zt_shaderLangFindStructure(op_node, left_type);
+
+					if (struct_node) {
+						char ident[256];
+						zt_strCpy(ident, zt_elementsOf(ident), op_node->operation.right->value.value);
+
+						if (ident[0] == '.') {
+							zt_flink(child, struct_node->first_child) {
+								if (zt_strEquals(child->variable_decl.name, ident + 1)) {
+									return child->variable_decl.type;
+								}
+							}
+						}
+					}
+				}
+				if (op_node->operation.left->type == ztShLangSyntaxNodeType_ValueEmpty) {
+					return right_orig;
+				}
+
+				// check for compatible types
+				if (sublocal::convertToLCD(left) == sublocal::convertToLCD(right)) {
+					return right;
+				}
+
+				if (left == ztShLangTokenType_float || left == ztShLangTokenType_double || left == ztShLangTokenType_int || left == ztShLangTokenType_uint) {
+					if (right == ztShLangTokenType_vec2 || right == ztShLangTokenType_vec3 || right == ztShLangTokenType_vec4) {
+						return right;
+					}
+				}
+
+				if (left == ztShLangTokenType_vec3 || left == ztShLangTokenType_vec4) {
+					if (right == ztShLangTokenType_mat3 || right == ztShLangTokenType_mat4) {
+						return left;
+					}
+				}
+
+				if (*error == nullptr) {
+					_zt_shaderLangErrorMessage(nullptr, op_node->token, error, file_data, "parameter mismatch in '%s' operation ('%s' is not compatible with '%s')", _zt_shaderLangTokenTypeDesc(op_node->operation.op), _zt_shaderLangTokenTypeDesc(left_orig), _zt_shaderLangTokenTypeDesc(right_orig));
+				}
+				return ztShLangTokenType_Invalid;
+			}
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool isValidOperation(ztShLangSyntaxNode *op_node, ztString *error, char *file_data)
+		{
+			if (op_node->operation.returns != ztShLangTokenType_Invalid) {
+				return true;
+			}
+
+			if (getOperationType(op_node, error, file_data) == ztShLangTokenType_Invalid) {
+				return false;
+			}
+
+			return true;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool isValidDataType(ztShLangSyntaxNode *global_scope, ztShLangSyntaxNode *var_node)
+		{
+			if (var_node->type != ztShLangSyntaxNodeType_VariableDecl) {
+				return false;
+			}
+
+			switch (var_node->variable_val.token_type)
+			{
+				case ztShLangTokenType_void:
+				case ztShLangTokenType_int:
+				case ztShLangTokenType_uint:
+				case ztShLangTokenType_float:
+				case ztShLangTokenType_double:
+				case ztShLangTokenType_bool:
+				case ztShLangTokenType_vec2:
+				case ztShLangTokenType_vec3:
+				case ztShLangTokenType_vec4:
+				case ztShLangTokenType_mat3:
+				case ztShLangTokenType_mat4:
+				case ztShLangTokenType_texture2d:
+					return true;
+
+				case ztShLangTokenType_Identifier: {
+					ztString data_type = var_node->variable_val.name;
+					if (zt_strEquals(data_type, "vertex_shader") ||
+						zt_strEquals(data_type, "geometry_shader") ||
+						zt_strEquals(data_type, "pixel_sahder")) {
+						return true;
+					}
+
+					zt_flink(struct_node, global_scope->first_child) {
+						if (struct_node->type == ztShLangSyntaxNodeType_Structure) {
+							if (zt_strEquals(struct_node->structure.name, data_type)) {
+								return true;
+							}
+						}
+					}
+				} break;
+			}
+
+			return false;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool validateNodeStage1(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
+		{
+			if (var_node == global_scope) {
+				ztShLangSyntaxNodeType_Enum allowed_in_global[] = {
+					ztShLangSyntaxNodeType_Scope,
+					ztShLangSyntaxNodeType_Structure,
+					ztShLangSyntaxNodeType_VariableDecl,
+					ztShLangSyntaxNodeType_ProgramDecl,
+					ztShLangSyntaxNodeType_FunctionDecl,
+				};
+				zt_flink(child, global_scope->first_child) {
+					if (!isAllowedHere(file_data, child, allowed_in_global, zt_elementsOf(allowed_in_global), "global scope", error)) {
+						return false;
+					}
+				}
+			}
+
+			if (var_node->type == ztShLangSyntaxNodeType_Variable) {
+				if (!variableInScope(file_data, var_node, error)) {
+					return false;
+				}
+			}
+
+			zt_flink(child, var_node->first_child) {
+				if (!validateNodeStage1(global_scope, file_data, child, error)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool validateNodeStage2(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
+		{
+			if (var_node->type == ztShLangSyntaxNodeType_Operation) {
+				if (!isValidOperation(var_node, error, file_data)) {
+					return false;
+				}
+			}
+
+			zt_flink(child, var_node->first_child) {
+				if (!validateNodeStage2(global_scope, file_data, child, error)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		// ------------------------------------------------------------------------------------------------
+
+		static bool validateNodeStage3(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
+		{
+			if (var_node->type == ztShLangSyntaxNodeType_FunctionCall) {
+				if (!isValidFunction(global_scope, var_node, file_data, error)) {
+					return false;
+				}
+			}
+
+			zt_flink(child, var_node->first_child) {
+				if (!validateNodeStage3(global_scope, file_data, child, error)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+	};
+
+	return local::validateNodeStage1(global_scope, file_data, global_scope, error) &&
+		local::validateNodeStage2(global_scope, file_data, global_scope, error) &&
+		local::validateNodeStage3(global_scope, file_data, global_scope, error);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_shaderLangDumpSyntaxTree(ztShLangSyntaxNode *node, int indent = 0)
+{
+	char indention[128] = { 0 };
+	zt_fiz(zt_min(zt_elementsOf(indention), indent)) {
+		indention[i] = '\t';
+		indention[i + 1] = 0;
+	}
+
+	switch (node->type)
+	{
+		case ztShLangSyntaxNodeType_Scope: {
+			zt_logVerbose("%s scope '%s'", indention, (node->scope.name ? node->scope.name : "unnamed"));
+		} break;
+
+		case ztShLangSyntaxNodeType_Structure: {
+			zt_logVerbose("%s structure '%s'", indention, node->structure.name);
+		} break;
+
+		case ztShLangSyntaxNodeType_VariableDecl: {
+			zt_logVerbose("%s variable decl; name '%s'; type '%s'; qualifier '%s'; array size '%d'; const '%s'", indention, node->variable_decl.name, node->variable_decl.type_name, node->variable_decl.qualifier, node->variable_decl.array_size, (node->variable_decl.is_const ? "true" : "false"));
+		} break;
+
+		case ztShLangSyntaxNodeType_ProgramDecl: {
+			zt_logVerbose("%s program decl; name '%s'", indention, node->program.name);
+		} break;
+
+		case ztShLangSyntaxNodeType_FunctionDecl: {
+			zt_logVerbose("%s function decl; name '%s'; returns '%s'", indention, node->function_decl.name, node->function_decl.returns_name);
+		} break;
+
+		case ztShLangSyntaxNodeType_ConditionTest: {
+			zt_logVerbose("%s condition test; operator '%s'", indention, _zt_shaderLangTokenTypeDesc(node->token->type));
+		} break;
+
+		case ztShLangSyntaxNodeType_Return: {
+			zt_logVerbose("%s return", indention);
+		} break;
+
+		case ztShLangSyntaxNodeType_Loop: {
+			zt_logVerbose("%s loop", indention);
+		} break;
+
+		case ztShLangSyntaxNodeType_Continue: {
+			zt_logVerbose("%s continue", indention);
+		} break;
+
+		case ztShLangSyntaxNodeType_Break: {
+			zt_logVerbose("%s break", indention);
+		} break;
+
+		case ztShLangSyntaxNodeType_Variable: {
+			zt_logVerbose("%s variable name '%s'; token type '%s'", indention, node->variable_val.name, _zt_shaderLangTokenTypeDesc(node->variable_val.token_type));
+		} break;
+
+		case ztShLangSyntaxNodeType_Operation: {
+			zt_logVerbose("%s operation '%s'", indention, _zt_shaderLangTokenTypeDesc(node->operation.op));
+		} break;
+
+		case ztShLangSyntaxNodeType_FunctionCall: {
+			zt_logVerbose("%s function call '%s'", indention, node->function_call.name);
+		} break;
+
+		case ztShLangSyntaxNodeType_ValueNumberInt: {
+			zt_logVerbose("%s integer '%s'", indention, node->value.value);
+		} break;
+
+		case ztShLangSyntaxNodeType_ValueNumberFloat: {
+			zt_logVerbose("%s float '%s'", indention, node->value.value);
+		} break;
+
+		case ztShLangSyntaxNodeType_ValueString: {
+			zt_logVerbose("%s string '%s'", indention, node->value.value);
+		} break;
+
+		case ztShLangSyntaxNodeType_ValueBool: {
+			zt_logVerbose("%s bool '%s'", indention, node->value.value);
+		} break;
+	}
+
+	zt_flink(child, node->first_child) {
+		_zt_shaderLangDumpSyntaxTree(child, indent + 1);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
+{
+	zt_flink(child, node->first_child) {
+		if (child->type == ztShLangSyntaxNodeType_VariableDecl && zt_strEquals(child->variable_decl.type_name, name)) {
+			return true;
+		}
+
+		if (child->type == ztShLangSyntaxNodeType_FunctionCall) {
+			if (zt_strEquals(child->function_call.name, name)) {
+				return true;
+			}
+
+			// search this function
+			ztShLangSyntaxNode *global_scope = node->parent;
+			while (global_scope->parent) {
+				global_scope = global_scope->parent;
+			}
+
+			zt_flink(child2, global_scope->first_child) {
+				if (child2 == child->function_call.decl) {
+
+					bool found = false;
+					zt_fiz(*functions_checked_size) {
+						if (found = (functions_checked[i] == child2)) {
+							break;
+						}
+					}
+					if (!found) {
+						functions_checked[(*functions_checked_size)++] = child2;
+						if (_zt_shaderLangIsStructureReferenced(child2, name, functions_checked, functions_checked_size)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		if (child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+			continue;
+		}
+
+		if (_zt_shaderLangIsStructureReferenced(child, name, functions_checked, functions_checked_size)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name)
+{
+	ztShLangSyntaxNode *functions_checked[512];
+	zt_fize(functions_checked) {
+		functions_checked[i] = nullptr;
+	}
+	int functions_checked_size = 0;
+
+	functions_checked[functions_checked_size++] = node;
+
+	return _zt_shaderLangIsStructureReferenced(node, name, functions_checked, &functions_checked_size);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
+{
+	zt_flink(child, node->first_child) {
+		if (child->type == ztShLangSyntaxNodeType_FunctionCall) {
+			if (zt_strEquals(child->function_call.name, name)) {
+				return true;
+			}
+
+			// search this function
+			ztShLangSyntaxNode *global_scope = node->parent;
+			while (global_scope->parent) {
+				global_scope = global_scope->parent;
+			}
+
+			zt_flink(child2, global_scope->first_child) {
+				if (child2 == child->function_call.decl) {
+
+					bool found = false;
+					zt_fiz(*functions_checked_size) {
+						if (found = (functions_checked[i] == child2)) {
+							break;
+						}
+					}
+					if (!found) {
+						functions_checked[(*functions_checked_size)++] = child2;
+						if (_zt_shaderLangIsFunctionReferenced(child2, name, functions_checked, functions_checked_size)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		if (child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+			continue;
+		}
+
+		if (_zt_shaderLangIsFunctionReferenced(child, name, functions_checked, functions_checked_size)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name)
+{
+	ztShLangSyntaxNode *functions_checked[512];
+	zt_fize(functions_checked) {
+		functions_checked[i] = nullptr;
+	}
+	int functions_checked_size = 0;
+
+	functions_checked[functions_checked_size++] = node;
+
+	return _zt_shaderLangIsFunctionReferenced(node, name, functions_checked, &functions_checked_size);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
+{
+	zt_flink(child, node->first_child) {
+		if (child->type == ztShLangSyntaxNodeType_Variable && child->variable_val.decl == var_decl_node) {
+			return true;
+		}
+
+		if (child->type == ztShLangSyntaxNodeType_FunctionCall) {
+			// search this function
+			ztShLangSyntaxNode *global_scope = node->parent;
+			while (global_scope->parent) {
+				global_scope = global_scope->parent;
+			}
+
+			zt_flink(child2, global_scope->first_child) {
+				if (child2 == child->function_call.decl) {
+
+					bool found = false;
+					zt_fiz(*functions_checked_size) {
+						if (found = (functions_checked[i] == child2)) {
+							break;
+						}
+					}
+					if (!found) {
+						functions_checked[(*functions_checked_size)++] = child2;
+						if (_zt_shaderLangIsVariableReferenced(child2, var_decl_node, functions_checked, functions_checked_size)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		if (child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+			continue;
+		}
+
+		if (_zt_shaderLangIsVariableReferenced(child, var_decl_node, functions_checked, functions_checked_size)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node)
+{
+	ztShLangSyntaxNode *functions_checked[512];
+	zt_fize(functions_checked) {
+		functions_checked[i] = nullptr;
+	}
+	int functions_checked_size = 0;
+
+	functions_checked[functions_checked_size++] = node;
+
+	return _zt_shaderLangIsVariableReferenced(node, var_decl_node, functions_checked, &functions_checked_size);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error);
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
 
 // ---------
@@ -8277,133 +11122,117 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	if (replace != ztInvalidID) {
 		zt_shaderPopulateVariables(replace, &var_values);
 	}
-	
-	char data[1024 * 64];
-	zt_assert(data_len < sizeof(data));
-	zt_strCpy(data, sizeof(data), data_in, data_len);
 
-	const int max_idx = 16;
-	i32 gl_vert_beg[max_idx]; i32 gl_vert_len[max_idx]; i32 gl_vert_cnt = 0;
-	i32 gl_geom_beg[max_idx]; i32 gl_geom_len[max_idx]; i32 gl_geom_cnt = 0;
-	i32 gl_frag_beg[max_idx]; i32 gl_frag_len[max_idx]; i32 gl_frag_cnt = 0;
-	i32 dx_vert_beg[max_idx]; i32 dx_vert_len[max_idx]; i32 dx_vert_cnt = 0;
-	i32 dx_frag_beg[max_idx]; i32 dx_frag_len[max_idx]; i32 dx_frag_cnt = 0;
+	int shader_tokens_size = 0;
+	ztShLangToken *shader_tokens = _zt_shaderLangTokenize(data_in, data_len, &shader_tokens_size);
 
-	const char* glsl_vs = "glsl_vs";
-	const int glsl_vs_len = zt_strLen(glsl_vs);
-	const char* glsl_gs = "glsl_gs";
-	const int glsl_gs_len = zt_strLen(glsl_gs);
-	const char* glsl_fs = "glsl_fs";
-	const int glsl_fs_len = zt_strLen(glsl_fs);
-	const char* hlsl_vs = "hlsl_vs";
-	const int hlsl_vs_len = zt_strLen(hlsl_vs);
-	const char* hlsl_fs = "hlsl_fs";
-	const int hlsl_fs_len = zt_strLen(hlsl_fs);
+	ztString error = nullptr;
+	ztShLangSyntaxNode *syntax_root = _zt_shaderLangGenerateSyntaxTree((char*)data_in, shader_tokens, shader_tokens_size, &error);
 
-	const char *error = nullptr;
-
-	i32 pos_beg = zt_strFindPos(data, "<<[", 0);
-	while (pos_beg != ztStrPosNotFound) {
-		int pos_end = zt_strFindPos(data, "]>>", pos_beg);
-		if (pos_end == ztStrPosNotFound) {
-			error = "Invalid format.";
-			goto on_error;
-		}
-		pos_beg += 3;
-
-		i32 *arr_beg = nullptr, *arr_len = nullptr, *arr_cnt = nullptr;
-
-			 if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_vs, glsl_vs_len)) { arr_beg = gl_vert_beg; arr_len = gl_vert_len; arr_cnt = &gl_vert_cnt; }
-		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_gs, glsl_gs_len)) { arr_beg = gl_geom_beg; arr_len = gl_geom_len; arr_cnt = &gl_geom_cnt; }
-		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, glsl_fs, glsl_fs_len)) { arr_beg = gl_frag_beg; arr_len = gl_frag_len; arr_cnt = &gl_frag_cnt; }
-		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, hlsl_vs, hlsl_vs_len)) { arr_beg = dx_vert_beg; arr_len = dx_vert_len; arr_cnt = &dx_vert_cnt; }
-		else if (zt_striStartsWith(data + pos_beg, pos_end - pos_beg, hlsl_fs, hlsl_fs_len)) { arr_beg = dx_frag_beg; arr_len = dx_frag_len; arr_cnt = &dx_frag_cnt; }
-
-		if (arr_beg && arr_len && arr_cnt) {
-			int sh_beg = zt_strFindPos(data, "<<[", pos_end + 3);
-			int sh_end = zt_strFindPos(data, "]>>", sh_beg);
-			if (sh_beg == ztStrPosNotFound || sh_end == ztStrPosNotFound) {
-				error = "Error in format.";
-				goto on_error;
-			}
-			sh_beg += 3;
-			int idx = (*arr_cnt)++;
-			arr_beg[idx] = sh_beg;
-			arr_len[idx] = sh_end - sh_beg;
-			pos_end += arr_len[idx];
-		}
-		else {
-			char temp[1024] = {0};
-			zt_strCpy(temp, sizeof(temp), data + pos_beg, pos_end - pos_beg);
-			zt_logVerbose("Unknown shader group encountered: %s", temp);
-		}
-
-		pos_beg = zt_strFindPos(data, "<<[", pos_end);
+	if (error) {
+		zt_logDebug(error);
+		zt_stringFree(error);
+		return ztInvalidID;
 	}
 
+	if (!_zt_shaderLangVerifySyntaxTree(syntax_root, (char*)data_in, &error)) {
+ 		zt_logDebug(error);
+		zt_stringFree(error);
+		return ztInvalidID;
+	}
+
+	//_zt_shaderLangDumpSyntaxTree(syntax_root);
+
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-	if (game_settings->renderer == ztRenderer_OpenGL) {
-#if defined(ZT_OPENGL)
-		if (gl_vert_cnt == 0) { error = "No vertex shader found"; goto on_error; }
-		if (gl_frag_cnt == 0) { error = "No fragment shader found"; goto on_error; }
+	if(game_settings->renderer == ztRenderer_OpenGL) {
+#		if defined(ZT_OPENGL)
+		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
+		if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
 
-		char *vert_src = data + gl_vert_beg[0];
-		vert_src[gl_vert_len[0]] = 0;
-
-		char *frag_src = data + gl_frag_beg[0];
-		frag_src[gl_frag_len[0]] = 0;
-
-		char *geom_src = gl_geom_cnt ? data + gl_geom_beg[0] : nullptr;
-		if (gl_geom_cnt) geom_src[gl_geom_len[0]] = 0;
-
-		if (replace != ztInvalidID) {
-			zt_shaderFree(replace);
-			shader_id = replace;
-		}
-		else {
-			zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
-			shader_id = zt_game->shaders_count++;
-		}
-
-		ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
-		if(gl_shader == nullptr) {
-			return ztInvalidID;
-		}
-
-		ztShader* shader = &zt_game->shaders[shader_id];
-		shader->renderer = ztRenderer_OpenGL;
-
-		shader->variables.variables_count = gl_shader->uniforms_count;
-		zt_fiz(shader->variables.variables_count) {
-			ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
-			switch (gl_shader->uniforms[i].type)
-			{
-				case GL_FLOAT       : var_type = ztShaderVariable_Float; break;
-				case GL_FLOAT_VEC2  : var_type = ztShaderVariable_Vec2; break;
-				case GL_FLOAT_VEC3  : var_type = ztShaderVariable_Vec3; break;
-				case GL_FLOAT_VEC4  : var_type = ztShaderVariable_Vec4; break;
-				case GL_INT         : var_type = ztShaderVariable_Int; break;
-				case GL_FLOAT_MAT3  : var_type = ztShaderVariable_Mat3; break;
-				case GL_FLOAT_MAT4  : var_type = ztShaderVariable_Mat4; break;
-				case GL_SAMPLER_2D  : var_type = ztShaderVariable_Tex; break;
-				case GL_SAMPLER_CUBE: var_type = ztShaderVariable_TexCube; break;
-			}
-
-			if (var_type == ztShaderVariable_Invalid) {
-				zt_logDebug("Unsupported shader variable type in variable %s", gl_shader->uniforms[i].name);
+			if (replace != ztInvalidID) {
+				zt_shaderFree(replace);
+				shader_id = replace;
 			}
 			else {
-				shader->variables.variables[i].type = var_type;
-				zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), gl_shader->uniforms[i].name);
-				shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+				zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
+				shader_id = zt_game->shaders_count++;
 			}
-		}
 
+			ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
+			if(gl_shader != nullptr) {
+				ztShader* shader = &zt_game->shaders[shader_id];
+				shader->renderer = ztRenderer_OpenGL;
 
-#else
+				shader->variables.variables_count = gl_shader->uniforms_count;
+				zt_fiz(shader->variables.variables_count) {
+					ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
+					switch (gl_shader->uniforms[i].type)
+					{
+						case GL_FLOAT       : var_type = ztShaderVariable_Float; break;
+						case GL_FLOAT_VEC2  : var_type = ztShaderVariable_Vec2; break;
+						case GL_FLOAT_VEC3  : var_type = ztShaderVariable_Vec3; break;
+						case GL_FLOAT_VEC4  : var_type = ztShaderVariable_Vec4; break;
+						case GL_INT         : var_type = ztShaderVariable_Int; break;
+						case GL_FLOAT_MAT3  : var_type = ztShaderVariable_Mat3; break;
+						case GL_FLOAT_MAT4  : var_type = ztShaderVariable_Mat4; break;
+						case GL_SAMPLER_2D  : var_type = ztShaderVariable_Tex; break;
+						case GL_SAMPLER_CUBE: var_type = ztShaderVariable_TexCube; break;
+					}
+
+					if (var_type == ztShaderVariable_Invalid) {
+						zt_logDebug("Unsupported shader variable type in variable %s", gl_shader->uniforms[i].name);
+					}
+					else {
+						shader->variables.variables[i].type = var_type;
+						zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), gl_shader->uniforms[i].name);
+						shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+					}
+				}
+			}
+
+			if(gl_shader == nullptr) {
+				error = zt_stringMakeFrom("Unable to compile OpenGL shader program");
+			}
+
+			if(vert_src) zt_stringFree(vert_src);
+			if(geom_src) zt_stringFree(geom_src);
+			if(frag_src) zt_stringFree(frag_src);
+
+#		else
 		error = "OpenGL has been disabled in the library.";
 		goto on_error;
-#endif // ZT_OPENGL
+#		endif // ZT_OPENGL
+		}
+	}
+	else if(game_settings->renderer == ztRenderer_DirectX) {
+	}
+
+	_zt_shaderLangFreeSyntaxTree(syntax_root);
+
+	zt_free(shader_tokens);
+
+	if(error) {
+		zt_logCritical(error);
+		zt_stringFree(error);
+	}
+
+	if (replace != ztInvalidID && shader_id != ztInvalidID) {
+		ztShader *shader = &zt_game->shaders[shader_id];
+		zt_fjz(shader->variables.variables_count) {
+			zt_fiz(var_values.variables_count) {
+				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
+					zt_memCpy(&shader->variables.variables[j], zt_sizeof(ztShaderVariableValues::Variable), &var_values.variables[i], zt_sizeof(ztShaderVariableValues::Variable));
+					break;
+				}
+			}
+		}
+	}
+
+	return shader_id;
+
+#if 0
+	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
+	if (game_settings->renderer == ztRenderer_OpenGL) {
 	}
 	else if (game_settings->renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
@@ -8484,23 +11313,12 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		goto on_error;
 #endif // ZT_DIRECTX
 	}
+#endif
 
-	if (replace != ztInvalidID && shader_id != ztInvalidID) {
-		ztShader *shader = &zt_game->shaders[shader_id];
-		zt_fjz(shader->variables.variables_count) {
-			zt_fiz(var_values.variables_count) {
-				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
-					zt_memCpy(&shader->variables.variables[j], zt_sizeof(ztShaderVariableValues::Variable), &var_values.variables[i], zt_sizeof(ztShaderVariableValues::Variable));
-					break;
-				}
-			}
-		}
-	}
-	return shader_id;
 
-on_error:
-	zt_logCritical("Unable to load shader (%s). %s.", name, error);
-	return ztInvalidID;
+//on_error:
+//	zt_logCritical("Unable to load shader (%s). %s.", name, error);
+//	return ztInvalidID;
 }
 
 // ------------------------------------------------------------------------------------------------

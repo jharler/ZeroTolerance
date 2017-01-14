@@ -1,111 +1,49 @@
-Anything outside of < < [ ] > > will be ignored
+// shader-unlit
 
-<<[glsl_vs]>>
-<<[
-	#version 330 core
-	layout (location = 0) in vec3 position;
-	layout (location = 1) in vec2 tex_coord; 
-	layout (location = 2) in vec3 normal;
-	layout (location = 3) in vec4 color;
+struct VertexInput
+{
+	vec3 position : 0;
+	vec2 uv : 1;
+	vec3 normal : 2;
+	vec4 color : 3;
+}
 
-	out VS_OUT {
-		vec3 frag_pos;
-		vec3 normal;
-		vec2 tex_coord;
-		vec4 color;
-	} vs_out;
+struct PixelInput
+{
+	vec4 position : position;
+	vec3 normal;
+	vec2 uv;
+	vec4 color;
+}
 
-	uniform mat4 model;
-	uniform mat4 projection;
-	uniform mat4 view;
+struct PixelOutput
+{
+	vec4 color : color;
+}
 
-	void main()
+struct Textures
+{
+	texture2d diffuse_tex;
+}
+
+struct Uniforms
+{
+	mat4 model;
+	mat4 view;
+	mat4 projection;
+}
+
+program DefaultUnlit
+{
+	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)
 	{
-		gl_Position = projection * view * model * vec4(position, 1.0);
-		//gl_Position = vec4(position, 1);
-		//vs_out.frag_pos = vec3(model * vec4(position, 1.0));
-		vs_out.tex_coord = tex_coord;
-		vs_out.color = color;
-	}
-]>>
-
-<<[glsl_fs]>>
-<<[
-	#version 330 core
-	out vec4 frag_color;
-
-	in VS_OUT {
-		vec3 frag_pos;
-		vec3 normal;
-		vec2 tex_coord;
-		vec4 color;
-	} fs_in;
-
-	uniform sampler2D tex_diffuse;
-
-	void main()
-	{
-		vec4 clr = texture(tex_diffuse, fs_in.tex_coord) * fs_in.color;
-		frag_color = clr;
-	};
-]>>
-
-<<[hlsl_vs, vertexShader]>>
-<<[
-	cbuffer MatrixBuffer : register(b0)
-	{
-		matrix model;
-		matrix view;
-		matrix projection;
-	};
-
-	struct VertexInputType
-	{
-		float3 position : POSITION;
-		float2 tex_coord : TEXCOORD0;
-		float3 normal : NORMAL;
-		float4 color : COLOR;
-	};
-
-	struct FragmentInputType
-	{
-		float4 position : SV_POSITION;
-		float2 tex_coord : TEXCOORD0;
-		float4 color : COLOR0;
-	};
-
-
-	FragmentInputType vertexShader(VertexInputType input)
-	{
-		FragmentInputType output;
-		float4 position4 = float4(input.position, 1);
-		output.position = mul(position4, model);
-		output.position = mul(output.position, view);
-		output.position = mul(output.position, projection);
-		
-		output.tex_coord = input.tex_coord;
+		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);
+		output.uv = input.uv;
 		output.color = input.color;
-		
-		return output;
 	}
-]>>
 
-<<[hlsl_fs, fragmentShader]>>
-<<[
-	Texture2D tex_diffuse;
-	SamplerState sample_type;
-
-	struct FragmentInputType
+	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)
 	{
-		float4 position : SV_POSITION;
-		float2 tex_coord : TEXCOORD0;
-		float4 color : COLOR0;
-	};
-
-
-	float4 fragmentShader(FragmentInputType input) : SV_TARGET
-	{
-		float4 color = tex_diffuse.Sample(sample_type, input.tex_coord) * input.color;
-		return color;
+		output.color = textureSample(textures.diffuse_tex, input.uv) * input.color;
 	}
-]>>
+}
