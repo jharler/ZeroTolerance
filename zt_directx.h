@@ -803,8 +803,13 @@ ztShaderDX *ztdx_shaderMake(ztMemoryArena *arena, ztContextDX *context, const ch
 
 				char error_buffer[1024 * 16];
 				zt_strCpy(error_buffer, sizeof(error_buffer), b_error, (int)b_error_len);
-				zt_logCritical("DirectX compile failure: %s", error_buffer);
-				return false;
+				if( hr != 0) {
+					zt_logCritical("DirectX compile failure: %s", error_buffer);
+					return false;
+				}
+				else {
+					zt_logCritical("DirectX compile warnings: %s", error_buffer);
+				}
 			}
 
 			return true;
@@ -1815,5 +1820,681 @@ void ztdx_vertexArrayDraw(ztContextDX *context, ztVertexArrayDX *vertex_array, D
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
+
+
+#ifdef ZT_GAME_IMPLEMENTATION
+
+ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
+{
+	*vs = *gs = *fs = *error = nullptr;
+
+	struct local
+	{
+		enum Shader_Enum
+		{
+			Shader_Vert,
+			Shader_Geom,
+			Shader_Frag,
+		};
+
+		struct Vars
+		{
+			ztShLangSyntaxNode *v_position = nullptr;
+			ztShLangSyntaxNode *v_output = nullptr;
+			ztShLangSyntaxNode *f_color = nullptr;
+
+			ztShLangSyntaxNode *struct_input = nullptr;
+			ztShLangSyntaxNode *struct_output = nullptr;
+			ztShLangSyntaxNode *struct_uniform = nullptr;
+			ztShLangSyntaxNode *struct_textures = nullptr;
+
+			Shader_Enum         which_shader;
+		};
+
+		// ----------------------------------------------
+
+		static char *dataType(char *data_type)
+		{
+			if (zt_strEquals(data_type, "vec2")) {
+				return "float2";
+			}
+			if (zt_strEquals(data_type, "vec3")) {
+				return "float3";
+			}
+			if (zt_strEquals(data_type, "vec4")) {
+				return "float4";
+			}
+			if (zt_strEquals(data_type, "mat4")) {
+				return "matrix";
+			}
+			if(zt_strEquals(data_type, "mat3")) {
+				return "float3x3";
+			}
+			if(zt_strEquals(data_type, "texture2d")) {
+				return "Texture2D";
+			}
+			if(zt_strEquals(data_type, "textureCube")) {
+				return "TextureCube";
+			}
+
+			return data_type;
+		}
+
+		// ----------------------------------------------
+
+		static void writeVariableDecl(ztShLangSyntaxNode *global_node, ztShLangSyntaxNode *var_node, ztString *s, int s_len, Vars *vars)
+		{
+			if(global_node) {
+				ztShLangSyntaxNode *node_check = nullptr;
+				zt_flink(child, global_node->first_child) {
+					if(child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+						zt_flink(child2, child->first_child) {
+							if(child2->type == ztShLangSyntaxNodeType_FunctionDecl) {
+								if(vars->which_shader == Shader_Vert && zt_strEquals(child2->function_decl.returns_name, "vertex_shader")) {
+									node_check = child2;
+									break;
+								}
+								else if(vars->which_shader == Shader_Frag && zt_strEquals(child2->function_decl.returns_name, "pixel_shader")) {
+									node_check = child2;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(node_check) {
+					if(!_zt_shaderLangIsVariableReferenced(node_check, var_node)) {
+						return;
+					}
+				}
+			}
+
+			if (var_node->variable_decl.is_const) {
+				zt_strCat(*s, s_len, "const ");
+			}
+
+			if (var_node->first_child) {
+				zt_strMakePrintf(vardecl, 256, "%s ", dataType(var_node->variable_decl.type_name));
+				zt_strCat(*s, s_len, vardecl);
+
+				zt_flink(child, var_node->first_child) {
+					write(child, 0, s, s_len, vars);
+				}
+			}
+			else {
+				zt_strMakePrintf(vardecl, 256, "%s %s", dataType(var_node->variable_decl.type_name), var_node->variable_decl.name);
+				zt_strCat(*s, s_len, vardecl);
+			}
+
+			if (var_node->variable_decl.array_size != -1) {
+				zt_strMakePrintf(var_arr, 16, "[%d]", var_node->variable_decl.array_size);
+				zt_strCat(*s, s_len, var_arr);
+			}
+		}
+
+		// ----------------------------------------------
+
+		static void writeStructs(ztShLangSyntaxNode *global_node, ztShLangSyntaxNode *func_node, ztString *s, int s_len, Vars *vars)
+		{
+			zt_flink(child, global_node->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_Structure) {
+					if (child->token == nullptr) {
+						continue;
+					}
+
+					if (!_zt_shaderLangIsStructureReferenced(func_node, child->structure.name)) {
+						continue;
+					}
+
+					bool cbuffer = false;
+					if (child == vars->struct_uniform) {
+						zt_strCat(*s, s_len, "cbuffer ");
+						cbuffer = true;
+					}
+					else if(child == vars->struct_textures) {
+						zt_strCat(*s, s_len, "tbuffer ");
+						cbuffer = true;
+					}
+					else {
+						zt_strCat(*s, s_len, "struct ");
+					}
+
+					zt_strMakePrintf(st_name, 256, "%s\n{\n", child->structure.name);
+					zt_strCat(*s, s_len, st_name);
+					int child_count = 0;
+					zt_flink(chvar, child->first_child) {
+						child_count += 1;
+						zt_strCat(*s, s_len, "\t");
+
+						if(child == vars->struct_uniform || child == vars->struct_textures) {
+							writeVariableDecl(global_node, chvar, s, s_len, vars);
+						}
+						else {
+							writeVariableDecl(nullptr, chvar, s, s_len, vars); // don't do the reference check, we need the variable declared regardless of if it's used or not
+						}
+
+						if (child == vars->struct_input || child == vars->struct_output) {
+							char semantics[128];
+							if(chvar == vars->v_position) {
+								zt_strPrintf(semantics, 128, " : SV_POSITION");
+							}
+							else {
+								zt_strPrintf(semantics, 128, " : SEMANTIC_%d", child_count);
+							}
+							zt_strCat(*s, s_len, semantics);
+						}
+
+						zt_strCat(*s, s_len, ";\n");
+					}
+
+					zt_strCat(*s, s_len, "};\n\n");
+				}
+			}
+		}
+
+		// ----------------------------------------------
+
+		static void writeFunctions(ztShLangSyntaxNode *global_node, ztShLangSyntaxNode *func_node, ztString *s, int s_len, Vars *vars)
+		{
+			zt_flink(child, global_node->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_FunctionDecl) {
+					if (!_zt_shaderLangIsFunctionReferenced(func_node, child->function_decl.name)) {
+						continue;
+					}
+
+					bool has_body = false;
+					zt_flink(body_check, child->first_child) {
+						if (body_check->type == ztShLangSyntaxNodeType_Scope) {
+							has_body = true;
+							break;
+						}
+					}
+					if (!has_body) break; // built in functions don't have bodies
+
+					zt_strMakePrintf(fn_decl, 512, "%s %s(", dataType(child->function_decl.returns_name), child->function_decl.name);
+					zt_strCat(*s, s_len, fn_decl);
+
+					ztShLangSyntaxNode *body = nullptr;
+					int params = 0;
+					zt_flink(param, child->first_child) {
+						if (param->type == ztShLangSyntaxNodeType_VariableDecl) {
+							if ((vars->struct_uniform && zt_strEquals(param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
+								(vars->struct_textures && zt_strEquals(param->variable_decl.type_name, vars->struct_textures->structure.name))) {
+								continue;
+							}
+
+							if (params++ != 0) {
+								zt_strCat(*s, s_len, ", ");
+							}
+							writeVariableDecl(nullptr, param, s, s_len, vars);
+						}
+						else {
+							body = param;
+							break;
+						}
+					}
+					zt_strCat(*s, s_len, ")\n{\n");
+
+					zt_flink(body_child, body->first_child) {
+						write(body_child, 1, s, s_len, vars);
+					}
+					zt_strCat(*s, s_len, "}\n\n");
+				}
+			}
+		}
+
+		// ----------------------------------------------
+
+		static void write(ztShLangSyntaxNode *node, int indent, ztString *s, int s_len, Vars *vars)
+		{
+			zt_fiz(indent) zt_strCat(*s, s_len, "\t");
+
+			switch (node->type)
+			{
+				case ztShLangSyntaxNodeType_VariableDecl: {
+					ztShLangSyntaxNode *global_node = node->parent;
+					while(global_node->parent) global_node = global_node->parent;
+
+					writeVariableDecl(global_node, node, s, s_len, vars);
+				} break;
+
+				case ztShLangSyntaxNodeType_Variable: {
+					if (node->variable_val.decl->parent == vars->struct_uniform || node->variable_val.decl->parent == vars->struct_textures) {
+						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
+					}
+					else {
+						zt_strCat(*s, s_len, node->variable_val.name);
+					}
+
+					if (node->first_child) {
+						zt_strCat(*s, s_len, "[");
+						write(node->first_child, 0, s, s_len, vars);
+						zt_strCat(*s, s_len, "]");
+					}
+				} break;
+
+				case ztShLangSyntaxNodeType_Operation: {
+					bool skip = false;
+					if(node->operation.op == ztShLangTokenType_Multiply) {
+						// matrix multiplications must be done using functions
+
+						ztShLangSyntaxNode *mul_left = nullptr, *mul_right = nullptr;
+
+						if(node->operation.left_type == ztShLangTokenType_vec3 || node->operation.left_type == ztShLangTokenType_vec4) {
+							mul_left = node->operation.left;
+						}
+						if(node->operation.right_type == ztShLangTokenType_vec3 || node->operation.right_type == ztShLangTokenType_vec4) {
+							mul_left = node->operation.right;
+						}
+
+						if(node->operation.left_type == ztShLangTokenType_mat3 || node->operation.left_type == ztShLangTokenType_mat4) {
+							mul_right = node->operation.left;
+						}
+						if(node->operation.right_type == ztShLangTokenType_mat3 || node->operation.right_type == ztShLangTokenType_mat4) {
+							mul_right = node->operation.right;
+						}
+
+						if(mul_left && mul_right) {
+							zt_strCat(*s, s_len, "mul(");
+							write(mul_left, 0, s, s_len, vars);
+							zt_strCat(*s, s_len, ",");
+							write(mul_right, 0, s, s_len, vars);
+							zt_strCat(*s, s_len, ")");
+							skip = true;
+						}
+					}
+
+					if(!skip) {
+						bool left_is_empty = node->operation.left->type == ztShLangSyntaxNodeType_ValueEmpty;
+						bool right_is_empty = node->operation.right->type == ztShLangSyntaxNodeType_ValueEmpty;
+						if (!left_is_empty) {
+							write(node->operation.left, 0, s, s_len, vars);
+						}
+						if (!left_is_empty && !right_is_empty) {
+							zt_strCat(*s, s_len, " ");
+						}
+
+						zt_strCat(*s, s_len, _zt_shaderLangTokenTypeDesc(node->operation.op));
+						if (!left_is_empty && !right_is_empty) {
+							zt_strCat(*s, s_len, " ");
+						}
+						write(node->operation.right, 0, s, s_len, vars);
+					}
+				} break;
+
+				case ztShLangSyntaxNodeType_FunctionCall: {
+					char *alternate_name = nullptr;
+					bool skip = false;
+					bool cast = false;
+					char *closing = nullptr;
+
+					if (node->function_call.decl->token == nullptr) {
+						// built in function
+						if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSample")) {
+							skip = true;
+
+							write(node->first_child, 0, s, s_len, vars);
+							zt_strCat(*s, s_len, ".Sample(_zt_sampleType, ");
+
+							zt_flink(param, node->first_child->next) {
+								write(param, 0, s, s_len, vars);
+							}
+							zt_strCat(*s, s_len, ")");
+						}
+						if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSize")) {
+							alternate_name = "zt_getDimensions";
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "vec2")) {
+							if(node->function_call.decl->first_child->next == nullptr) { // single function conversion, let's use xy
+								zt_strCat(*s, s_len, "(");
+								write(node->first_child, 0, s, s_len, vars);
+								zt_strCat(*s, s_len, ").xy");
+								skip = true;
+							}
+							else {
+								alternate_name = "float2";
+							}
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "vec3")) {
+							if(node->function_call.decl->first_child->next == nullptr) { // single function conversion, let's use xyz
+								zt_strCat(*s, s_len, "(");
+								write(node->first_child, 0, s, s_len, vars);
+								zt_strCat(*s, s_len, ").xyz");
+								skip = true;
+							}
+							else {
+								alternate_name = "float3";
+							}
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "vec4")) {
+							alternate_name = "float4";
+							if(node->function_call.decl->first_child->next == nullptr) { // single function conversion, let's cast
+								cast = true;
+							}
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "mat4")) {
+							alternate_name = "matrix";
+							if(node->function_call.decl->first_child->next == nullptr) { // single function conversion, let's cast
+								cast = true;
+							}
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "mat3")) {
+							alternate_name = "float3x3";
+							if(node->function_call.decl->first_child->next == nullptr) { // single function conversion, let's cast
+								cast = true;
+							}
+							else if(node->function_call.decl->first_child->variable_decl.type == ztShLangTokenType_vec3) {
+								alternate_name = "transpose(float3x3";
+								closing = ")";
+							}
+						}
+					}
+
+					if(!skip) {
+						if(cast) {
+							zt_strCat(*s, s_len, "(");
+						}
+						if (alternate_name) {
+							zt_strCat(*s, s_len, alternate_name);
+						}
+						else {
+							zt_strCat(*s, s_len, node->function_call.name);
+						}
+						if(cast) {
+							zt_strCat(*s, s_len, ")");
+						}
+						zt_strCat(*s, s_len, "(");
+
+						int param_count = 0;
+						ztShLangSyntaxNode *decl_param = node->function_call.decl->first_child;
+						zt_flink(param, node->first_child) {
+							if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
+								(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name))) {
+								decl_param = decl_param->next;
+								continue;
+							}
+							decl_param = decl_param->next;
+
+							if (param_count++ > 0) {
+								zt_strCat(*s, s_len, ", ");
+							}
+							write(param, 0, s, s_len, vars);
+						}
+
+						zt_strCat(*s, s_len, ")");
+						if (closing) {
+							zt_strCat(*s, s_len, closing);
+						}
+					}
+				} break;
+
+				case ztShLangSyntaxNodeType_ValueNumberFloat:
+				case ztShLangSyntaxNodeType_ValueNumberInt: {
+					zt_strCat(*s, s_len, node->value.value);
+				} break;
+
+				case ztShLangSyntaxNodeType_Scope: {
+					zt_strCat(*s, s_len, "{\n");
+					zt_flink(child, node->first_child) {
+						write(child, indent + 1, s, s_len, vars);
+					}
+					zt_fiz(indent) zt_strCat(*s, s_len, "\t");
+					zt_strCat(*s, s_len, "}\n");
+					indent = 0;
+				} break;
+
+				case ztShLangSyntaxNodeType_ConditionTest: {
+					if (!node->condition.is_inline) {
+						zt_strCat(*s, s_len, "if (");
+						write(node->condition.expr, 0, s, s_len, vars);
+						zt_strCat(*s, s_len, ")\n");
+						write(node->condition.if_true, indent, s, s_len, vars);
+
+						if (node->condition.if_false) {
+							zt_strCat(*s, s_len, "else\n");
+							write(node->condition.if_false, indent, s, s_len, vars);
+						}
+						indent = 0;
+					}
+					else {
+						zt_strCat(*s, s_len, "((");
+						write(node->condition.expr, 0, s, s_len, vars);
+						zt_strCat(*s, s_len, ") ? (");
+						write(node->condition.if_true, 0, s, s_len, vars);
+						zt_strCat(*s, s_len, ") : (");
+						write(node->condition.if_false, 0, s, s_len, vars);
+						zt_strCat(*s, s_len, "))");
+					}
+				} break;
+
+				case ztShLangSyntaxNodeType_Return: {
+					if (node->first_child) {
+						zt_strCat(*s, s_len, "return ");
+						write(node->first_child, 0, s, s_len, vars);
+					}
+					else {
+						zt_strCat(*s, s_len, "return;\n");
+					}
+				} break;
+
+				case ztShLangSyntaxNodeType_Loop: {
+					zt_strCat(*s, s_len, "for (");
+					zt_flink(child, node->first_child) {
+						if (child->type == ztShLangSyntaxNodeType_Scope) {
+							zt_strCat(*s, s_len, ")\n");
+							write(child, indent, s, s_len, vars);
+						}
+						else {
+							write(child, 0, s, s_len, vars);
+
+							if (child->next->type != ztShLangSyntaxNodeType_Scope) {
+								zt_strCat(*s, s_len, "; ");
+							}
+						}
+					}
+					indent = 0;
+				} break;
+
+				case ztShLangSyntaxNodeType_ValueEmpty: {
+					if (node->value.value && node->value.value[0] == '.') {
+						zt_strCat(*s, s_len, node->value.value + 1);
+					}
+					return;
+				}
+
+				case ztShLangSyntaxNodeType_Group: {
+					zt_strCat(*s, s_len, "(");
+					write(node->first_child, 0, s, s_len, vars);
+					zt_strCat(*s, s_len, ")");
+				} break;
+
+				default: {
+					zt_assert(false);
+				} break;
+			}
+
+			if (indent) zt_strCat(*s, s_len, ";\n");
+		}
+
+		// ----------------------------------------------
+	};
+
+	ztShLangSyntaxNode *program_node = nullptr;
+	zt_flink(child, global_node->first_child) {
+		if (child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+			program_node = child;
+			break;
+		}
+	}
+	zt_assert(program_node);
+
+	local::Vars vars = {};
+
+	{	// find variables
+		zt_flink(child, global_node->first_child) {
+			if (child->type == ztShLangSyntaxNodeType_Structure) {
+				zt_flink(chvar, child->first_child) {
+					if (zt_strEquals(chvar->variable_decl.qualifier, "position")) {
+						vars.v_position = chvar;
+					}
+					else if (zt_strEquals(chvar->variable_decl.qualifier, "color")) {
+						vars.f_color = chvar;
+					}
+				}
+			}
+		}
+
+		zt_assertReturnValOnFail(vars.f_color != nullptr, false);
+	}
+	{	// vertex shader
+
+		vars.which_shader = local::Shader_Vert;
+
+		ztShLangSyntaxNode *vertex_func_node = nullptr;
+		zt_flink(child, program_node->first_child) {
+			if (child->type == ztShLangSyntaxNodeType_FunctionDecl) {
+				if (zt_strEquals(child->function_decl.returns_name, "vertex_shader")) {
+					vertex_func_node = child;
+					break;
+				}
+			}
+		}
+		zt_assert(vertex_func_node);
+
+		int vs_len = 1024 * 256;
+		*vs = zt_stringMake(vs_len);
+
+		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr;
+		zt_flink(child, vertex_func_node->first_child) {
+			if (child->type == ztShLangSyntaxNodeType_VariableDecl) {
+				     if (zt_strEquals(child->variable_decl.qualifier, "input")) { param_input = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "uniforms")) { param_uniforms = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "output")) { param_output = child; }
+			}
+		}
+		zt_assert(param_input && param_uniforms && param_output);
+
+		ztShLangSyntaxNode *struct_input = _zt_shaderLangFindStructure(global_node, param_input->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_uniforms = _zt_shaderLangFindStructure(global_node, param_uniforms->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_node, param_output->variable_decl.type_name);
+		zt_assert(struct_input && struct_uniforms && struct_output);
+
+		vars.struct_uniform = struct_uniforms;
+		vars.struct_input = struct_input;
+		vars.struct_output = struct_output;
+		vars.v_output = param_output;
+
+		{	// write the structures
+
+			local::writeStructs(global_node, vertex_func_node, vs, vs_len, &vars);
+		}
+
+		{ // write the functions
+			local::writeFunctions(global_node, vertex_func_node, vs, vs_len, &vars);
+		}
+
+		{	// write the vertex function
+
+			zt_strMakePrintf(func_decl, 512, "%s vertexShader(%s %s)\n{\n\t%s %s;\n", struct_output->structure.name, struct_input->structure.name, param_input->variable_decl.name, struct_output->structure.name, param_output->variable_decl.name);
+			zt_strCat(*vs, vs_len, func_decl);
+
+			zt_flink(child, vertex_func_node->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_Scope) {
+					zt_flink(command, child->first_child) {
+						local::write(command, 1, vs, vs_len, &vars);
+					}
+					break;
+				}
+			}
+
+			zt_strMakePrintf(func_ret, 512, "\treturn %s;\n}\n", param_output->variable_decl.name);
+			zt_strCat(*vs, vs_len, func_ret);
+		}
+	}
+
+	{	// fragment shader
+
+		vars.which_shader = local::Shader_Frag;
+
+		ztShLangSyntaxNode *fragment_func_node = nullptr;
+		zt_flink(child, program_node->first_child) {
+			if (child->type == ztShLangSyntaxNodeType_FunctionDecl) {
+				if (zt_strEquals(child->function_decl.returns_name, "pixel_shader")) {
+					fragment_func_node = child;
+					break;
+				}
+			}
+		}
+		zt_assert(fragment_func_node);
+
+		int fs_len = 1024 * 256;
+		*fs = zt_stringMake(fs_len);
+
+		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr, *param_textures = nullptr;
+		zt_flink(child, fragment_func_node->first_child) {
+			if (child->type == ztShLangSyntaxNodeType_VariableDecl) {
+				     if (zt_strEquals(child->variable_decl.qualifier, "input")) { param_input = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "uniforms")) { param_uniforms = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "output")) { param_output = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "textures")) { param_textures = child; }
+			}
+		}
+		zt_assert(param_input && param_uniforms && param_output);
+
+		ztShLangSyntaxNode *struct_input = _zt_shaderLangFindStructure(global_node, param_input->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_uniforms = _zt_shaderLangFindStructure(global_node, param_uniforms->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_node, param_output->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_textures = param_textures ? _zt_shaderLangFindStructure(global_node, param_textures->variable_decl.type_name) : nullptr;
+		zt_assert(struct_input && struct_uniforms && struct_output);
+
+		vars.struct_uniform = struct_uniforms;
+		vars.struct_input = struct_input;
+		vars.struct_textures = struct_textures;
+		vars.struct_output = nullptr;
+		vars.v_output = nullptr;
+
+		{	// write the structures
+			local::writeStructs(global_node, fragment_func_node, fs, fs_len, &vars);
+		}
+
+		{ // write sample type
+			zt_strCat(*fs, fs_len, "SamplerState _zt_sampleType;\n\n");
+		}
+
+		{ // write get dimensions function
+			if(struct_textures) {
+				zt_strCat(*fs, fs_len, "float2 zt_getDimensions(Texture2D tex) {\n\tuint tex_w = 0, tex_h = 0;\n\ttex.GetDimensions(tex_w, tex_h);\n\treturn float2(tex_w, tex_h);\n}\n\n");
+			}
+		}
+
+		{ // write the functions
+			local::writeFunctions(global_node, fragment_func_node, fs, fs_len, &vars);
+		}
+
+		{	// write the vertex function
+
+			zt_strMakePrintf(func_decl, 512, "float4 pixelShader(%s %s) : SV_TARGET \n{\n\t%s %s;\n", struct_input->structure.name, param_input->variable_decl.name, struct_output->structure.name, param_output->variable_decl.name);
+			zt_strCat(*fs, fs_len, func_decl);
+
+			zt_flink(child, fragment_func_node->first_child) {
+				if (child->type == ztShLangSyntaxNodeType_Scope) {
+					zt_flink(command, child->first_child) {
+						local::write(command, 1, fs, fs_len, &vars);
+					}
+					break;
+				}
+			}
+			zt_strMakePrintf(func_ret, 512, "\treturn %s.%s;\n}\n", param_output->variable_decl.name, vars.f_color->variable_decl.name);
+			zt_strCat(*fs, fs_len, func_ret);
+		}
+	}
+
+	zt_logVerbose("directx vertex shader: \n%s", *vs);
+	zt_logVerbose("directx pixel shader: \n%s", *fs);
+	return true;
+}
+
+#endif // ZT_GAME_IMPLEMENTATION
 
 #endif // implementation
