@@ -8001,7 +8001,7 @@ ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, c
 		case ztDebugConsoleLevel_System : color = "b3ffb3ff"; break;
 	}
 
-	char lcl_command[1024 * 4];
+	char lcl_command[1024 * 16];
 
 	if (color != nullptr) {
 		zt_strPrintf(lcl_command, zt_elementsOf(lcl_command), "<color=%s>%s</color>", color, command);
