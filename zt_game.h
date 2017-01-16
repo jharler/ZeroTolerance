@@ -10681,10 +10681,103 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 					ztShLangSyntaxNodeType_ProgramDecl,
 					ztShLangSyntaxNodeType_FunctionDecl,
 				};
+				bool program_found = false;
+
 				zt_flink(child, global_scope->first_child) {
 					if (!isAllowedHere(file_data, child, allowed_in_global, zt_elementsOf(allowed_in_global), "global scope", error)) {
 						return false;
 					}
+
+					if(child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+						program_found = true;
+
+						int vertex_found = 0;
+						int pixel_found = 0;
+
+						zt_flink(child2, child->first_child) {
+							if(child2->type == ztShLangSyntaxNodeType_FunctionDecl) {
+								if(zt_strEquals(child2->function_decl.returns_name, "vertex_shader")) {
+									vertex_found += 1;
+
+									bool input_found = false, uniforms_found = false, output_found = false;
+									zt_flink(param, child2->first_child) {
+										if(param->type != ztShLangSyntaxNodeType_VariableDecl) break;
+
+										if(param->variable_decl.qualifier == nullptr) {
+											_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to vertex shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
+											return false;
+										}
+										if(zt_strEquals(param->variable_decl.qualifier, "input")) {
+											input_found = true;
+										}
+										if(zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
+										if(zt_strEquals(param->variable_decl.qualifier, "output")) {
+											output_found = true;
+											ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_scope, param->variable_decl.type_name);
+											if(!struct_output) {
+												_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to vertex shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
+												return false;
+											}
+											bool found_pos = false;
+											zt_flink(member, struct_output->first_child) {
+												if(zt_strEquals(member->variable_decl.qualifier, "position")) found_pos = true;
+											}
+											if(!found_pos) {
+												*error = zt_stringMakeFrom("Shader vertex output structure must contain a member with a position qualifier");
+												return false;
+											}
+										}
+									}
+
+									if(!input_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an input structure"); return false; }
+									if(!uniforms_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in a uniforms structure"); return false; }
+									if(!output_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an output structure"); return false; }
+								}
+								else if(zt_strEquals(child2->function_decl.returns_name, "pixel_shader")) {
+									pixel_found += 1;
+
+									bool input_found = false, uniforms_found = false, output_found = false;
+									zt_flink(param, child2->first_child) {
+										if(param->type != ztShLangSyntaxNodeType_VariableDecl) break;
+
+										if(param->variable_decl.qualifier == nullptr) {
+											_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to pixel shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
+											return false;
+										}
+										if(zt_strEquals(param->variable_decl.qualifier, "input")) {
+											input_found = true;
+										}
+										if(zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
+										if(zt_strEquals(param->variable_decl.qualifier, "output")) {
+											output_found = true;
+											ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_scope, param->variable_decl.type_name);
+											if(!struct_output) {
+												_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to pixel shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
+												return false;
+											}
+											bool found_color = false;
+											zt_flink(member, struct_output->first_child) {
+												if(zt_strEquals(member->variable_decl.qualifier, "color")) found_color = true;
+											}
+											if(!found_color) {
+												*error = zt_stringMakeFrom("Shader pixel output structure must contain a member with a color qualifier");
+												return false;
+											}
+										}
+									}
+								}
+							}
+						}
+						if(vertex_found == 0) { *error = zt_stringMakeFrom("Shader must contain a vertex function"); return false; }
+						if(vertex_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one vertex function"); return false; }
+						if(pixel_found == 0) { *error = zt_stringMakeFrom("Shader must contain a pixel function"); return false; }
+						if(pixel_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one pixel function"); return false; }
+					}
+				}
+
+				if(!program_found) {
+					*error = zt_stringMakeFrom("Shader is missing a program");
+					return false;
 				}
 			}
 
@@ -10743,8 +10836,8 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 	};
 
 	return local::validateNodeStage1(global_scope, file_data, global_scope, error) &&
-		local::validateNodeStage2(global_scope, file_data, global_scope, error) &&
-		local::validateNodeStage3(global_scope, file_data, global_scope, error);
+	       local::validateNodeStage2(global_scope, file_data, global_scope, error) &&
+	       local::validateNodeStage3(global_scope, file_data, global_scope, error);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -11162,6 +11255,10 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 			if(gl_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile OpenGL shader program");
+
+				if(vert_src) zt_logDebug("Failed vertex shader:\n", vert_src);
+				if(geom_src) zt_logDebug("Failed geometry shader:\n", geom_src);
+				if(frag_src) zt_logDebug("Failed fragment shader:\n", frag_src);
 			}
 
 			if(vert_src) zt_stringFree(vert_src);
@@ -11227,6 +11324,10 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 			if (dx_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile DirectX shader program");
+
+				if(vert_src) zt_logDebug("Failed vertex shader:\n", vert_src);
+				if(geom_src) zt_logDebug("Failed geometry shader:\n", geom_src);
+				if(frag_src) zt_logDebug("Failed fragment shader:\n", frag_src);
 			}
 
 			if (vert_src) zt_stringFree(vert_src);
