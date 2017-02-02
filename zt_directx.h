@@ -87,6 +87,10 @@ void ztdx_depthTestNotEqual(ztContextDX *context);
 void ztdx_depthTestGreaterEqual(ztContextDX *context);
 void ztdx_depthTestAlways(ztContextDX *context);
 
+void ztdx_clearColor(ztContextDX *context, ztVec4& color);
+void ztdx_clearColor(ztContextDX *context, r32 color[4]);
+void ztdx_clearColor(ztContextDX *context, r32 r, r32 g, r32 b, r32 a = 1);
+void ztdx_clearDepth(ztContextDX *context);
 void ztdx_clear(ztContextDX *context, ztVec4& color);
 void ztdx_clear(ztContextDX *context, r32 color[4]);
 void ztdx_clear(ztContextDX *context, r32 r, r32 g, r32 b, r32 a = 1);
@@ -752,6 +756,35 @@ void ztdx_depthTestGreaterEqual(ztContextDX *context)
 void ztdx_depthTestAlways(ztContextDX *context)
 {
 	zt_assert(false);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztdx_clearColor(ztContextDX *context, ztVec4& color)
+{
+	ztdx_clearColor(context, color.values);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztdx_clearColor(ztContextDX *context, r32 color[4])
+{
+	context->context->ClearRenderTargetView(context->active_render_target, color);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztdx_clearColor(ztContextDX *context, r32 r, r32 g, r32 b, r32 a)
+{
+	r32 color[] = { r, g, b, a };
+	ztdx_clearColor(context, color);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztdx_clearDepth(ztContextDX *context)
+{
+	context->context->ClearDepthStencilView(context->active_render_target_depth_stencil_view, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1817,12 +1850,14 @@ void ztdx_vertexArrayDraw(ztContextDX *context, ztVertexArrayDX *vertex_array, D
 	context->context->Draw(vertex_array->vert_count, 0);
 }
 
+#endif // implementation
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 
-#ifdef ZT_GAME_IMPLEMENTATION
+#ifdef __zt_game_h_internal_included__
 
 ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
 {
@@ -1863,6 +1898,15 @@ ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztS
 			}
 			if (zt_strEquals(data_type, "vec4")) {
 				return "float4";
+			}
+			if (zt_strEquals(data_type, "ivec2")) {
+				return "int2";
+			}
+			if (zt_strEquals(data_type, "ivec3")) {
+				return "int3";
+			}
+			if (zt_strEquals(data_type, "ivec4")) {
+				return "int4";
 			}
 			if (zt_strEquals(data_type, "mat4")) {
 				return "matrix";
@@ -2189,6 +2233,10 @@ ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztS
 								closing = ")";
 							}
 						}
+						else if (zt_strEquals(node->function_call.decl->function_decl.name, "inverse")) {
+							alternate_name = "(";
+							closing = ")";
+						}
 					}
 
 					if(!skip) {
@@ -2495,6 +2543,4 @@ ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztS
 	return true;
 }
 
-#endif // ZT_GAME_IMPLEMENTATION
-
-#endif // implementation
+#endif // __zt_game_h_internal_included__
