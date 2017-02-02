@@ -136,6 +136,12 @@ bool         ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 
 // ------------------------------------------------------------------------------------------------
 
+void ztgl_clearColor(ztVec4 color);
+void ztgl_clearColor(r32 r, r32 g, r32 b, r32 a);
+void ztgl_clearDepth();
+void ztgl_clear(ztVec4 color);
+void ztgl_clear(r32 r, r32 g, r32 b, r32 a);
+
 bool ztgl_setViewport(i32 width, i32 height);
 bool ztgl_setViewport(ztContextGL *context);
 
@@ -338,6 +344,7 @@ typedef void      (ZTGL_WINAPI *ztgl_glDetachShader_Func) (GLuint program, GLuin
 typedef void      (ZTGL_WINAPI *ztgl_glUseProgram_Func) (GLuint program);
 typedef void      (ZTGL_WINAPI *ztgl_glBlendFuncSeparate_Func) (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha);
 typedef void      (ZTGL_WINAPI *ztgl_glVertexAttribPointer_Func) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+typedef void      (ZTGL_WINAPI *ztgl_glVertexAttribIPointer_Func) (GLuint index, GLint size, GLenum type, GLsizei stride, const void* pointer);
 typedef void      (ZTGL_WINAPI *ztgl_glEnableVertexAttribArray_Func) (GLuint index);
 typedef GLint     (ZTGL_WINAPI *ztgl_glGetUniformLocation_Func) (GLuint program, const GLchar* name);
 typedef void      (ZTGL_WINAPI *ztgl_glUniformMatrix4fv_Func) (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
@@ -392,6 +399,7 @@ typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint
 	ZTGL_FUNC_OP(glUseProgram) \
 	ZTGL_FUNC_OP(glBlendFuncSeparate) \
 	ZTGL_FUNC_OP(glVertexAttribPointer) \
+	ZTGL_FUNC_OP(glVertexAttribIPointer) \
 	ZTGL_FUNC_OP(glEnableVertexAttribArray) \
 	ZTGL_FUNC_OP(glGetUniformLocation) \
 	ZTGL_FUNC_OP(glUniformMatrix4fv) \
@@ -883,6 +891,45 @@ bool ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+void ztgl_clearColor(ztVec4 color)
+{
+	glClearColor(color.r, color.g, color.b, color.a);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_clearColor(r32 r, r32 g, r32 b, r32 a)
+{
+	glClearColor(r, g, b, a);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_clearDepth()
+{
+	glClear(GL_DEPTH_BUFFER_BIT);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_clear(ztVec4 color)
+{
+	glClearColor(color.r, color.g, color.b, color.a);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_clear(r32 r, r32 g, r32 b, r32 a)
+{
+	glClearColor(r, g, b, a);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool ztgl_setViewport(i32 width, i32 height)
 {
 	ztgl_callAndReturnValOnError(glViewport(0, 0, width, height), false);
@@ -1123,9 +1170,20 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	int uniform_count = 0;
 	glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count);
 
-	shader->uniforms_count = uniform_count;
-	shader->uniforms = zt_mallocStructArrayArena(ztShaderGL::Uniform, uniform_count, arena);
+	int actual_count = 0;
+	zt_fiz(uniform_count) {
+		int len = 0, size = 0;
+		GLenum type = 0;
+		char varname[256] = { 0 };
+		glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
 
+		actual_count += size;
+	}
+
+	shader->uniforms_count = actual_count;
+	shader->uniforms = zt_mallocStructArrayArena(ztShaderGL::Uniform, actual_count, arena);
+
+	int act_idx = 0;
 	zt_fiz(uniform_count) {
 		int len = 0, size = 0;
 		GLenum type = 0;
@@ -1133,10 +1191,30 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 		glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
 		varname[len] = 0;
 
-		shader->uniforms[i].name = zt_stringMakeFrom(varname, arena);
-		shader->uniforms[i].type = type;
-		shader->uniforms[i].location = glGetUniformLocation(program, varname);
-		shader->uniforms[i].name_hash = zt_strHash(shader->uniforms[i].name);
+		if (size > 1) { // variable array is named like "variable[0]"
+			int pos_open = zt_strFindPos(varname, "[", 0);
+			char subname[256];
+			zt_strCpy(subname, zt_elementsOf(subname), varname, pos_open == ztStrPosNotFound ? zt_strLen(varname) : pos_open);
+
+			zt_fjz(size) {
+				zt_strMakePrintf(name, 256, "%s[%d]", subname, j);
+
+				shader->uniforms[act_idx].name = zt_stringMakeFrom(name, arena);
+				shader->uniforms[act_idx].type = type;
+				shader->uniforms[act_idx].location = glGetUniformLocation(program, name);
+				shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
+
+				act_idx += 1;
+			}
+		}
+		else {
+			shader->uniforms[act_idx].name = zt_stringMakeFrom(varname, arena);
+			shader->uniforms[act_idx].type = type;
+			shader->uniforms[act_idx].location = glGetUniformLocation(program, varname);
+			shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
+
+			act_idx += 1;
+		}
 	}
 
 	return shader;
@@ -1175,7 +1253,7 @@ void ztgl_shaderBegin(ztShaderGL *shader)
 {
 	zt_returnOnNull(shader);
 	ztgl_callAndReportOnErrorFast(glUseProgram(shader->program_id));
-	glBindTexture(GL_TEXTURE_2D, 0);
+	ztgl_textureBindReset(shader);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1183,8 +1261,8 @@ void ztgl_shaderBegin(ztShaderGL *shader)
 void ztgl_shaderEnd(ztShaderGL *shader)
 {
 	zt_returnOnNull(shader);
-	ztgl_callAndReportOnErrorFast(glUseProgram(0));
 	ztgl_textureBindReset(shader);
+	ztgl_callAndReportOnErrorFast(glUseProgram(0));
 	shader->textures_bound = 0;
 }
 
@@ -1276,6 +1354,10 @@ void ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value[12])
 
 void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 {
+	if (tex == nullptr) {
+		return;
+	}
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform1i(location, shader->textures_bound));
 	ztgl_textureBind(tex, shader->textures_bound++);
@@ -1559,6 +1641,7 @@ void ztgl_textureBindReset(ztShaderGL *shader)
 
 void ztgl_textureBind(ztTextureGL *texture, int as_idx)
 {
+	zt_returnOnNull(texture);
 	ztgl_callAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + as_idx));
 
 	if (zt_bitIsSet(texture->flags, ztTextureGLFlags_CubeMap)) {
@@ -1645,6 +1728,10 @@ void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count,
 				attrib_size = 4;
 			} break;
 
+			case GL_INT: {
+				attrib_size = 4;
+			} break;
+
 			default: {
 				zt_assert(false);
 			} break;
@@ -1702,6 +1789,15 @@ ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *ent
 			{
 				case GL_FLOAT: {
 					attrib_size = 4;
+					ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size));
+					ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
+				} break;
+
+				case GL_INT: {
+					attrib_size = 4;
+					//ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size));
+					ztgl_callAndReportOnError(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size));
+					ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
 				} break;
 
 				default: {
@@ -1709,8 +1805,6 @@ ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *ent
 				} break;
 			}
 
-			ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size));
-			ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
 
 			size += entries[i].size;
 		}
@@ -1786,14 +1880,17 @@ void ztgl_vertexArrayDraw(ztVertexArrayGL *vertex_array, GLenum mode)
 	ztgl_callAndReportOnErrorFast(glBindVertexArray(0));
 }
 
+
+#endif // implementation
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 
-#ifdef ZT_GAME_IMPLEMENTATION
+#ifdef __zt_game_h_internal_included__
 
-ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
+bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
 {
 	*vs = *gs = *fs = *error = nullptr;
 
@@ -1821,6 +1918,8 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 			ztShLangSyntaxNode *struct_uniform = nullptr;
 			ztShLangSyntaxNode *struct_textures = nullptr;
 
+			ztShLangSyntaxNode *var_input = nullptr;
+
 			Shader_Enum         which_shader;
 		};
 
@@ -1840,10 +1939,21 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 
 		// ----------------------------------------------
 
-		static void writeVariableDecl(ztShLangSyntaxNode *var_node, ztString *s, int s_len, Vars *vars)
+		static void writeVariableDecl(ztShLangSyntaxNode *var_node, ztString *s, int s_len, Vars *vars, bool needs_flat = false)
 		{
 			if (var_node->variable_decl.is_const) {
 				zt_strCat(*s, s_len, "const ");
+			}
+
+			if (needs_flat) {
+				switch (var_node->variable_decl.type)
+				{
+					case ztShLangTokenType_ivec2:
+					case ztShLangTokenType_ivec3:
+					case ztShLangTokenType_ivec4:
+						zt_strCat(*s, s_len, "flat ");
+						break;
+				}
 			}
 
 			if (var_node->first_child) {
@@ -1893,11 +2003,20 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 						continue;
 					}
 
+					bool needs_flat = false;
 					if (child == vars->struct_input) {
 						zt_strCat(*s, s_len, "in ");
+
+						if(vars->which_shader != Shader_Vert) {
+							needs_flat = true;
+						}
 					}
 					else if (child == vars->struct_output) {
 						zt_strCat(*s, s_len, "out ");
+
+						if(vars->which_shader == Shader_Vert) {
+							needs_flat = true;
+						}
 					}
 					else {
 						zt_strCat(*s, s_len, "struct ");
@@ -1907,7 +2026,7 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 					zt_strCat(*s, s_len, st_name);
 					zt_flink(chvar, child->first_child) {
 						zt_strCat(*s, s_len, "\t");
-						writeVariableDecl(chvar, s, s_len, vars);
+						writeVariableDecl(chvar, s, s_len, vars, needs_flat);
 						zt_strCat(*s, s_len, ";\n");
 					}
 
@@ -1982,6 +2101,23 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 
 		// ----------------------------------------------
 
+		static bool isParent(ztShLangSyntaxNode *child, ztShLangSyntaxNode *parent)
+		{
+			if(child->token && zt_bitIsSet(child->token->flags, ztShLangTokenFlags_IdentifierWithAccess)) {
+				int debug = 1;
+			}
+			if (child->parent == parent) {
+				return true;
+			}
+			if (child->parent) {
+				return isParent(child->parent, parent);
+			}
+
+			return false;
+		}
+
+		// ----------------------------------------------
+
 		static void write(ztShLangSyntaxNode *node, int indent, ztString *s, int s_len, Vars *vars)
 		{
 			zt_fiz(indent) zt_strCat(*s, s_len, "\t");
@@ -1995,15 +2131,24 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 				} break;
 
 				case ztShLangSyntaxNodeType_Variable: {
+					zt_strMakePrintf(input_check, 256, "%s.", vars->var_input ? vars->var_input->variable_decl.name : "");
+
 					if (node->variable_val.decl == vars->v_position) {
 						zt_strCat(*s, s_len, "gl_Position");
 					}
 					else if (node->variable_val.decl == vars->f_color) {
 						zt_strCat(*s, s_len, "_ztfs_frag_color");
 					}
-					else if (node->variable_val.decl->parent == vars->struct_input && vars->which_shader == Shader_Vert) {
+					else if ((node->variable_val.decl->parent == vars->struct_input || zt_strStartsWith(node->variable_val.name, input_check)) && vars->which_shader == Shader_Vert) {
 						zt_strCat(*s, s_len, vv_prefix);
-						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
+
+						int pos = zt_strFindPos(node->variable_val.name, ".", 0);
+						if (pos != ztStrPosNotFound) {
+							zt_strCat(*s, s_len, node->variable_val.name + pos + 1);
+						}
+						else {
+							zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
+						}
 					}
 					else if (node->variable_val.decl->parent == vars->struct_uniform) {
 						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
@@ -2243,6 +2388,7 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 
 		vars.struct_uniform = struct_uniforms;
 		vars.struct_input = struct_input;
+		vars.var_input = param_input;
 		vars.struct_output = struct_output;
 		vars.v_output = param_output;
 
@@ -2342,6 +2488,7 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 
 		vars.struct_uniform = struct_uniforms;
 		vars.struct_input = struct_input;
+		vars.var_input = param_input;
 		vars.struct_textures = struct_textures;
 		vars.struct_output = nullptr;
 		vars.v_position = nullptr;
@@ -2406,6 +2553,5 @@ ztInternal bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztS
 	return true;
 }
 
-#endif // ZT_GAME_IMPLEMENTATION
+#endif // __zt_game_h_internal_included__
 
-#endif // implementation
