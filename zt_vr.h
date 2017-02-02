@@ -555,8 +555,7 @@ bool zt_vrUpdate(ztVrSystem *vr_system)
 		{
 			case vr::TrackedDeviceClass_HMD: {
 				_zt_vrConvertMatrix(devices_poses[i].mDeviceToAbsoluteTracking, vr->headset_matrix);
-				vr->headset_matrix.extract(&vr_system->headset.transform.position, nullptr, &vr_system->headset.transform.scale);
-				vr_system->headset.transform.rotation = ztQuat::makeFromMat4(vr->headset_matrix);
+				zt_transformFromMat4(&vr_system->headset.transform, &vr->headset_matrix);
 				if (vr_system->headset.model) {
 					vr_system->headset.model->transform = vr_system->headset.transform;
 				}
@@ -568,8 +567,7 @@ bool zt_vrUpdate(ztVrSystem *vr_system)
 				zt_fjz(vr_system->controllers_count) {
 					if (vr_system->controllers[j].index == i) {
 						_zt_vrConvertMatrix(devices_poses[i].mDeviceToAbsoluteTracking, vr->controllers_matrix[j]);
-						vr->controllers_matrix[j].extract(&vr_system->controllers[j].transform.position, nullptr, &vr_system->controllers[j].transform.scale);
-						vr_system->controllers[j].transform.rotation = ztQuat::makeFromMat4(vr->controllers_matrix[j]);
+						zt_transformFromMat4(&vr_system->controllers[j].transform, &vr->controllers_matrix[j]);
 						if (vr_system->controllers[j].model) {
 							vr_system->controllers[j].model->transform = vr_system->controllers[j].transform;
 						}
