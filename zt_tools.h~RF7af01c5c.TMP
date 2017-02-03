@@ -605,10 +605,7 @@ typedef ztVec4 ztColor;
 //     matrix = translation_matrix * matrix (put the translation into the existing matrix)
 //     matrix = scale_matrix * matrix
 //
-//     scaling before translation affects the translation only
-//
-// So basically, whichever matrix is on the right side of the multiplication is the "container" and that
-// effect applies first, then the effect on the left takes place
+//     scaling before translation affects the translation only (matrix = 
 //
 
 struct ztQuat;

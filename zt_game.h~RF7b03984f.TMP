@@ -13559,52 +13559,47 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 	zt_returnOnNull(input_mouse);
 	zt_returnOnNull(input_keys);
 
-	if (input_mouse->middlePressed() || input_keys[ztInputKeys_Control].pressed() || input_mouse->wheel_delta) {
+	if(input_mouse->middlePressed() || input_keys[ztInputKeys_Control].pressed()) {
 
-		if(input_keys[ztInputKeys_Shift].pressed()) {
-			// move the target
-			ztVec3 side = ztVec3(0, 1, 0).cross(controller->camera->direction);
-			ztVec3 top  = ztVec3(1, 0, 0).cross(controller->camera->direction);
-			side.normalize();
+		ztVec3 euler_movement = ztVec3::zero;
 
-			r32 distance = zt_abs(controller->camera->position.distance(controller->target));
+		euler_movement.x = input_mouse->delta_y * controller->mouse_sensitivity;
+		ztQuat movement = ztQuat::makeFromEuler(euler_movement);
 
-			r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * 2;
-			r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * 2;
+		controller->rotation = controller->rotation * movement;
+		controller->rotation.normalize();
 
-			controller->target += side * x_move;
-			controller->camera->position += side * x_move;
 
-			controller->target += top * y_move;
-			controller->camera->position += top * y_move;
-		}
-		else {
-			ztVec3 xaxis(1.f, 0.f, 0.f);
-			ztVec3 yaxis(0.f, 1.f, 0.f);
+//		ztVec3 xaxis(1.f, 0.f, 0.f);
+//		ztVec3 zaxis(0.f, 0.f, 1.f);
+//
+//		xaxis = controller->rotation.rotatePosition(xaxis);
+//
+//		ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, 0 * input_mouse->delta_y * controller->mouse_sensitivity);
+//		ztQuat qz = ztQuat::makeFromAxisAngle(zaxis, input_mouse->delta_x * controller->mouse_sensitivity);
+//		ztQuat qr = qx * qz;
+//		controller->rotation = qr * controller->rotation;
+//		controller->rotation.normalize();
 
-			xaxis = controller->rotation.rotatePosition(xaxis);
-
-			ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, input_mouse->delta_y * -controller->mouse_sensitivity);
-			ztQuat qy = ztQuat::makeFromAxisAngle(yaxis, input_mouse->delta_x * -controller->mouse_sensitivity);
-			ztQuat qr = qx * qy;
-			controller->rotation = qr * controller->rotation;
-			controller->rotation.normalize();
-		}
-
-		r32 distance = zt_abs(controller->camera->position.distance(controller->target));
-
-		if (input_mouse->wheel_delta) {
-			distance *= input_mouse->wheel_delta < 0 ? 1.1f : 0.9f;
-		}
-
-		ztVec3 position = controller->rotation.rotatePosition(ztVec3(0, distance, 0));
-
-		controller->camera->position = position + controller->target;
-
-		ztVec3 euler = controller->rotation.euler();
-		ztVec3 up(0, euler.x < 0 ? 1.f : 1.f, 0);
-		zt_cameraLookAt(controller->camera, controller->target, up);
 	}
+
+	r32 distance = zt_abs(controller->camera->position.distance(controller->target));
+
+	if(input_mouse->wheel_delta) {
+		distance *= input_mouse->wheel_delta < 0 ? 1.1f : 0.9f;
+	}
+
+	ztVec3 position = controller->rotation.rotatePosition(ztVec3(0, distance, 0));
+
+	controller->camera->position = position;
+
+	ztVec3 euler = controller->rotation.euler();
+	ztVec3 up(0, euler.x < 0 ? -1.f : 1.f, 0);
+	zt_cameraLookAt(controller->camera, controller->target, up);
+	ztVec3 euler_cam = controller->camera->rotation.euler();
+
+	zt_logDebug("euler: %.2f, %.2f, %.2f", euler.x, euler.y, euler.z);
+	int debug = 0;
 }
 
 // ------------------------------------------------------------------------------------------------

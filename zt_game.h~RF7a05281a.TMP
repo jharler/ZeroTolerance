@@ -1227,7 +1227,6 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
-void     zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up = ztVec3(0,1,0));
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -1338,35 +1337,6 @@ struct ztCameraControllerFPS
 ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
 void                  zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
 void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
-
-
-// ------------------------------------------------------------------------------------------------
-
-struct ztCameraControllerArcball
-{
-	// settings:
-	ztCamera *camera;
-
-	r32 mouse_sensitivity;
-
-	ztVec3 target;
-	ztQuat rotation;
-
-	// per-frame input:
-	r32 mouse_delta_x;
-	r32 mouse_delta_y;
-
-	bool is_boosted;
-	bool is_sneaking;
-
-
-	// used internally:
-};	
-
-// ------------------------------------------------------------------------------------------------
-
-ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target = ztVec3::zero);
-void                      zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt);
 
 
 
@@ -5266,7 +5236,6 @@ void _zt_inputClearState( bool lost_focus )
 	}
 
 	zt_game->input_mouse.delta_x = zt_game->input_mouse.delta_y = 0;
-	zt_game->input_mouse.wheel_delta = 0;
 
 	zt_fiz(ZT_MAX_INPUT_CONTROLLERS) {
 		zt_fjz(zt_elementsOf(zt_game->input_controllers[i].button_states)) {
@@ -8219,14 +8188,17 @@ void zt_modelCalcMatrix(ztModel *model)
 	{
 		static void calculateBone(ztBone *bone, const ztMat4 *parent_mat)
 		{
-			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform);
+			ztMat4 base_local_transform = zt_transformToMat4SRT(&bone->transform_base);
+			ztMat4 current_local_transform = zt_transformToMat4SRT(&bone->transform);
+
+			ztMat4 diff_transform = base_local_transform.getInverse() * current_local_transform;
 			ztMat4 current_transform = (*parent_mat) * current_local_transform;
 
 			zt_flink(child, bone->first_child) {
 				calculateBone(child, &current_transform);
 			}
 
-			bone->mat_offset = current_transform * bone->mat_inverse_bind_transform;
+			bone->mat_offset = current_transform * bone->mat_inverse_bind_transform;// *diff_transform.getInverse();
 		}
 
 		// ------------------------------------------------------------------------------------------------
@@ -8830,7 +8802,7 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 		{
 			// todo(josh): this is wrong.  fix it
 
-			ztMat4 mat = parent_transform * zt_transformToMat4(&bone->transform);//calculateMat(bone);
+			ztMat4 mat = model->calculated_mat * calculateMat(bone);
 			ztVec3 pos = mat.getMultiply(ztVec3::zero);
 
 			zt_drawListPushTransform(draw_list, model->calculated_mat * bone->mat_file);
@@ -8884,8 +8856,8 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 				zt_drawListPopColor(draw_list);
 			}
 
-			//if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && bitIsSetInParentHierarchy(model, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
-			if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
+			if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && bitIsSetInParentHierarchy(model, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
+			//if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
 				drawBone(draw_list, &model->bones[model->bones_root_idx], model, model->calculated_mat);
 			}
 
@@ -13105,9 +13077,9 @@ void zt_cameraRecalcMatrices(ztCamera *camera)
 		camera->mat_view = ztMat4::identity.getTranslate(camera->position);
 	}
 	else if (camera->type == ztCameraType_Perspective) {
-		camera->mat_view = ztMat4::identity.getTranslate(-camera->position.x, -camera->position.y, -camera->position.z);
-		camera->mat_view = camera->rotation.convertToMat4() * camera->mat_view; // put the rotation into the translation matrix
-
+		camera->mat_view = camera->rotation.convertToMat4();
+		camera->mat_view *= ztMat4::identity.getTranslate(camera->position).getInverse();
+		
 		ztMat4 mat_final = camera->mat_proj * camera->mat_view;
 		camera->direction = ztVec3(mat_final.values[2], mat_final.values[6], mat_final.values[10]).getNormal();
 	}
@@ -13275,19 +13247,6 @@ void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, 
 	*point = pos_near;
 	*direction = pos_far - pos_near;
 	direction->normalize();
-}
-
-// ------------------------------------------------------------------------------------------------
-
-void zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up)
-{
-	ZT_PROFILE_RENDERING("zt_cameraLookAt");
-
-	ztMat4 view = ztMat4::identity.getLookAt(camera->position, target, up);
-
-	camera->rotation = ztQuat::makeFromMat4(view);
-
-	zt_cameraRecalcMatrices(camera);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13523,88 +13482,6 @@ void zt_cameraControlUpdateWASD(ztCameraControllerFPS *camera, ztInputMouse *inp
 	camera->is_sneaking = input_keys[ztInputKeys_Shift].pressed();
 
 	zt_cameraControlUpdateFPS(camera, dt);
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target)
-{
-	ZT_PROFILE_RENDERING("zt_cameraControllerMakeArcball");
-	ztCameraControllerArcball controller;
-	zt_memSet(&controller, zt_sizeof(ztCameraControllerArcball), 0);
-
-	controller.camera            = camera;
-	controller.mouse_sensitivity = 0.5f;
-	controller.target            = target;
-	controller.rotation          = ztQuat::identity;
-
-	ztVec3 euler_cam = camera->rotation.euler();
-
-	zt_cameraLookAt(camera, target);
-//	controller.rotation = ztQuat::makeFromPoints(target, camera->position);
-	controller.rotation = ztQuat::makeFromDirection((target - camera->position), ztVec3(0,1,0));
-
-	euler_cam = camera->rotation.euler();
-	ztVec3 euler = controller.rotation.euler();
-
-	return controller;
-}
-
-// ------------------------------------------------------------------------------------------------
-
-void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
-{
-	ZT_PROFILE_RENDERING("zt_cameraControlUpdateArcball");
-	zt_returnOnNull(controller);
-	zt_returnOnNull(input_mouse);
-	zt_returnOnNull(input_keys);
-
-	if (input_mouse->middlePressed() || input_keys[ztInputKeys_Control].pressed() || input_mouse->wheel_delta) {
-
-		if(input_keys[ztInputKeys_Shift].pressed()) {
-			// move the target
-			ztVec3 side = ztVec3(0, 1, 0).cross(controller->camera->direction);
-			ztVec3 top  = ztVec3(1, 0, 0).cross(controller->camera->direction);
-			side.normalize();
-
-			r32 distance = zt_abs(controller->camera->position.distance(controller->target));
-
-			r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * 2;
-			r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * 2;
-
-			controller->target += side * x_move;
-			controller->camera->position += side * x_move;
-
-			controller->target += top * y_move;
-			controller->camera->position += top * y_move;
-		}
-		else {
-			ztVec3 xaxis(1.f, 0.f, 0.f);
-			ztVec3 yaxis(0.f, 1.f, 0.f);
-
-			xaxis = controller->rotation.rotatePosition(xaxis);
-
-			ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, input_mouse->delta_y * -controller->mouse_sensitivity);
-			ztQuat qy = ztQuat::makeFromAxisAngle(yaxis, input_mouse->delta_x * -controller->mouse_sensitivity);
-			ztQuat qr = qx * qy;
-			controller->rotation = qr * controller->rotation;
-			controller->rotation.normalize();
-		}
-
-		r32 distance = zt_abs(controller->camera->position.distance(controller->target));
-
-		if (input_mouse->wheel_delta) {
-			distance *= input_mouse->wheel_delta < 0 ? 1.1f : 0.9f;
-		}
-
-		ztVec3 position = controller->rotation.rotatePosition(ztVec3(0, distance, 0));
-
-		controller->camera->position = position + controller->target;
-
-		ztVec3 euler = controller->rotation.euler();
-		ztVec3 up(0, euler.x < 0 ? 1.f : 1.f, 0);
-		zt_cameraLookAt(controller->camera, controller->target, up);
-	}
 }
 
 // ------------------------------------------------------------------------------------------------

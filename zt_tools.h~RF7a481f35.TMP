@@ -365,7 +365,7 @@ struct ztVec2
 
 	ztVec2() {}
 	ztVec2(r32 _x, r32 _y) :x(_x), y(_y) {}
-	explicit ztVec2(r32 v[2]) :x(v[0]), y(v[1]) {}
+	ztVec2(r32 v[2]) :x(v[0]), y(v[1]) {}
 
 	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; return *this;}
 	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; return *this;}
@@ -439,7 +439,7 @@ struct ztVec3
 	ztVec3() {}
 	ztVec3(r32 _x, r32 _y, r32 _z) :x(_x), y(_y), z(_z) {}
 	ztVec3(const ztVec2& vec2, r32 _z) : x(vec2.x), y(vec2.y), z(_z) {}
-	explicit ztVec3(r32 v[3]) : x(v[0]), y(v[1]), z(v[2]) {}
+	ztVec3(r32 v[3]) : x(v[0]), y(v[1]), z(v[2]) {}
 
 	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; return *this; }
 	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
@@ -526,7 +526,7 @@ struct ztVec4
 	ztVec4(r32 _x, r32 _y, r32 _z, r32 _w) :x(_x), y(_y), z(_z), w(_w) {}
 	ztVec4(const ztVec2& vec2a, const ztVec2& vec2b) : x(vec2a.x), y(vec2a.y), z(vec2b.x), w(vec2b.y) {}
 	ztVec4(const ztVec3& vec3, r32 _w) : x(vec3.x), y(vec3.y), z(vec3.z), w(_w) {}
-	explicit ztVec4(r32 v[4]) :x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
+	ztVec4(r32 v[4]) :x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
 
 	ztVec4& operator+=(const ztVec4& v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this;}
 	ztVec4& operator-=(const ztVec4& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this;}
@@ -593,23 +593,6 @@ typedef ztVec4 ztColor;
 
 
 // ------------------------------------------------------------------------------------------------
-// Matrix multiplication notes:
-//
-// If you want to have the object rotated around it's center, then moved:
-//     matrix = translation_matrix;
-//     matrix = rotation_matrix * matrix (put the rotation into the existing matrix)
-//     (scaling anywhere doesn't seem to make much difference)
-//
-// If you want to have the object rotated around the axis at the position distance (like the surface of a ball):
-//     matrix = rotation_matrix;
-//     matrix = translation_matrix * matrix (put the translation into the existing matrix)
-//     matrix = scale_matrix * matrix
-//
-//     scaling before translation affects the translation only
-//
-// So basically, whichever matrix is on the right side of the multiplication is the "container" and that
-// effect applies first, then the effect on the left takes place
-//
 
 struct ztQuat;
 
@@ -650,11 +633,15 @@ enum ztMat4_Enum
 	ztMat4_Row3Col3 = 15,
 };
 
-// ------------------------------------------------------------------------------------------------
-
 struct ztMat4
 {
 	union {
+		r32 values[16];
+
+		struct {
+			ztVec4 cols[4];
+		};
+
 		struct {
 			r32 c0r0;
 			r32 c0r1;
@@ -673,16 +660,10 @@ struct ztMat4
 			r32 c3r2;
 			r32 c3r3;
 		};
-
-		struct {
-			ztVec4 cols[4];
-		};
-
-		r32 values[16];
 	};
 
 	ztMat4() {}
-	explicit ztMat4(r32 v[16]) { zt_fiz(16) values[i] = v[i]; }
+	ztMat4(r32 v[16]) { zt_fiz(16) values[i] = v[i]; }
 	ztMat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { values[0] = c0r0; values[1] = c0r1; values[2] = c0r2; values[3] = c0r3; values[4] = c1r0; values[5] = c1r1; values[6] = c1r2; values[7] = c1r3; values[8] = c2r0; values[9] = c2r1; values[10] = c2r2; values[11] = c2r3; values[12] = c3r0; values[13] = c3r1; values[14] = c3r2; values[15] = c3r3; }
 	ztMat4(const ztMat4& copy) { zt_fiz(16) values[i] = copy.values[i]; }
 
@@ -750,6 +731,8 @@ ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
 struct ztQuat
 {
 	union {
+		r32 values[4];
+
 		struct {
 			r32 x;
 			r32 y;
@@ -765,12 +748,10 @@ struct ztQuat
 		struct {
 			ztVec4 xyzw;
 		};
-
-		r32 values[4];
 	};
 
 	ztQuat() {}
-	explicit ztQuat(r32 v[4]) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
+	ztQuat(r32 v[4]) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
 	ztQuat(r32 _x, r32 _y, r32 _z, r32 _w) : x(_x), y(_y), z(_z), w(_w) {}
 	ztQuat(const ztVec3& _xyz, r32 _w) : xyz(_xyz), w(_w) {}
 	ztQuat(const ztVec4& _xyzw) : xyzw(_xyzw) {}
@@ -4410,9 +4391,8 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	l.values[2] = -f.x; l.values[6] = -f.y; l.values[10] = -f.z; l.values[14] = 0;
 	l.values[3] =    0; l.values[7] =    0; l.values[11] =    0; l.values[15] = 1;
 
-	ztMat4 p = identity.getTranslate(eye_pos.x, eye_pos.y, eye_pos.z);
-	//*this = l * p;
-	*this = p * l;
+	ztMat4 p = identity.getTranslate(-eye_pos.x, -eye_pos.y, -eye_pos.z);
+	*this = l * p;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4559,7 +4539,6 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 {
-	return makeFromAxisAngle(axis.x, axis.y, axis.z, angle);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4619,7 +4598,7 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 /*static*/ ztQuat ztQuat::makeFromDirection(const ztVec3& dir, const ztVec3& up)
 {
 	ztMat4 mat = ztMat4::identity;
-	mat.lookAt(ztVec3::zero, dir, up);
+	mat.lookAt(ztVec3::zero, ztVec3(dir.x, dir.y, -dir.z), up);
 
 	return ztQuat::makeFromMat4(mat);
 }

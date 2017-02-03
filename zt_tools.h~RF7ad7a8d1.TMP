@@ -595,20 +595,14 @@ typedef ztVec4 ztColor;
 // ------------------------------------------------------------------------------------------------
 // Matrix multiplication notes:
 //
-// If you want to have the object rotated around it's center, then moved:
+// If you want to have the object rotated around it's center:
 //     matrix = translation_matrix;
-//     matrix = rotation_matrix * matrix (put the rotation into the existing matrix)
-//     (scaling anywhere doesn't seem to make much difference)
+//     matrix = rotation_matrix * matrix
 //
 // If you want to have the object rotated around the axis at the position distance (like the surface of a ball):
 //     matrix = rotation_matrix;
-//     matrix = translation_matrix * matrix (put the translation into the existing matrix)
-//     matrix = scale_matrix * matrix
+//     matrix = translation_matrix * matrix
 //
-//     scaling before translation affects the translation only
-//
-// So basically, whichever matrix is on the right side of the multiplication is the "container" and that
-// effect applies first, then the effect on the left takes place
 //
 
 struct ztQuat;
