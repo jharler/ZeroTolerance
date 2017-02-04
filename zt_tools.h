@@ -735,6 +735,10 @@ struct ztMat4
 	static const ztMat4 zero;
 	static const ztMat4 identity;
 
+
+	void cleanup(int digits);
+
+
 #if defined(ZT_MAT4_EXTRAS)
 	ZT_MAT4_EXTRAS	// use this to add conversions to and from your own classes
 #endif
@@ -1211,8 +1215,9 @@ void zt_memFreeGlobal(void *data);
 #define zt_strMakePrintf(varname, varsize, format, ...)	char varname[varsize] = {0}; zt_strPrintf(varname, varsize, format, __VA_ARGS__);
 
 bool zt_strValid(const char *s, const char **invalid_ch = nullptr);
-const char *zt_strCodepoint(const char *s, i32* code_point);
-i32 zt_strCodepoint(const char *s, int pos);
+
+ztInline const char *zt_strCodepoint(const char *s, i32* code_point);
+ztInline i32 zt_strCodepoint(const char *s, int pos);
 
 bool zt_strEquals(const char *s1, const char *s2);
 bool zt_strEquals(const char *s1, int s1_len, const char *s2);
@@ -3182,6 +3187,49 @@ ztInline int zt_memoryChunkRemaining(ztMemoryChunk *chunk)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztInline const char *zt_strCodepoint(const char *s, i32* code_point)
+{
+	if (0xf0 == (0xf8 & s[0])) {
+		// 4 byte utf8 codepoint
+		*code_point = ((0x07 & s[0]) << 18) | ((0x3f & s[1]) << 12) |
+			((0x3f & s[2]) << 6) | (0x3f & s[3]);
+		s += 4;
+	}
+	else if (0xe0 == (0xf0 & s[0])) {
+		// 3 byte utf8 codepoint
+		*code_point =
+			((0x0f & s[0]) << 12) | ((0x3f & s[1]) << 6) | (0x3f & s[2]);
+		s += 3;
+	}
+	else if (0xc0 == (0xe0 & s[0])) {
+		// 2 byte utf8 codepoint
+		*code_point = ((0x1f & s[0]) << 6) | (0x3f & s[1]);
+		s += 2;
+	}
+	else {
+		// 1 byte utf8 codepoint otherwise
+		*code_point = s[0];
+		s += 1;
+	}
+
+	return s;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline i32 zt_strCodepoint(const char *s, int pos)
+{
+	i32 code_point = 0;
+	s = zt_strMoveForward(s, pos);
+	zt_strCodepoint(s, &code_point);
+	return code_point;
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 #define ZT_FUNC_DLL_SET_GLOBALS(name) void name(void *memory, int version)
 typedef ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals_Func);
 
@@ -4542,6 +4590,16 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 }
 
 // ------------------------------------------------------------------------------------------------
+
+void ztMat4::cleanup(int digits)
+{
+	r32 pow = zt_pow(10.f, (r32)digits);
+	zt_fize(values) {
+		values[i] = (zt_convertToi32Ceil(values[i] * pow)) / pow;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -4772,46 +4830,6 @@ bool zt_strValid(const char *s, const char **invalid_ch)
 	}
 
 	return 0;
-}
-
-// ------------------------------------------------------------------------------------------------
-
-const char *zt_strCodepoint(const char *s, i32* code_point)
-{
-	if (0xf0 == (0xf8 & s[0])) {
-		// 4 byte utf8 codepoint
-		*code_point = ((0x07 & s[0]) << 18) | ((0x3f & s[1]) << 12) |
-			((0x3f & s[2]) << 6) | (0x3f & s[3]);
-		s += 4;
-	}
-	else if (0xe0 == (0xf0 & s[0])) {
-		// 3 byte utf8 codepoint
-		*code_point =
-			((0x0f & s[0]) << 12) | ((0x3f & s[1]) << 6) | (0x3f & s[2]);
-		s += 3;
-	}
-	else if (0xc0 == (0xe0 & s[0])) {
-		// 2 byte utf8 codepoint
-		*code_point = ((0x1f & s[0]) << 6) | (0x3f & s[1]);
-		s += 2;
-	}
-	else {
-		// 1 byte utf8 codepoint otherwise
-		*code_point = s[0];
-		s += 1;
-	}
-
-	return s;
-}
-
-// ------------------------------------------------------------------------------------------------
-
-i32 zt_strCodepoint(const char *s, int pos)
-{
-	i32 code_point = 0;
-	s = zt_strMoveForward(s, pos);
-	zt_strCodepoint(s, &code_point);
-	return code_point;
 }
 
 // ------------------------------------------------------------------------------------------------
