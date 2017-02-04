@@ -1649,7 +1649,7 @@ struct ztBone
 	ztBone     *next;
 	ztBone     *parent;
 
-	ztMat4      mat_file;
+	ztMat4      mat_model;      // bone in model space
 	ztMat4      mat_offset;
 	ztMat4      mat_local_bind_transform;
 	ztMat4      mat_inverse_bind_transform;
@@ -1851,7 +1851,8 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
 void zt_rendererRequestFullscreen();
 
-void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset = nullptr);
+void zt_alignToPixel(r32 *val, r32 ppu);
+void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset);
 void zt_alignToPixel(ztVec2 *val, r32 ppu);
 void zt_alignToPixel(ztVec3 *val, r32 ppu);
 
@@ -8219,14 +8220,21 @@ void zt_modelCalcMatrix(ztModel *model)
 	{
 		static void calculateBone(ztBone *bone, const ztMat4 *parent_mat)
 		{
-			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform);
+			ztMat4 bone_transform = zt_transformToMat4SRT(&bone->transform);
+			ztMat4 current_local_transform = bone_transform;
 			ztMat4 current_transform = (*parent_mat) * current_local_transform;
+
+			bone->mat_offset = bone_transform * bone->mat_inverse_bind_transform;
+			if (bone->parent) {
+				bone->mat_offset = bone->parent->mat_offset * bone->mat_offset;
+			}
+			bone->mat_offset.cleanup(5);
 
 			zt_flink(child, bone->first_child) {
 				calculateBone(child, &current_transform);
 			}
 
-			bone->mat_offset = current_transform * bone->mat_inverse_bind_transform;
+			//bone->mat_offset = bone->mat_inverse_bind_transform * current_transform;
 		}
 
 		// ------------------------------------------------------------------------------------------------
@@ -8248,7 +8256,7 @@ void zt_modelCalcMatrix(ztModel *model)
 			}
 
 			if (model->bones_count) {
-				calculateBone(&model->bones[model->bones_root_idx], &model->calculated_mat);
+				calculateBone(&model->bones[model->bones_root_idx], &ztMat4::identity);
 			}
 		}
 	
@@ -8830,17 +8838,35 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 		{
 			// todo(josh): this is wrong.  fix it
 
-			ztMat4 mat = parent_transform * zt_transformToMat4(&bone->transform);//calculateMat(bone);
-			ztVec3 pos = mat.getMultiply(ztVec3::zero);
+			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform);
+			ztMat4 current_transform = parent_transform * current_local_transform;
 
-			zt_drawListPushTransform(draw_list, model->calculated_mat * bone->mat_file);
+			/*
+			zt_drawListPushTransform(draw_list, current_transform);
+			//zt_drawListPushTransform(draw_list, model->calculated_mat * mat);
 			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : (bone->transform.rotation.euler().equalsClose(bone->transform_base.rotation.euler()) ? ztColor_Green : ztColor_Cyan));
-			zt_drawListAddEmptyBone(draw_list, pos, 25, 5, 2);
+
+			r32 size = .2f;
+			zt_drawListAddEmptyBone(draw_list, ztVec3::zero, 25 * size, 5 * size, 2 * size);
 			zt_drawListPopColor(draw_list);
 			zt_drawListPopTransform(draw_list);
+			*/
+
+			ztVec3 pos = bone->mat_model.getMultiply(ztVec3::zero);
+			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : ztColor_Green);
+			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, ztVec3(.25f, .25f, .25f));
+			zt_drawListPopColor(draw_list);
+
+
+			pos = current_transform.getMultiply(ztVec3::zero);
+			//zt_drawListPushTransform(draw_list, model->calculated_mat * mat);
+			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Purple : (bone->transform.rotation.euler().equalsClose(bone->transform_base.rotation.euler()) ? ztColor_Blue : ztColor_Orange));
+			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, ztVec3(.20f, .20f, .20f));
+			zt_drawListPopColor(draw_list);
+
 
 			zt_flink(child, bone->first_child) {
-				drawBone(draw_list, child, model, mat);
+				drawBone(draw_list, child, model, current_transform);
 			}
 		}
 
@@ -12999,13 +13025,40 @@ ztPoint2 zt_textureGetSize(ztTextureID texture_id)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
+ztInline void zt_alignToPixel(r32 *val, r32 ppu)
 {
 	ZT_PROFILE_RENDERING("zt_alignToPixel");
 #if 1
 	r32 abval = zt_abs(*val *ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
-//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
+	//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
+	//if (rem >= .375f && rem <= .625f) {
+	if (rem >= .25f && rem < .75f) {
+		if (*val >= 0) {
+			*val = zt_convertToi32Floor((*val * ppu)) / ppu;
+		}
+		else {
+			*val = zt_convertToi32Ceil((*val * ppu)) / ppu;
+		}
+	}
+#else
+	r32 abval = zt_abs(*val * ppu);
+	r32 rem = abval - zt_convertToi32Floor(abval);
+
+	r32 nval = zt_convertToi32Floor(((*val) * ppu)) / ppu;
+	*val = nval;
+#endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInline void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
+{
+	ZT_PROFILE_RENDERING("zt_alignToPixel");
+#if 1
+	r32 abval = zt_abs(*val *ppu);
+	r32 rem = abval - zt_convertToi32Floor(abval);
+	//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
 	//if (rem >= .375f && rem <= .625f) {
 	if (rem >= .25f && rem < .75f) {
 		if (*val >= 0) {
@@ -13029,7 +13082,7 @@ void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_alignToPixel(ztVec2 *val, r32 ppu)
+ztInline void zt_alignToPixel(ztVec2 *val, r32 ppu)
 {
 	zt_alignToPixel(&val->x, ppu);
 	zt_alignToPixel(&val->y, ppu);
@@ -13037,7 +13090,7 @@ void zt_alignToPixel(ztVec2 *val, r32 ppu)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_alignToPixel(ztVec3 *val, r32 ppu)
+ztInline void zt_alignToPixel(ztVec3 *val, r32 ppu)
 {
 	zt_alignToPixel(&val->x, ppu);
 	zt_alignToPixel(&val->y, ppu);
@@ -16543,17 +16596,17 @@ void zt_transformToMat4(ztTransform *transform, ztMat4 *mat)
 
 	(*mat) = ztMat4::identity;
 
-	if (transform->scale != ztVec3::one) {
-		ztMat4 scale = ztMat4::identity;
-		scale.scale(transform->scale);
-		(*mat) *= scale;
-	}
-
 	(*mat) *= ztMat4::identity.getTranslate(transform->position);
 
 	if (transform->rotation != ztQuat::identity) {
 		ztMat4 rmat = transform->rotation.convertToMat4();
 		(*mat) *= rmat;
+	}
+
+	if (transform->scale != ztVec3::one) {
+		ztMat4 scale = ztMat4::identity;
+		scale.scale(transform->scale);
+		(*mat) *= scale;
 	}
 }
 
