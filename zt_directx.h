@@ -60,7 +60,7 @@ void         ztdx_contextFree(ztContextDX *context);
 
 void         ztdx_contextDisplay(ztContextDX *context);
 
-ztPoint2     ztdx_contextGetSize(ztContextDX *context);
+ztVec2i     ztdx_contextGetSize(ztContextDX *context);
 bool         ztdx_contextSetSize(ztContextDX *context, i32 w, i32 h);
 bool         ztdx_contextIsFullscreen(ztContextDX *context);
 bool         ztdx_contextToggleFullscreen(ztContextDX *context, bool fullscreen);
@@ -148,7 +148,7 @@ struct ztTextureDX
 	ID3D11DepthStencilView   *depth_stencil_view;
 	ID3D11RenderTargetView   *render_target_view;
 
-	ztPoint2 size;
+	ztVec2i size;
 	i32 flags;
 
 	ztMemoryArena *arena;
@@ -336,7 +336,7 @@ struct ztContextDX
 
 	int texture_count;
 
-	ztPoint2 size;
+	ztVec2i size;
 	i32      pixels_per_unit;
 	i32      flags;
 
@@ -563,7 +563,7 @@ void ztdx_contextDisplay(ztContextDX *context)
 
 // ------------------------------------------------------------------------------------------------
 
-ztPoint2 ztdx_contextGetSize(ztContextDX *context)
+ztVec2i ztdx_contextGetSize(ztContextDX *context)
 {
 	return context->size;
 }

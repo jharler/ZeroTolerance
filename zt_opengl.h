@@ -129,7 +129,7 @@ void         ztgl_contextFree(ztContextGL *context);
 
 void         ztgl_contextDisplay(ztContextGL *context);
 
-ztPoint2     ztgl_contextGetSize(ztContextGL *context);
+ztVec2i      ztgl_contextGetSize(ztContextGL *context);
 bool         ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h);
 bool         ztgl_contextIsFullscreen(ztContextGL *context);
 bool         ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen);
@@ -491,7 +491,7 @@ struct ztContextGL
 	HGLRC context;
 	HWND handle;
 
-	ztPoint2 size;
+	ztVec2i size;
 	i32 pixels_per_unit;
 	i32 flags;
 
@@ -851,9 +851,9 @@ void ztgl_contextFree(ztContextGL *context)
 
 // ------------------------------------------------------------------------------------------------
 
-ztPoint2 ztgl_contextGetSize(ztContextGL *context)
+ztVec2i ztgl_contextGetSize(ztContextGL *context)
 {
-	zt_returnValOnNull(context, ztPoint2(0,0));
+	zt_returnValOnNull(context, ztVec2i(0,0));
 	return context->size;
 }
 
@@ -1181,7 +1181,7 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	}
 
 	shader->uniforms_count = actual_count;
-	shader->uniforms = zt_mallocStructArrayArena(ztShaderGL::Uniform, actual_count, arena);
+	shader->uniforms = actual_count ? zt_mallocStructArrayArena(ztShaderGL::Uniform, actual_count, arena) : nullptr;
 
 	int act_idx = 0;
 	zt_fiz(uniform_count) {
@@ -1407,8 +1407,10 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 
 			ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixel_data), false);
 			if (zt_bitIsSet(flags, ztTextureGLFlags_MipMaps)) {
-				ztgl_callAndReturnValOnError(glGenerateMipmap(GL_TEXTURE_2D), false);
 				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST), false);
+				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), false);
+				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 7), false);
+				ztgl_callAndReturnValOnError(glGenerateMipmap(GL_TEXTURE_2D), false);
 			}
 			ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, 0), false);
 
@@ -2197,6 +2199,9 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						// built in function
 						if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSample")) {
 							alternate_name = "texture";
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "lerp")) {
+							alternate_name = "mix";
 						}
 					}
 
