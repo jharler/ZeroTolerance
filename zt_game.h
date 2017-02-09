@@ -129,6 +129,32 @@ enum ztAnchor_Enum
 };
 
 // ------------------------------------------------------------------------------------------------
+
+enum ztDirection_Enum
+{
+	ztDirection_Up,
+	ztDirection_Down,
+	ztDirection_Left,
+	ztDirection_Right,
+
+	ztDirection_UpLeft,
+	ztDirection_UpRight,
+	ztDirection_DownLeft,
+	ztDirection_DownRight,
+
+	ztDirection_North     = ztDirection_Up,
+	ztDirection_South     = ztDirection_Down,
+	ztDirection_East      = ztDirection_Right,
+	ztDirection_West      = ztDirection_Left,
+
+	ztDirection_NorthWest = ztDirection_UpLeft,
+	ztDirection_NorthEast = ztDirection_UpRight,
+	ztDirection_SouthWest = ztDirection_DownLeft,
+	ztDirection_SouthEast = ztDirection_DownRight,
+};
+
+
+// ------------------------------------------------------------------------------------------------
 // renderer enumerations
 
 enum ztRenderer_Enum
@@ -343,6 +369,98 @@ struct ztProfileBlock
 #define ZT_PROFILE_PATHFINDING(section)
 #define ZT_PROFILE_GAME(section)
 #endif
+
+
+// ------------------------------------------------------------------------------------------------
+// debugging
+
+typedef i32 ztDebugVarID;
+
+void         zt_debuggingInit(const char *settings_file_name, const char *alt_path = nullptr);
+
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, i8 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, i16 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, i32 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, i64 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, u8 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, u16 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, u32 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, u64 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, r32 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, r64 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, ztVec2 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, ztVec3 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, ztVec4 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, ztMat4 val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, ztQuat val);
+ztDebugVarID   zt_debuggingRegisterVariable  (const char *name, bool val);
+
+i8             zt_debuggingGet_i8            (ztDebugVarID debug_var);
+i16            zt_debuggingGet_i16           (ztDebugVarID debug_var);
+i32            zt_debuggingGet_i32           (ztDebugVarID debug_var);
+i64            zt_debuggingGet_i64           (ztDebugVarID debug_var);
+u8             zt_debuggingGet_u8            (ztDebugVarID debug_var);
+u16            zt_debuggingGet_u16           (ztDebugVarID debug_var);
+u32            zt_debuggingGet_u32           (ztDebugVarID debug_var);
+u64            zt_debuggingGet_u64           (ztDebugVarID debug_var);
+r32            zt_debuggingGet_r32           (ztDebugVarID debug_var);
+r64            zt_debuggingGet_r64           (ztDebugVarID debug_var);
+ztVec2         zt_debuggingGet_vec2          (ztDebugVarID debug_var);
+ztVec3         zt_debuggingGet_vec3          (ztDebugVarID debug_var);
+ztVec4         zt_debuggingGet_vec4          (ztDebugVarID debug_var);
+ztMat4         zt_debuggingGet_mat4          (ztDebugVarID debug_var);
+ztQuat         zt_debuggingGet_quat          (ztDebugVarID debug_var);
+bool           zt_debuggingGet_bool          (ztDebugVarID debug_var);
+
+void           zt_debuggingSet               (ztDebugVarID debug_var, i8 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, i16 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, i32 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, i64 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, u8 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, u16 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, u32 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, u64 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, r32 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, r64 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, ztVec2 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, ztVec3 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, ztVec4 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, ztMat4 val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, ztQuat val);
+void           zt_debuggingSet               (ztDebugVarID debug_var, bool val);
+
+
+
+// ------------------------------------------------------------------------------------------------
+// loading
+//
+// the idea of the load state is to offer a consistent and easy way to allow for loading various
+// assets.
+//
+// Each load function should accept a pointer to a ztLoadInfo, and process the state appropriately:
+//
+//      ztLoadState_Error:    Do nothing, exit function without changing state.
+//      ztLoadState_Query:    Populate the ztLoadInfo with the total number of steps required and change state to ztLoadState_Loading
+//      ztLoadState_Loading:  Process loading, one step at a time, setting state to ztLoadState_Complete when finished
+//      ztLoadState_Complete: Do nothing, exit function without changing state.
+
+enum ztLoadState_Enum
+{
+	ztLoadState_Error,
+	ztLoadState_Query,
+	ztLoadState_Loading,
+	ztLoadState_Complete,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztLoadInfo
+{
+	int              total_steps  = 0;
+	int              current_step = 0;
+	ztLoadState_Enum state        = ztLoadState_Query;
+};
+
 
 
 // ------------------------------------------------------------------------------------------------
@@ -967,7 +1085,7 @@ void        zt_textureFree(ztTextureID texture_id);
 void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
 void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 
-ztPoint2    zt_textureGetSize(ztTextureID texture_id);
+ztVec2i     zt_textureGetSize(ztTextureID texture_id);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1223,7 +1341,7 @@ ztVec2   zt_cameraOrthoGetMaxExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
@@ -1910,9 +2028,9 @@ struct ztSprite
 };
 
 ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0);
-ztSprite zt_spriteMake(ztTextureID tex, ztPoint2 pos, ztPoint2 size, ztPoint2 anchor = ztPoint2(0, 0));
+ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0));
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0);
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztPoint2 pos, ztPoint2 size, ztPoint2 anchor = ztPoint2(0, 0));
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0));
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
@@ -1929,7 +2047,7 @@ struct ztSpriteNineSlice
 };
 
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, int tex_w, int tex_h, int nw_interior_x, int nw_interior_y, int se_interior_x, int se_interior_y, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
-ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztPoint2 tex_pos, ztPoint2 tex_size, ztPoint2 nw_interior, ztPoint2 se_interior, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
+ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
 
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size);
 
@@ -3181,6 +3299,17 @@ struct ztThreadJobQueue
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+struct ztDebugVar
+{
+	char      name[64];
+	i32       name_hash;
+	ztVariant variable;
+};
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 enum ztRendererRequest_Enum
 {
 	ztRendererRequest_Change,
@@ -3298,8 +3427,12 @@ struct ztTexture
 
 struct ztVertexArray
 {
-	zt_openGLSupport(ztVertexArrayGL *gl_va);
-	zt_directxSupport(ztVertexArrayDX *dx_va);
+	union {
+		void *renderer_data;
+
+		zt_openGLSupport(ztVertexArrayGL *gl_va);
+		zt_directxSupport(ztVertexArrayDX *dx_va);
+	};
 };
 
 #ifndef ZT_MAX_VERTEX_ARRAYS
@@ -3409,6 +3542,10 @@ struct ztAudioClip
 #define ZT_MAX_RENDERER_REQUESTS	8
 #endif
 
+#ifndef ZT_MAX_DEBUG_VARIABLES
+#define ZT_MAX_DEBUG_VARIABLES		256
+#endif
+
 struct ztGameGlobals
 {
 #if defined(ZT_WINDOWS)
@@ -3431,6 +3568,12 @@ struct ztGameGlobals
 
 	ztThreadID        main_thread_id   = ztInvalidID;
 	ztThreadJobQueue *thread_job_queue = nullptr;
+
+	// ----------------------
+
+	ztDebugVar        debug_vars[ZT_MAX_DEBUG_VARIABLES];
+	int               debug_vars_count;
+	char              debug_vars_file[ztFileMaxPath];
 
 	// ----------------------
 
@@ -3683,7 +3826,7 @@ ztInternal void _zt_threadJobQueueFree()
 ztInternal void _zt_threadJobQueueUpdate()
 {
 	ZT_PROFILE_PLATFORM("_zt_threadJobQueueUpdate");
-	if(zt_game->thread_job_queue == nullptr || zt_game->thread_job_queue->threads_count <= 0) {
+	if (zt_game->thread_job_queue == nullptr || zt_game->thread_job_queue->threads_count <= 0) {
 		return;
 	}
 
@@ -3713,7 +3856,7 @@ void zt_threadJobQueueDllUnload()
 		zt_atomicBoolSet(&queue->threads[i].should_exit, true);
 		zt_threadMonitorTriggerSignal(queue->threads[i].start);
 
-		if(queue->threads[i].thread != nullptr) {
+		if (queue->threads[i].thread != nullptr) {
 			zt_threadJoin(queue->threads[i].thread);
 			zt_threadFree(queue->threads[i].thread);
 			queue->threads[i].thread = nullptr;
@@ -3729,7 +3872,7 @@ ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *
 {
 	ztThreadJobQueue *queue = zt_game->thread_job_queue;
 
-	if(queue->threads_count <= 0) {
+	if (queue->threads_count <= 0) {
 		thread_func(0, user_data, nullptr, nullptr);
 		return -2;
 	}
@@ -3752,7 +3895,7 @@ ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *
 
 	if (lowest_idx == -1) {
 		// there are no waiting frame threads, so we need to wait
-		if(type == ztThreadJobType_Frame) {
+		if (type == ztThreadJobType_Frame) {
 			zt_threadJobQueueWaitForFrameJobs();
 		}
 		else {
@@ -3766,14 +3909,14 @@ ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *
 
 	ztThreadJob *job = nullptr;
 	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
-		if(zt_atomicBoolGet(&queue->job_queue[i].completed)) {
+		if (zt_atomicBoolGet(&queue->job_queue[i].completed)) {
 			job = &queue->job_queue[i];
 			break;
 		}
 	}
-	if(job == nullptr) {
+	if (job == nullptr) {
 		// there are no free job slots, so we need to wait
-		if(type == ztThreadJobType_Frame) {
+		if (type == ztThreadJobType_Frame) {
 			zt_threadJobQueueWaitForFrameJobs();
 		}
 		else {
@@ -3815,7 +3958,7 @@ ztThreadJobID zt_threadJobQueueForFrame(ztThread_Func thread_func, void *user_da
 ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *user_data, r32 anticipated_length)
 {
 	ZT_PROFILE_PLATFORM("zt_threadJobQueueForBackground");
-	if(zt_game->thread_job_queue->background_threads == 0) {
+	if (zt_game->thread_job_queue->background_threads == 0) {
 		thread_func(0, user_data, nullptr, nullptr);
 		return -2;
 	}
@@ -3829,14 +3972,14 @@ ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *us
 bool zt_threadJobIsComplete(ztThreadJobID job_id)
 {
 	ZT_PROFILE_PLATFORM("zt_threadJobIsComplete");
-	if(job_id == -2) {
+	if (job_id == -2) {
 		return true;
 	}
 
 	ztThreadJobQueue *queue = zt_game->thread_job_queue;
 
 	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
-		if(queue->job_queue[i].id == job_id) {
+		if (queue->job_queue[i].id == job_id) {
 			return zt_atomicBoolGet(&queue->job_queue[i].completed);
 		}
 	}
@@ -3852,7 +3995,7 @@ void zt_threadJobCancel(ztThreadJobID job_id)
 	ztThreadJobQueue *queue = zt_game->thread_job_queue;
 
 	zt_fiz(ZT_THREAD_JOB_QUEUE_SIZE) {
-		if(queue->job_queue[i].id == job_id) {
+		if (queue->job_queue[i].id == job_id) {
 			zt_atomicBoolSet(&queue->job_queue[i].cancelled, true);
 			break;
 		}
@@ -3915,12 +4058,12 @@ void zt_threadJobQueueWaitForAllJobs()
 int zt_threadGetIndex()
 {
 	ztThreadID thread_id = zt_threadGetCurrentID();
-	if(thread_id == zt_game->main_thread_id) {
+	if (thread_id == zt_game->main_thread_id) {
 		return 0;
 	}
 
 	zt_fiz(zt_game->thread_job_queue->threads_count) {
-		if(zt_game->thread_job_queue->threads[i].thread_id == thread_id) {
+		if (zt_game->thread_job_queue->threads[i].thread_id == thread_id) {
 			return i + 1;
 		}
 	}
@@ -4012,7 +4155,7 @@ bool zt_profilerIsPaused()
 void zt_profilerFrameBegin()
 {
 #	if !defined(ZT_NO_PROFILE)
-	if(zt_game->profiler->paused) {
+	if (zt_game->profiler->paused) {
 		return;
 	}
 
@@ -4056,8 +4199,8 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 
 	int display_thread = render_state ? zt_clamp(render_state->display_thread, 0, zt_elementsOf(zt_game->profiler->threads)) : 0;
 
-	if(render_state) {
-		if(render_state->display_frame >= 0 && render_state->display_frame < ZT_PROFILER_FRAMES_KEPT && render_state->display_frame != zt_game->profiler->current_frame) {
+	if (render_state) {
+		if (render_state->display_frame >= 0 && render_state->display_frame < ZT_PROFILER_FRAMES_KEPT && render_state->display_frame != zt_game->profiler->current_frame) {
 			display_frame = render_state->display_frame;
 		}
 	}
@@ -4075,7 +4218,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 		zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
 			ztVec2 fpos(x, timeline_pos.y);
 			if (mouse_clicked && render_state && i != zt_game->profiler->current_frame && zt_collisionPointInRect(mouse_pos, fpos, frame_size)) {
-				if(render_state->display_frame == i) {
+				if (render_state->display_frame == i) {
 					render_state->display_frame = -1;
 				}
 				else {
@@ -4093,7 +4236,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 			zt_drawListAddFilledRect2D(draw_list, fpos, frame_size, ztVec2::zero, ztVec2::one);
 			x += width_per_frame + pixel_size;
 
-			if(i == zt_game->profiler->current_frame || i == display_frame) {
+			if (i == zt_game->profiler->current_frame || i == display_frame) {
 				zt_drawListPopColor(draw_list);
 			}
 		}
@@ -4120,7 +4263,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 		max *= 1.1f;
 		//max = 1000 / 60.f;
 
-		if(max) {
+		if (max) {
 			r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_size;
 			zt_drawListPushColor(draw_list, ztColor_Green);
 			ztVec2 frame_size(width_per_frame, timegraph_size.y - (pixel_size * 2));
@@ -4153,18 +4296,18 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 			if (i == 0 && zt_game->profiler->paused) {
 				button_clr = ztColor_DarkRed;
 			}
-			else if(i - 1 == display_thread) {
+			else if (i - 1 == display_thread) {
 				button_clr = ztColor_DarkGreen;
 			}
 
-			if(zt_collisionPointInRect(mouse_pos, button_pos, button_size)) {
+			if (zt_collisionPointInRect(mouse_pos, button_pos, button_size)) {
 				button_clr *= 1.25f;
 
-				if(mouse_clicked) {
-					if(i == 0) {
+				if (mouse_clicked) {
+					if (i == 0) {
 						zt_game->profiler->paused = !zt_game->profiler->paused;
 					}
-					else if(render_state) {
+					else if (render_state) {
 						render_state->display_thread = i - 1;
 					}
 				}
@@ -4251,10 +4394,10 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 				ztProfiledSection *pa = *(ztProfiledSection**)a;
 				ztProfiledSection *pb = *(ztProfiledSection**)b;
 
-				if(pa->time_accum > pb->time_accum) {
+				if (pa->time_accum > pb->time_accum) {
 					return -1;
 				}
-				else if(pa->time_accum < pb->time_accum) {
+				else if (pa->time_accum < pb->time_accum) {
 					return 1;
 				}
 				return 0;
@@ -4283,7 +4426,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 				zt_strMakePrintf(func, 512, "%s", section->section);
 				zt_drawListAddText2D(draw_list, 0, func, ztVec2(pos.x + ext_label.x, *y), ztAlign_Top|ztAlign_Left, ztAnchor_Top|ztAnchor_Left, &ext_label);
 
-				if(indent > 0) {
+				if (indent > 0) {
 					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_size * 10), *y - ext_label.y / 2, 0), ztVec3(x + (indent * pixel_size * 10), *y - ext_label.y / 2, 0));
 					zt_drawListAddLine(draw_list, ztVec3(x + ((indent - 1) * pixel_size * 10), *y + ext_label.y / 2 + pixel_size * 2, 0), ztVec3(x + ((indent - 1) * pixel_size * 10), *y - (ext_label.y + pixel_size) / 2, 0));
 				}
@@ -4312,7 +4455,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 			}
 		};
 
-		if(ps_details) {
+		if (ps_details) {
 			local::displaySection(draw_list, ps_details, pos.x - pixel_size * 100, &y, pixel_size, (pos.x + size.x / 2) - pixel_size * 10, (pos.y - (size.y / 2.f)) + pixel_size * 10, 0);//pos.x + (size.x / 2) - 10 / ppu);
 		}
 	}
@@ -4367,13 +4510,13 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 	}
 	else {
 		zt_flink(child, pt->current->children) {
-			if(child->section_hash == section_hash) {
+			if (child->section_hash == section_hash) {
 				ps = child;
 				ps_existing = true;
 				break;
 			}
 		}
-		if(ps == nullptr) {
+		if (ps == nullptr) {
 			if (pt->allocations_current_section >= ZT_PROFILER_MAX_SECTIONS_PER_FRAME) {
 				return nullptr;
 			}
@@ -4435,11 +4578,220 @@ void zt_profiledSectionExit(ztProfiledSection *section)
 	section->time_accum += time_end - section->time_begin;
 	section->called += 1;
 
-	if(section->parent) {
+	if (section->parent) {
 		section->thread->current = section->parent;
 	}
 #	endif
 }
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_variantToString(ztVariantPointer variable, char *buffer, int buffer_len)
+{
+	zt_returnOnNull(buffer);
+	zt_assertReturnOnFail(buffer_len > 0);
+
+	switch(variable.type)
+	{
+		case ztVariant_i8:    zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i8); break;
+		case ztVariant_i16:   zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i16); break;
+		case ztVariant_i32:   zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i32); break;
+		case ztVariant_i64:   zt_strPrintf(buffer, buffer_len, "%lld", *variable.v_i64); break;
+		case ztVariant_u8:    zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u8); break;
+		case ztVariant_u16:   zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u16); break;
+		case ztVariant_u32:   zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u32); break;
+		case ztVariant_u64:   zt_strPrintf(buffer, buffer_len, "%llu", *variable.v_u64); break;
+		case ztVariant_r32:   zt_strPrintf(buffer, buffer_len, "%f", *variable.v_r32); break;
+		case ztVariant_r64:   zt_strPrintf(buffer, buffer_len, "%f", *variable.v_r64); break;
+		case ztVariant_voidp: zt_assert(false);
+		case ztVariant_vec2:  zt_strPrintf(buffer, buffer_len, "%f,%f", variable.v_vec2->values[0], variable.v_vec2->values[0]); break;
+		case ztVariant_vec3:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f", variable.v_vec3->values[0], variable.v_vec3->values[1], variable.v_vec3->values[2]); break;
+		case ztVariant_vec4:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f", variable.v_vec4->values[0], variable.v_vec4->values[1], variable.v_vec4->values[2], variable.v_vec4->values[3]); break;
+		case ztVariant_mat4:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f%f,%f,%f,%f%f,%f,%f,%f%f,%f,%f,%f", variable.v_mat4->values[0], variable.v_mat4->values[1], variable.v_mat4->values[2], variable.v_mat4->values[3], variable.v_mat4->values[4], variable.v_mat4->values[5], variable.v_mat4->values[6], variable.v_mat4->values[7], variable.v_mat4->values[8], variable.v_mat4->values[9], variable.v_mat4->values[10], variable.v_mat4->values[11], variable.v_mat4->values[12], variable.v_mat4->values[13], variable.v_mat4->values[14], variable.v_mat4->values[15]); break;
+		case ztVariant_quat:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f", variable.v_quat->values[0], variable.v_quat->values[1], variable.v_quat->values[2], variable.v_quat->values[3]); break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_variantFromString(ztVariantPointer variable, char *buffer, int buffer_len)
+{
+	if (buffer == nullptr || buffer_len <= 0) {
+		return;
+	}
+
+	switch(variable.type)
+	{
+		case ztVariant_i8:    *variable.v_i8  = (i8) zt_strToInt   (buffer, buffer_len, *variable.v_i8 ); break;
+		case ztVariant_i16:   *variable.v_i16 = (i16)zt_strToInt   (buffer, buffer_len, *variable.v_i16); break;
+		case ztVariant_i32:   *variable.v_i32 = (i32)zt_strToInt   (buffer, buffer_len, *variable.v_i32); break;
+		case ztVariant_i64:   *variable.v_i64 =      zt_strToInt64 (buffer, buffer_len, *variable.v_i64); break;
+		case ztVariant_u8:    *variable.v_u8  = (u8) zt_strToUint  (buffer, buffer_len, *variable.v_u8 ); break;
+		case ztVariant_u16:   *variable.v_u16 = (u16)zt_strToUint  (buffer, buffer_len, *variable.v_u16); break;
+		case ztVariant_u32:   *variable.v_u32 = (u32)zt_strToUint  (buffer, buffer_len, *variable.v_u32); break;
+		case ztVariant_u64:   *variable.v_u64 =      zt_strToUint64(buffer, buffer_len, *variable.v_u64); break;
+		case ztVariant_r32:   *variable.v_r32 =      zt_strToReal32(buffer, buffer_len, *variable.v_r32); break;
+		case ztVariant_r64:   *variable.v_r64 =      zt_strToReal64(buffer, buffer_len, *variable.v_r64); break;
+		case ztVariant_voidp: zt_assert(false);
+		case ztVariant_vec2:
+		case ztVariant_vec3:
+		case ztVariant_vec4:
+		case ztVariant_mat4:
+		case ztVariant_quat: {
+			ztToken tokens[16];
+			int tokens_count = zt_strTokenize(buffer, buffer_len, ",", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace);
+			
+			switch(variable.type)
+			{
+				case ztVariant_vec2: { if (tokens_count ==  2) zt_fiz( 2) variable.v_vec2->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec2->values[i]); } break;
+				case ztVariant_vec3: { if (tokens_count ==  3) zt_fiz( 3) variable.v_vec3->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec3->values[i]); } break;
+				case ztVariant_vec4: { if (tokens_count ==  4) zt_fiz( 4) variable.v_vec4->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec4->values[i]); } break;
+				case ztVariant_mat4: { if (tokens_count == 16) zt_fiz(16) variable.v_mat4->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_mat4->values[i]); } break;
+				case ztVariant_quat: { if (tokens_count ==  4) zt_fiz( 4) variable.v_quat->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_quat->values[i]); } break;
+			}
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal bool _zt_debuggingFileHasVariable(char *file_data, i32 file_size, char *variable)
+{
+	ztToken file_tokens[ZT_MAX_DEBUG_VARIABLES * 2];
+	int file_tokens_count = zt_strTokenize(file_data, file_size, "\r\n", file_tokens, zt_elementsOf(file_tokens), ztStrTokenizeFlags_TrimWhitespace);
+
+	const char *needles[] = {"=", " ", "\t", "\r", "\n"};
+
+	zt_fiz(zt_min(file_tokens_count, zt_elementsOf(file_tokens))) {
+		int pos = zt_strFindFirstOfPos(file_data + file_tokens[i].beg, file_tokens[i].len, needles, zt_elementsOf(needles));
+		if (pos != ztStrPosNotFound) {
+			if (zt_strEquals(file_data + file_tokens[i].beg, pos, variable)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val)
+{
+	zt_assertReturnValOnFail(zt_game->debug_vars_count < zt_elementsOf(zt_game->debug_vars), ztInvalidID);
+
+	ztDebugVar *debug_var = &zt_game->debug_vars[zt_game->debug_vars_count++];
+
+	zt_strCpy(debug_var->name, zt_elementsOf(debug_var->name), name);
+	debug_var->name_hash = zt_strHash(name);
+
+	zt_variantAssignValue(&debug_var->variable, val);
+
+	return zt_game->debug_vars_count - 1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_debuggingInit(const char *settings_file_name, const char *alt_path)
+{
+	const char *path = alt_path ? alt_path : zt_game->game_details.user_path;
+
+	zt_fileConcatFileToPath(zt_game->debug_vars_file, zt_elementsOf(zt_game->debug_vars_file), path, settings_file_name);
+
+	// todo(josh): read values from file
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_debuggingCleanup()
+{
+	i32 file_size = 0;
+	char *file_data = (char*)zt_readEntireFile(zt_game->debug_vars_file, &file_size, true);
+
+	if (file_size <= 0) {
+		return;
+	}
+
+	zt_free(file_data);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztDebugVarID _zt_debuggingRegisterVariable(const char *name, ztVariant val)
+{
+	i32 hash = zt_strHash(name);
+	zt_fiz(zt_game->debug_vars_count) {
+		if (zt_game->debug_vars[i].name_hash == hash && zt_game->debug_vars[i].variable.type == val.type) {
+			return i;
+		}
+	}
+
+	int idx = _zt_debuggingAddVariable(name, val);
+	if (idx >= 0) {
+		return idx;
+	}
+
+	return ztInvalidID;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, i8     val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i8(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, i16    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i16(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, i32    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i32(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, i64    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i64(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, u8     val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_u8(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, u16    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_u16(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, u32    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_u32(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, u64    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_u64(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, r32    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_r32(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, r64    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_r64(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztVec2 val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_vec2(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztVec3 val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_vec3(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztVec4 val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_vec4(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztMat4 val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_mat4(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztQuat val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_quat(val)); }
+ztDebugVarID zt_debuggingRegisterVariable(const char *name, bool   val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_bool(val)); }
+
+// ------------------------------------------------------------------------------------------------
+
+i8     zt_debuggingGet_i8  (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i8  (&zt_game->debug_vars[debug_var].variable); }
+i16    zt_debuggingGet_i16 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i16 (&zt_game->debug_vars[debug_var].variable); }
+i32    zt_debuggingGet_i32 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i32 (&zt_game->debug_vars[debug_var].variable); }
+i64    zt_debuggingGet_i64 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i64 (&zt_game->debug_vars[debug_var].variable); }
+u8     zt_debuggingGet_u8  (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_u8  (&zt_game->debug_vars[debug_var].variable); }
+u16    zt_debuggingGet_u16 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_u16 (&zt_game->debug_vars[debug_var].variable); }
+u32    zt_debuggingGet_u32 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_u32 (&zt_game->debug_vars[debug_var].variable); }
+u64    zt_debuggingGet_u64 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_u64 (&zt_game->debug_vars[debug_var].variable); }
+r32    zt_debuggingGet_r32 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_r32 (&zt_game->debug_vars[debug_var].variable); }
+r64    zt_debuggingGet_r64 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_r64 (&zt_game->debug_vars[debug_var].variable); }
+ztVec2 zt_debuggingGet_vec2(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztVec2::zero    ); return zt_variantGetAs_vec2(&zt_game->debug_vars[debug_var].variable); }
+ztVec3 zt_debuggingGet_vec3(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztVec3::zero    ); return zt_variantGetAs_vec3(&zt_game->debug_vars[debug_var].variable); }
+ztVec4 zt_debuggingGet_vec4(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztVec4::zero    ); return zt_variantGetAs_vec4(&zt_game->debug_vars[debug_var].variable); }
+ztMat4 zt_debuggingGet_mat4(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztMat4::zero    ); return zt_variantGetAs_mat4(&zt_game->debug_vars[debug_var].variable); }
+ztQuat zt_debuggingGet_quat(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztQuat::identity); return zt_variantGetAs_quat(&zt_game->debug_vars[debug_var].variable); }
+bool   zt_debuggingGet_bool(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, false           ); return zt_variantGetAs_bool(&zt_game->debug_vars[debug_var].variable); }
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_debuggingSet(ztDebugVarID debug_var, i8     val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i8   = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, i16    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i16  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, i32    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i32  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, i64    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i64  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, u8     val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_u8   = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, u16    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_u16  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, u32    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_u32  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, u64    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_u64  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, r32    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_r32  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, r64    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_r64  = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec2 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec2[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec3 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec3[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec4[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztMat4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_mat4[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztQuat val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_quat[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, bool   val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_bool = val; }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -4624,7 +4976,7 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
 	ZT_PROFILE_ASSETS("zt_assetLoad(char*)");
 	ztAssetID asset_id = zt_assetLoad(asset_mgr, zt_strHash(asset));
 	
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		zt_logDebug("Unable to load asset: %s", asset);
 	}
 	else {
@@ -4860,6 +5212,9 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 {
 	ZT_PROFILE_ASSETS("_zt_assetLoadData");
 	zt_returnValOnNull(asset_mgr, false);
+	if(asset_id == ztInvalidID) {
+		return false;
+	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	*data = nullptr;
@@ -4916,7 +5271,7 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.color = input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, PixelOutput output : output)\n	{\n		output.color = input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.uv = input.uv;\n		output.normal = input.normal;\n		output.color = input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = textureSample(textures.diffuse_tex, input.uv) * input.color;\n	}\n}",
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return input.normal;\n	}\n	normal = normalize(input.normal * 2.0 - 1.0);\n	normal = normalize(input.tbn * input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput input, Textures textures)\n{\n	return 0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, input, textures);\n\n	float distance = length(light.pos - input.frag_pos);\n	float constant = 1;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.frag_pos = vec3(uniforms.model * vec4(input.position, 1.0));\n		output.normal = normalize(transpose(mat3(uniforms.model)) * input.normal);\n		output.uv = input.uv;\n		output.color = input.color;\n		output.frag_pos_light_space = uniforms.light_matrix * vec4(output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(input.normal, 0)));\n		output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, input.uv) * input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], input, uniforms, textures);\n		}\n        \n		output.color = vec4(lighting.xyz, 1);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return input.normal;\n	}\n	normal = normalize((input.normal * 2.0) - vec3(1.0, 1.0, 1.0));\n	normal = normalize(input.tbn * input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput input, Textures textures)\n{\n	vec3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if(proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		return 0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0f;\n		}\n	}\n	shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, input, textures);\n\n	float distance = length(light.pos - input.frag_pos);\n	float constant = 1;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.frag_pos = vec3(uniforms.model * vec4(input.position, 1.0));\n		output.normal = normalize(transpose(mat3(uniforms.model)) * input.normal);\n		output.uv = input.uv;\n		output.color = input.color;\n		output.frag_pos_light_space = uniforms.light_matrix * vec4(output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(input.normal, 0)));\n		output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, input.uv) * input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], input, uniforms, textures);\n		}\n        \n		output.color = vec4(lighting.xyz, 1);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return input.normal;\n	}\n	normal = normalize((input.normal * 2.0) - vec3(1.0, 1.0, 1.0));\n	normal = normalize(input.tbn * input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput input, Textures textures)\n{\n	vec3 proj_coords = input.frag_pos_light_space.xyz / input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		return 0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = 0;//max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0f;\n		}\n	}\n	shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, input, textures);\n\n	float distance = length(light.pos - input.frag_pos);\n	float constant = 1;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.frag_pos = vec3(uniforms.model * vec4(input.position, 1.0));\n		output.normal = normalize(transpose(mat3(uniforms.model)) * input.normal);\n		output.uv = input.uv;\n		output.color = input.color;\n		output.frag_pos_light_space = uniforms.light_matrix * vec4(output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(input.normal, 0)));\n		output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, input.uv) * input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], input, uniforms, textures);\n		}\n        \n		output.color = vec4(lighting.xyz, 1);\n	}\n}",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(input.position, 1.0);\n		output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		output.uv = input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = vec4(textureSample(textures.skybox_tex, input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.light_matrix * uniforms.model * vec4(input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		output.color = vec4(input.position.z, input.position.z, input.position.z, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.uv = input.uv;\n		output.color = input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		output.color = vec4(input.color.rgb, alpha);\n	}\n}",
@@ -6028,10 +6383,10 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFrustum");
-	if(!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->near_ne)) return false;
-	if(!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->near_se)) return false;
-	if(!zt_drawListAddLine(draw_list, frustum->near_se, frustum->near_sw)) return false;
-	if(!zt_drawListAddLine(draw_list, frustum->near_sw, frustum->near_nw)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->near_ne)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->near_se)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_se, frustum->near_sw)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_sw, frustum->near_nw)) return false;
 
 	if (!zt_drawListAddLine(draw_list, frustum->far_nw, frustum->far_ne)) return false;
 	if (!zt_drawListAddLine(draw_list, frustum->far_ne, frustum->far_se)) return false;
@@ -6146,7 +6501,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, cons
 bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size, bool color_axis)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddPointMarker");
-	if(color_axis) {
+	if (color_axis) {
 		zt_drawListPushColor(draw_list, ztColor_Red  ); zt_drawListAddLine(draw_list, pos - ztVec3(size / 2.f, 0, 0), pos + ztVec3(size / 2.f, 0, 0)); zt_drawListPopColor(draw_list);
 		zt_drawListPushColor(draw_list, ztColor_Green); zt_drawListAddLine(draw_list, pos - ztVec3(0, size / 2.f, 0), pos + ztVec3(0, size / 2.f, 0)); zt_drawListPopColor(draw_list);
 		zt_drawListPushColor(draw_list, ztColor_Blue ); zt_drawListAddLine(draw_list, pos - ztVec3(0, 0, size / 2.f), pos + ztVec3(0, 0, size / 2.f)); zt_drawListPopColor(draw_list);
@@ -6378,7 +6733,7 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 	command->clip_center.x -= 1 / ppu;
 
 
-	if(command->clip_center.y - command->clip_size.y / 2.f < 0) {
+	if (command->clip_center.y - command->clip_size.y / 2.f < 0) {
 		command->clip_center.y -= 1 / ppu;
 	}
 	else{
@@ -7316,7 +7671,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						if (curr_clip_region) {
 							r32 ppu = zt_pixelsPerUnit();
-							ztPoint2 pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
+							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
 							int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
 							int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
@@ -7353,7 +7708,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fkz(3) {
 								int idx = buffer.vertices_count++;
-								if(has_offset) {
+								if (has_offset) {
 									buffer.vertices[idx].pos = cmp_item->command->tri_pos[k] + offset;
 								}
 								else {
@@ -7365,7 +7720,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 
 
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7409,7 +7764,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[0];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 
@@ -7418,7 +7773,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[1 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 
@@ -7427,7 +7782,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[2 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7435,7 +7790,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_Line: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
-							if(transform) {
+							if (transform) {
 								ztVec3 line0 = (*transform) * cmp_item->command->line[0];
 								ztVec3 line1 = (*transform) * cmp_item->command->line[1];
 								glVertex3f(line0.x + offset.x, line0.y + offset.y, line0.z + offset.z);
@@ -7449,7 +7804,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_Point: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
-							if(transform) {
+							if (transform) {
 								ztVec3 p = (*transform) * cmp_item->command->point;
 								glVertex3f(cmp_item->command->point.x+ offset.x, p.y + offset.y, p.z + offset.z);
 							}
@@ -7475,7 +7830,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_ChangeTransform: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::change transform");
-							if(cmp_item->command->transform == ztMat4::identity) {
+							if (cmp_item->command->transform == ztMat4::identity) {
 								transform = nullptr;
 							}
 							else {
@@ -7513,7 +7868,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
 			}
 
-			if(shader_id != ztInvalidID) {
+			if (shader_id != ztInvalidID) {
 				zt_shaderEnd(shader_id);
 			}
 			else {
@@ -7671,7 +8026,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						if (curr_clip_region) {
 							r32 ppu = zt_pixelsPerUnit();
-							ztPoint2 pos = zt_cameraOrthoWorldToScreen(camera, (curr_clip_region->command->clip_center * ztVec2(1, -1)) - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
+							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, (curr_clip_region->command->clip_center * ztVec2(1, -1)) - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
 
 							int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
 							int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
@@ -7717,7 +8072,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7761,7 +8116,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[0];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 
@@ -7770,7 +8125,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[1 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 
@@ -7779,7 +8134,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								buffer.vertices[idx].uv = uv[2 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7797,7 +8152,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7811,7 +8166,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
 								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
-								if(transform) {
+								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 								}
 							}
@@ -7829,7 +8184,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_ChangeTransform: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::change transform");
-							if(cmp_item->command->transform == ztMat4::identity) {
+							if (cmp_item->command->transform == ztMat4::identity) {
 								transform = nullptr;
 							}
 							else {
@@ -7880,6 +8235,24 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 	zt_returnValOnNull(entries, ztInvalidID);
 	zt_assertReturnValOnFail(zt_game->vertex_arrays_count < zt_elementsOf(zt_game->vertex_arrays), ztInvalidID);
 
+	struct local
+	{
+		static ztVertexArrayID getNextID()
+		{
+			if (zt_game->vertex_arrays_count < zt_elementsOf(zt_game->vertex_arrays) - 1) {
+				return zt_game->vertex_arrays_count++;
+			}
+
+			zt_fize(zt_game->vertex_arrays) {
+				if (zt_game->vertex_arrays[i].renderer_data == nullptr) {
+					return i;
+				}
+			}
+
+			return ztInvalidID;
+		}
+	};
+
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -7907,7 +8280,8 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 				return ztInvalidID;
 			}
 
-			ztVertexArrayID va_id = zt_game->vertex_arrays_count++;
+			ztVertexArrayID va_id = local::getNextID();
+			if (va_id == ztInvalidID) return ztInvalidID;
 			zt_game->vertex_arrays[va_id].gl_va = gl_va;
 
 			return va_id;
@@ -7928,7 +8302,8 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 				return ztInvalidID;
 			}
 
-			ztVertexArrayID va_id = zt_game->vertex_arrays_count++;
+			ztVertexArrayID va_id = local::getNextID();
+			if (va_id == ztInvalidID) return ztInvalidID;
 			zt_game->vertex_arrays[va_id].dx_va = dx_va;
 
 			return va_id;
@@ -7944,6 +8319,9 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 {
 	ZT_PROFILE_RENDERING("zt_vertexArrayFree");
+	if (vertex_array_id == ztInvalidID) {
+		return;
+	}
 	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
 
 	switch (zt_currentRenderer())
@@ -8179,7 +8557,7 @@ void zt_modelFree(ztModel *model)
 		zt_meshFree(model->mesh_id);
 	}
 
-	if(model->bones) {
+	if (model->bones) {
 		zt_freeArena(model->bones, model->arena);
 	}
 
@@ -8274,7 +8652,7 @@ void zt_modelCalcMatrix(ztModel *model)
 
 void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 {
-	if(model->aabb_center != ztVec3::min) {
+	if (model->aabb_center != ztVec3::min) {
 		// todo(josh): once this stabilizes, we need to actually use this cached value
 		*center = model->aabb_center;
 		*size = model->aabb_size;
@@ -8285,7 +8663,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	{
 		static void getExtents(ztModel *model, ztVec3 *min, ztVec3 *max, ztMat4& mat)
 		{
-			if(model->mesh_id != ztInvalidID) {
+			if (model->mesh_id != ztInvalidID) {
 				ztVec3 center, size;
 				zt_meshGetOBB(model->mesh_id, &center, &size);
 
@@ -8328,7 +8706,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 
 	ztModel *scale_test = model;
 	while(scale_test) {
-		if(scale_test->transform.scale != ztVec3::one) {
+		if (scale_test->transform.scale != ztVec3::one) {
 			size->x /= scale_test->transform.scale.x;
 			size->y /= scale_test->transform.scale.y;
 			size->z /= scale_test->transform.scale.z;
@@ -8338,7 +8716,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 
 	ztVec3 zero = model->transform.position;//model->calculated_mat.getMultiply(model->transform.position);
 
-	if(model->parent) {
+	if (model->parent) {
 		zero = model->parent->calculated_mat.getMultiply(zero);
 	}
 
@@ -8349,7 +8727,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 
 void zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size)
 {
-	if(model->mesh_id == ztInvalidID) {
+	if (model->mesh_id == ztInvalidID) {
 		if (model->first_child) {
 			zt_modelGetOBB(model->first_child, center, size);
 			*center += model->first_child->transform.position;
@@ -8551,7 +8929,7 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	r32 shadow_near = .1f;
 	r32 shadow_far  = lighting_rules ? lighting_rules->shadow_max_distance * 2 : 60.f;
 
-	if(camera_copy.type == ztCameraType_Perspective) {
+	if (camera_copy.type == ztCameraType_Perspective) {
 		//camera_copy.near_z = shadow_near;
 		//camera_copy.far_z = lighting_rules ? lighting_rules->shadow_max_distance : 30.f;
 		//camera = &camera_copy;
@@ -8789,7 +9167,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 		local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
 	}
 
-	if(shader != ztInvalidID) {
+	if (shader != ztInvalidID) {
 		zt_shaderEnd(shader);
 	}
 }
@@ -8816,7 +9194,7 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 		static ztVec3 totalScale(ztModel *model)
 		{
 			ztVec3 scale = model->transform.scale;
-			if(model->parent) {
+			if (model->parent) {
 				scale *= totalScale(model->parent);
 			}
 
@@ -9458,8 +9836,8 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 				else {
 					bool is_number = false;
 					zt_strToInt(token, 0, &is_number);
-					if (!is_number) {
-						zt_strToIntHex(token, 0, &is_number);
+					if (!is_number && zt_strStartsWith(token, "0x")) {
+						zt_strToIntHex(token + 2, 0, &is_number);
 					}
 					if (is_number) {
 						type = ztShLangTokenType_NumberInteger;
@@ -9814,22 +10192,27 @@ ztShLangTokenType_Enum _zt_shaderLangTokenTypeFromDesc(char *desc, int desc_len 
 ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangToken *tokens, int tokens_count, ztString *error)
 {
 #	define tokens_left	(tokens_count - (token_idx+1))
-#	define make_node(var, token_type, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = nullptr; var->token = tok
-#	define make_node_with_parent(var, token_type, parent_node, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = parent_node; zt_singleLinkAddToEnd(parent_node->first_child, var); var->token = tok
+#	define make_node(var, token_type, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = nullptr; var->cache = nullptr; var->token = tok
+#	define make_node_with_parent(var, token_type, parent_node, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = parent_node; var->cache = nullptr; zt_singleLinkAddToEnd(parent_node->first_child, var); var->token = tok
 
 #	define err_to_string(tok)	 local::tokenToString(tok, file_data, error_buff_1, zt_elementsOf(error_buff_1))
 #	define err_to_string2(tok)	 local::tokenToString(tok, file_data, error_buff_2, zt_elementsOf(error_buff_2))
 #	define error_ueof() _zt_shaderLangErrorMessage(global_node, &tokens[tokens_count - 1], error, file_data, "Unexpected end of file")
 #	define error_ute(tok) _zt_shaderLangErrorMessage(global_node, tok, error, file_data, "Unexpected token encountered")
-#	define read_next_token(var)	if(tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment) { if(tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
+#	define read_next_token(var)	if (tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment) { if (tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
 #	define push_back_token()	token_idx--
-#	define make_string(tok) local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, file_data + tok->token_beg, tok->token_len)
+#	define make_string(tok) local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, file_data + tok->token_beg, tok->token_len)
 #	define make_parent(node_c, node_p)	zt_singleLinkAddToEnd(node_p->first_child, node_c); node_c->parent = node_p;
 
 	struct local
 	{
-		static char *makeString(char *cache, int *cache_used, char *source, int source_len)
+		static char *makeString(char *cache, int *cache_used, int cache_size, char *source, int source_len)
 		{
+			zt_assert(*cache_used + source_len + 1 < cache_size);
+			if(*cache_used + source_len + 1 >= cache_size) {
+				return "out of memory";
+			}
+
 			zt_strCpy(cache + (*cache_used), source_len + 1, source, source_len);
 
 			*cache_used += source_len + 1;
@@ -10399,7 +10782,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 							}
 
 							read_next_token(check_for_question);
-							if(check_for_question->type == ztShLangTokenType_Question) {
+							if (check_for_question->type == ztShLangTokenType_Question) {
 								make_node(inl_cond_node, ztShLangSyntaxNodeType_ConditionTest, ident_next);
 								inl_cond_node->condition.op = check_for_question->type;
 								inl_cond_node->condition.is_inline = true;
@@ -10434,7 +10817,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 						}
 					}
 					else if (ident_next->type == ztShLangTokenType_Question) {
-						if(is_condition) {
+						if (is_condition) {
 							push_back_token();
 						}
 						else {
@@ -10506,8 +10889,8 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	cache->cache_size = tokens_count + 256; // extra to account for the built in functions and types
 	cache->cache_used = 0;
 	cache->cache = zt_mallocStructArray(ztShLangSyntaxNode, cache->cache_size);
-	zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0);
-	cache->string_cache_size = zt_strLen(file_data);
+	//zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0);
+	cache->string_cache_size = zt_strLen(file_data) * 2;
 	cache->string_cache_used = 0;
 	cache->string_cache = zt_mallocStructArray(char, cache->string_cache_size);
 
@@ -10517,7 +10900,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	global_node->parent = nullptr;
 	global_node->token = nullptr;
 	global_node->cache = cache;
-	global_node->scope.name = zt_stringMakeFrom("global");
+	global_node->scope.name = nullptr;//make_string("global");
 
 	ztShLangSyntaxNode *active_scope = global_node;
 
@@ -10710,6 +11093,9 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"textureSize,texture2d,vec2",
 			"atan,float,float",
 			"lerp,float,float,float,float",
+			"lerp,vec2,vec2,float,vec2",
+			"lerp,vec3,vec3,float,vec3",
+			"lerp,vec4,vec4,float,vec4",
 			"clamp,float,float,float,float",
 			"min,float,float,float",
 			"max,float,float,float",
@@ -10855,10 +11241,6 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
 {
-	zt_flink(child, node->first_child) {
-		_zt_shaderLangFreeSyntaxTree(child);
-	}
-
 	if (node->cache) {
 		zt_free(node->cache->cache);
 		zt_free(node->cache->string_cache);
@@ -11052,7 +11434,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			zt_flink(child, global_scope->first_child) {
 				if (child->type == ztShLangSyntaxNodeType_FunctionDecl) {
 					if (zt_strEquals(child->function_decl.name, node->function_call.name)) {
-						if(found) *found = true;
+						if (found) *found = true;
 
 						// check parameters
 						bool params_match = true;
@@ -11338,78 +11720,78 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 						return false;
 					}
 
-					if(child->type == ztShLangSyntaxNodeType_ProgramDecl) {
+					if (child->type == ztShLangSyntaxNodeType_ProgramDecl) {
 						program_found = true;
 
 						int vertex_found = 0;
 						int pixel_found = 0;
 
 						zt_flink(child2, child->first_child) {
-							if(child2->type == ztShLangSyntaxNodeType_FunctionDecl) {
-								if(zt_strEquals(child2->function_decl.returns_name, "vertex_shader")) {
+							if (child2->type == ztShLangSyntaxNodeType_FunctionDecl) {
+								if (zt_strEquals(child2->function_decl.returns_name, "vertex_shader")) {
 									vertex_found += 1;
 
 									bool input_found = false, uniforms_found = false, output_found = false;
 									zt_flink(param, child2->first_child) {
-										if(param->type != ztShLangSyntaxNodeType_VariableDecl) break;
+										if (param->type != ztShLangSyntaxNodeType_VariableDecl) break;
 
-										if(param->variable_decl.qualifier == nullptr) {
+										if (param->variable_decl.qualifier == nullptr) {
 											_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to vertex shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
 											return false;
 										}
-										if(zt_strEquals(param->variable_decl.qualifier, "input")) {
+										if (zt_strEquals(param->variable_decl.qualifier, "input")) {
 											input_found = true;
 										}
-										if(zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
-										if(zt_strEquals(param->variable_decl.qualifier, "output")) {
+										if (zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
+										if (zt_strEquals(param->variable_decl.qualifier, "output")) {
 											output_found = true;
 											ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_scope, param->variable_decl.type_name);
-											if(!struct_output) {
+											if (!struct_output) {
 												_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to vertex shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
 												return false;
 											}
 											bool found_pos = false;
 											zt_flink(member, struct_output->first_child) {
-												if(zt_strEquals(member->variable_decl.qualifier, "position")) found_pos = true;
+												if (zt_strEquals(member->variable_decl.qualifier, "position")) found_pos = true;
 											}
-											if(!found_pos) {
+											if (!found_pos) {
 												*error = zt_stringMakeFrom("Shader vertex output structure must contain a member with a position qualifier");
 												return false;
 											}
 										}
 									}
 
-									if(!input_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an input structure"); return false; }
-									if(!uniforms_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in a uniforms structure"); return false; }
-									if(!output_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an output structure"); return false; }
+									if (!input_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an input structure"); return false; }
+									if (!uniforms_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in a uniforms structure"); return false; }
+									if (!output_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an output structure"); return false; }
 								}
-								else if(zt_strEquals(child2->function_decl.returns_name, "pixel_shader")) {
+								else if (zt_strEquals(child2->function_decl.returns_name, "pixel_shader")) {
 									pixel_found += 1;
 
 									bool input_found = false, uniforms_found = false, output_found = false;
 									zt_flink(param, child2->first_child) {
-										if(param->type != ztShLangSyntaxNodeType_VariableDecl) break;
+										if (param->type != ztShLangSyntaxNodeType_VariableDecl) break;
 
-										if(param->variable_decl.qualifier == nullptr) {
+										if (param->variable_decl.qualifier == nullptr) {
 											_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to pixel shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
 											return false;
 										}
-										if(zt_strEquals(param->variable_decl.qualifier, "input")) {
+										if (zt_strEquals(param->variable_decl.qualifier, "input")) {
 											input_found = true;
 										}
-										if(zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
-										if(zt_strEquals(param->variable_decl.qualifier, "output")) {
+										if (zt_strEquals(param->variable_decl.qualifier, "uniforms")) uniforms_found = true;
+										if (zt_strEquals(param->variable_decl.qualifier, "output")) {
 											output_found = true;
 											ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_scope, param->variable_decl.type_name);
-											if(!struct_output) {
+											if (!struct_output) {
 												_zt_shaderLangErrorMessage(nullptr, param->token, error, file_data, "Invalid parameter to pixel shader function '%s': '%s'", child2->function_decl.name, param->variable_decl.name);
 												return false;
 											}
 											bool found_color = false;
 											zt_flink(member, struct_output->first_child) {
-												if(zt_strEquals(member->variable_decl.qualifier, "color")) found_color = true;
+												if (zt_strEquals(member->variable_decl.qualifier, "color")) found_color = true;
 											}
-											if(!found_color) {
+											if (!found_color) {
 												*error = zt_stringMakeFrom("Shader pixel output structure must contain a member with a color qualifier");
 												return false;
 											}
@@ -11418,14 +11800,14 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 								}
 							}
 						}
-						if(vertex_found == 0) { *error = zt_stringMakeFrom("Shader must contain a vertex function"); return false; }
-						if(vertex_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one vertex function"); return false; }
-						if(pixel_found == 0) { *error = zt_stringMakeFrom("Shader must contain a pixel function"); return false; }
-						if(pixel_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one pixel function"); return false; }
+						if (vertex_found == 0) { *error = zt_stringMakeFrom("Shader must contain a vertex function"); return false; }
+						if (vertex_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one vertex function"); return false; }
+						if (pixel_found == 0) { *error = zt_stringMakeFrom("Shader must contain a pixel function"); return false; }
+						if (pixel_found >= 2) { *error = zt_stringMakeFrom("Shader must contain only one pixel function"); return false; }
 					}
 				}
 
-				if(!program_found) {
+				if (!program_found) {
 					*error = zt_stringMakeFrom("Shader is missing a program");
 					return false;
 				}
@@ -11857,7 +12239,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	//_zt_shaderLangDumpSyntaxTree(syntax_root);
 
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-	if(game_settings->renderer == ztRenderer_OpenGL) {
+	if (game_settings->renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
 		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
 		if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
@@ -11872,7 +12254,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			}
 
 			ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
-			if(gl_shader != nullptr) {
+			if (gl_shader != nullptr) {
 				ztShader* shader = &zt_game->shaders[shader_id];
 				shader->renderer = ztRenderer_OpenGL;
 
@@ -11903,22 +12285,22 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 				}
 			}
 
-			if(gl_shader == nullptr) {
+			if (gl_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile OpenGL shader program");
 
-				if(vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
-				if(geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
-				if(frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
+				if (vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
+				if (geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
+				if (frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
 			}
-			else if(shader_id >= ztShaderDefault_MAX) {
+			else if (shader_id >= ztShaderDefault_MAX) {
 				zt_debugOnly(zt_logVerbose("OpenGL vertex shader:\n%s", vert_src));
 				zt_debugOnly(zt_logVerbose("OpenGL geometry shader:\n%s", geom_src));
 				zt_debugOnly(zt_logVerbose("OpenGL fragment shader:\n%s", frag_src));
 			}
 
-			if(vert_src) zt_stringFree(vert_src);
-			if(geom_src) zt_stringFree(geom_src);
-			if(frag_src) zt_stringFree(frag_src);
+			if (vert_src) zt_stringFree(vert_src);
+			if (geom_src) zt_stringFree(geom_src);
+			if (frag_src) zt_stringFree(frag_src);
 
 #		else
 		error = "OpenGL has been disabled in the library.";
@@ -11926,7 +12308,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 #		endif // ZT_OPENGL
 		}
 	}
-	else if(game_settings->renderer == ztRenderer_DirectX) {
+	else if (game_settings->renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
 		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
 		if (_zt_shaderLangConvertToHLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
@@ -11980,11 +12362,11 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (dx_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile DirectX shader program");
 
-				if(vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
-				if(geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
-				if(frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
+				if (vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
+				if (geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
+				if (frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
 			}
-			else if(shader_id >= ztShaderDefault_MAX)  {
+			else if (shader_id >= ztShaderDefault_MAX)  {
 				zt_debugOnly(zt_logVerbose("OpenGL vertex shader:\n%s", vert_src));
 				zt_debugOnly(zt_logVerbose("OpenGL geometry shader:\n%s", geom_src));
 				zt_debugOnly(zt_logVerbose("OpenGL fragment shader:\n%s", frag_src));
@@ -12004,9 +12386,10 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 	zt_free(shader_tokens);
 
-	if(error) {
+	if (error) {
 		zt_logCritical(error);
 		zt_stringFree(error);
+		return ztInvalidID;
 	}
 
 	if (replace != ztInvalidID && shader_id != ztInvalidID) {
@@ -12134,6 +12517,9 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderMake(ztAssetID)");
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	if(asset_id == ztInvalidID) {
+		return ztInvalidID;
+	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_Shader && asset_mgr->asset_type[asset_id] != ztAssetManagerType_Unknown) {
@@ -12182,7 +12568,10 @@ on_error:
 void zt_shaderFree(ztShaderID shader_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderFree");
-	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
+	if (shader_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
 	ztShader* shader = &zt_game->shaders[shader_id];
 
@@ -12661,6 +13050,9 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	ztBlockProfiler bp_tex("zt_textureMake (from asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	if(asset_id == ztInvalidID) {
+		return ztInvalidID;
+	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, ztInvalidID);
 
 	zt_logDebug("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
@@ -12866,6 +13258,10 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_f
 	zt_fiz(ztTextureCubeMapFiles_MAX) {
 		zt_strPrintf(asset_name, zt_elementsOf(asset_name), asset_format, names[i]);
 		asset_ids[i] = zt_assetLoad(asset_mgr, asset_name);
+
+		if(asset_ids[i] == ztInvalidID) {
+			return ztInvalidID;
+		}
 	}
 
 	return zt_textureMakeCubeMap(asset_mgr, asset_ids);
@@ -12885,6 +13281,9 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 
 	zt_fiz(ztTextureCubeMapFiles_MAX) {
 		ztAssetID asset_id = files[i];
+		if(asset_id == ztInvalidID) {
+			return ztInvalidID;
+		}
 		zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 		if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
 			return ztInvalidID;
@@ -12957,6 +13356,11 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 void zt_textureFree(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureFree");
+	if (texture_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
+
 	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
 		return;
 	}
@@ -13016,11 +13420,11 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 
 // ------------------------------------------------------------------------------------------------
 
-ztPoint2 zt_textureGetSize(ztTextureID texture_id)
+ztVec2i zt_textureGetSize(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureGetSize");
-	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, ztPoint2(0,0));
-	return ztPoint2(zt_game->textures[texture_id].width, zt_game->textures[texture_id].height);
+	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, ztVec2i(0,0));
+	return ztVec2i(zt_game->textures[texture_id].width, zt_game->textures[texture_id].height);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13075,7 +13479,7 @@ ztInline void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 	r32 rem = abval - zt_convertToi32Floor(abval);
 
 	r32 nval = zt_convertToi32Floor(((*val) * ppu)) / ppu;
-	if(offset) *offset = rem / ppu;
+	if (offset) *offset = rem / ppu;
 	*val = nval;
 #endif
 }
@@ -13284,13 +13688,13 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 
 // ------------------------------------------------------------------------------------------------
 
-ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
+ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 {
 	ZT_PROFILE_RENDERING("zt_cameraOrthoWorldToScreen");
-	zt_returnValOnNull(camera, ztPoint2(0,0));
+	zt_returnValOnNull(camera, ztVec2i(0,0));
 
 	if (camera->type != ztCameraType_Orthographic) {
-		return ztPoint2(0,0);
+		return ztVec2i(0,0);
 	}
 
 	r32 ppu = (r32)zt_game->win_game_settings[0].pixels_per_unit;
@@ -13299,7 +13703,7 @@ ztPoint2 zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 	r32 x = (diff.x + ((camera->width / ppu) / 2.f)) * ppu;
 	r32 y = (((camera->height / ppu) / 2) + diff.y) * ppu;
 
-	return ztPoint2(x < 0 ? zt_convertToi32Floor(x) : zt_convertToi32Ceil(x),
+	return ztVec2i(x < 0 ? zt_convertToi32Floor(x) : zt_convertToi32Ceil(x),
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
 }
 
@@ -13614,7 +14018,7 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 	if (input_mouse->middlePressed() || input_keys[ztInputKeys_Control].pressed() || input_mouse->wheel_delta) {
 
-		if(input_keys[ztInputKeys_Shift].pressed()) {
+		if (input_keys[ztInputKeys_Shift].pressed()) {
 			// move the target
 			ztVec3 side = ztVec3(0, 1, 0).cross(controller->camera->direction);
 			ztVec3 top  = ztVec3(1, 0, 0).cross(controller->camera->direction);
@@ -13732,6 +14136,10 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
 	ZT_PROFILE_RENDERING("zt_fontMakeFromTrueTypeAsset");
+	if(asset_id == ztInvalidID) {
+		return ztInvalidID;
+	}
+
 	if (charset == nullptr || charset_size == 0) {
 		charset = zt_fontGetCharsetStandard(&charset_size);
 	}
@@ -13877,7 +14285,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				chars_line = i;
 			}
 		}
-		else if(zt_strStartsWith(line_buff, "kerning ")) {
+		else if (zt_strStartsWith(line_buff, "kerning ")) {
 			kernings += 1;
 		}
 		else {
@@ -14072,20 +14480,20 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				char* start = line_buff + toks[j].beg;
 				int val = local::getIntAfterEquals(start, toks[j].len);
 
-				if(zt_strStartsWith(start, "first=")) {
+				if (zt_strStartsWith(start, "first=")) {
 					first = val;
 				}
-				else if(zt_strStartsWith(start, "second=")) {
+				else if (zt_strStartsWith(start, "second=")) {
 					second = val;
 				}
-				else if(zt_strStartsWith(start, "amount=")) {
+				else if (zt_strStartsWith(start, "amount=")) {
 					amount = val;
 				}
 			}
 
-			if(first != -1 && second != -1 && amount != 0) {
+			if (first != -1 && second != -1 && amount != 0) {
 				zt_fjz(font->glyph_count) {
-					if(font->glyph_code_point[j] == first) {
+					if (font->glyph_code_point[j] == first) {
 						ztFont::Kerning *kerning = &font->kernings[kidx++];
 
 						kerning->next_code = second;
@@ -14162,7 +14570,10 @@ ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_o
 void zt_fontFree(ztFontID font_id)
 {
 	ZT_PROFILE_RENDERING("zt_fontFree");
-	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
+	if (font_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(font_id >= 0 && font_id < zt_game->fonts_count);
 
 	ztFont *font = &zt_game->fonts[font_id];
 
@@ -14405,7 +14816,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	total_width *= scale.x;
 	total_height *= scale.y;
 
-	if(extents) {
+	if (extents) {
 		extents->x = total_width;
 		extents->y = total_height;
 	}
@@ -14700,7 +15111,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 	total_width *= scale.x;
 	total_height *= scale.y;
 
-	if(extents) {
+	if (extents) {
 		extents->x = total_width;
 		extents->y = total_height;
 	}
@@ -14912,7 +15323,7 @@ ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x
 
 // ------------------------------------------------------------------------------------------------
 
-ztSprite zt_spriteMake(ztTextureID tex, ztPoint2 pos, ztPoint2 size, ztPoint2 anchor)
+ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
 {
 	return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
 }
@@ -14926,7 +15337,7 @@ ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int 
 
 // ------------------------------------------------------------------------------------------------
 
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztPoint2 pos, ztPoint2 size, ztPoint2 anchor)
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
 {
 	return zt_spriteMake(tex, pos.x * size.x, pos.y * size.y, size.x, size.y, anchor.x, anchor.y);
 }
@@ -15078,7 +15489,7 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 
 // ------------------------------------------------------------------------------------------------
 
-ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztPoint2 tex_pos, ztPoint2 tex_size, ztPoint2 nw_interior, ztPoint2 se_interior, int offset_l, int offset_t, int offset_r, int offset_b)
+ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l, int offset_t, int offset_r, int offset_b)
 {
 	return zt_spriteNineSliceMake(tex, tex_pos.x, tex_pos.y, tex_size.x, tex_size.y, nw_interior.x, nw_interior.y, se_interior.x, se_interior.y, offset_l, offset_t, offset_r, offset_b);
 }
@@ -15382,6 +15793,9 @@ int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *m
 {
 	ZT_PROFILE_RENDERING("zt_materialLoad");
 	zt_returnValOnNull(asset_mgr, 0);
+	if(asset_id == ztInvalidID) {
+		return 0;
+	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_Material) {
@@ -15803,7 +16217,10 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 void zt_meshFree(ztMeshID mesh_id)
 {
 	ZT_PROFILE_RENDERING("zt_meshFree");
-	zt_assert(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
+	if (mesh_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count);
 
 	ztMesh *mesh = &zt_game->meshes[mesh_id];
 
@@ -16437,6 +16854,11 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 	ZT_PROFILE_RENDERING("zt_meshLoadOBJ(asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
+
+	if(asset_id == ztInvalidID) {
+		return 0;
+	}
+
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_MeshOBJ) {
@@ -16996,14 +17418,14 @@ bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform 
 			switch(geo_two->type)
 			{
 				case ztCollisionGeometryType_OrientedBox: {
-					if(zt_collisionOBBInOBB(curr_tran_one->position + geo_one->obb_center, geo_one->obb_extents, curr_tran_one->rotation, curr_tran_two->position + geo_two->obb_center, geo_two->obb_extents, curr_tran_two->rotation)) {
+					if (zt_collisionOBBInOBB(curr_tran_one->position + geo_one->obb_center, geo_one->obb_extents, curr_tran_one->rotation, curr_tran_two->position + geo_two->obb_center, geo_two->obb_extents, curr_tran_two->rotation)) {
 						ztVec3 contacts[16];
 						int contacts_count = zt_collisionOBBInOBBGetContactPoints(curr_tran_one->position + geo_one->obb_center, geo_one->obb_extents, curr_tran_one->rotation, curr_tran_two->position + geo_two->obb_center, geo_two->obb_extents, curr_tran_two->rotation, contacts, zt_elementsOf(contacts));
 						ztVec3 average(0,0,0);
 						zt_fiz(contacts_count) {
 							average += contacts[i] - curr_tran_one->position;
 						}
-						if(contacts_count) {
+						if (contacts_count) {
 							average *= 1.f / contacts_count;
 						}
 
@@ -17062,7 +17484,7 @@ ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisio
 		result.cg_details[i] = details[i];
 	}
 
-	if(model->calculated_mat == ztMat4::identity) {
+	if (model->calculated_mat == ztMat4::identity) {
 		result.flags |= ztRigidBodyFlags_NeedsMatrixCalc;
 	}
 
@@ -17076,19 +17498,19 @@ ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisio
 void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt)
 {
 	ZT_PROFILE_PHYSICS("zt_rigidBodiesUpdate");
-	if(dt <= 0) return;
+	if (dt <= 0) return;
 
 	zt_fiz(rbs_count) {
 		ztRigidBody *rigid_body = &rbs[i];
 
 		if (rigid_body->inverse_mass != 0) {
 			// apply gravity
-			if(rigid_body->force_gravity != ztVec3::zero) rigid_body->force_accum += rigid_body->force_gravity * (1.f / rigid_body->inverse_mass);
+			if (rigid_body->force_gravity != ztVec3::zero) rigid_body->force_accum += rigid_body->force_gravity * (1.f / rigid_body->inverse_mass);
 
 			rigid_body->prev_acceleration = rigid_body->acceleration;
 			rigid_body->acceleration = (rigid_body->force_accum * rigid_body->inverse_mass);
 
-			if(zt_bitIsSet(rigid_body->flags, ztRigidBodyFlags_NeedsMatrixCalc)) {
+			if (zt_bitIsSet(rigid_body->flags, ztRigidBodyFlags_NeedsMatrixCalc)) {
 				zt_modelCalcMatrix(rigid_body->model);
 				zt_bitRemove(rigid_body->flags, ztRigidBodyFlags_NeedsMatrixCalc);
 			}
@@ -17389,27 +17811,27 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 
 			r32 separating_velocity = relative_velocity.dot(collision->contact_normal);
 
-			if(separating_velocity < max_separating_velocity) {
+			if (separating_velocity < max_separating_velocity) {
 				max_separating_velocity = separating_velocity;
 				max_idx = i;
 			}
 		}
 
-		if(max_idx < 0) {
+		if (max_idx < 0) {
 			break;
 		}
 
 		ztRigidBodyCollision *collision = &collisions[max_idx];
 		r32 separating_velocity = max_separating_velocity;
 
-		if(separating_velocity <= 0) {
+		if (separating_velocity <= 0) {
 			r32 new_separating_velocity = -separating_velocity * collision->restitution;
 
 			ztVec3 accel_caused_velocity = collision->rigid_bodies[0]->acceleration;
-			if(collision->rigid_bodies[1]) accel_caused_velocity -= collision->rigid_bodies[1]->acceleration;
+			if (collision->rigid_bodies[1]) accel_caused_velocity -= collision->rigid_bodies[1]->acceleration;
 			r32 accel_caused_sep_velocity = accel_caused_velocity.dot(collision->contact_normal) * dt;
 
-			if(accel_caused_sep_velocity < 0) {
+			if (accel_caused_sep_velocity < 0) {
 				new_separating_velocity += collision->restitution * accel_caused_sep_velocity;
 				if (new_separating_velocity < 0) {
 					new_separating_velocity = 0;
@@ -17418,19 +17840,19 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 
 			r32 delta_velocity = new_separating_velocity - separating_velocity;
 			r32 total_inverse_mass = collision->rigid_bodies[0]->inverse_mass;
-			if(collision->rigid_bodies[1]) total_inverse_mass += collision->rigid_bodies[1]->inverse_mass;
+			if (collision->rigid_bodies[1]) total_inverse_mass += collision->rigid_bodies[1]->inverse_mass;
 
-			if(total_inverse_mass > 0) {
+			if (total_inverse_mass > 0) {
 				r32 impulse = delta_velocity / total_inverse_mass;
 				ztVec3 impulse_per_invmass = collision->contact_normal * impulse;
 
 				collision->rigid_bodies[0]->velocity += impulse_per_invmass * collision->rigid_bodies[0]->inverse_mass;
-				if(collision->rigid_bodies[1]) collision->rigid_bodies[1]->velocity += impulse_per_invmass * -collision->rigid_bodies[1]->inverse_mass;
+				if (collision->rigid_bodies[1]) collision->rigid_bodies[1]->velocity += impulse_per_invmass * -collision->rigid_bodies[1]->inverse_mass;
 
-				if(collision->penetration != 0) {
+				if (collision->penetration != 0) {
 					//ztVec3 move_per_invmass = collision->contact_normal * (-collision->penetration / total_inverse_mass);
 					//collision->rigid_bodies[0]->model->transform.position += move_per_invmass * collision->rigid_bodies[0]->inverse_mass;
-					//if(collision->rigid_bodies[1]) collision->rigid_bodies[1]->model->transform.position -= (move_per_invmass * -1) * collision->rigid_bodies[1]->inverse_mass;
+					//if (collision->rigid_bodies[1]) collision->rigid_bodies[1]->model->transform.position -= (move_per_invmass * -1) * collision->rigid_bodies[1]->inverse_mass;
 				}
 			}
 		}
@@ -17480,7 +17902,7 @@ int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_coun
 		switch(connector->type)
 		{
 			case ztConnectorType_Cable: {
-				if(length > connector->cable.max_length) {
+				if (length > connector->cable.max_length) {
 					ztRigidBodyCollision *collision = &collisions[collisions_idx++];
 					collision->rigid_bodies[0] = connector->rigid_bodies[0];
 					collision->rigid_bodies[1] = connector->rigid_bodies[1];
@@ -17490,12 +17912,12 @@ int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_coun
 					collision->penetration = length - connector->cable.max_length;
 					collision->restitution = connector->cable.restitution;
 
-					if(collisions_idx >= collisions_size) return collisions_idx;
+					if (collisions_idx >= collisions_size) return collisions_idx;
 				}
 			} break;
 
 			case ztConnectorType_Rod: {
-				if(!zt_real32Eq(length, connector->rod.length)) {
+				if (!zt_real32Eq(length, connector->rod.length)) {
 					ztRigidBodyCollision *collision = &collisions[collisions_idx++];
 					collision->rigid_bodies[0] = connector->rigid_bodies[0];
 					collision->rigid_bodies[1] = connector->rigid_bodies[1];
@@ -17503,7 +17925,7 @@ int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_coun
 					collision->contact_normal = connector->rigid_bodies[1]->model->transform.position - connector->rigid_bodies[1]->model->transform.position;
 					collision->contact_normal.normalize();
 
-					if(length < connector->rod.length) {
+					if (length < connector->rod.length) {
 						collision->contact_normal *= -1;
 						collision->penetration = connector->rod.length - length;
 					}
@@ -17513,7 +17935,7 @@ int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_coun
 
 					collision->restitution = 0;
 
-					if(collisions_idx >= collisions_size) return collisions_idx;
+					if (collisions_idx >= collisions_size) return collisions_idx;
 				}
 			} break;
 		}
@@ -17530,14 +17952,14 @@ int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigid
 	int col_idx = 0;
 	zt_fiz(rigid_bodies_count - 1) {
 		for(int j = i + 1; j < rigid_bodies_count; ++j) {
-			if(zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_bounding, &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_bounding, &rigid_bodies[j].model->transform, nullptr, nullptr)) {
+			if (zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_bounding, &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_bounding, &rigid_bodies[j].model->transform, nullptr, nullptr)) {
 				// bounding volumes are colliding, now check actual collision geometry
 
 				zt_fxz(rigid_bodies[i].cg_details_count) {
 					zt_fyz(rigid_bodies[j].cg_details_count) {
 						r32 penetration = 0;
-						if(zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_details[x], &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_details[y], &rigid_bodies[j].model->transform, nullptr, &penetration)) {
-							if(col_idx < collisions_size) {
+						if (zt_collisionGeometryIntersecting(&rigid_bodies[i].cg_details[x], &rigid_bodies[i].model->transform, nullptr, &rigid_bodies[j].cg_details[y], &rigid_bodies[j].model->transform, nullptr, &penetration)) {
+							if (col_idx < collisions_size) {
 								collisions[col_idx].rigid_bodies[0] = &rigid_bodies[i];
 								collisions[col_idx].rigid_bodies[1] = &rigid_bodies[j];
 								collisions[col_idx].restitution     = .5f;
@@ -17587,7 +18009,7 @@ ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_fo
 	physics->collisions_size    = 2048;
 	physics->collisions         = zt_mallocStructArrayArena(ztRigidBodyCollision, physics->collisions_size, arena);
 
-	if(physics->rigid_bodies == nullptr || physics->forces == nullptr || physics->connectors == nullptr || physics->collisions == nullptr) {
+	if (physics->rigid_bodies == nullptr || physics->forces == nullptr || physics->connectors == nullptr || physics->collisions == nullptr) {
 		zt_physicsFree(physics);
 		return nullptr;
 	}
@@ -17667,9 +18089,9 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 
 #	define zt_checkCollisionsCount \
 		{ \
-			if(collisions_count >= physics->collisions_size) { \
+			if (collisions_count >= physics->collisions_size) { \
 				zt_arrayResizeArenaNoCopy(physics->collisions, ztRigidBodyCollision, physics->collisions_size * 2, physics->arena); \
-				if(physics->collisions == nullptr) { \
+				if (physics->collisions == nullptr) { \
 					zt_logCritical("unable to resize physics collision cache"); \
 					physics->collisions = zt_mallocStructArrayArena(ztRigidBodyCollision, physics->collisions_size, physics->arena); \
 					break; \
@@ -17681,9 +18103,9 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 			} \
 		}
 
-	if(physics->extents_min != ztVec3::min) {
+	if (physics->extents_min != ztVec3::min) {
 		zt_fjz(3) {
-			if(physics->extents_min.values[j] == ztReal32Min) {
+			if (physics->extents_min.values[j] == ztReal32Min) {
 				continue;
 			}
 
@@ -17702,9 +18124,9 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 		}
 	}
 
-	if(physics->extents_max != ztVec3::max) {
+	if (physics->extents_max != ztVec3::max) {
 		zt_fjz(3) {
-			if(physics->extents_max.values[j] == ztReal32Max) {
+			if (physics->extents_max.values[j] == ztReal32Max) {
 				continue;
 			}
 
@@ -17774,17 +18196,17 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 	ztVec3 line_dir = (line_end - line_beg);
 
 	r32 dot = plane_normal.dot(plane_coord);
-	if(plane_normal.dot(line_dir) == 0) {
+	if (plane_normal.dot(line_dir) == 0) {
 		// line is parallel
 		return false;
 	}
 
 	r32 x = (dot - plane_normal.dot(line_beg)) / plane_normal.dot(line_dir);
-	if(x < 0 - ztReal32Epsilon || x > 1 + ztReal32Epsilon) {
+	if (x < 0 - ztReal32Epsilon || x > 1 + ztReal32Epsilon) {
 		return false;
 	}
 
-	if(intersection_point) {
+	if (intersection_point) {
 		*intersection_point = line_beg + (line_dir * ztVec3(x, x, x));
 	}
 	return true;
@@ -17812,15 +18234,15 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 	ztVec3 aabb_max(aabb_center.x + (aabb_extents.x / 2.f), aabb_center.y + (aabb_extents.y / 2.f), aabb_center.z + (aabb_extents.z / 2.f));
 
 	zt_fiz(3) {
-		if(zt_real32Eq(direction.values[i], 0)) {
+		if (zt_real32Eq(direction.values[i], 0)) {
 			// parallel in this axis
-			if(point.values[i] < aabb_min.values[i] || point.values[i] > aabb_max.values[i]) {
+			if (point.values[i] < aabb_min.values[i] || point.values[i] > aabb_max.values[i]) {
 				return false;
 			}
 		}
 		else {
 			r32 t1, t2;
-			if(direction.values[i] >= 0) {
+			if (direction.values[i] >= 0) {
 				t1 = (aabb_min.values[i] - point.values[i]) / direction.values[i];
 				t2 = (aabb_max.values[i] - point.values[i]) / direction.values[i];
 			}
@@ -17829,18 +18251,18 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 				t2 = (aabb_min.values[i] - point.values[i]) / direction.values[i];
 			}
 
-			if(tmin > t2 || t1 > tmax) { return false; }
+			if (tmin > t2 || t1 > tmax) { return false; }
 
 			if (t1 > tmin) tmin = t1;
 			if (t2 < tmax) tmax = t2;
 
-			if(tmin > tmax) {
+			if (tmin > tmax) {
 				return false;
 			}
 		}
 	}
 
-	if(intersection_point) {
+	if (intersection_point) {
 		*intersection_point = point + direction * tmin;
 	}
 
@@ -17862,15 +18284,15 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 	ztVec3 aabb_max(aabb_center.x + (aabb_extents.x / 2.f), aabb_center.y + (aabb_extents.y / 2.f), aabb_center.z + (aabb_extents.z / 2.f));
 
 	zt_fiz(3) {
-		if(zt_real32Eq(direction.values[i], 0)) {
+		if (zt_real32Eq(direction.values[i], 0)) {
 			// parallel in this axis
-			if(line_0.values[i] < aabb_min.values[i] || line_0.values[i] > aabb_max.values[i]) {
+			if (line_0.values[i] < aabb_min.values[i] || line_0.values[i] > aabb_max.values[i]) {
 				return false;
 			}
 		}
 		else {
 			r32 t1, t2;
-			if(direction.values[i] >= 0) {
+			if (direction.values[i] >= 0) {
 				t1 = (aabb_min.values[i] - line_0.values[i]) / direction.values[i];
 				t2 = (aabb_max.values[i] - line_0.values[i]) / direction.values[i];
 			}
@@ -17879,22 +18301,22 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 				t2 = (aabb_min.values[i] - line_0.values[i]) / direction.values[i];
 			}
 
-			if(tmin > t2 || t1 > tmax) { return false; }
+			if (tmin > t2 || t1 > tmax) { return false; }
 
 			if (t1 > tmin) tmin = t1;
 			if (t2 < tmax) tmax = t2;
 
-			if(tmin > tmax) {
+			if (tmin > tmax) {
 				return false;
 			}
 		}
 	}
 
-	if(tmin < 0 || tmin > 1) {
+	if (tmin < 0 || tmin > 1) {
 		return false;
 	}
 
-	if(intersection_points) {
+	if (intersection_points) {
 		intersection_points[0] = line_0 + direction * tmin;
 		intersection_points[1] = line_0 + direction * zt_min(1, tmax);
 	}
@@ -17914,7 +18336,7 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
 
 	zt_fiz(3) {
-		if(aabb_max_1.values[i] < aabb_min_2.values[i] || aabb_min_1.values[i] > aabb_max_2.values[i]) {
+		if (aabb_max_1.values[i] < aabb_min_2.values[i] || aabb_min_1.values[i] > aabb_max_2.values[i]) {
 			return false;
 		}
 	}
@@ -17982,7 +18404,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 		ra = a_ext.values[i];
 		rb = b_ext.values[0] * mat_abs_r[i][0] + b_ext.values[1] * mat_abs_r[i][1] + b_ext.values[2] * mat_abs_r[i][2];
 		sp = zt_abs(t.values[i]);
-		if(sp > ra + rb) return false;
+		if (sp > ra + rb) return false;
 		diffs[axis_idx] = (ra + rb) - sp;
 		spans[axis_idx++] = sp;
 	}
@@ -17992,7 +18414,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 		ra = a_ext.values[0] * mat_abs_r[0][i] + a_ext.values[1] * mat_abs_r[1][i] + a_ext.values[2] * mat_abs_r[2][i];
 		rb = b_ext.values[i];
 		sp = zt_abs(t.values[0] * mat_r[0][i] + t.values[1] *  mat_r[1][i] + t.values[2] * mat_r[2][i]);
-		if(sp > ra + rb) return false;
+		if (sp > ra + rb) return false;
 		diffs[axis_idx] = (ra + rb) - sp;
 		spans[axis_idx++] = sp;
 	}
@@ -18001,7 +18423,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[1] * mat_abs_r[2][0] + a_ext.values[2] * mat_abs_r[1][0];
 	rb = b_ext.values[1] * mat_abs_r[0][2] + b_ext.values[2] * mat_abs_r[0][1];
 	sp = zt_abs(t.values[2] * mat_r[1][0] - t.values[1] * mat_r[2][0]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18009,7 +18431,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[1] * mat_abs_r[2][1] + a_ext.values[2] * mat_abs_r[1][1];
 	rb = b_ext.values[0] * mat_abs_r[0][2] + b_ext.values[2] * mat_abs_r[0][0];
 	sp = zt_abs(t.values[2] * mat_r[1][1] - t.values[1] * mat_r[2][1]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18017,7 +18439,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[1] * mat_abs_r[2][2] + a_ext.values[2] * mat_abs_r[1][2];
 	rb = b_ext.values[0] * mat_abs_r[0][1] + b_ext.values[1] * mat_abs_r[0][0];
 	sp = zt_abs(t.values[2] * mat_r[1][2] - t.values[1] * mat_r[2][2]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18025,7 +18447,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[2][0] + a_ext.values[2] * mat_abs_r[0][0];
 	rb = b_ext.values[1] * mat_abs_r[1][2] + b_ext.values[2] * mat_abs_r[1][1];
 	sp = zt_abs(t.values[0] * mat_r[2][0] - t.values[2] * mat_r[0][0]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18033,7 +18455,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[2][1] + a_ext.values[2] * mat_abs_r[0][1];
 	rb = b_ext.values[0] * mat_abs_r[1][2] + b_ext.values[2] * mat_abs_r[1][0];
 	sp = zt_abs(t.values[0] * mat_r[2][1] - t.values[2] * mat_r[0][1]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18041,7 +18463,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[2][2] + a_ext.values[2] * mat_abs_r[0][2];
 	rb = b_ext.values[0] * mat_abs_r[1][1] + b_ext.values[1] * mat_abs_r[1][0];
 	sp = zt_abs(t.values[0] * mat_r[2][2] - t.values[2] * mat_r[0][2]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18049,7 +18471,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[1][0] + a_ext.values[1] * mat_abs_r[0][0];
 	rb = b_ext.values[1] * mat_abs_r[2][2] + b_ext.values[2] * mat_abs_r[2][1];
 	sp = zt_abs(t.values[1] * mat_r[0][0] - t.values[0] * mat_r[1][0]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18057,7 +18479,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[1][1] + a_ext.values[1] * mat_abs_r[0][1];
 	rb = b_ext.values[0] * mat_abs_r[2][2] + b_ext.values[2] * mat_abs_r[2][0];
 	sp = zt_abs(t.values[1] * mat_r[0][1] - t.values[0] * mat_r[0][1]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18065,7 +18487,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	ra = a_ext.values[0] * mat_abs_r[1][2] + a_ext.values[1] * mat_abs_r[0][2];
 	rb = b_ext.values[0] * mat_abs_r[2][1] + b_ext.values[1] * mat_abs_r[2][0];
 	sp = zt_abs(t.values[1] * mat_r[0][2] - t.values[0] * mat_r[1][2]);
-	if(sp > ra + rb) return false;
+	if (sp > ra + rb) return false;
 	diffs[axis_idx] = (ra + rb) - sp;
 	spans[axis_idx++] = sp;
 
@@ -18090,35 +18512,35 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec
 		obb_center_2 + obb_rot_2.rotatePosition(ztVec3(+obb_extents_2.x / 2.f, -obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
 	};
 
-	ztPoint2 lines[12] = {
-		ztPoint2(0, 1),
-		ztPoint2(1, 2),
-		ztPoint2(2, 3),
-		ztPoint2(3, 0),
+	ztVec2i lines[12] = {
+		ztVec2i(0, 1),
+		ztVec2i(1, 2),
+		ztVec2i(2, 3),
+		ztVec2i(3, 0),
 
-		ztPoint2(4, 5),
-		ztPoint2(5, 6),
-		ztPoint2(6, 7),
-		ztPoint2(7, 4),
+		ztVec2i(4, 5),
+		ztVec2i(5, 6),
+		ztVec2i(6, 7),
+		ztVec2i(7, 4),
 
-		ztPoint2(0, 4),
-		ztPoint2(1, 5),
-		ztPoint2(2, 6),
-		ztPoint2(3, 7),
+		ztVec2i(0, 4),
+		ztVec2i(1, 5),
+		ztVec2i(2, 6),
+		ztVec2i(3, 7),
 	};
 
 	int ct_idx = 0;
 	zt_fize(lines) {
 		ztVec3 line_0 = corners[lines[i].x];
 		ztVec3 line_1 = corners[lines[i].y];
-		if(line_0.distance(obb_center_1) < line_1.distance(obb_center_1)) {
+		if (line_0.distance(obb_center_1) < line_1.distance(obb_center_1)) {
 			zt_swap(line_0, line_1);
 		}
 
 		ztVec3 line_intersects[2];
-		if(zt_collisionLineSegmentInOBB(line_0, line_1, obb_center_1, obb_extents_1, obb_rot_1, line_intersects)) {
+		if (zt_collisionLineSegmentInOBB(line_0, line_1, obb_center_1, obb_extents_1, obb_rot_1, line_intersects)) {
 			zt_fjz(2) {
-				if(ct_idx < contacts_size && (j != 1 || !line_intersects[1].equalsClose(line_1))) {
+				if (ct_idx < contacts_size && (j != 1 || !line_intersects[1].equalsClose(line_1))) {
 					contacts[ct_idx++] = line_intersects[j];
 				}
 				else return ct_idx;
@@ -18135,7 +18557,7 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInOBB");
 	ztQuat to_local = obb_rot.getInverse();
-	if(zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, intersections)) {
+	if (zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, intersections)) {
 		intersections[0] = obb_rot.rotatePosition(intersections[0]) + obb_center;
 		intersections[1] = obb_rot.rotatePosition(intersections[1]) + obb_center;
 		return true;
@@ -18168,13 +18590,13 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack)
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce)
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseBounce");
-	if(1 - value < 1 / 2.75f) {
+	if (1 - value < 1 / 2.75f) {
 		value = 1 - 7.5625f * ((1 - value) * (1-value));
 	}
-	else if(1 - value < 2 / 2.75f) {
+	else if (1 - value < 2 / 2.75f) {
 		value = 1 - (7.5625f * (1 - value - 1.5f / 2.75f) * (1 - value - 1.5f / 2.75f) + 0.75f);
 	}
-	else if(1 - value < 2.5 / 2.75) {
+	else if (1 - value < 2.5 / 2.75) {
 		value = 1 - (7.5625f * (1 - value - 2.25f / 2.75f) * (1 - value - 2.25f / 2.75f) + 0.9375f);
 	}
 	else {
@@ -18205,7 +18627,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic)
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseElastic");
-	if( value == 0 || value == 1 ) return value;
+	if ( value == 0 || value == 1 ) return value;
 	return zt_sin(2.f * ztMathPi2 * value) * zt_pow(2, 2.f * (value - 1));
 }
 
@@ -18214,7 +18636,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo)
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseExpo");
-	if( value == 0 ) return 0;
+	if ( value == 0 ) return 0;
 	return zt_pow(2, 10 * (value - 1));
 }
 
@@ -18501,7 +18923,7 @@ r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
 ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence)
 {
 	ZT_PROFILE_ANIMATION("_zt_animSequenceStart");
-	if(sequence->transition_type == ztAnimTransition_Interp) {
+	if (sequence->transition_type == ztAnimTransition_Interp) {
 		zt_fiz(sequence->layers_count) {
 			_zt_animLayerTransitionInto(&sequence->layers[i], sequence->transition_time);
 		}
@@ -18520,16 +18942,16 @@ ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
 	ZT_PROFILE_ANIMATION("_zt_animSequenceUpdate");
 	int layers_processed = 0;
 	zt_fiz(sequence->layers_count) {
-		if(sequence->layers[i].state == ztAnimLayerState_Sleeping) {
+		if (sequence->layers[i].state == ztAnimLayerState_Sleeping) {
 			continue;
 		}
 
-		if(_zt_animLayerUpdate(&sequence->layers[i], dt)) {
+		if (_zt_animLayerUpdate(&sequence->layers[i], dt)) {
 			layers_processed += 1;
 		}
 	}
 
-	if(layers_processed == 0 && sequence->loops) {
+	if (layers_processed == 0 && sequence->loops) {
 		_zt_animSequenceStart(sequence);
 		return true;
 	}
@@ -18662,7 +19084,7 @@ int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_na
 				break;
 			}
 		}
-		if(idx == -1) {
+		if (idx == -1) {
 			return -1;
 		}
 	}
@@ -18680,8 +19102,8 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 	zt_fiz(controllers_count) {
 		ztAnimController *controller = controllers[i];
 
-		if(controller->anim_sync) {
-			if(!_zt_animSequenceUpdate(controller->anim_sync, dt)) {
+		if (controller->anim_sync) {
+			if (!_zt_animSequenceUpdate(controller->anim_sync, dt)) {
 				if (controller->queued != 0) {
 					i32 queued = controller->queued;
 					controller->queued = 0;
@@ -18694,10 +19116,10 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 		}
 
 		zt_fiz(controller->anim_async_count) {
-			if(controller->anim_async[i] == nullptr) {
+			if (controller->anim_async[i] == nullptr) {
 				continue;
 			}
-			if(!_zt_animSequenceUpdate(controller->anim_async[i], dt)) {
+			if (!_zt_animSequenceUpdate(controller->anim_async[i], dt)) {
 				controller->anim_async[i] = nullptr;
 			}
 		}
@@ -18727,7 +19149,7 @@ ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences)
 void zt_spriteAnimControllerFree(ztSpriteAnimController *controller)
 {
 	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerFree");
-	if(controller == nullptr) {
+	if (controller == nullptr) {
 		return;
 	}
 
@@ -18784,7 +19206,7 @@ void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i3
 	zt_returnOnNull(controller);
 
 	int active = zt_animControllerStartSequence(controller->controller, sequence_name_hash);
-	if(active == -1 ) {
+	if (active == -1 ) {
 		return;
 	}
 
@@ -18801,11 +19223,11 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 	zt_fiz(controllers_count) {
 		zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
 
-		if(controllers[i]->active_sequence >= 0 && controllers[i]->active_sequence < controllers[i]->sequences_count) {
+		if (controllers[i]->active_sequence >= 0 && controllers[i]->active_sequence < controllers[i]->sequences_count) {
 
 			ztSpriteAnimController::Sequence *sequence = &controllers[i]->sequences[controllers[i]->active_sequence];
 
-			if(sequence->current_sprite >= 0 && sequence->current_sprite < sequence->sprites_size) {
+			if (sequence->current_sprite >= 0 && sequence->current_sprite < sequence->sprites_size) {
 				zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
 			}
 		}
@@ -18817,7 +19239,7 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller)
 {
 	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerActiveSprite");
-	if(controller->active_sequence < 0 || controller->active_sequence >= controller->sequences_count) {
+	if (controller->active_sequence < 0 || controller->active_sequence >= controller->sequences_count) {
 		return nullptr;
 	}
 
@@ -18873,7 +19295,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 				emitter->particles[i].transform.position.x += (emitter->settings.gravity_velocity.x * dt) + zt_cos(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
 				emitter->particles[i].transform.position.y += (emitter->settings.gravity_velocity.y * dt) + zt_sin(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
 
-				if(emitter->settings.rotation != 0) {
+				if (emitter->settings.rotation != 0) {
 					emitter->particles[i].transform.rotation *= ztQuat::makeFromEuler(0, 0, emitter->particles[i].rotation * dt);
 				}
 			}
@@ -18930,7 +19352,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 					if (!emitter->settings.burst_emit) {
 						break;
 					}
-					else if(emitter->live_particles == emitter->particles_count) {
+					else if (emitter->live_particles == emitter->particles_count) {
 						first = false;
 						break;
 					}
@@ -19499,6 +19921,9 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	ztBlockProfiler bp_tex("zt_audioClipMake (from asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
+	if(asset_id == ztInvalidID) {
+		return ztInvalidID;
+	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
 	zt_logDebug("loading audio asset: %s", asset_mgr->asset_name[asset_id]);
@@ -19590,7 +20015,7 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipPlayOnce");
-	if(zt_game->audio_muted) {
+	if (zt_game->audio_muted) {
 		return;
 	}
 
@@ -19607,7 +20032,7 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipPlayLooped");
-	if(zt_game->audio_muted) {
+	if (zt_game->audio_muted) {
 		return;
 	}
 
@@ -19653,9 +20078,9 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id)
 void zt_audioSetMute(bool mute)
 {
 	ZT_PROFILE_AUDIO("zt_audioSetMute");
-	if(mute) {
+	if (mute) {
 		zt_fiz(zt_game->audio_clips_count) {
-			if(zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
+			if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
 				zt_audioClipStop(i);
 			}
 		}
@@ -20077,7 +20502,7 @@ int main(int argc, char **argv)
 		game_settings->threaded_frame_jobs      = zt_max(0, ZT_MAX_THREADS - 2);
 		game_settings->threaded_background_jobs = 1;
 
-		if(game_settings->threaded_frame_jobs > 3) {
+		if (game_settings->threaded_frame_jobs > 3) {
 			game_settings->threaded_frame_jobs -= 1;
 			game_settings->threaded_background_jobs += 1;
 		}
@@ -20240,11 +20665,11 @@ int main(int argc, char **argv)
 
 		_zt_threadJobQueueFree();
 
-#	if defined(ZT_DSOUND)
-		if(zt_game->ds_context != nullptr) {
+#		if defined(ZT_DSOUND)
+		if (zt_game->ds_context != nullptr) {
 			ztds_contextFree(zt_game->ds_context);
 		}
-#	endif
+	#	endif
 
 		zt_fiz(zt_game->shaders_count) {
 			zt_game->shaders[i].asset_mgr = nullptr;
@@ -20258,6 +20683,8 @@ int main(int argc, char **argv)
 
 		_zt_winControllerInputCleanup();
 		_zt_winCleanupWindow(&zt_game->win_details[0], &zt_game->win_game_settings[0]);
+
+		_zt_debuggingCleanup();
 
 		zt_memDumpArena(zt_memGetGlobalArena(), "main memory");
 		zt_memFreeArena(zt_memGetGlobalArena());
@@ -30908,10 +31335,10 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 			int g = stbtt_FindGlyphIndex(&f, code_point);
 
 			zt_fjz(charset_size) {
-				if(j == i) continue;
+				if (j == i) continue;
 				i32 code_point_2 = zt_strCodepoint(charset, j);
 				int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
-				if(adv) {
+				if (adv) {
 					kernings += 1;
 				}
 			}
@@ -30920,7 +31347,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 
 	font->kernings_count = kernings;
 	font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
-	if(kernings) {
+	if (kernings) {
 		int kidx = 0;
 		zt_fiz(charset_size) {
 			if (font_info_kerning[i]) {
@@ -30928,10 +31355,10 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 				int g = stbtt_FindGlyphIndex(&f, code_point);
 
 				zt_fjz(charset_size) {
-					if(j == i) continue;
+					if (j == i) continue;
 					i32 code_point_2 = zt_strCodepoint(charset, j);
 					int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
-					if(adv) {
+					if (adv) {
 						ztFont::Kerning *kerning = &font->kernings[kidx++];
 						kerning->next_code = code_point_2;
 						kerning->spacing = (r32)adv / zt_game->win_game_settings[0].pixels_per_unit;

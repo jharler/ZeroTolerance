@@ -500,6 +500,7 @@ ztGuiItem *zt_guiMakeComboBox          (ztGuiItem *parent, i32 max_items);
 ztGuiItem *zt_guiMakeSpriteDisplay     (ztGuiItem *parent, ztGuiThemeSprite *sprite);
 ztGuiItem *zt_guiMakeSpinner           (ztGuiItem *parent, int *live_value = nullptr);
 ztGuiItem *zt_guiMakeSizer             (ztGuiItem *parent, ztGuiItemOrient_Enum orient);
+ztGuiItem *zt_guiMakeColumnSizer       (ztGuiItem *parent, int columns);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -705,6 +706,8 @@ void   zt_guiSizerRecalcImmediately (ztGuiItem *sizer);
 
 ztVec2 zt_guiSizerGetMinSize        (ztGuiItem *sizer);
 
+void   zt_guiColumnSizerSetProp     (ztGuiItem *sizer, int col, int prop);
+
 // ------------------------------------------------------------------------------------------------
 
 void zt_guiInitDebug(ztGuiManager *gui_manager);
@@ -794,6 +797,18 @@ void zt_dllGuiUnload();
 #include "zt_game.h"
 
 // GUI implementation
+
+enum ztGuiSizerType_Enum
+{
+	ztGuiSizerType_Normal,
+	ztGuiSizerType_Column,
+};
+
+#ifndef ZT_GUI_SIZER_MAX_COLUMNS
+#define ZT_GUI_SIZER_MAX_COLUMNS	16
+#endif
+
+// ------------------------------------------------------------------------------------------------
 
 struct ztGuiItem
 {
@@ -995,12 +1010,23 @@ struct ztGuiItem
 		// -------------------------------------------------
 
 		struct {
-			ztGuiItemOrient_Enum orient;
+			ztGuiSizerType_Enum      type;
 
-			ztSizerItemEntry    *items;
-			r32                  size[2];
-			bool                 size_to_parent;
-			bool                 size_parent_x, size_parent_y;
+			ztSizerItemEntry        *items;
+			r32                      size[2];
+			bool                     size_to_parent;
+			bool                     size_parent_x, size_parent_y;
+
+			union {
+				// ztGuiSizerType_Normal
+				ztGuiItemOrient_Enum orient;
+
+				// ztGuiSizerType_Column
+				struct {
+					int              columns;
+					i8               props[ZT_GUI_SIZER_MAX_COLUMNS];
+				};
+			};
 		} sizer;
 
 		// -------------------------------------------------
@@ -2014,6 +2040,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
 			}
 			else {
+				zt_drawListPushTexture(draw_list, 0);
+				zt_drawListPushColor(draw_list, local::face(false, false));
+				zt_drawListAddFilledRect2D(draw_list, pos, item->size, ztVec2::zero, ztVec2::one);
+				zt_drawListPopColor(draw_list);
+				zt_drawListPopTexture(draw_list);
 				zt_drawListPushColor(draw_list, local::outline(false, false));
 				zt_drawListAddLine(draw_list, ztVec3(pos, 0) - ztVec3(item->size.x / 2, item->size.y / 2, 0), ztVec3(pos, 0) + ztVec3(item->size.x / 2, item->size.y / -2, 0));
 				zt_drawListPopColor(draw_list);
@@ -7507,26 +7538,56 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 {
 	ZT_PROFILE_GUI("_zt_guiSizerMinSize");
 
-	bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
-
 	ztVec2 min_size = ztVec2::zero;
-	ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
-	while (entry) {
-		ztVec2 size = entry->item->size;
-		if (entry->item->type == ztGuiItemType_Sizer) {
-			size = _zt_guiSizerMinSize(entry->item);
-		}
 
-		if (horz) {
-			min_size.x += size.x + entry->padding * 2;
-			min_size.y = zt_max(min_size.y, size.y + entry->padding * 2);
-		}
-		else {
-			min_size.x = zt_max(min_size.x, size.x + entry->padding * 2);
-			min_size.y += size.y + entry->padding * 2;
-		}
+	if (item->sizer.type == ztGuiSizerType_Normal) {
+		bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
 
-		entry = entry->next;
+		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+		while (entry) {
+			ztVec2 size = entry->item->size;
+			if (entry->item->type == ztGuiItemType_Sizer) {
+				size = _zt_guiSizerMinSize(entry->item);
+			}
+
+			if (horz) {
+				min_size.x += size.x + entry->padding * 2;
+				min_size.y = zt_max(min_size.y, size.y + entry->padding * 2);
+			}
+			else {
+				min_size.x = zt_max(min_size.x, size.x + entry->padding * 2);
+				min_size.y += size.y + entry->padding * 2;
+			}
+
+			entry = entry->next;
+		}
+	}
+	else if (item->sizer.type == ztGuiSizerType_Column) {
+		zt_linkGetCount(items_count, item->sizer.items);
+
+		int items_per_column = zt_convertToi32Ceil(items_count / (r32)item->sizer.columns);
+
+		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+
+		zt_fxz(item->sizer.columns) {
+			ztVec2 column_min = ztVec2::zero;
+
+			int items_this_col = 0;
+			while (entry && items_this_col++ < items_per_column) {
+				ztVec2 size = entry->item->size;
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					size = _zt_guiSizerMinSize(entry->item);
+				}
+
+				column_min.x  = zt_max(column_min.x, size.x + entry->padding * 2);
+				column_min.y += size.y + entry->padding * 2;
+
+				entry = entry->next;
+			}
+
+			min_size.x += column_min.x;
+			min_size.y = zt_max(min_size.y, column_min.y);
+		}
 	}
 
 	min_size.x = zt_max(0.01f, min_size.x);
@@ -7591,90 +7652,164 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE
 		item->sizer.size[1] = item->size.y;
 	}
 
-	bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
+	if (item->sizer.type == ztGuiSizerType_Normal) {
+		bool horz = item->sizer.orient == ztGuiItemOrient_Horz;
 
-	r32 room_orient = horz ? item->sizer.size[0] : item->sizer.size[1];
-	r32 total_prop = 0;
+		r32 room_orient = horz ? item->sizer.size[0] : item->sizer.size[1];
+		r32 total_prop = 0;
 
-	int entry_count = 0;
-	ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
-	while (entry) {
-		entry_count += 1;
-		if (entry->proportion == 0) {
-			// takes up only as much space as the item inside it
-			int padding_mult = 2;
+		int entry_count = 0;
+		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+		while (entry) {
+			entry_count += 1;
+			if (entry->proportion == 0) {
+				// takes up only as much space as the item inside it
+				int padding_mult = 2;
 
-			if (entry->item->type == ztGuiItemType_Sizer) {
-				ztVec2 min_size = _zt_guiSizerMinSize(entry->item);
-				r32 space_needed = (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
-				room_orient -= (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					ztVec2 min_size = _zt_guiSizerMinSize(entry->item);
+					r32 space_needed = (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+					room_orient -= (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+				}
+				else {
+					r32 space_needed = (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
+					room_orient -= (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
+				}
+			}
+
+			total_prop += entry->proportion;
+			entry = entry->next;
+		}
+
+		r32 entry_pos_orient = horz ? item->sizer.size[0] / -2.f : item->sizer.size[1] / 2.f;
+		r32 entry_opp_orient = horz ? item->sizer.size[1] / 2.f : item->sizer.size[0] / -2.f;
+
+		entry = item->sizer.items;
+		while (entry) {
+			r32 entry_size_orient = 0;
+
+			ztVec2 item_size = (entry->item->type == ztGuiItemType_Sizer ? _zt_guiSizerMinSize(entry->item) : entry->item->size);
+
+			if (entry->proportion != 0) {
+				entry_size_orient = (entry->proportion / total_prop) * room_orient;
 			}
 			else {
-				r32 space_needed = (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
-				room_orient -= (horz ? entry->item->size.x : entry->item->size.y) + entry->padding * padding_mult;
+				entry_size_orient = (horz ? (item_size.x + entry->padding * 2) : (item_size.y + entry->padding * 2));
 			}
-		}
+			ztVec2 entry_size = ztVec2(horz ? entry_size_orient : item->sizer.size[0], horz ? item->sizer.size[1] : entry_size_orient);
 
-		total_prop += entry->proportion;
-		entry = entry->next;
+			if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
+				item_size.x = entry_size.x - entry->padding * 2;
+			}
+			if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Vert)) {
+				item_size.y = entry_size.y - entry->padding * 2;
+			}
+
+			item_size.x = zt_min(item_size.x, entry_size.x - entry->padding * 2);
+			item_size.y = zt_min(item_size.y, entry_size.y - entry->padding * 2);
+
+			entry->item->size = item_size;
+
+			ztVec2 entry_pos = ztVec2(horz ? entry_pos_orient + (entry->padding + item_size.x / 2) : entry_opp_orient + (entry->padding + item_size.x / 2),
+				horz ? entry_opp_orient - (entry->padding + item_size.y / 2) : entry_pos_orient - (entry->padding + item_size.y / 2));
+
+			if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
+				// default
+			}
+			else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
+				entry_pos.x += entry_size.x - (item_size.x + entry->padding * 2);
+			}
+			else {
+				entry_pos.x += (entry_size.x - (item_size.x + entry->padding * 2)) / 2;
+			}
+
+			if (zt_bitIsSet(entry->align_flags, ztAlign_Top)) {
+				// default
+			}
+			else if (zt_bitIsSet(entry->align_flags, ztAlign_Bottom)) {
+				entry_pos.y -= entry_size.y - (item_size.y + entry->padding * 2);
+			}
+			else {
+				entry_pos.y -= (entry_size.y - (item_size.y + entry->padding * 2)) / 2;
+			}
+
+			entry->item->pos = entry_pos;
+
+			entry_pos_orient += horz ? (entry_size.x - entry->padding * 0) : -(entry_size.y - entry->padding * 0);
+			entry = entry->next;
+		}
 	}
+	else if (item->sizer.type == ztGuiSizerType_Column) {
+		zt_linkGetCount(items_count, item->sizer.items);
 
-	r32 entry_pos_orient = horz ? item->sizer.size[0] / -2.f : item->sizer.size[1] / 2.f;
-	r32 entry_opp_orient = horz ? item->sizer.size[1] / 2.f : item->sizer.size[0] / -2.f;
+		int items_per_column = zt_convertToi32Ceil(items_count / (r32)item->sizer.columns);
 
-	entry = item->sizer.items;
-	while (entry) {
-		r32 entry_size_orient = 0;
+		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
 
-		ztVec2 item_size = (entry->item->type == ztGuiItemType_Sizer ? _zt_guiSizerMinSize(entry->item) : entry->item->size);
+		ztVec2 column_sizes[ZT_GUI_SIZER_MAX_COLUMNS];
+		r32 item_size = 0;
 
-		if (entry->proportion != 0) {
-			entry_size_orient = (entry->proportion / total_prop) * room_orient;
-		}
-		else {
-			entry_size_orient = (horz ? (item_size.x + entry->padding * 2) : (item_size.y + entry->padding * 2));
-		}
-		ztVec2 entry_size = ztVec2(horz ? entry_size_orient : item->sizer.size[0], horz ? item->sizer.size[1] : entry_size_orient);
+		int total_prop = 0;
+		zt_fxz(item->sizer.columns) {
+			column_sizes[x] = ztVec2::zero;
+			total_prop += item->sizer.props[x];
 
-		if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
-			item_size.x = entry_size.x - entry->padding * 2;
-		}
-		if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Vert)) {
-			item_size.y = entry_size.y - entry->padding * 2;
-		}
+			int items_this_col = 0;
+			while (entry && items_this_col++ < items_per_column) {
+				ztVec2 size = entry->item->size;
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					size = entry->item->size = _zt_guiSizerMinSize(entry->item);
+				}
 
-		item_size.x = zt_min(item_size.x, entry_size.x - entry->padding * 2);
-		item_size.y = zt_min(item_size.y, entry_size.y - entry->padding * 2);
+				column_sizes[x].x = zt_max(column_sizes[x].x, size.x + entry->padding * 2);
+				column_sizes[x].y += size.y + entry->padding * 2;
 
-		entry->item->size = item_size;
+				entry = entry->next;
+			}
 
-		ztVec2 entry_pos = ztVec2(horz ? entry_pos_orient + (entry->padding + item_size.x / 2) : entry_opp_orient + (entry->padding + item_size.x / 2),
-			horz ? entry_opp_orient - (entry->padding + item_size.y / 2) : entry_pos_orient - (entry->padding + item_size.y / 2));
-
-		if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
-			// default
-		}
-		else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
-			entry_pos.x += entry_size.x - (item_size.x + entry->padding * 2);
-		}
-		else {
-			entry_pos.x += (entry_size.x - (item_size.x + entry->padding * 2)) / 2;
+			item_size += column_sizes[x].x;
 		}
 
-		if (zt_bitIsSet(entry->align_flags, ztAlign_Top)) {
-			// default
-		}
-		else if (zt_bitIsSet(entry->align_flags, ztAlign_Bottom)) {
-			entry_pos.y -= entry_size.y - (item_size.y + entry->padding * 2);
-		}
-		else {
-			entry_pos.y -= (entry_size.y - (item_size.y + entry->padding * 2)) / 2;
+		// column sizes are now at the minimum, so now distribute the extra size according to proportions
+		r32 extra = item->size.x - item_size;
+		zt_fxz(item->sizer.columns) {
+			column_sizes[x].x += extra * (item->sizer.props[x] / (r32)total_prop);
 		}
 
-		entry->item->pos = entry_pos;
+		// position each item
+		r32 col_x = item->size.x / -2;
 
-		entry_pos_orient += horz ? (entry_size.x - entry->padding * 0) : -(entry_size.y - entry->padding * 0);
-		entry = entry->next;
+		entry = item->sizer.items;
+		zt_fxz(item->sizer.columns) {
+			int items_this_col = 0;
+			r32 item_y = item->size.y / 2;
+			while (entry && items_this_col++ < items_per_column) {
+				ztVec2 size = entry->item->size;
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					size = _zt_guiSizerMinSize(entry->item);
+				}
+
+				if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
+					entry->item->size.x = column_sizes[x].x - entry->padding * 2;
+				}
+
+				if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
+					entry->item->pos.x = col_x + entry->padding;
+				}
+				else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
+					entry->item->pos.x = (col_x + column_sizes[x].x) - (entry->item->size.x + entry->padding);
+				}
+				else {
+					entry->item->pos.x = (col_x + (column_sizes[x].x / 2));
+				}
+				entry->item->pos.y = (item_y - entry->padding) - (entry->item->size.y / 2);
+				item_y -= entry->item->size.y + entry->padding;
+
+				entry = entry->next;
+			}
+
+			col_x += column_sizes[x].x;
+		}
 	}
 }
 
@@ -7713,17 +7848,36 @@ ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient)
 	zt_returnValOnNull(item, nullptr);
 
 	item->sizer.orient = orient;
+	item->sizer.type = ztGuiSizerType_Normal;
 	item->sizer.size[0] = item->sizer.size[1] = 0;
 	item->sizer.size_to_parent = true;
 	item->sizer.size_parent_x = item->sizer.size_parent_y = false;
 	item->sizer.items = nullptr;
 
-	item->functions.cleanup   = _zt_guiSizerCleanup_FunctionID;
-	item->functions.update    = _zt_sizerUpdate_FunctionID;
+	item->functions.cleanup = _zt_guiSizerCleanup_FunctionID;
+	item->functions.update = _zt_sizerUpdate_FunctionID;
 	item->functions.best_size = _zt_guiSizerBestSize_FunctionID;
 	item->functions.user_data = nullptr;
 
 	return item;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem *zt_guiMakeColumnSizer(ztGuiItem *parent, int columns)
+{
+	ZT_PROFILE_GUI("zt_guiMakeColumnSizer");
+
+	ztGuiItem *sizer = zt_guiMakeSizer(parent, ztGuiItemOrient_Horz);
+	if (sizer) {
+		sizer->sizer.type = ztGuiSizerType_Column;
+		sizer->sizer.columns = columns;
+		zt_fiz(columns) {
+			sizer->sizer.props[i] = 1;
+		}
+	}
+
+	return sizer;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -7853,6 +8007,19 @@ ztVec2 zt_guiSizerGetMinSize(ztGuiItem *sizer)
 	}
 
 	return ztVec2::zero;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiColumnSizerSetProp(ztGuiItem *sizer, int col, int prop)
+{
+	ZT_PROFILE_GUI("zt_guiColumnSizerSetProp");
+
+	zt_returnOnNull(sizer);
+	zt_assertReturnOnFail(sizer->type == ztGuiItemType_Sizer && sizer->sizer.type == ztGuiSizerType_Column);
+	zt_assertReturnOnFail(col >= 0 && col < sizer->sizer.columns);
+
+	sizer->sizer.props[col] = prop;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9390,7 +9557,7 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 
 	ztGuiThemeSprite sprite;
 	sprite.type = ztGuiThemeSpriteType_Sprite;
-	sprite.s = zt_spriteMake(tex_id, ztPoint2(0, 0), ztPoint2(zt_game->textures[tex_id].width, zt_game->textures[tex_id].height));
+	sprite.s = zt_spriteMake(tex_id, ztVec2i(0, 0), ztVec2i(zt_game->textures[tex_id].width, zt_game->textures[tex_id].height));
 
 	ztGuiItem *display = zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_DISPLAY_NAME, zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_NAME));
 
@@ -9553,7 +9720,76 @@ ztInternal void _zt_guiDebugProfiler()
 	profiler->functions.input_mouse = _zt_guiDebugProfilerDisplayInputMouse_FunctionID;
 	profiler->functions.cleanup = _zt_guiDebugProfilerDisplayCleanup_FunctionID;
 }
+
 // ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugVariables()
+{
+	const char *window_name = "Variables";
+
+	// we want a new variable window each time, as variables can be added
+
+	ztGuiItem *window = zt_guiMakeWindow("Variables", ztGuiWindowBehaviorFlags_Default);
+	zt_guiItemSetName(window, window_name);
+
+	ztVec2 avg_size(4, .5f);
+
+	r32 ttl_avg_height = zt_game->debug_vars_count * avg_size.y;
+
+	ztVec2 extents = zt_cameraOrthoGetViewportSize(window->gm->gui_camera);
+
+	int cols_needed = zt_max(1, zt_convertToi32Ceil(ttl_avg_height / (extents.y - 2)));
+	ztVec2 needed_size = ztVec2::zero;
+	while (true) {
+		needed_size = ztVec2(avg_size.x * cols_needed, ttl_avg_height / cols_needed);
+		if (needed_size.y > needed_size.x) {
+			cols_needed += 1;
+		}
+		else break;
+	}
+
+
+	zt_guiItemSetSize(window, needed_size + ztVec2(0, .5f));
+
+	ztGuiItem *sizer = zt_guiMakeColumnSizer(zt_guiWindowGetContentParent(window), cols_needed);
+	zt_fiz(cols_needed) {
+		zt_guiColumnSizerSetProp(sizer, i, 1);
+	}
+
+	zt_guiSizerSizeToParent(sizer);
+
+	zt_fiz(zt_game->debug_vars_count) {
+		ztGuiItem *item_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+
+		zt_guiSizerAddStretcher(item_sizer, 0, 7 / zt_pixelsPerUnit());
+
+		ztGuiItem *label = zt_guiMakeStaticText(item_sizer, zt_game->debug_vars[i].name);
+		label->size.y = avg_size.y - ((3 / zt_pixelsPerUnit()) * 2);
+
+		ztGuiItem *editor = nullptr;
+
+		switch (zt_game->debug_vars[i].variable.type)
+		{
+			case ztVariant_bool: editor = zt_guiMakeCheckbox(item_sizer, " ", 0, &zt_game->debug_vars[i].variable.v_bool); break;
+		}
+
+		zt_guiSizerAddItem(item_sizer, label, 0, 0);
+		zt_guiSizerAddStretcher(item_sizer, 1);
+
+		if (editor) {
+			zt_guiSizerAddItem(item_sizer, editor, 0, 0);
+		}
+
+		zt_guiSizerAddStretcher(item_sizer, 0, 7 / zt_pixelsPerUnit());
+
+
+		zt_guiSizerAddItem(sizer, item_sizer, 1, 3 / zt_pixelsPerUnit());
+	}
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -9568,6 +9804,8 @@ enum
 	ztGuiDebugMenu_GuiHierarchy,
 	ztGuiDebugMenu_TextureViewer,
 	ztGuiDebugMenu_Profiler,
+
+	ztGuiDebugMenu_Variables,
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -9599,6 +9837,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_
 		case ztGuiDebugMenu_Profiler: {
 			_zt_guiDebugProfiler();
 		} break;
+
+		case ztGuiDebugMenu_Variables: {
+			_zt_guiDebugVariables();
+		} break;
 	};
 }
 
@@ -9608,6 +9850,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 {
 	ztGuiItem *menubar = zt_guiMakeMenuBar(nullptr);
 	zt_guiItemSetName(menubar, ZT_DEBUG_MENUBAR_NAME);
+	zt_guiMenuSetCallback(menubar, _zt_guiInitDebugOnMenuItem_FunctionID);
 
 	{
 		ztGuiItem *menu_options = zt_guiMakeMenu();
@@ -9624,6 +9867,9 @@ void zt_guiInitDebug(ztGuiManager *gm)
 		zt_guiMenuAppend(menu_tools, "Profiler", ztGuiDebugMenu_Profiler);
 		zt_guiMenuAppendSubmenu(menubar, "Tools", menu_tools);
 		zt_guiMenuSetCallback(menu_tools, _zt_guiInitDebugOnMenuItem_FunctionID);
+	}
+	{
+		zt_guiMenuAppend(menubar, "Variables", ztGuiDebugMenu_Variables);
 	}
 
 	zt_guiItemSetPosition(menubar, ztAlign_Top, ztAnchor_Top);
