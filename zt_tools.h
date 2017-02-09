@@ -1721,6 +1721,7 @@ bool zt_serialWrite(ztSerial *serial, r64 value);
 bool zt_serialWrite(ztSerial *serial, bool value);
 bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len);
 bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len);
+bool zt_serialWrite(ztSerial *serial, ztVariant *variant);
 
 bool zt_serialRead(ztSerial *serial, i8 *value);
 bool zt_serialRead(ztSerial *serial, i16 *value);
@@ -1735,6 +1736,7 @@ bool zt_serialRead(ztSerial *serial, r64 *value);
 bool zt_serialRead(ztSerial *serial, bool *value);
 bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len);
 bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len);
+bool zt_serialRead(ztSerial *serial, ztVariant *variant);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -3682,6 +3684,18 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 	if (from == nullptr) {
 #if defined(ZT_COMPILER_MSVC)
 		arena = (ztMemoryArena*)VirtualAlloc((VOID*)zt_gigabytes(1), total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		if(arena == nullptr) {
+			zt_strMakePrintf(error, 1024, "VirtualAlloc failed with code: %d\n", GetLastError());
+			OutputDebugStringA(error);
+
+			arena = (ztMemoryArena*)VirtualAlloc((VOID*)0, total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (arena == nullptr) {
+				zt_strMakePrintf(error, 1024, "VirtualAlloc failed again with code: %d\n", GetLastError());
+				OutputDebugStringA(error);
+
+				arena = (ztMemoryArena*)(total_size + sizeof(ztMemoryArena));
+			}
+		}
 #else
 		arena = malloc(total_size + sizeof(ztMemoryArena));
 #endif
@@ -3701,7 +3715,7 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 		arena->owner = from;
 		arena->freed_allocs = 0;
 
-		zt_debugOnly(zt_memSet(arena->memory, total_size, 0));
+		zt_memSet(arena->memory, total_size, 0);
 	}
 	return arena;
 }
@@ -4081,7 +4095,10 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
-	zt_returnOnNull(arena);
+	if(arena == nullptr) {
+		zt_logMessage(log_level, "memory: no arena was allocated");
+		return;
+	}
 
 	char avail[32] = { 0 };
 	zt_strBytesToString(avail, zt_sizeof(avail), arena->total_size);
@@ -4173,7 +4190,9 @@ void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 		return zt_memAllocFromArena(arena, size, file, file_line);
 	}
 	else {
-		return zt->mem_malloc(size);
+		void *mem = zt->mem_malloc(size);
+		zt_memSet(mem, size, 0);
+		return mem;
 	}
 }
 
@@ -7748,13 +7767,13 @@ ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size
 {
 	if (serial->file_data) {
 		if (serial->file_data_size < data_size)
-			return false;
+			return 0;
 
 		zt_memCpy(data, data_size, serial->file_data, data_size);
 
 		serial->file_data = ((byte*)serial->file_data) + data_size;
 		serial->file_data_size -= data_size;
-		return true;
+		return data_size;
 	}
 	else {
 		return zt_fileRead(&serial->file, data, data_size);
@@ -7788,13 +7807,22 @@ ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum e
 	}
 
 	if (serial->file_data != nullptr) {
-		if (serial->file_data_size < data_size)
+
+		if(_zt_readData(serial, data, data_size) != data_size) {
 			return false;
+		}
 
-		zt_memCpy(data, data_size, serial->file_data, data_size);
+		byte data_end = ztSerialEntryType_Unknown;
+		if(_zt_readData(serial, &data_end, 1) != 1) {
+			return false;
+		}
 
-		serial->file_data = ((byte*)serial->file_data) + data_size;
-		serial->file_data_size -= data_size;
+		byte next_entry = 0;
+		if(_zt_readData(serial, &next_entry, 1) != 1) {
+			return false;
+		}
+
+		serial->next_entry = next_entry;
 	}
 	else {
 		i32 bytes_read = zt_fileRead(&serial->file, data, data_size);
@@ -8135,6 +8163,39 @@ bool zt_serialWrite(ztSerial *serial, bool value) { i8 v = (value ? 1 : 0);  ret
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
+{
+	if (!zt_serialWrite(serial, (i32)variant->type)) {
+		return false;
+	}
+	
+	switch (variant->type)
+	{
+		case ztVariant_i8    : if(!zt_serialWrite(serial, variant->v_i8 )) { return false; } break;
+		case ztVariant_i16   : if(!zt_serialWrite(serial, variant->v_i16)) { return false; } break;
+		case ztVariant_i32   : if(!zt_serialWrite(serial, variant->v_i32)) { return false; } break;
+		case ztVariant_i64   : if(!zt_serialWrite(serial, variant->v_i64)) { return false; } break;
+		case ztVariant_u8    : if(!zt_serialWrite(serial, variant->v_u8 )) { return false; } break;
+		case ztVariant_u16   : if(!zt_serialWrite(serial, variant->v_u16)) { return false; } break;
+		case ztVariant_u32   : if(!zt_serialWrite(serial, variant->v_u32)) { return false; } break;
+		case ztVariant_u64   : if(!zt_serialWrite(serial, variant->v_u64)) { return false; } break;
+		case ztVariant_r32   : if(!zt_serialWrite(serial, variant->v_r32)) { return false; } break;
+		case ztVariant_r64   : if(!zt_serialWrite(serial, variant->v_r64)) { return false; } break;
+		case ztVariant_voidp : zt_assert(false); break;
+		case ztVariant_vec2  : zt_fize(variant->v_vec2) if(!zt_serialWrite(serial, variant->v_vec2[i])) { return false; } break;
+		case ztVariant_vec3  : zt_fize(variant->v_vec3) if(!zt_serialWrite(serial, variant->v_vec3[i])) { return false; } break;
+		case ztVariant_vec4  : zt_fize(variant->v_vec4) if(!zt_serialWrite(serial, variant->v_vec4[i])) { return false; } break;
+		case ztVariant_mat4  : zt_fize(variant->v_mat4) if(!zt_serialWrite(serial, variant->v_mat4[i])) { return false; } break;
+		case ztVariant_quat  : zt_fize(variant->v_quat) if(!zt_serialWrite(serial, variant->v_quat[i])) { return false; } break;
+		case ztVariant_bool  : if(!zt_serialWrite(serial, variant->v_bool)) { return false; } break;
+		default: zt_assert(false);
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 {
 	if (!_zt_writeByte(serial, ztSerialEntryType_String))
@@ -8193,6 +8254,41 @@ bool zt_serialRead(ztSerial *serial, u64 *value) { return _zt_readData(serial, z
 bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, zt_sizeof(ival))) { *value = ival == 1; return true; } return false; }
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_serialRead(ztSerial *serial, ztVariant *variant)
+{
+	i32 type = 0;
+	if (!zt_serialRead(serial, &type)) {
+		return false;
+	}
+	variant->type = (ztVariant_Enum)type;
+
+	switch (variant->type)
+	{
+		case ztVariant_i8    : if (!zt_serialRead(serial, &variant->v_i8  )) { return false; } break;
+		case ztVariant_i16   : if (!zt_serialRead(serial, &variant->v_i16 )) { return false; } break;
+		case ztVariant_i32   : if (!zt_serialRead(serial, &variant->v_i32 )) { return false; } break;
+		case ztVariant_i64   : if (!zt_serialRead(serial, &variant->v_i64 )) { return false; } break;
+		case ztVariant_u8    : if (!zt_serialRead(serial, &variant->v_u8  )) { return false; } break;
+		case ztVariant_u16   : if (!zt_serialRead(serial, &variant->v_u16 )) { return false; } break;
+		case ztVariant_u32   : if (!zt_serialRead(serial, &variant->v_u32 )) { return false; } break;
+		case ztVariant_u64   : if (!zt_serialRead(serial, &variant->v_u64 )) { return false; } break;
+		case ztVariant_r32   : if (!zt_serialRead(serial, &variant->v_r32 )) { return false; } break;
+		case ztVariant_r64   : if (!zt_serialRead(serial, &variant->v_r64 )) { return false; } break;
+		case ztVariant_voidp : zt_assert(false); break;
+		case ztVariant_vec2  : zt_fize(variant->v_vec2) if (!zt_serialRead(serial, &variant->v_vec2[i])) { return false; } break;
+		case ztVariant_vec3  : zt_fize(variant->v_vec3) if (!zt_serialRead(serial, &variant->v_vec3[i])) { return false; } break;
+		case ztVariant_vec4  : zt_fize(variant->v_vec4) if (!zt_serialRead(serial, &variant->v_vec4[i])) { return false; } break;
+		case ztVariant_mat4  : zt_fize(variant->v_mat4) if (!zt_serialRead(serial, &variant->v_mat4[i])) { return false; } break;
+		case ztVariant_quat  : zt_fize(variant->v_quat) if (!zt_serialRead(serial, &variant->v_quat[i])) { return false; } break;
+		case ztVariant_bool  : if (!zt_serialRead(serial, &variant->v_bool)) { return false; } break;
+		default: zt_assert(false);
+	}
+
+	return true;
+}
 
 // ------------------------------------------------------------------------------------------------
 
