@@ -202,6 +202,7 @@
 #define zt_clamp(val, min, max) ( zt_min(max, (zt_max(min, val))) )
 #define zt_abs(val) ( (val) < 0 ? -(val) : (val) )
 #define zt_swap(val1, val2) {auto temp = val1; val1 = val2; val2 = temp;}
+#define zt_between(val, beg, end) (val >= beg && val <= end)
 
 #define zt_real32Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal32Epsilon)
 #define zt_real64Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal64Epsilon)
@@ -294,7 +295,7 @@ typedef int32	b32;
 // ------------------------------------------------------------------------------------------------
 // math
 
-struct ztPoint2
+struct ztVec2i
 {
 	union {
 		struct {
@@ -304,8 +305,8 @@ struct ztPoint2
 		i32 values[2];
 	};
 
-	ztPoint2() {}
-	ztPoint2(i32 _x, i32 _y) :x(_x), y(_y) {}
+	ztVec2i() {}
+	ztVec2i(i32 _x, i32 _y) :x(_x), y(_y) {}
 };
 
 
@@ -926,6 +927,7 @@ enum ztVariant_Enum
 	ztVariant_vec4,
 	ztVariant_mat4,
 	ztVariant_quat,
+	ztVariant_bool,
 };
 
 
@@ -951,6 +953,7 @@ struct ztVariant
 		r32   v_vec4[4];
 		r32   v_mat4[16];
 		r32   v_quat[4];
+		bool  v_bool;
 	};
 };
 
@@ -977,6 +980,7 @@ struct ztVariantPointer
 		ztVec4 *v_vec4;
 		ztMat4 *v_mat4;
 		ztQuat *v_quat;
+		bool   *v_bool;
 	};
 };
 
@@ -996,6 +1000,7 @@ ztInline ztVariant zt_variantMake_vec3(r32 val[3]);
 ztInline ztVariant zt_variantMake_vec4(r32 val[4]);
 ztInline ztVariant zt_variantMake_mat4(r32 val[16]);
 ztInline ztVariant zt_variantMake_quat(r32 val[4]);
+ztInline ztVariant zt_variantMake_bool(bool val);
 
 ztInline ztVariant zt_variantMake(ztVariantPointer *variant);
 
@@ -1015,6 +1020,7 @@ ztInline ztVariantPointer zt_variantPointerMake_vec3(r32 *val);
 ztInline ztVariantPointer zt_variantPointerMake_vec4(r32 *val);
 ztInline ztVariantPointer zt_variantPointerMake_mat4(r32 *val);
 ztInline ztVariantPointer zt_variantPointerMake_quat(r32 *val);
+ztInline ztVariantPointer zt_variantPointerMake_bool(bool *val);
 
 ztInline i8     zt_variantGetAs_i8(ztVariant *variant);
 ztInline i16    zt_variantGetAs_i16(ztVariant *variant);
@@ -1032,6 +1038,7 @@ ztInline ztVec3 zt_variantGetAs_vec3(ztVariant *variant);
 ztInline ztVec4 zt_variantGetAs_vec4(ztVariant *variant);
 ztInline ztMat4 zt_variantGetAs_mat4(ztVariant *variant);
 ztInline ztQuat zt_variantGetAs_quat(ztVariant *variant);
+ztInline bool   zt_variantGetAs_bool(ztVariant *variant);
 
 ztInline i8     *zt_variantGetAs_i8(ztVariantPointer *variant);
 ztInline i16    *zt_variantGetAs_i16(ztVariantPointer *variant);
@@ -1049,6 +1056,7 @@ ztInline ztVec3 *zt_variantGetAs_vec3(ztVariantPointer *variant);
 ztInline ztVec4 *zt_variantGetAs_vec4(ztVariantPointer *variant);
 ztInline ztMat4 *zt_variantGetAs_mat4(ztVariantPointer *variant);
 ztInline ztQuat *zt_variantGetAs_quat(ztVariantPointer *variant);
+ztInline bool   *zt_variantGetAs_bool(ztVariantPointer *variant);
 
 ztInline void zt_variantAssignValue(ztVariant *variant, ztVariant value);
 ztInline void zt_variantAssignValue(ztVariantPointer *variant, ztVariant value);
@@ -1252,8 +1260,14 @@ bool zt_strIsReal64(char *s, int s_len);
 
 i32 zt_strToInt(const char *s, i32 def, bool *success = nullptr);
 i32 zt_strToInt(const char *s, int s_len, i32 def, bool *success = nullptr);
+u32 zt_strToUint(const char *s, u32 def, bool *success = nullptr);
+u32 zt_strToUint(const char *s, int s_len, u32 def, bool *success = nullptr);
 u32 zt_strToIntHex(const char *s, u32 def, bool *success = nullptr);
 u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool *success = nullptr);
+i64 zt_strToInt64(const char *s, i64 def, bool *success = nullptr);
+i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success = nullptr);
+u64 zt_strToUint64(const char *s, u64 def, bool *success = nullptr);
+u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success = nullptr);
 
 r32 zt_strToReal32(const char *s, r32 def, bool* success = nullptr);
 r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
@@ -1281,6 +1295,11 @@ const char *zt_striFindLast(const char *haystack, const char *needle);
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle);
 int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
 int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
+
+const char *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count);
+const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count);
+int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count);
+int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count);
 
 int zt_strCount(const char *haystack, const char *needle);
 int zt_strCount(const char *haystack, int haystack_len, const char *needle);
@@ -1750,6 +1769,24 @@ r32 zt_randomVal(ztRandom *random, r32 min, r32 max);
 
 
 // ------------------------------------------------------------------------------------------------
+// simplex noise
+
+struct ztSimplexNoise
+{
+	i16 *perm;
+	i16 *perm_grad_index_3d;
+};
+
+
+ztSimplexNoise *zt_simplexNoiseMake(i64 seed);
+void            zt_simplexNoiseFree(ztSimplexNoise *noise);
+
+r32             zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y);
+r32             zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z);
+r32             zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w);
+
+
+// ------------------------------------------------------------------------------------------------
 // configuration files
 
 // these are really slow
@@ -1853,6 +1890,10 @@ public:
 			if(item_find_ptr->next == nullptr) break; \
 		} \
 	}
+
+#define zt_linkGetCount(count, item_first_ptr) \
+	int count = 0; \
+	zt_flink(link, item_first_ptr) count += 1;
 
 
 // ------------------------------------------------------------------------------------------------
@@ -2889,6 +2930,7 @@ ztInline ztVariant        zt_variantMake_vec3      (const ztVec3& val)          
 ztInline ztVariant        zt_variantMake_vec4      (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; zt_fize(val.values) var.v_vec4[i] = val.values[i]; return var; }
 ztInline ztVariant        zt_variantMake_mat4      (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; zt_fize(val.values) var.v_mat4[i] = val.values[i]; return var; }
 ztInline ztVariant        zt_variantMake_quat      (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; zt_fize(val.values) var.v_quat[i] = val.values[i]; return var; }
+ztInline ztVariant        zt_variantMake_bool      (const bool    val)          { ztVariant var; var.type = ztVariant_bool ; var.v_bool = val; return var; }
 
 ztInline ztVariant        zt_variantMake(ztVariantPointer *variant)
 {
@@ -2910,6 +2952,7 @@ ztInline ztVariant        zt_variantMake(ztVariantPointer *variant)
 		case ztVariant_vec4 : return zt_variantMake_vec4 (*variant->v_vec4);
 		case ztVariant_mat4 : return zt_variantMake_mat4 (*variant->v_mat4);
 		case ztVariant_quat : return zt_variantMake_quat (*variant->v_quat);
+		case ztVariant_bool : return zt_variantMake_bool (*variant->v_bool);
 	}
 
 	ztVariant v = { ztVariant_Invalid }; return v;
@@ -2931,6 +2974,7 @@ ztInline ztVariantPointer zt_variantPointerMake_vec3  (ztVec3       *val)       
 ztInline ztVariantPointer zt_variantPointerMake_vec4  (ztVec4       *val)          { ztVariantPointer var; var.type = ztVariant_vec4 ; var.v_vec4  = val; return var; }
 ztInline ztVariantPointer zt_variantPointerMake_mat4  (ztMat4       *val)          { ztVariantPointer var; var.type = ztVariant_mat4 ; var.v_mat4  = val; return var; }
 ztInline ztVariantPointer zt_variantPointerMake_quat  (ztQuat       *val)          { ztVariantPointer var; var.type = ztVariant_quat ; var.v_quat  = val; return var; }
+ztInline ztVariantPointer zt_variantPointerMake_bool  (bool         *val)          { ztVariantPointer var; var.type = ztVariant_bool ; var.v_bool  = val; return var; }
 
 ztInline i8               zt_variantGetAs_i8       (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
 ztInline i16              zt_variantGetAs_i16      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_i16  ); return variant->v_i16; }
@@ -2948,6 +2992,7 @@ ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         
 ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return ztVec4(variant->v_vec4[0], variant->v_vec4[1], variant->v_vec4[2], variant->v_vec4[3]); }
 ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return ztMat4(variant->v_mat4); }
 ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return ztQuat(variant->v_quat); }
+ztInline bool             zt_variantGetAs_bool     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_bool ); return variant->v_bool; }
 
 ztInline i8              *zt_variantGetAs_i8       (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
 ztInline i16             *zt_variantGetAs_i16      (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i16  ); return variant->v_i16; }
@@ -2964,7 +3009,8 @@ ztInline ztVec2          *zt_variantGetAs_vec2     (ztVariantPointer *variant)  
 ztInline ztVec3          *zt_variantGetAs_vec3     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec3 ); return variant->v_vec3; }
 ztInline ztVec4          *zt_variantGetAs_vec4     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_vec4 ); return variant->v_vec4; }
 ztInline ztMat4          *zt_variantGetAs_mat4     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_mat4 ); return variant->v_mat4; }
-ztInline ztQuat          *zt_variantGetAs_quat     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_quat ); return variant->v_quat; }
+ztInline ztQuat          *zt_variantGetAs_quat     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_quat); return variant->v_quat; }
+ztInline bool            *zt_variantGetAs_bool     (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_bool); return variant->v_bool; }
 
 ztInline void zt_variantAssignValue(ztVariant *variant, ztVariant value) { variant->type = value.type; zt_memCpy(variant, zt_sizeof(ztVariant), &value, zt_sizeof(ztVariant)); }
 
@@ -2989,6 +3035,7 @@ ztInline void zt_variantAssignValue(ztVariantPointer *variant, ztVariant value)
 		case ztVariant_vec4: variant->v_vec4->x = value.v_vec4[0]; variant->v_vec4->y = value.v_vec4[1]; variant->v_vec4->z = value.v_vec4[2]; variant->v_vec4->w = value.v_vec4[3]; break;
 		case ztVariant_mat4: zt_fiz(16) variant->v_mat4->values[i] = value.v_mat4[i]; break;
 		case ztVariant_quat: variant->v_quat->x = value.v_quat[0]; variant->v_quat->y = value.v_quat[1]; variant->v_quat->z = value.v_quat[2]; variant->v_quat->w = value.v_quat[3]; break;
+		case ztVariant_bool: *variant->v_bool = value.v_bool; break;
 	}
 }
 
@@ -3013,6 +3060,7 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(ztVec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), ztVec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
 		case ztVariant_mat4 : zt_assert(false); // can't lerp mat4s... use quats instead
 		case ztVariant_quat: return zt_variantMake_quat(ztQuat::lerp(ztQuat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), ztQuat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
+		case ztVariant_bool: return zt_variantMake_bool(pct < .5 ? beg->v_bool : end->v_bool);
 	}
 
 	ztVariant v = { ztVariant_Invalid }; return v;
@@ -3884,15 +3932,11 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		arena->current_used += allocation->length + (zt_sizeof(ztMemoryArena::allocation));
 		arena->peak_used = zt_max(arena->peak_used, arena->current_used);
 
-#if defined(ZT_MEM_ARENA_ZERO_NEW_MEMORY)
-		ztReleaseOnly(zt_memSet(allocation->start, allocation->length, 0));
-#endif
+		zt_memSet(allocation->start, allocation->length - padding, 0);
 	}
-
-	zt_debugOnly(zt_memSet(allocation->start, allocation->length - padding, 0));
-#if defined(ZT_MEM_ARENA_ZERO_NEW_MEMORY)
-	ztReleaseOnly(zt_memSet(allocation->start, allocation->length - padding, 0));
-#endif
+	else {
+		zt_memSet(allocation->start, allocation->length - padding, 0);
+	}
 
 	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next, arena->alloc_cnt);
 	// conditional break: allocation->alloc_idx == 0 && allocation->start == 0x0
@@ -5150,6 +5194,34 @@ i32 zt_strToInt(const char *s, int s_len, i32 def, bool* success)
 
 // ------------------------------------------------------------------------------------------------
 
+u32 zt_strToUint(const char *s, u32 def, bool* success)
+{
+	return zt_strToUint(s, zt_strLen(s), def, success);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+u32 zt_strToUint(const char *s, int s_len, u32 def, bool* success)
+{
+	_zt_str_to_prepare_and_check;
+
+	zt_fiz(s_len) {
+		if (s[i] < '0' || s[i] > '9') {
+			if (success) *success = false;
+			return def;
+		}
+	}
+
+	if (success) *success = true;
+
+	char buffer[128];
+	zt_strCpy(buffer, zt_elementsOf(buffer), s, s_len);
+
+	return strtoul(buffer, nullptr, 10);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 u32 zt_strToIntHex(const char *s, u32 def, bool* success)
 {
 	return zt_strToIntHex(s, zt_strLen(s), def, success);
@@ -5179,6 +5251,72 @@ u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool* success)
 	zt_strCpy(buffer, zt_elementsOf(buffer), s, s_len);
 
 	return strtoul(buffer, nullptr, 16);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i64 zt_strToInt64(const char *s, i64 def, bool *success)
+{
+	return zt_strToInt64(s, zt_strLen(s), def, success);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success)
+{
+	_zt_str_to_prepare_and_check;
+
+	zt_fiz(s_len) {
+		if (s[i] < '0' || s[i] > '9') {
+			if (s[i] != '-') {
+				if (success) *success = false;
+				return def;
+			}
+		}
+	}
+
+	if (success) *success = true;
+
+	char buffer[128];
+	zt_strCpy(buffer, zt_elementsOf(buffer), s, s_len);
+
+#	if defined(ZT_COMPILER_MSVC)
+	return _strtoi64(buffer, nullptr, 10);
+#	else
+	return strtoll(buffer, nullptr, 10);
+#	endif
+}
+
+// ------------------------------------------------------------------------------------------------
+
+u64 zt_strToUint64(const char *s, u64 def, bool *success)
+{
+	return zt_strToUint64(s, zt_strLen(s), def, success);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success)
+{
+	_zt_str_to_prepare_and_check;
+
+	zt_fiz(s_len) {
+		if (s[i] < '0' || s[i] > '9') {
+			if (success) *success = false;
+			return def;
+		}
+	}
+
+	if (success) *success = true;
+
+	char buffer[128];
+	zt_strCpy(buffer, zt_elementsOf(buffer), s, s_len);
+
+#	if defined(ZT_COMPILER_MSVC)
+	return _strtoui64(buffer, nullptr, 10);
+#	else
+	return strtoull(buffer, nullptr, 10);
+#	endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5598,6 +5736,51 @@ int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needl
 	}
 
 	return -1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+const char *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count)
+{
+	return zt_strFindFirstOf(haystack, zt_strLen(haystack), needles, needles_count);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count)
+{
+	const char *result = nullptr;
+	zt_fiz(needles_count) {
+		const char *found = zt_strFind(haystack, haystack_len, needles[i]);
+		if(found && (result == nullptr || found < result)) {
+			result = found;
+		}
+	}
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count)
+{
+	return zt_strFindFirstOfPos(haystack, zt_strLen(haystack), needles, needles_count);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count)
+{
+	int result = ztStrPosNotFound;
+	zt_fiz(needles_count) {
+		int found = zt_strFindPos(haystack, haystack_len, needles[i], 0);
+		if(found != ztStrPosNotFound && (result == ztStrPosNotFound || found < result)) {
+			result = found;
+		}
+	}
+
+	return result;
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8169,6 +8352,279 @@ r32 zt_randomVal(ztRandom *random)
 r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 {
 	return zt_randomVal(random) * (max - min) + min;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+// OpenSimplex noise implementation from public domain source found here :
+// https ://github.com/smcameron/open-simplex-noise-in-c/blob/master/open-simplex-noise.c
+
+#define ZTSN_STRETCH_CONSTANT_2D (-0.211324865405187)    // (1 / sqrt(2 + 1) - 1 ) / 2;
+#define ZTSN_SQUISH_CONSTANT_2D  (0.366025403784439)     // (sqrt(2 + 1) -1) / 2;
+#define ZTSN_STRETCH_CONSTANT_3D (-1.0 / 6.0)            // (1 / sqrt(3 + 1) - 1) / 3;
+#define ZTSN_SQUISH_CONSTANT_3D  (1.0 / 3.0)             // (sqrt(3+1)-1)/3;
+#define ZTSN_STRETCH_CONSTANT_4D (-0.138196601125011)    // (1 / sqrt(4 + 1) - 1) / 4;
+#define ZTSN_SQUISH_CONSTANT_4D  (0.309016994374947)     // (sqrt(4 + 1) - 1) / 4;
+
+#define ZTSN_NORM_CONSTANT_2D (47.0)
+#define ZTSN_NORM_CONSTANT_3D (103.0)
+#define ZTSN_NORM_CONSTANT_4D (30.0)
+
+#define ZTSN_DEFAULT_SEED (0LL)
+
+ztInternal const i8 _zt_gradients_2d[] = {
+	5, 2, 2, 5,
+	-5, 2, -2, 5,
+	5, -2, 2, -5,
+	-5, -2, -2, -5,
+};
+
+/*
+* Gradients for 3D. They approximate the directions to the
+* vertices of a rhombicuboctahedron from the center, skewed so
+* that the triangular and square facets can be inscribed inside
+* circles of the same radius.
+*/
+ztInternal const signed char _zt_gradients_3d[] = {
+	-11, 4, 4, -4, 11, 4, -4, 4, 11,
+	11, 4, 4, 4, 11, 4, 4, 4, 11,
+	-11, -4, 4, -4, -11, 4, -4, -4, 11,
+	11, -4, 4, 4, -11, 4, 4, -4, 11,
+	-11, 4, -4, -4, 11, -4, -4, 4, -11,
+	11, 4, -4, 4, 11, -4, 4, 4, -11,
+	-11, -4, -4, -4, -11, -4, -4, -4, -11,
+	11, -4, -4, 4, -11, -4, 4, -4, -11,
+};
+
+/*
+* Gradients for 4D. They approximate the directions to the
+* vertices of a disprismatotesseractihexadecachoron from the center,
+* skewed so that the tetrahedral and cubic facets can be inscribed inside
+* spheres of the same radius.
+*/
+ztInternal const signed char _zt_gradients_4d[] = {
+	3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 3,
+	-3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3,
+	3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3, 1, 1, -1, 1, 3,
+	-3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3,
+	3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3, 1, 1, 1, -1, 3,
+	-3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3,
+	3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3, 1, 1, -1, -1, 3,
+	-3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3,
+	3, 1, 1, -1, 1, 3, 1, -1, 1, 1, 3, -1, 1, 1, 1, -3,
+	-3, 1, 1, -1, -1, 3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3,
+	3, -1, 1, -1, 1, -3, 1, -1, 1, -1, 3, -1, 1, -1, 1, -3,
+	-3, -1, 1, -1, -1, -3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3,
+	3, 1, -1, -1, 1, 3, -1, -1, 1, 1, -3, -1, 1, 1, -1, -3,
+	-3, 1, -1, -1, -1, 3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3,
+	3, -1, -1, -1, 1, -3, -1, -1, 1, -1, -3, -1, 1, -1, -1, -3,
+	-3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3,
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztSimplexNoise *zt_simplexNoiseMake(i64 seed)
+{
+	ztSimplexNoise *noise = zt_mallocStruct(ztSimplexNoise);
+
+	int nperm = 256;
+	int ngrad = 256;
+
+	noise->perm = zt_mallocStructArray(i16, nperm);
+	noise->perm_grad_index_3d = zt_mallocStructArray(i16, ngrad);
+
+	i16 source[256];
+	zt_fiz(256) {
+		source[i] = (i16)i;
+	}
+
+	seed = seed * 6364136223846793005LL + 1442695040888963407LL;
+	seed = seed * 6364136223846793005LL + 1442695040888963407LL;
+	seed = seed * 6364136223846793005LL + 1442695040888963407LL;
+
+	zt_fizr(255) {
+		seed = seed * 6364136223846793005LL + 1442695040888963407LL;
+		int r = (int)((seed + 31) % (i + 1));
+		if (r < 0) r += (i + 1);
+		noise->perm[i] = source[r];
+		noise->perm_grad_index_3d[i] = (i16)((noise->perm[i] % (zt_elementsOf(_zt_gradients_3d) / 3)) * 3);
+		source[r] = source[i];
+	}
+
+	return noise;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_simplexNoiseFree(ztSimplexNoise *noise)
+{
+	if (noise == nullptr) {
+		return;
+	}
+
+	zt_free(noise->perm);
+	zt_free(noise->perm_grad_index_3d);
+	zt_free(noise);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal ztInline int zt_fastFloor(r64 x)
+{
+	int xi = (int)x;
+	return x < xi ? xi - 1 : xi;
+}
+
+r32 zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y)
+{
+#	define extrapolate2(noise, xsb, ysb, dx, dy) \
+		(_zt_gradients_2d[noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E] * dx + _zt_gradients_2d[(noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E) + 1] * dy)
+
+//	struct local
+//	{
+//		static r64 extrapolate2(ztSimplexNoise* noise, int xsb, int ysb, r64 dx, r64 dy)
+//		{
+//			i16 *perm = noise->perm;
+//			int index = perm[(perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E;
+//			return _zt_gradients_2d[index] * dx + _zt_gradients_2d[index + 1] * dy;
+//		}
+//	};
+
+	zt_returnValOnNull(noise, 0);
+
+	//Place input coordinates onto grid.
+	r64 stretchOffset = (x + y) * ZTSN_STRETCH_CONSTANT_2D;
+	r64 xs = x + stretchOffset;
+	r64 ys = y + stretchOffset;
+
+	//Floor to get grid coordinates of rhombus (stretched square) super-cell origin.
+	int xsb = zt_fastFloor(xs);
+	int ysb = zt_fastFloor(ys);
+
+	//Skew out to get actual coordinates of rhombus origin. We'll need these later.
+	r64 squishOffset = (xsb + ysb) * ZTSN_SQUISH_CONSTANT_2D;
+	r64 xb = xsb + squishOffset;
+	r64 yb = ysb + squishOffset;
+
+	//Compute grid coordinates relative to rhombus origin.
+	r64 xins = xs - xsb;
+	r64 yins = ys - ysb;
+
+	//Sum those together to get a value that determines which region we're in.
+	r64 inSum = xins + yins;
+
+	//Positions relative to origin point.
+	r64 dx0 = x - xb;
+	r64 dy0 = y - yb;
+
+	//We'll be defining these inside the next block and using them afterwards.
+	r64 dx_ext, dy_ext;
+	int xsv_ext, ysv_ext;
+
+	r64 value = 0;
+
+	//Contribution (1,0)
+	r64 dx1 = dx0 - 1 - ZTSN_SQUISH_CONSTANT_2D;
+	r64 dy1 = dy0 - 0 - ZTSN_SQUISH_CONSTANT_2D;
+	r64 attn1 = 2 - dx1 * dx1 - dy1 * dy1;
+	if (attn1 > 0) {
+		attn1 *= attn1;
+		value += attn1 * attn1 * extrapolate2(noise, xsb + 1, ysb + 0, dx1, dy1);
+	}
+
+	//Contribution (0,1)
+	r64 dx2 = dx0 - 0 - ZTSN_SQUISH_CONSTANT_2D;
+	r64 dy2 = dy0 - 1 - ZTSN_SQUISH_CONSTANT_2D;
+	r64 attn2 = 2 - dx2 * dx2 - dy2 * dy2;
+	if (attn2 > 0) {
+		attn2 *= attn2;
+		value += attn2 * attn2 * extrapolate2(noise, xsb + 0, ysb + 1, dx2, dy2);
+	}
+
+	if (inSum <= 1) { //We're inside the triangle (2-Simplex) at (0,0)
+		r64 zins = 1 - inSum;
+		if (zins > xins || zins > yins) { //(0,0) is one of the closest two triangular vertices
+			if (xins > yins) {
+				xsv_ext = xsb + 1;
+				ysv_ext = ysb - 1;
+				dx_ext = dx0 - 1;
+				dy_ext = dy0 + 1;
+			}
+			else {
+				xsv_ext = xsb - 1;
+				ysv_ext = ysb + 1;
+				dx_ext = dx0 + 1;
+				dy_ext = dy0 - 1;
+			}
+		}
+		else { //(1,0) and (0,1) are the closest two vertices.
+			xsv_ext = xsb + 1;
+			ysv_ext = ysb + 1;
+			dx_ext = dx0 - 1 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+			dy_ext = dy0 - 1 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+		}
+	}
+	else { //We're inside the triangle (2-Simplex) at (1,1)
+		r64 zins = 2 - inSum;
+		if (zins < xins || zins < yins) { //(0,0) is one of the closest two triangular vertices
+			if (xins > yins) {
+				xsv_ext = xsb + 2;
+				ysv_ext = ysb + 0;
+				dx_ext = dx0 - 2 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+				dy_ext = dy0 + 0 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+			}
+			else {
+				xsv_ext = xsb + 0;
+				ysv_ext = ysb + 2;
+				dx_ext = dx0 + 0 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+				dy_ext = dy0 - 2 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+			}
+		}
+		else { //(1,0) and (0,1) are the closest two vertices.
+			dx_ext = dx0;
+			dy_ext = dy0;
+			xsv_ext = xsb;
+			ysv_ext = ysb;
+		}
+		xsb += 1;
+		ysb += 1;
+		dx0 = dx0 - 1 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+		dy0 = dy0 - 1 - 2 * ZTSN_SQUISH_CONSTANT_2D;
+	}
+
+	//Contribution (0,0) or (1,1)
+	r64 attn0 = 2 - dx0 * dx0 - dy0 * dy0;
+	if (attn0 > 0) {
+		attn0 *= attn0;
+		value += attn0 * attn0 * extrapolate2(noise, xsb, ysb, dx0, dy0);
+	}
+
+	//Extra Vertex
+	r64 attn_ext = 2 - dx_ext * dx_ext - dy_ext * dy_ext;
+	if (attn_ext > 0) {
+		attn_ext *= attn_ext;
+		value += attn_ext * attn_ext * extrapolate2(noise, xsv_ext, ysv_ext, dx_ext, dy_ext);
+	}
+
+	return (r32)(value / ZTSN_NORM_CONSTANT_2D);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z)
+{
+	zt_returnValOnNull(noise, 0);
+	return 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w)
+{
+	zt_returnValOnNull(noise, 0);
+	return 0;
 }
 
 // ------------------------------------------------------------------------------------------------
