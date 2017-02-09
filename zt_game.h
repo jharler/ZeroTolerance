@@ -3574,6 +3574,8 @@ struct ztGameGlobals
 	ztDebugVar        debug_vars[ZT_MAX_DEBUG_VARIABLES];
 	int               debug_vars_count;
 	char              debug_vars_file[ztFileMaxPath];
+	char             *debug_vars_file_data;
+	i32               debug_vars_file_size;
 
 	// ----------------------
 
@@ -4588,98 +4590,9 @@ void zt_profiledSectionExit(ztProfiledSection *section)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztInternal void _zt_variantToString(ztVariantPointer variable, char *buffer, int buffer_len)
-{
-	zt_returnOnNull(buffer);
-	zt_assertReturnOnFail(buffer_len > 0);
-
-	switch(variable.type)
-	{
-		case ztVariant_i8:    zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i8); break;
-		case ztVariant_i16:   zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i16); break;
-		case ztVariant_i32:   zt_strPrintf(buffer, buffer_len, "%d", *variable.v_i32); break;
-		case ztVariant_i64:   zt_strPrintf(buffer, buffer_len, "%lld", *variable.v_i64); break;
-		case ztVariant_u8:    zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u8); break;
-		case ztVariant_u16:   zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u16); break;
-		case ztVariant_u32:   zt_strPrintf(buffer, buffer_len, "%u", *variable.v_u32); break;
-		case ztVariant_u64:   zt_strPrintf(buffer, buffer_len, "%llu", *variable.v_u64); break;
-		case ztVariant_r32:   zt_strPrintf(buffer, buffer_len, "%f", *variable.v_r32); break;
-		case ztVariant_r64:   zt_strPrintf(buffer, buffer_len, "%f", *variable.v_r64); break;
-		case ztVariant_voidp: zt_assert(false);
-		case ztVariant_vec2:  zt_strPrintf(buffer, buffer_len, "%f,%f", variable.v_vec2->values[0], variable.v_vec2->values[0]); break;
-		case ztVariant_vec3:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f", variable.v_vec3->values[0], variable.v_vec3->values[1], variable.v_vec3->values[2]); break;
-		case ztVariant_vec4:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f", variable.v_vec4->values[0], variable.v_vec4->values[1], variable.v_vec4->values[2], variable.v_vec4->values[3]); break;
-		case ztVariant_mat4:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f%f,%f,%f,%f%f,%f,%f,%f%f,%f,%f,%f", variable.v_mat4->values[0], variable.v_mat4->values[1], variable.v_mat4->values[2], variable.v_mat4->values[3], variable.v_mat4->values[4], variable.v_mat4->values[5], variable.v_mat4->values[6], variable.v_mat4->values[7], variable.v_mat4->values[8], variable.v_mat4->values[9], variable.v_mat4->values[10], variable.v_mat4->values[11], variable.v_mat4->values[12], variable.v_mat4->values[13], variable.v_mat4->values[14], variable.v_mat4->values[15]); break;
-		case ztVariant_quat:  zt_strPrintf(buffer, buffer_len, "%f,%f,%f,%f", variable.v_quat->values[0], variable.v_quat->values[1], variable.v_quat->values[2], variable.v_quat->values[3]); break;
-	}
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal void _zt_variantFromString(ztVariantPointer variable, char *buffer, int buffer_len)
-{
-	if (buffer == nullptr || buffer_len <= 0) {
-		return;
-	}
-
-	switch(variable.type)
-	{
-		case ztVariant_i8:    *variable.v_i8  = (i8) zt_strToInt   (buffer, buffer_len, *variable.v_i8 ); break;
-		case ztVariant_i16:   *variable.v_i16 = (i16)zt_strToInt   (buffer, buffer_len, *variable.v_i16); break;
-		case ztVariant_i32:   *variable.v_i32 = (i32)zt_strToInt   (buffer, buffer_len, *variable.v_i32); break;
-		case ztVariant_i64:   *variable.v_i64 =      zt_strToInt64 (buffer, buffer_len, *variable.v_i64); break;
-		case ztVariant_u8:    *variable.v_u8  = (u8) zt_strToUint  (buffer, buffer_len, *variable.v_u8 ); break;
-		case ztVariant_u16:   *variable.v_u16 = (u16)zt_strToUint  (buffer, buffer_len, *variable.v_u16); break;
-		case ztVariant_u32:   *variable.v_u32 = (u32)zt_strToUint  (buffer, buffer_len, *variable.v_u32); break;
-		case ztVariant_u64:   *variable.v_u64 =      zt_strToUint64(buffer, buffer_len, *variable.v_u64); break;
-		case ztVariant_r32:   *variable.v_r32 =      zt_strToReal32(buffer, buffer_len, *variable.v_r32); break;
-		case ztVariant_r64:   *variable.v_r64 =      zt_strToReal64(buffer, buffer_len, *variable.v_r64); break;
-		case ztVariant_voidp: zt_assert(false);
-		case ztVariant_vec2:
-		case ztVariant_vec3:
-		case ztVariant_vec4:
-		case ztVariant_mat4:
-		case ztVariant_quat: {
-			ztToken tokens[16];
-			int tokens_count = zt_strTokenize(buffer, buffer_len, ",", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace);
-			
-			switch(variable.type)
-			{
-				case ztVariant_vec2: { if (tokens_count ==  2) zt_fiz( 2) variable.v_vec2->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec2->values[i]); } break;
-				case ztVariant_vec3: { if (tokens_count ==  3) zt_fiz( 3) variable.v_vec3->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec3->values[i]); } break;
-				case ztVariant_vec4: { if (tokens_count ==  4) zt_fiz( 4) variable.v_vec4->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_vec4->values[i]); } break;
-				case ztVariant_mat4: { if (tokens_count == 16) zt_fiz(16) variable.v_mat4->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_mat4->values[i]); } break;
-				case ztVariant_quat: { if (tokens_count ==  4) zt_fiz( 4) variable.v_quat->values[i] = zt_strToReal32(buffer + tokens[i].beg, tokens[i].len, variable.v_quat->values[i]); } break;
-			}
-		} break;
-	}
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztInternal bool _zt_debuggingFileHasVariable(char *file_data, i32 file_size, char *variable)
-{
-	ztToken file_tokens[ZT_MAX_DEBUG_VARIABLES * 2];
-	int file_tokens_count = zt_strTokenize(file_data, file_size, "\r\n", file_tokens, zt_elementsOf(file_tokens), ztStrTokenizeFlags_TrimWhitespace);
-
-	const char *needles[] = {"=", " ", "\t", "\r", "\n"};
-
-	zt_fiz(zt_min(file_tokens_count, zt_elementsOf(file_tokens))) {
-		int pos = zt_strFindFirstOfPos(file_data + file_tokens[i].beg, file_tokens[i].len, needles, zt_elementsOf(needles));
-		if (pos != ztStrPosNotFound) {
-			if (zt_strEquals(file_data + file_tokens[i].beg, pos, variable)) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-// ------------------------------------------------------------------------------------------------
-
 ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val)
 {
+	ZT_PROFILE_PLATFORM("_zt_debuggingAddVariable");
 	zt_assertReturnValOnFail(zt_game->debug_vars_count < zt_elementsOf(zt_game->debug_vars), ztInvalidID);
 
 	ztDebugVar *debug_var = &zt_game->debug_vars[zt_game->debug_vars_count++];
@@ -4689,6 +4602,31 @@ ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val
 
 	zt_variantAssignValue(&debug_var->variable, val);
 
+	if (zt_game->debug_vars_file_size != 0) {
+
+		ztSerial serial;
+		if (zt_serialMakeReader(&serial, zt_game->debug_vars_file_data, zt_game->debug_vars_file_size, "zt.debugvars")) {
+			int count = 0;
+			if (zt_serialRead(&serial, &count)) {
+
+				zt_fiz(count) {
+					zt_serialGroupPush(&serial);
+					{
+						char var_name[128];
+						i32 var_name_len = 0;
+						if (zt_serialRead(&serial, var_name, zt_elementsOf(var_name), &var_name_len)) {
+							if (zt_strEquals(name, var_name)) {
+								zt_serialRead(&serial, &debug_var->variable);
+								break;
+							}
+						}
+					}
+					zt_serialGroupPop(&serial);
+				}
+			}
+		}
+	}
+
 	return zt_game->debug_vars_count - 1;
 }
 
@@ -4697,30 +4635,39 @@ ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val
 void zt_debuggingInit(const char *settings_file_name, const char *alt_path)
 {
 	const char *path = alt_path ? alt_path : zt_game->game_details.user_path;
-
 	zt_fileConcatFileToPath(zt_game->debug_vars_file, zt_elementsOf(zt_game->debug_vars_file), path, settings_file_name);
 
-	// todo(josh): read values from file
+	zt_game->debug_vars_file_data = (char*)zt_readEntireFile(zt_game->debug_vars_file, &zt_game->debug_vars_file_size);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 ztInternal void _zt_debuggingCleanup()
 {
-	i32 file_size = 0;
-	char *file_data = (char*)zt_readEntireFile(zt_game->debug_vars_file, &file_size, true);
+	zt_free(zt_game->debug_vars_file_data);
 
-	if (file_size <= 0) {
-		return;
+	ztSerial serial;
+	if (zt_serialMakeWriter(&serial, zt_game->debug_vars_file, "zt.debugvars", 1)) {
+		zt_serialWrite(&serial, zt_game->debug_vars_count);
+
+		zt_fiz(zt_game->debug_vars_count) {
+			zt_serialGroupPush(&serial);
+			{
+				zt_serialWrite(&serial, zt_game->debug_vars[i].name, zt_strLen(zt_game->debug_vars[i].name));
+				zt_serialWrite(&serial, &zt_game->debug_vars[i].variable);
+			}
+			zt_serialGroupPop(&serial);
+		}
+
+		zt_serialClose(&serial);
 	}
-
-	zt_free(file_data);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 ztInternal ztDebugVarID _zt_debuggingRegisterVariable(const char *name, ztVariant val)
 {
+	ZT_PROFILE_PLATFORM("_zt_debuggingRegisterVariable");
 	i32 hash = zt_strHash(name);
 	zt_fiz(zt_game->debug_vars_count) {
 		if (zt_game->debug_vars[i].name_hash == hash && zt_game->debug_vars[i].variable.type == val.type) {
@@ -10721,7 +10668,8 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 					make_parent(result, operation);
 					make_node_with_parent(right_zero, ztShLangSyntaxNodeType_ValueEmpty, operation, expr_begin);
-					right_zero->value.value = zt_stringMakeFrom(file_data + ident_next->token_beg, ident_next->token_len);;
+					right_zero->value.value = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, file_data + ident_next->token_beg, ident_next->token_len);
+
 
 					operation->operation.left = result;
 					operation->operation.right = right_zero;
@@ -10739,7 +10687,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 								vardecl_node = result;
 
 								make_node(var_node, ztShLangSyntaxNodeType_Variable, vardecl_node->token);
-								var_node->variable_val.name = zt_stringMakeFrom(vardecl_node->variable_decl.name);
+								var_node->variable_val.name = make_string(vardecl_node->token);
 								var_node->variable_val.token_type = vardecl_node->token->type;
 								result = var_node;
 							}
@@ -10849,6 +10797,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 			return result;
 		}
+
 		// ---------------------------------------------
 
 		static ztShLangSyntaxNode *readStatement(ztShLangSyntaxNode *global_node, ztString *error, char *file_data, ztShLangToken *tokens, int tokens_count, int &token_idx, ztShLangSyntaxNode *scope)
@@ -10890,7 +10839,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	cache->cache_used = 0;
 	cache->cache = zt_mallocStructArray(ztShLangSyntaxNode, cache->cache_size);
 	//zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0);
-	cache->string_cache_size = zt_strLen(file_data) * 2;
+	cache->string_cache_size = zt_kilobytes(512);
 	cache->string_cache_used = 0;
 	cache->string_cache = zt_mallocStructArray(char, cache->string_cache_size);
 
@@ -11062,7 +11011,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 			make_node_with_parent(program_node, ztShLangSyntaxNodeType_ProgramDecl, active_scope, program_name);
 			program_node->parent = active_scope;
-			program_node->program.name = zt_stringMakeFrom(make_string(program_name));
+			program_node->program.name = make_string(program_name);
 			active_scope = program_node;
 			continue;
 		}
@@ -11169,20 +11118,22 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"mat4,vec4,vec4,vec4,vec4,mat4",
 		};
 
+		// #	define make_string(tok) local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, file_data + tok->token_beg, tok->token_len)
+
 		zt_fize(built_in_functions) {
 			ztToken tokens[32];
 			int tokens_count = zt_strTokenize(built_in_functions[i], ", ", tokens, zt_elementsOf(tokens));
 			zt_assert(tokens_count > 1);
 
 			make_node_with_parent(func_node, ztShLangSyntaxNodeType_FunctionDecl, global_node, nullptr);
-			func_node->function_decl.returns_name = zt_stringMakeFrom(built_in_functions[i] + tokens[tokens_count - 1].beg, tokens[tokens_count - 1].len);
+			func_node->function_decl.returns_name = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_functions[i] + tokens[tokens_count - 1].beg, tokens[tokens_count - 1].len);
 			func_node->function_decl.returns      = _zt_shaderLangTokenTypeFromDesc(func_node->function_decl.returns_name);
-			func_node->function_decl.name         = zt_stringMakeFrom(built_in_functions[i] + tokens[0].beg, tokens[0].len);
+			func_node->function_decl.name         = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_functions[i] + tokens[0].beg, tokens[0].len);
 
 			for (int j = 1; j < tokens_count - 1; ++j) {
 				make_node_with_parent(variable, ztShLangSyntaxNodeType_VariableDecl, func_node, nullptr);
 
-				variable->variable_decl.type_name  = zt_stringMakeFrom(built_in_functions[i] + tokens[j].beg, tokens[j].len);
+				variable->variable_decl.type_name = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_functions[i] + tokens[j].beg, tokens[j].len);
 				variable->variable_decl.type       = _zt_shaderLangTokenTypeFromDesc(variable->variable_decl.type_name);
 				variable->variable_decl.name       = nullptr;
 				variable->variable_decl.qualifier  = nullptr;
@@ -11207,14 +11158,14 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			zt_assert(tokens_count > 1);
 
 			make_node_with_parent(struct_node, ztShLangSyntaxNodeType_Structure, global_node, nullptr);
-			struct_node->structure.name = zt_stringMakeFrom(built_in_structs[i] + tokens[0].beg, tokens[0].len);
+			struct_node->structure.name = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_structs[i] + tokens[0].beg, tokens[0].len);
 
 			for (int j = 1; j < tokens_count; j += 2) {
 				make_node_with_parent(variable, ztShLangSyntaxNodeType_VariableDecl, struct_node, nullptr);
 
-				variable->variable_decl.type_name = zt_stringMakeFrom(built_in_structs[i] + tokens[j].beg, tokens[j].len);
+				variable->variable_decl.type_name = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_structs[i] + tokens[j].beg, tokens[j].len);
 				variable->variable_decl.type = _zt_shaderLangTokenTypeFromDesc(variable->variable_decl.type_name);
-				variable->variable_decl.name = zt_stringMakeFrom(built_in_structs[i] + tokens[j + 1].beg, tokens[j + 1].len);;
+				variable->variable_decl.name = local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, built_in_structs[i] + tokens[j + 1].beg, tokens[j + 1].len);
 				variable->variable_decl.qualifier = nullptr;
 				variable->variable_decl.array_size = -1;
 			}
@@ -11242,9 +11193,15 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
 {
 	if (node->cache) {
-		zt_free(node->cache->cache);
-		zt_free(node->cache->string_cache);
-		zt_free(node->cache);
+		ztShLangSyntaxNodeCache *cache = node->cache;
+
+		zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0); // node pointer is invalid after this
+		zt_free(cache->cache);
+
+		zt_memSet(cache->string_cache, cache->string_cache_size, 0);
+		zt_free(cache->string_cache);
+
+		zt_free(cache);
 	}
 }
 
