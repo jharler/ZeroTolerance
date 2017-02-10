@@ -239,8 +239,8 @@ struct ztGameDetails
 	const char* app_path;
 	const char* user_path;
 
-	int    argc;
-	char** argv;
+	int          argc;
+	const char** argv;
 
 	i32 current_frame;
 
@@ -550,7 +550,7 @@ struct ztInputKeys
 	ztInputKeys_Enum code;
 	i32 flags;
 
-	char *name;
+	char name[32];
 	char display;
 	char shift_display;
 
@@ -776,6 +776,30 @@ struct ztInputController
 ztInputController* zt_inputControllerAccessState(int idx); // not thread safe
 void               zt_inputControllerCopyState(ztInputController *input_controller, int idx);
 void               zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high);
+
+
+// ------------------------------------------------------------------------------------------------
+// Input recording
+
+struct ztInputReplayData
+{
+	ztInputKeys       input_keys[ztInputKeys_MAX];
+	ztInputMouse      input_mouse;
+	ztInputController input_controller;
+	ztInputKeys_Enum  input_keystrokes[16];
+
+	ztFile            file;
+
+	void             *working_memory;
+	i32               working_memory_size;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_name);
+bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name);
+void zt_inputReplayFree(ztInputReplayData *replay_data);
+bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16]);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1054,9 +1078,11 @@ typedef i32 ztTextureID;
 
 enum ztTextureFlags_Enum
 {
-	ztTextureFlags_MipMaps      = (1<<0),
-	ztTextureFlags_DepthMap     = (1<<1), // going to be used for depth information
-	ztTextureFlags_PixelPerfect = (1<<2),
+	ztTextureFlags_MipMaps            = (1<<0),
+	ztTextureFlags_DepthMap           = (1<<1), // going to be used for depth information
+	ztTextureFlags_PixelPerfect       = (1<<2),
+	ztTextureFlags_CubeMap            = (1<<3),
+	ztTextureFlags_RenderTargetScreen = (1<<4), // will re-adjust to fit the screen if resized
 };
 
 enum ztTextureCubeMapFiles_Enum
@@ -5262,7 +5288,22 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 
 // ------------------------------------------------------------------------------------------------
 
-#define _zt_setKeyData(code, name, display, shift_display, mapping) zt_game->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
+ztInternal void _zt_setKeyDataActl(ztInputKeys *input_keys, ztInputKeys_Enum code, i32 flags, char *name, char display, char shift_display, i32 platform_mapping)
+{
+	input_keys->code             = code;
+	input_keys->flags            = flags;
+	input_keys->display          = display;
+	input_keys->shift_display    = shift_display;
+	input_keys->platform_mapping = platform_mapping;
+
+	zt_strCpy(input_keys->name, zt_elementsOf(input_keys->name), name);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+
+//#define _zt_setKeyData(code, name, display, shift_display, mapping) zt_game->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
+#define _zt_setKeyData(code, name, display, shift_display, mapping) _zt_setKeyDataActl(&zt_game->input_keys[idx++], code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping)
 
 ztInternal void _zt_inputSetupKeys()
 {
@@ -5541,10 +5582,152 @@ void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
 
 zt_winOnly(void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high));
 
+// ------------------------------------------------------------------------------------------------
+
 void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high)
 {
 	ZT_PROFILE_INPUT("zt_inputControllerTriggerHapticFeedback");
 	zt_winOnly(_zt_winControllerInputHapticFeedback(idx, strength_low, strength_high));
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_name)
+{
+	zt_returnValOnNull(replay_data, false);
+	zt_memSet(replay_data, zt_sizeof(ztInputReplayData), 0);
+	if (!zt_fileOpen(&replay_data->file, file_name, ztFileOpenMethod_WriteOver)) {
+		return false;
+	}
+
+	replay_data->working_memory_size = zt_max(zt_sizeof(ztInputKeys) * ztInputKeys_MAX, zt_max(zt_sizeof(ztInputMouse), zt_sizeof(ztInputController))) * 2;
+	replay_data->working_memory = zt_mallocStructArray(byte, replay_data->working_memory_size);
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name)
+{
+	zt_returnValOnNull(replay_data, false);
+	zt_memSet(replay_data, zt_sizeof(ztInputReplayData), 0);
+	if (!zt_fileOpen(&replay_data->file, file_name, ztFileOpenMethod_ReadOnly)) {
+		return false;
+	}
+
+	replay_data->working_memory_size = zt_max(zt_sizeof(ztInputKeys) * ztInputKeys_MAX, zt_max(zt_sizeof(ztInputMouse), zt_sizeof(ztInputController))) * 2;
+	replay_data->working_memory = zt_mallocStructArray(byte, replay_data->working_memory_size);
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_inputReplayFree(ztInputReplayData *replay_data)
+{
+	zt_returnOnNull(replay_data);
+	zt_fileClose(&replay_data->file);
+
+	zt_free(replay_data->working_memory);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
+{
+	ZT_PROFILE_PLATFORM("zt_inputReplayProcessFrame")
+
+	zt_returnValOnNull(replay_data, false);
+	zt_returnValOnNull(input_keys, false);
+	zt_returnValOnNull(input_mouse, false);
+	zt_returnValOnNull(input_controller, false);
+	zt_returnValOnNull(input_keystrokes, false);
+
+	i32  diff_size = 0;
+
+	if (replay_data->file.open_method == ztFileOpenMethod_ReadOnly) {
+		i32 read_frame = 0;
+		if (!zt_fileRead(&replay_data->file, &read_frame)) {
+			zt_fileClose(&replay_data->file);
+			return false;
+		}
+
+		zt_assert(read_frame == frame);
+
+		diff_size = 0;
+		zt_fileRead(&replay_data->file, &diff_size);
+		if (diff_size > 0) {
+			zt_fileRead(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(replay_data->input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX, replay_data->working_memory, diff_size);
+		}
+		zt_memCpy(input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX, replay_data->input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX);
+
+		diff_size = 0;
+		zt_fileRead(&replay_data->file, &diff_size);
+		if (diff_size > 0) {
+			zt_fileRead(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(&replay_data->input_mouse, zt_sizeof(ztInputMouse), replay_data->working_memory, diff_size);
+		}
+		zt_memCpy(input_mouse, zt_sizeof(ztInputMouse), &replay_data->input_mouse, zt_sizeof(ztInputMouse));
+
+		diff_size = 0;
+		zt_fileRead(&replay_data->file, &diff_size);
+		if (diff_size > 0) {
+			zt_fileRead(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(&replay_data->input_controller, zt_sizeof(ztInputController), replay_data->working_memory, diff_size);
+		}
+		zt_memCpy(input_controller, zt_sizeof(ztInputController), &replay_data->input_controller, zt_sizeof(ztInputController));
+
+		diff_size = 0;
+		zt_fileRead(&replay_data->file, &diff_size);
+		if (diff_size > 0) {
+			zt_fileRead(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(replay_data->input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16, replay_data->working_memory, diff_size);
+		}
+		zt_memCpy(input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16, replay_data->input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16);
+	}
+	else if (replay_data->file.open_method == ztFileOpenMethod_WriteOver) {
+		zt_fileWrite(&replay_data->file, frame);
+
+		diff_size = zt_memoryDeltaGet(input_keys, replay_data->input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX, replay_data->working_memory, replay_data->working_memory_size);
+
+		zt_fileWrite(&replay_data->file, diff_size);
+		if (diff_size > 0) {
+			zt_fileWrite(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(replay_data->input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX, replay_data->working_memory, diff_size);
+			zt_assert(zt_memCmp(replay_data->input_keys, input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX) == 0);
+		}
+
+		diff_size = zt_memoryDeltaGet(input_mouse, &replay_data->input_mouse, zt_sizeof(ztInputMouse), replay_data->working_memory, replay_data->working_memory_size);
+		zt_fileWrite(&replay_data->file, diff_size);
+		if (diff_size > 0) {
+			zt_fileWrite(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(&replay_data->input_mouse, zt_sizeof(ztInputMouse), replay_data->working_memory, diff_size);
+			zt_assert(zt_memCmp(&replay_data->input_mouse, input_mouse, zt_sizeof(ztInputMouse)) == 0);
+		}
+
+		diff_size = zt_memoryDeltaGet(input_controller, &replay_data->input_controller, zt_sizeof(ztInputController), replay_data->working_memory, replay_data->working_memory_size);
+		zt_fileWrite(&replay_data->file, diff_size);
+		if (diff_size > 0) {
+			zt_fileWrite(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(&replay_data->input_controller, zt_sizeof(ztInputController), replay_data->working_memory, diff_size);
+			zt_assert(zt_memCmp(&replay_data->input_controller, input_controller, zt_sizeof(ztInputController)) == 0);
+		}
+
+		diff_size = zt_memoryDeltaGet(input_keystrokes, replay_data->input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16, replay_data->working_memory, replay_data->working_memory_size);
+		zt_fileWrite(&replay_data->file, diff_size);
+		if (diff_size > 0) {
+			zt_fileWrite(&replay_data->file, replay_data->working_memory, diff_size);
+			zt_memoryDeltaApply(replay_data->input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16, replay_data->working_memory, diff_size);
+			zt_assert(zt_memCmp(replay_data->input_keystrokes, input_keystrokes, zt_sizeof(ztInputKeys_Enum) * 16) == 0);
+		}
+	}
+
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -12952,6 +13135,38 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_textureAdjustScreenTargets()
+{
+	int width = zt_game->win_game_settings[0].native_w;
+	int height = zt_game->win_game_settings[0].native_h;
+
+	zt_fiz(zt_game->textures_count) {
+		if (zt_bitIsSet(zt_game->textures[i].flags, ztTextureFlags_RenderTargetScreen)) {
+			switch (zt_game->textures[i].renderer)
+			{
+				case ztRenderer_OpenGL: {
+#					if defined(ZT_OPENGL)
+					ztgl_textureFree(zt_game->textures[i].gl_texture);
+					zt_game->textures[i].gl_texture = ztgl_textureMakeRenderTarget(width, height, zt_game->textures[i].flags);
+#					endif
+				} break;
+
+				case ztRenderer_DirectX: {
+#					if defined(ZT_DIRECTX)
+					ztdx_textureFree(zt_game->textures[i].dx_texture);
+					zt_game->textures[i].dx_texture = ztdx_textureMakeRenderTarget(width, height, zt_game->textures[i].flags);
+#					endif
+				} break;
+			}
+
+			zt_game->textures[i].width = width;
+			zt_game->textures[i].height = height;
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
 	ZT_PROFILE_RENDERING("_zt_textureMakeBase");
@@ -12971,6 +13186,11 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 				texture->gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
 			}
 			else {
+				if (zt_bitIsSet(flags, ztTextureFlags_RenderTargetScreen)) {
+					width = zt_game->win_game_settings[0].native_w;
+					height = zt_game->win_game_settings[0].native_h;
+				}
+
 				texture->gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
 			}
 			if (texture->gl_texture == nullptr) {
@@ -20388,7 +20608,7 @@ ztInternal HINSTANCE _zt_hinstance;
 
 #if !defined(ZT_DLL)
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	char app_path[ztFileMaxPath] = {0};
 	zt_fileGetAppPath(app_path, sizeof(app_path));
@@ -20528,6 +20748,8 @@ int main(int argc, char **argv)
 		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
 
 		_zt_callFuncScreenChange(game_settings);
+
+		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
 	}
 	zt_profilerFrameEnd();
 
@@ -20667,7 +20889,7 @@ int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_
 {
 	_zt_hinstance = h_instance;
 
-	char* argv[128];
+	const char* argv[128];
 	int argc = 0;
 
 	if (cmd_line != nullptr) {
@@ -20919,6 +21141,8 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					game_settings->native_w = native_w_reset;
 					game_settings->native_h = native_h_reset;
 				}
+
+				_zt_textureAdjustScreenTargets();
 			}
 		} break;
 
