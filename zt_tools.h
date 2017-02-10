@@ -1968,6 +1968,16 @@ ztInline int   zt_memoryChunkRemaining(ztMemoryChunk *chunk);
 
 
 // ------------------------------------------------------------------------------------------------
+// memory deltas
+//
+// This allows for the comparison of two blocks of memory and storing the deltas.  This can be used
+// to save input deltas for replay features or for sending state over the network.
+
+i32  zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, int data_size);
+void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size);
+
+
+// ------------------------------------------------------------------------------------------------
 // compression
 
 
@@ -4126,20 +4136,21 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 bool zt_memArenaValidate(ztMemoryArena *arena)
 {
 	ztMemoryArena::allocation *alloc = arena->latest;
+	bool failed = false;
 	while (alloc != nullptr) {
 		if (alloc->freed == 0) {
-			byte *end_of_mem = (byte*)alloc->start + alloc->length;
+			byte *end_of_mem = ((byte*)alloc->start + alloc->length) - 4;
 			zt_fiz(4) {
 				if (*end_of_mem++ != 0xcd) {
 					zt_assert(false);
-					return false;
+					failed = true;
 				}
 			}
 		}
 		alloc = alloc->next;
 	}
 
-	return true;
+	return !failed;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8819,7 +8830,17 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 					data_pos += 1;
 				}
 				if (data_pos + 1 < argv_len) {
+					if(*(argv[i] + data_pos) == '\"') {
+						data_pos += 1;
+					}
 					zt_strCpy(buffer, buffer_size, argv[i] + data_pos, argv_len - data_pos);
+
+					int str_len = zt_strLen(buffer);
+					if (str_len > 0) {
+						if(buffer[str_len - 1] == '\"') {
+							buffer[str_len - 1] = 0;
+						}
+					}
 					return true;
 				}
 			}
@@ -9028,6 +9049,84 @@ bool operator==(ztDate& d1, ztDate& d2)
 bool operator!=(ztDate& d1, ztDate& d2)
 {
 	return !(d1 == d2);
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, int data_size)
+{
+	ztMemoryChunk memChunk = zt_memoryChunkMake(data, data_size);
+
+	byte *bchunk1 = (byte*)chunk1;
+	byte *bchunk2 = (byte*)chunk2;
+
+	i32 byte_idx = 0;
+	while (byte_idx < chunk_size) {
+		while (bchunk1[byte_idx] == bchunk2[byte_idx] && byte_idx < chunk_size) {
+			byte_idx += 1;
+		}
+
+		if (byte_idx < chunk_size) {
+			// we've hit a difference, so now tally up the total different bytes
+			i32 diff_bytes = 0;
+			while (bchunk1[byte_idx] != bchunk2[byte_idx] && byte_idx < chunk_size) {
+				byte_idx += 1;
+				diff_bytes += 1;
+			}
+
+			if (byte_idx < chunk_size) {
+				i32 *p_diff_start = zt_mallocStructChunk(i32, &memChunk);
+				if (p_diff_start == nullptr) {
+					return -1;
+				}
+
+				i32 *p_diff_bytes = zt_mallocStructChunk(i32, &memChunk);
+				if (p_diff_bytes == nullptr) {
+					return -1;
+				}
+
+				byte *p_bytes = zt_mallocStructArrayChunk(byte, diff_bytes, &memChunk);
+				if (p_bytes == nullptr) {
+					return -1;
+				}
+
+				*p_diff_start = byte_idx - diff_bytes;
+				*p_diff_bytes = diff_bytes;
+
+				zt_assert(*p_diff_start + *p_diff_bytes <= chunk_size);
+				for (i32 i = byte_idx - diff_bytes; i < byte_idx; ++i) {
+					*p_bytes++ = bchunk1[i];
+				}
+			}
+		}
+	}
+
+	return memChunk.current;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
+{
+	ztMemoryReader memReader = zt_memoryReaderMake(diff, diff_size);
+
+	byte *bchunk = (byte*)chunk;
+
+	while (memReader.current < memReader.memory_size) {
+		i32 diff_start = zt_memoryRead_i32(&memReader);
+		i32 diff_bytes = zt_memoryRead_i32(&memReader);
+
+		if (diff_bytes > 0) {
+			zt_fiz(diff_bytes) {
+				byte by = zt_memoryRead_u8(&memReader);
+				zt_assert(diff_start + i <= chunk_size);
+				bchunk[diff_start + i] = by;
+			}
+		}
+	}
 }
 
 
