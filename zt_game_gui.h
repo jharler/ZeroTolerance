@@ -712,6 +712,8 @@ void   zt_guiColumnSizerSetProp     (ztGuiItem *sizer, int col, int prop);
 
 void zt_guiInitDebug(ztGuiManager *gui_manager);
 
+ztGuiItem *zt_guiDebugAddMetric(const char *sample); // returns a static text that will appear in the dropdown when [+] is pressed next to the fps display
+
 // ------------------------------------------------------------------------------------------------
 
 #define ztDebugConsoleParams(PARAMS)	char PARAMS[16][256]
@@ -8565,8 +8567,12 @@ void zt_guiItemReparent(ztGuiItem *item, ztGuiItem *new_parent)
 
 struct ztDebugRenderingDetails
 {
+	ztGuiItem *window;
 	ztGuiItem *text;
+	ztGuiItem *sizer;
 };
+
+#define ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME	"Rendering Details Window"
 
 // ------------------------------------------------------------------------------------------------
 
@@ -8591,9 +8597,21 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugRenderingDetailsCleanup, ztInternal ZT_
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_guiDebugRenderDetailsSize(ztDebugRenderingDetails *details)
+{
+	details->sizer->size = zt_guiSizerGetMinSize(details->sizer);
+	//zt_guiSizerRecalcImmediately(details->sizer);
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	details->window->size = details->sizer->size + ztVec2(4 / ppu, 4 / ppu);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal bool _zt_guiDebugRenderingDetails()
 {
-	const char *window_name = "Rendering Details Window";
+	const char *window_name = ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME;
 
 	ztGuiItem *window = zt_guiItemFindByName(window_name);
 	if (window != nullptr) {
@@ -8609,13 +8627,19 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 	window = zt_guiMakeWindow(nullptr, ztGuiWindowBehaviorFlags_AllowDrag);
 	zt_guiItemSetName(window, window_name);
 
-	details->text = zt_guiMakeStaticText(window, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls");
+	details->window = window;
+	details->sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+	zt_guiSizerSizeToParent(details->sizer, false);
+
+	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls");
 	zt_guiItemSetAlign(details->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(details->text, "Rendering Details Text"));
+	zt_guiSizerAddItem(details->sizer, details->text, 0, 3 / zt_pixelsPerUnit());
 
-	zt_guiItemSetSize(window, ztVec2(3.25f, 1.2f));
+	//zt_guiItemSetSize(window, ztVec2(3.25f, 1.2f));
+	//zt_guiItemSetPosition(details->text, ztAlign_Right, ztAnchor_Right, ztVec2(-26.f / zt_pixelsPerUnit(), 0));
 
-	zt_guiItemSetPosition(details->text, ztAlign_Right, ztAnchor_Right, ztVec2(-26.f / zt_pixelsPerUnit(), 0));
+	_zt_guiDebugRenderDetailsSize(details);
 
 	ztGuiItem *update = _zt_guiMakeItemBase(window, ztGuiItemType_Custom, 0);
 	update->functions.update = _zt_guiDebugRenderingDetailsUpdate_FunctionID;
@@ -8624,6 +8648,36 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 
 	zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, -.35f));
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem *zt_guiDebugAddMetric(const char *sample)
+{
+	ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME);
+	bool needs_hidden = false;
+	if (window == nullptr) {
+		_zt_guiDebugRenderingDetails();
+		window = zt_guiItemFindByName(ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME);
+		needs_hidden = true;
+	}
+	if (window != nullptr) {
+		ztGuiItem* custom = zt_guiItemFindByType(ztGuiItemType_Custom, window);
+		if (custom) {
+			ztDebugRenderingDetails *details = (ztDebugRenderingDetails*)custom->functions.user_data;
+			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample);
+			zt_guiItemSetAlign(static_txt, ztAlign_Right);
+			zt_guiSizerAddItem(details->sizer, static_txt, 0, 3 / zt_pixelsPerUnit());
+			_zt_guiDebugRenderDetailsSize(details);
+			if (needs_hidden) {
+				zt_guiItemHide(window);
+			}
+
+			return static_txt;
+		}
+	}
+
+	return nullptr;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9789,6 +9843,8 @@ ztInternal void _zt_guiDebugVariables()
 
 		zt_guiSizerAddItem(sizer, item_sizer, 1, 3 / zt_pixelsPerUnit());
 	}
+
+	zt_guiItemSetPosition(window, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(.5f, -.5f));
 }
 
 // ------------------------------------------------------------------------------------------------
