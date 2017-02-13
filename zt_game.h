@@ -1968,6 +1968,8 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a);
 void zt_rendererClear(ztVec4 clr);
 void zt_rendererClearDepth();
 
+bool zt_rendererUvsFlipYRenderTarget();
+
 enum ztRendererDepthTestFunction_Enum
 {
 	ztRendererDepthTestFunction_Never,
@@ -3459,6 +3461,8 @@ struct ztVertexArray
 		zt_openGLSupport(ztVertexArrayGL *gl_va);
 		zt_directxSupport(ztVertexArrayDX *dx_va);
 	};
+
+	i32 vertices;
 };
 
 #ifndef ZT_MAX_VERTEX_ARRAYS
@@ -3627,6 +3631,7 @@ struct ztGameGlobals
 
 	ztTexture     textures[ZT_MAX_TEXTURES];
 	i32           textures_count = 0;
+	bool          textures_active_render_target = false;
 
 	// ----------------------
 
@@ -5639,7 +5644,7 @@ void zt_inputReplayFree(ztInputReplayData *replay_data)
 
 bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
 {
-	ZT_PROFILE_PLATFORM("zt_inputReplayProcessFrame")
+	ZT_PROFILE_INPUT("zt_inputReplayProcessFrame")
 
 	zt_returnValOnNull(replay_data, false);
 	zt_returnValOnNull(input_keys, false);
@@ -7400,6 +7405,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							cmp_texture->last_item = nullptr;
 							cmp_texture->cnt_display_items = 0;
 							cmp_texture->next = nullptr;
+							cmp_item_last = nullptr;
 							current_shader = command->shader;
 
 							zt_fiz(zt_elementsOf(current_textures)) {
@@ -7628,7 +7634,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
 			zt_textureRenderTargetPrepare(render_target_id);
-			zt_rendererClear(clear);
+			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+				zt_rendererClear(clear);
+			}
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -7639,7 +7647,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztgl_callAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
 		}
 
-		ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+		if (zt_game->textures_active_render_target) {
+			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+		}
+		else {
+			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+		}
 
 		ztMat4 mat2d;
 
@@ -7717,7 +7730,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				struct OpenGL
 				{
-					static void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4& active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
+					static ztInline void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4& active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
 					{
 						ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand");
 						switch (last_command)
@@ -7971,6 +7984,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_VertexArray: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::vertex array");
 							zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
+
 						} break;
 					};
 
@@ -8021,6 +8035,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		if (render_target_id != ztInvalidID) {
 			zt_textureRenderTargetPrepare(render_target_id);
+			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+				zt_rendererClear(clear);
+			}
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -8413,7 +8430,7 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 			ztVertexArrayID va_id = local::getNextID();
 			if (va_id == ztInvalidID) return ztInvalidID;
 			zt_game->vertex_arrays[va_id].gl_va = gl_va;
-
+			zt_game->vertex_arrays[va_id].vertices = vert_count;
 			return va_id;
 #			endif
 		} break;
@@ -8435,6 +8452,7 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 			ztVertexArrayID va_id = local::getNextID();
 			if (va_id == ztInvalidID) return ztInvalidID;
 			zt_game->vertex_arrays[va_id].dx_va = dx_va;
+			zt_game->vertex_arrays[va_id].vertices = vert_count;
 
 			return va_id;
 #			endif
@@ -8503,6 +8521,13 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 {
 	ZT_PROFILE_RENDERING("zt_vertexArrayDraw");
 	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
+
+	_zt_rendererCheckToResetStats();
+	zt_game->game_details.curr_frame.draw_calls += 1;
+
+	if (draw_type == ztVertexArrayDrawType_Triangles) {
+		zt_game->game_details.curr_frame.triangles_drawn += zt_game->vertex_arrays[vertex_array_id].vertices / 3;
+	}
 
 	switch (zt_currentRenderer())
 	{
@@ -9505,6 +9530,25 @@ void zt_rendererClearDepth()
 			zt_directxSupport(ztdx_clearDepth(zt_game->win_details[0].dx_context));
 		} break;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_rendererUvsFlipYRenderTarget()
+{
+	ZT_PROFILE_RENDERING("zt_rendererUvsReversed");
+	switch (zt_game->win_game_settings[0].renderer)
+	{
+		case ztRenderer_OpenGL: {
+			return false;
+		} break;
+
+		case ztRenderer_DirectX: {
+			return true;
+		} break;
+	}
+
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13154,7 +13198,7 @@ ztInternal void _zt_textureAdjustScreenTargets()
 				case ztRenderer_DirectX: {
 #					if defined(ZT_DIRECTX)
 					ztdx_textureFree(zt_game->textures[i].dx_texture);
-					zt_game->textures[i].dx_texture = ztdx_textureMakeRenderTarget(width, height, zt_game->textures[i].flags);
+					zt_game->textures[i].dx_texture = ztdx_textureMakeRenderTarget(zt_game->win_details[0].dx_context, width, height, zt_game->textures[i].flags);
 #					endif
 				} break;
 			}
@@ -13576,6 +13620,8 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 			zt_directxSupport(ztdx_textureRenderTargetPrepare(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
 		} break;
 	}
+
+	zt_game->textures_active_render_target = true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13593,6 +13639,8 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 			zt_directxSupport(ztdx_textureRenderTargetCommit(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
 		} break;
 	}
+
+	zt_game->textures_active_render_target = false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13860,7 +13908,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 	r32 x = (sx - (camera->width / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
 	r32 y = (sy - (camera->height / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
 
-	return ztVec2(x + camera->position.x, y + camera->position.y);
+	return ztVec2(x - camera->position.x, y - camera->position.y);
 }
 
 // ------------------------------------------------------------------------------------------------
