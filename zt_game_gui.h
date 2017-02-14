@@ -281,17 +281,35 @@ typedef ZT_FUNC_THEME_SIZE_ITEM(ztGuiThemeSizeItem_Func);
 #define ZT_FUNC_THEME_RENDER_ITEM(name) bool name(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos)
 typedef ZT_FUNC_THEME_RENDER_ITEM(ztGuiThemeRenderItem_Func);
 
+#define ZT_FUNC_THEME_RENDER_PASS_BEGIN(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
+typedef ZT_FUNC_THEME_RENDER_PASS_BEGIN(ztGuiThemeRenderPassBegin_Func);
+
+#define ZT_FUNC_THEME_RENDER_PASS_END(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
+typedef ZT_FUNC_THEME_RENDER_PASS_END(ztGuiThemeRenderPassEnd_Func);
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztGuiThemeFlags_Enum
+{
+	ztGuiThemeFlags_SeparatePasses = (1<<0), // will call the pass function after each top level window is drawn
+};
+
 // ------------------------------------------------------------------------------------------------
 
 struct ztGuiTheme
 {
 	void          *theme_data;
+	i32            flags;
+
 	ztFunctionID   get_rvalue;
 	ztFunctionID   get_ivalue;
 	ztFunctionID   update_item;
 	ztFunctionID   update_subitem;
 	ztFunctionID   size_item;
 	ztFunctionID   render_item;
+
+	ztFunctionID   pass_begin;
+	ztFunctionID   pass_end;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -562,6 +580,8 @@ void        zt_guiItemLock                  (ztGuiItem *item);
 void        zt_guiItemUnlock                (ztGuiItem *item);
 
 void        zt_guiItemReparent              (ztGuiItem *item, ztGuiItem *new_parent);
+
+bool        zt_guiItemTopLevelIsOverlapping (ztGuiItem *item); // determine if there is another window below this one in z-order and is entirely or partially covered by this one
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2226,12 +2246,15 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 		// ----------------------------------------------------------------
 
 		gm->default_theme.theme_data     = nullptr;
+		gm->default_theme.flags          = 0;
 		gm->default_theme.get_rvalue     = _zt_guiDefaultThemeGetRValue_FunctionID;
 		gm->default_theme.get_ivalue     = _zt_guiDefaultThemeGetIValue_FunctionID;
 		gm->default_theme.render_item    = _zt_guiDefaultThemeRenderItem_FunctionID;
 		gm->default_theme.update_item    = _zt_guiDefaultThemeUpdateItem_FunctionID;
 		gm->default_theme.update_subitem = _zt_guiDefaultThemeUpdateSubitem_FunctionID;
 		gm->default_theme.size_item      = _zt_guiDefaultThemeSizeItem_FunctionID;
+		gm->default_theme.pass_begin     = ztInvalidID;
+		gm->default_theme.pass_end       = ztInvalidID;
 
 		// ----------------------------------------------------------------
 
@@ -2946,6 +2969,10 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 
 			ztGuiTheme *theme = item->theme == nullptr ? &gm->default_theme : item->theme;
 
+			if(item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_begin != ztInvalidID) {
+				((ztGuiThemeRenderPassBegin_Func*)zt_functionPointer(theme->pass_begin))(theme, item, draw_list);
+			}
+
 			bool clip = zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_ClipContents);
 			if (clip) {
 				if (item->clip_area != ztVec4::zero) {
@@ -3024,6 +3051,10 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 #				else
 					zt_drawListPopClipRegion(draw_list);
 #				endif
+			}
+
+			if(item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_end != ztInvalidID) {
+				((ztGuiThemeRenderPassEnd_Func*)zt_functionPointer(theme->pass_end))(theme, item, draw_list);
 			}
 		}
 	};
@@ -8555,6 +8586,39 @@ void zt_guiItemReparent(ztGuiItem *item, ztGuiItem *new_parent)
 		}
 		sibling = sibling->sib_next;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_guiItemTopLevelIsOverlapping(ztGuiItem *item)
+{
+	ZT_PROFILE_GUI("zt_guiItemTopLevelIsOverlapping");
+
+	zt_returnValOnNull(item, false);
+
+	item = zt_guiItemGetTopLevelParent(item);
+
+	ztVec3 item_center(item->pos, 0);
+	ztVec3 item_size(item->size, 1);
+
+	zt_flinknext(child, item->gm->first_child, sib_next) {
+		if(child == item) {
+			return false;
+		}
+		if (!zt_guiItemIsShowing(child)) {
+			continue;
+		}
+
+		ztVec3 child_center(child->pos, 0);
+		ztVec3 child_size(child->size, 1);
+
+		// bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
+		if(zt_collisionAABBInAABB(item_center, item_size, child_center, child_size)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // ------------------------------------------------------------------------------------------------
