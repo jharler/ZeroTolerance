@@ -1699,6 +1699,8 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size = 1, const ztVec3& cente
 bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size = 1, const ztVec3& center = ztVec3::zero, const ztVec4& color_x = ztVec4(1, 0, 0, 1), const ztVec4& color_y = ztVec4(0, 1, 0, 1), const ztVec4& color_z = ztVec4(0, 0, 1, 1));
 bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size = 1, bool color_axis = false);
 
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera);
+
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
 bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color);
@@ -2014,9 +2016,9 @@ const char *zt_fontGetCharsetStandard( i32 *size );
 
 ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
 ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
-ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2& override_offset = ztVec2::zero);
-ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2& override_offset = ztVec2::zero);
-ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2& override_offset = ztVec2::zero);
+ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0,0));
+ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0, 0));
+ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = ztVec2i(0, 0));
 void zt_fontFree(ztFontID font_id);
 
 const char *zt_fontGetName(ztFontID font_id);
@@ -4451,6 +4453,8 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 					}
 				}
 
+				//if (tm_total * 1000000 < 10) return;
+
 				ztVec2 pos(x + (indent * pixel_size * 10), *y);
 
 				zt_strMakePrintf(time, 512, " %10.4f %12.4f . ", tm_total * 1000000, tm_alone * 1000000);
@@ -6651,6 +6655,24 @@ bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 siz
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera)
+{
+	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+	zt_drawListPushTexture(draw_list, tex);
+	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(camera);
+	if (zt_rendererUvsFlipYRenderTarget()) {
+		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, ztVec2(0, 1), ztVec2(1, 0));
+	}
+	else {
+		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, ztVec2::zero, ztVec2::one);
+	}
+	zt_drawListPopTexture(draw_list);
+	zt_drawListPopShader(draw_list);
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPushShader");
@@ -7705,13 +7727,15 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (cmp_tex->command && shader_id != ztInvalidID) {
 					ZT_PROFILE_RENDERING("zt_renderDrawLists::texture binding");
 
-					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
+					//ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
 					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
-						if (zt_game->textures[cmp_tex->command->texture[i]].renderer == ztRenderer_OpenGL) {
-							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, zt_strHash("diffuse_tex"), zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
-						}
+						zt_shaderSetVariableTex(shader_id, zt_strHash("diffuse_tex"), cmp_tex->command->texture[i]);
+//						if (zt_game->textures[cmp_tex->command->texture[i]].renderer == ztRenderer_OpenGL) {
+//							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, zt_strHash("diffuse_tex"), zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
+//						}
 					}
+					zt_shaderApplyVariables(shader_id);
 				}
 
 				if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -11289,6 +11313,9 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"inverse,mat3,mat3",
 			"inverse,mat4,mat4",
 			"smoothstep,float,float,float,float",
+			"sin,float,float",
+			"cos,float,float", 
+			"exp,float,float",
 
 			"int,int,int",
 			"int,uint,int",
@@ -14337,7 +14364,7 @@ ztInternal void _zt_fontMakeDefaults()
 {
 	ztTextureID tex = zt_textureMakeFromFileData(_zt_default_font_data, zt_sizeof(_zt_default_font_data), ztTextureFlags_PixelPerfect);
 	char *data = "info face=ZeroToleranceGui size=16 bold=0 italic=0 charset=unicode=stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=512 scaleH=64 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=8 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=34 x=16 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=35 x=24 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=36 x=32 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=37 x=40 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=38 x=48 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=39 x=56 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=40 x=64 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=41 x=72 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=42 x=80 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=43 x=88 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=44 x=96 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=45 x=104 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=46 x=112 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=47 x=120 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=48 x=128 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=49 x=136 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=50 x=144 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=51 x=152 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=52 x=160 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=53 x=168 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=54 x=176 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=55 x=184 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=56 x=192 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=57 x=200 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=58 x=208 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=59 x=216 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=60 x=224 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=61 x=232 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=62 x=240 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=63 x=248 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=64 x=256 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=65 x=264 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=66 x=272 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=67 x=280 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=68 x=288 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=69 x=296 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=70 x=304 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=71 x=312 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=72 x=320 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=73 x=328 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=74 x=336 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=75 x=344 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=76 x=352 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=77 x=360 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=78 x=368 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=79 x=376 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=80 x=384 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=81 x=392 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=82 x=400 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=83 x=408 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=84 x=416 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=85 x=424 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=86 x=432 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=87 x=440 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=88 x=448 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=89 x=456 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=90 x=464 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=91 x=472 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=92 x=480 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=93 x=488 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=94 x=496 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=95 x=504 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=96 x=512 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=97 x=520 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=98 x=528 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=99 x=536 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=100 x=544 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=101 x=552 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=102 x=560 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=103 x=568 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=104 x=576 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=105 x=584 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=106 x=592 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=107 x=600 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=108 x=608 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=109 x=616 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=110 x=624 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=111 x=632 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=112 x=640 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=113 x=648 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=114 x=656 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=115 x=664 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=116 x=672 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=117 x=680 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=118 x=688 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=119 x=696 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=120 x=704 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=121 x=712 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=122 x=720 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=123 x=728 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=124 x=736 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=125 x=744 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=126 x=744 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\n";
-	ztFontID font = zt_fontMakeFromBmpFontData(data, tex, ztVec2(0, 1));
+	ztFontID font = zt_fontMakeFromBmpFontData(data, tex, ztVec2i(0, 1));
 	zt_game->fonts_count_system += 1;
 }
 
@@ -14418,12 +14445,12 @@ ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, 
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const char *font_data, ztTextureID texture_override_tex_id, const ztVec2& override_offset)
+ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const char *font_data, ztTextureID texture_override_tex_id, const ztVec2i& override_offset)
 {
 	ZT_PROFILE_RENDERING("_zt_fontMakeFromBmpFontBase");
 	void *data = nullptr;
 	i32 size = 0;
-	ztVec2 offset = override_offset;
+	ztVec2i offset = override_offset;
 	
 	if (asset_mgr) {
 		ztAssetManagerType_Enum verify[] = { ztAssetManagerType_Font };
@@ -14656,6 +14683,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			else if (*codepoint != -1 && zt_strStartsWith(start, "height=")) {
 				glyph->tex_uv.w = (r32)val / tex_h;
 				glyph->size.y = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+				//font->line_height = zt_max(font->line_height, glyph->size.y);
 			}
 			else if (*codepoint != -1 && zt_strStartsWith(start, "xoffset=")) {
 				glyph->offset.x = (val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit;
@@ -14759,7 +14787,7 @@ on_error:
 
 // ------------------------------------------------------------------------------------------------
 
-ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const ztVec2& override_offset)
+ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const ztVec2i& override_offset)
 {
 	ZT_PROFILE_RENDERING("zt_fontMakeFromBmpFontAsset");
 	return _zt_fontMakeFromBmpFontBase(asset_mgr, asset_id, texture_override_asset_id, nullptr, ztInvalidID, override_offset);
@@ -14767,7 +14795,7 @@ ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_
 
 // ------------------------------------------------------------------------------------------------
 
-ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id, const ztVec2& override_offset)
+ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id, const ztVec2i& override_offset)
 {
 	ZT_PROFILE_RENDERING("zt_fontMakeFromBmpFontFile");
 	i32 size;
@@ -14784,7 +14812,7 @@ ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_o
 
 // ------------------------------------------------------------------------------------------------
 
-ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2& override_offset)
+ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset)
 {
 	ZT_PROFILE_RENDERING("zt_fontMakeFromBmpFontData");
 	return _zt_fontMakeFromBmpFontBase(nullptr, ztInvalidID, ztInvalidID, file_data, texture_override_id, override_offset);
@@ -14958,9 +14986,9 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 		r32 y = font->glyphs[glyph_idx].size.y;
 
 		row_width += x;
-		row_height = zt_max(row_height, y);
+		row_height = zt_max(zt_max(row_height, font->line_height), y);
 	}
-	total_height += row_height;
+	total_height +=  row_height;
 	total_width = zt_max(total_width, row_width);
 
 	if (row == current_row) {
