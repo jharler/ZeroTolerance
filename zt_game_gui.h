@@ -421,7 +421,8 @@ enum ztGuiPanelBehaviorFlags_Enum
 
 enum ztGuiStaticTextBehaviorFlags_Enum
 {
-	ztGuiStaticTextBehaviorFlags_Fancy = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiStaticTextBehaviorFlags_Fancy      = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiStaticTextBehaviorFlags_MonoSpaced = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1965,7 +1966,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				}
 				else {
 					zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
-					handle_size = ztVec2(item->slider.handle_size, zt_max(10 / ppu, item->size.y));
+					handle_size = ztVec2( zt_max(10 / ppu, item->slider.handle_size),item->size.y);
 
 					ztVec2 btn_size(16 / ppu, 16 / ppu);
 					bool neg_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight)), neg_pressed = neg_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)),
@@ -2279,7 +2280,6 @@ r32 zt_guiThemeGetRValue(ztGuiTheme *theme, ztGuiThemeValue_Enum value)
 	ZT_PROFILE_GUI("zt_guiThemeGetRValue");
 
 	zt_returnValOnNull(theme, 0);
-	zt_assertReturnValOnFail(theme->get_rvalue != ztInvalidID, 0);
 
 	r32 result = 0;
 	if (theme->get_rvalue == ztInvalidID || !((ztGuiThemeGetRValue_Func*)zt_functionPointer(theme->get_rvalue))(theme, value, &result)) {
@@ -2296,7 +2296,6 @@ i32 zt_guiThemeGetIValue(ztGuiTheme *theme, ztGuiThemeValue_Enum value)
 	ZT_PROFILE_GUI("zt_guiThemeGetIValue");
 
 	zt_returnValOnNull(theme, 0);
-	zt_assertReturnValOnFail(theme->get_rvalue != ztInvalidID, 0);
 
 	i32 result = 0;
 	if (theme->get_ivalue == ztInvalidID || !((ztGuiThemeGetIValue_Func*)zt_functionPointer(theme->get_ivalue))(theme, value, &result)) {
@@ -2316,7 +2315,7 @@ void zt_guiThemeUpdateItem(ztGuiTheme *theme, ztGuiItem *item)
 	zt_returnOnNull(item);
 	zt_returnOnNull(item);
 
-	if (theme->update_item != ztInvalidID || !((ztGuiThemeUpdateItem_Func*)zt_functionPointer(theme->update_item))(theme, item)) {
+	if (theme->update_item == ztInvalidID || !((ztGuiThemeUpdateItem_Func*)zt_functionPointer(theme->update_item))(theme, item)) {
 		_zt_guiDefaultThemeUpdateItem(theme, item);
 	}
 }
@@ -2359,9 +2358,8 @@ void zt_guiThemeRender(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item
 	zt_returnOnNull(theme);
 	zt_returnOnNull(draw_list);
 	zt_returnOnNull(item);
-	zt_assertReturnOnFail(theme->render_item != ztInvalidID);
 
-	if (!((ztGuiThemeRenderItem_Func*)zt_functionPointer(theme->render_item))(theme, draw_list, item, pos)) {
+	if (theme->render_item == ztInvalidID || !((ztGuiThemeRenderItem_Func*)zt_functionPointer(theme->render_item))(theme, draw_list, item, pos)) {
 		_zt_guiDefaultThemeRenderItem(theme, draw_list, item, pos);
 	}
 }
@@ -4944,6 +4942,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditUpdate, ztInternal ZT_FUNC_GUI_ITEM_
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditUpdate");
 
+	if (!zt_guiItemIsShowing(item)) {
+		return;
+	}
+
 	item->textedit.cursor_blink_time -= dt;
 	if (item->textedit.cursor_blink_time < 0) {
 		item->textedit.cursor_blink_time += .5f;
@@ -5717,7 +5719,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuInputMouse, ztInternal ZT_FUNC_GUI_ITEM_
 			zt_guiMenuPopupAtPosition(item->menu.submenus[item->menu.selected], ppos);
 		}
 		else if (item->menu.selected != -1) {
-			if (item->menu.on_selected != ztInvalidID) {
+			if (item->menu.on_selected != ztInvalidID && !need_open) {
 				((zt_guiMenuSelected_Func*)zt_functionPointer(item->menu.on_selected))(item, item->menu.ids[item->menu.selected], item->menu.user_datas[item->menu.selected]);
 			}
 
@@ -8668,7 +8670,7 @@ ztInternal void _zt_guiDebugRenderDetailsSize(ztDebugRenderingDetails *details)
 
 	r32 ppu = zt_pixelsPerUnit();
 
-	details->window->size = details->sizer->size + ztVec2(4 / ppu, 4 / ppu);
+	details->window->size = details->sizer->size + ztVec2(8 / ppu, 4 / ppu);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8677,10 +8679,17 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 {
 	const char *window_name = ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME;
 
+	r32 y_off = -.35f;
+
+	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
+	if (menubar) {
+		y_off = -(menubar->size.y + 2 / zt_pixelsPerUnit());
+	}
+
 	ztGuiItem *window = zt_guiItemFindByName(window_name);
 	if (window != nullptr) {
 		zt_guiItemShow(window, !zt_guiItemIsShowing(window));
-		zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, -.35f));
+		zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, y_off));
 		return zt_guiItemIsShowing(window);
 	}
 
@@ -8695,7 +8704,7 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 	details->sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 	zt_guiSizerSizeToParent(details->sizer, false);
 
-	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls");
+	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls", ztGuiStaticTextBehaviorFlags_MonoSpaced);
 	zt_guiItemSetAlign(details->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(details->text, "Rendering Details Text"));
 	zt_guiSizerAddItem(details->sizer, details->text, 0, 3 / zt_pixelsPerUnit());
@@ -8710,7 +8719,8 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 	update->functions.cleanup = _zt_guiDebugRenderingDetailsCleanup_FunctionID;
 	update->functions.user_data = details;
 
-	zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, -.35f));
+
+	zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, y_off));
 	return true;
 }
 
@@ -8729,7 +8739,7 @@ ztGuiItem *zt_guiDebugAddMetric(const char *sample)
 		ztGuiItem* custom = zt_guiItemFindByType(ztGuiItemType_Custom, window);
 		if (custom) {
 			ztDebugRenderingDetails *details = (ztDebugRenderingDetails*)custom->functions.user_data;
-			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample);
+			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample, ztGuiStaticTextBehaviorFlags_MonoSpaced);
 			zt_guiItemSetAlign(static_txt, ztAlign_Right);
 			zt_guiSizerAddItem(details->sizer, static_txt, 0, 3 / zt_pixelsPerUnit());
 			_zt_guiDebugRenderDetailsSize(details);
@@ -8812,7 +8822,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 	ztGuiItem *sizer = zt_guiMakeSizer(fps->panel, ztGuiItemOrient_Horz);
 	zt_guiSizerSizeToParent(sizer);
 
-	fps->text = zt_guiMakeStaticText(fps->panel, "00000 f/s 00.0000f us/f");
+	fps->text = zt_guiMakeStaticText(fps->panel, "00000 f/s 00.0000f us/f", ztGuiStaticTextBehaviorFlags_MonoSpaced);
 	zt_guiItemSetAlign(fps->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(fps->text, "FPS Display Text"));
 	zt_guiSizerAddItem(sizer, fps->text, 1, 0);
@@ -8821,7 +8831,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 	fps->button = zt_guiMakeButton(fps->panel, "+", ztGuiButtonBehaviorFlags_NoBackground);
 	zt_guiButtonSetCallback(fps->button, _zt_guiDebugFpsDisplayButtonExpand_FunctionID);
 	fps->button->size.x = fps->button->size.y = 18 / zt_pixelsPerUnit();
-	zt_guiSizerAddItem(sizer, fps->button, 0, 0);
+	zt_guiSizerAddItem(sizer, fps->button, 0, 2 / zt_pixelsPerUnit());
 
 	zt_guiItemSetSize(fps->panel, ztVec2(3.25f, 20 / zt_pixelsPerUnit()));
 
@@ -9162,7 +9172,7 @@ ztInternal void _zt_guiDebugConsole()
 
 	ztGuiItem *content = zt_guiWindowGetContentParent(window);
 	ztGuiItem *display_container = zt_gui->console_display_container = zt_guiMakeScrollContainer(content, ztGuiScrollContainerBehaviorFlags_ShowScrollVert);
-	zt_gui->console_display = dc->display = zt_guiMakeStaticText(display_container, nullptr, ztGuiStaticTextBehaviorFlags_Fancy, zt_elementsOf(dc->working_buffer));
+	zt_gui->console_display = dc->display = zt_guiMakeStaticText(display_container, nullptr, ztGuiStaticTextBehaviorFlags_Fancy | ztGuiStaticTextBehaviorFlags_MonoSpaced, zt_elementsOf(dc->working_buffer));
 	zt_guiScrollContainerSetItem(display_container, dc->display);
 
 	zt_guiItemSetAlign(dc->display, ztAlign_Left | ztAlign_Top);
@@ -9612,7 +9622,8 @@ ztInternal void _zt_guiDebugGuiHierarchy()
 		zt_guiSizerAddItem(sizer, sizer_right, 3, padding);
 
 		ztGuiItem *scroll = zt_guiMakeScrollContainer(sizer_right);
-		dgh->details = zt_guiMakeStaticText(scroll, "<color=8abbf8>Select an item on the left to view details on that item.</color>", ztGuiStaticTextBehaviorFlags_Fancy, 2048);
+		dgh->details = zt_guiMakeStaticText(scroll, "<color=8abbf8>Select an item on the left to view details on that item.</color>", ztGuiStaticTextBehaviorFlags_Fancy|ztGuiStaticTextBehaviorFlags_MonoSpaced, 2048);
+		zt_guiItemSetAlign(dgh->details, ztAlign_Left|ztAlign_Top);
 		zt_guiScrollContainerSetItem(scroll, dgh->details);
 
 		zt_guiSizerAddItem(sizer_right, scroll, 1, padding);
@@ -9854,7 +9865,7 @@ ztInternal void _zt_guiDebugVariables()
 	ztGuiItem *window = zt_guiMakeWindow("Variables", ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
 
-	ztVec2 avg_size(4, .5f);
+	ztVec2 avg_size(4.5, .5f);
 
 	r32 ttl_avg_height = zt_game->debug_vars_count * avg_size.y;
 
@@ -9886,6 +9897,8 @@ ztInternal void _zt_guiDebugVariables()
 		zt_guiSizerAddStretcher(item_sizer, 0, 7 / zt_pixelsPerUnit());
 
 		ztGuiItem *label = zt_guiMakeStaticText(item_sizer, zt_game->debug_vars[i].name);
+		zt_guiItemSetAlign(label, ztAlign_Left);
+
 		label->size.y = avg_size.y - ((3 / zt_pixelsPerUnit()) * 2);
 
 		ztGuiItem *editor = nullptr;
@@ -9896,7 +9909,7 @@ ztInternal void _zt_guiDebugVariables()
 		}
 
 		zt_guiSizerAddItem(item_sizer, label, 0, 0);
-		zt_guiSizerAddStretcher(item_sizer, 1);
+		zt_guiSizerAddStretcher(item_sizer, 1, 7 / zt_pixelsPerUnit());
 
 		if (editor) {
 			zt_guiSizerAddItem(item_sizer, editor, 0, 0);
@@ -9908,7 +9921,7 @@ ztInternal void _zt_guiDebugVariables()
 		zt_guiSizerAddItem(sizer, item_sizer, 1, 3 / zt_pixelsPerUnit());
 	}
 
-	zt_guiItemSetPosition(window, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(.5f, -.5f));
+	zt_guiItemSetPosition(window, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, ztVec2(1.f, -1.f));
 }
 
 // ------------------------------------------------------------------------------------------------
