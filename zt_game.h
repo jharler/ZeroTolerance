@@ -2040,11 +2040,11 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text);
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
 
 // ------------------------------------------------------------------------------------------------
 // sprites
@@ -15281,7 +15281,7 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 		r32 y = font->glyphs[glyph_idx].size.y;
 
 		row_width += x;
-		row_height = zt_max(row_height, y);
+		row_height = zt_max(zt_max(row_height, font->line_height), y);
 	}
 	total_height += row_height;
 	total_width = zt_max(total_width, row_width);
@@ -15322,28 +15322,28 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFancyText2D");
 	zt_returnOnNull(draw_list);
@@ -15395,7 +15395,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 	char format[128];
 	char *format_ptr = format;
 
-	zt_drawListPushColor(draw_list, ztColor(1, 1, 1, 1));
+	zt_drawListPushColor(draw_list, default_color);
 	int colors_pushed = 0;
 
 	for (int r = 0; r < rows; ++r) {
