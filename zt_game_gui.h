@@ -518,8 +518,8 @@ ztGuiItem *zt_guiMakeTree              (ztGuiItem *parent, i32 max_items);
 ztGuiItem *zt_guiMakeComboBox          (ztGuiItem *parent, i32 max_items);
 ztGuiItem *zt_guiMakeSpriteDisplay     (ztGuiItem *parent, ztGuiThemeSprite *sprite);
 ztGuiItem *zt_guiMakeSpinner           (ztGuiItem *parent, int *live_value = nullptr);
-ztGuiItem *zt_guiMakeSizer             (ztGuiItem *parent, ztGuiItemOrient_Enum orient);
-ztGuiItem *zt_guiMakeColumnSizer       (ztGuiItem *parent, int columns);
+ztGuiItem *zt_guiMakeSizer             (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
+ztGuiItem *zt_guiMakeColumnSizer       (ztGuiItem *parent, int columns, bool size_to_parent = true);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -733,6 +733,10 @@ void   zt_guiColumnSizerSetProp     (ztGuiItem *sizer, int col, int prop);
 
 void zt_guiInitDebug(ztGuiManager *gui_manager);
 
+void zt_guiDebugHide();
+void zt_guiDebugShow();
+void zt_guiDebugToggle();
+
 ztGuiItem *zt_guiDebugAddMetric(const char *sample); // returns a static text that will appear in the dropdown when [+] is pressed next to the fps display
 
 // ------------------------------------------------------------------------------------------------
@@ -851,6 +855,7 @@ struct ztGuiItem
 	i32                 anchor_flags;
 	i32                 pos_align_flags;
 	i32                 pos_anchor_flags;
+	i32                 custom_flags;
 
 	ztVec2              pos_offset;
 	ztVec4              color;
@@ -7633,9 +7638,9 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 
 // ------------------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_sizerUpdate))
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSizerUpdate))
 {
-	ZT_PROFILE_GUI("_zt_sizerUpdate");
+	ZT_PROFILE_GUI("_zt_guiSizerUpdate");
 
 	if (item->parent == nullptr || ((item->sizer.size_to_parent && item->parent->size == item->size)) || (!item->sizer.size_to_parent && item->size.x == item->sizer.size[0] && item->size.y == item->sizer.size[1])) {
 		if (item->sizer.size[0] != -1 && item->sizer.size[1] != -1) {
@@ -7662,9 +7667,15 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE
 					recalc = true;
 				}
 			}
-			else {
+			else if(item->sizer.size_to_parent) {
 				item->size.x = item->parent->size.x;
 				recalc = true;
+			}
+			else {
+				if(item->size.x != min_size.x) {
+					item->size.x = min_size.x;
+					recalc = true;
+				}
 			}
 
 			if (item->sizer.size_parent_y) {
@@ -7673,9 +7684,15 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE
 					recalc = true;
 				}
 			}
-			else {
+			else if(item->sizer.size_to_parent) {
 				item->size.y = item->parent->size.y;
 				recalc = true;
+			}
+			else {
+				if(item->size.y != min_size.y) {
+					item->size.y = min_size.y;
+					recalc = true;
+				}
 			}
 
 			if (recalc) {
@@ -7829,7 +7846,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE
 				}
 
 				if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
-					entry->item->pos.x = col_x + entry->padding;
+					entry->item->pos.x = col_x + entry->padding + entry->item->size.x / 2;
 				}
 				else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
 					entry->item->pos.x = (col_x + column_sizes[x].x) - (entry->item->size.x + entry->padding);
@@ -7838,7 +7855,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_sizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE
 					entry->item->pos.x = (col_x + (column_sizes[x].x / 2));
 				}
 				entry->item->pos.y = (item_y - entry->padding) - (entry->item->size.y / 2);
-				item_y -= entry->item->size.y + entry->padding;
+				item_y -= entry->item->size.y + entry->padding * 2;
 
 				entry = entry->next;
 			}
@@ -7875,7 +7892,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerBestSize, ztInternal ZT_FUNC_GUI_ITEM_B
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient)
+ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent)
 {
 	ZT_PROFILE_GUI("zt_guiMakeSizer");
 
@@ -7885,12 +7902,12 @@ ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient)
 	item->sizer.orient = orient;
 	item->sizer.type = ztGuiSizerType_Normal;
 	item->sizer.size[0] = item->sizer.size[1] = 0;
-	item->sizer.size_to_parent = true;
+	item->sizer.size_to_parent = size_to_parent;
 	item->sizer.size_parent_x = item->sizer.size_parent_y = false;
 	item->sizer.items = nullptr;
 
 	item->functions.cleanup = _zt_guiSizerCleanup_FunctionID;
-	item->functions.update = _zt_sizerUpdate_FunctionID;
+	item->functions.update = _zt_guiSizerUpdate_FunctionID;
 	item->functions.best_size = _zt_guiSizerBestSize_FunctionID;
 	item->functions.user_data = nullptr;
 
@@ -7899,11 +7916,11 @@ ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient)
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItem *zt_guiMakeColumnSizer(ztGuiItem *parent, int columns)
+ztGuiItem *zt_guiMakeColumnSizer(ztGuiItem *parent, int columns, bool size_to_parent)
 {
 	ZT_PROFILE_GUI("zt_guiMakeColumnSizer");
 
-	ztGuiItem *sizer = zt_guiMakeSizer(parent, ztGuiItemOrient_Horz);
+	ztGuiItem *sizer = zt_guiMakeSizer(parent, ztGuiItemOrient_Horz, size_to_parent);
 	if (sizer) {
 		sizer->sizer.type = ztGuiSizerType_Column;
 		sizer->sizer.columns = columns;
@@ -7969,6 +7986,7 @@ void zt_guiSizerSizeToParent(ztGuiItem *sizer, bool size_to_parent)
 void zt_guiSizerSizeParent(ztGuiItem *sizer, bool size_parent_x, bool size_parent_y)
 {
 	zt_assertReturnOnFail(sizer->type == ztGuiItemType_Sizer);
+	sizer->sizer.size_to_parent = false;
 	sizer->sizer.size_parent_x = size_parent_x;
 	sizer->sizer.size_parent_y = size_parent_y;
 }
@@ -8006,7 +8024,7 @@ ztInternal void _zt_guiSizerRecalcImmediately(ztGuiItem *item)
 	ZT_PROFILE_GUI("_zt_guiSizerRecalcImmediately");
 
 	if (item->type == ztGuiItemType_Sizer) {
-		_zt_sizerUpdate(item, 0, item->functions.user_data);
+		_zt_guiSizerUpdate(item, 0, item->functions.user_data);
 	}
 
 	ztGuiItem *child = item->first_child;
@@ -10011,6 +10029,36 @@ void zt_guiInitDebug(ztGuiManager *gm)
 
 	zt_gui->console_window = nullptr;
 	_zt_guiDebugConsole();
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugHide()
+{
+	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
+	if (menubar) {
+		zt_guiItemHide(menubar);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugShow()
+{
+	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
+	if (menubar) {
+		zt_guiItemShow(menubar);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugToggle()
+{
+	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
+	if (menubar) {
+		zt_guiItemShow(menubar, !zt_guiItemIsShowing(menubar));
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
