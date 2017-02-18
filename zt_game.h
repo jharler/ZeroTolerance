@@ -2021,6 +2021,8 @@ ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_o
 ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = ztVec2i(0, 0));
 void zt_fontFree(ztFontID font_id);
 
+void zt_fontMakeMonoSpaced(ztFontID font);
+
 const char *zt_fontGetName(ztFontID font_id);
 i32 zt_fontGetSizeInPixels(ztFontID font_id);
 
@@ -14849,6 +14851,30 @@ void zt_fontFree(ztFontID font_id)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_fontMakeMonoSpaced(ztFontID font_id)
+{
+	ZT_PROFILE_RENDERING("zt_fontFree");
+	if (font_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(font_id >= 0 && font_id < zt_game->fonts_count);
+
+	ztFont *font = &zt_game->fonts[font_id];
+
+	r32 max_width = 0;
+	zt_fiz(font->glyph_count) {
+		max_width = zt_max(max_width, font->glyphs[i].size.x);
+	}
+
+	zt_fiz(font->glyph_count) {
+		font->glyphs[i].x_adv = max_width;// -font->glyphs[i].size.x;
+	}
+
+	font->space_width = max_width;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 const char *zt_fontGetName(ztFontID font_id)
 {
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
@@ -20962,7 +20988,7 @@ int main(int argc, const char **argv)
 #if !defined(ZT_PLATFORM_WIN32_CONSOLE) && !defined(ZT_PLATFORM_WIN64_CONSOLE)
 
 int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_line, int cmd_show)
-{
+ {
 	_zt_hinstance = h_instance;
 
 	const char* argv[128];
