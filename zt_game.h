@@ -799,7 +799,7 @@ struct ztInputReplayData
 bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_name);
 bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name);
 void zt_inputReplayFree(ztInputReplayData *replay_data);
-bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16]);
+bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16]);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1155,6 +1155,8 @@ void            zt_vertexArrayFree(ztVertexArrayID vertex_array_id);
 
 bool            zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int vert_count);
 void            zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type = ztVertexArrayDrawType_Triangles);
+
+int             zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id);
 
 int             zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type);
 
@@ -1699,7 +1701,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size = 1, const ztVec3& cente
 bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size = 1, const ztVec3& center = ztVec3::zero, const ztVec4& color_x = ztVec4(1, 0, 0, 1), const ztVec4& color_y = ztVec4(0, 1, 0, 1), const ztVec4& color_z = ztVec4(0, 0, 1, 1));
 bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size = 1, bool color_axis = false);
 
-bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera);
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale = 1);
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
@@ -2061,11 +2063,13 @@ struct ztSprite
 
 ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0);
 ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0));
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0);
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0));
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0, int pixel_border = 0);
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0), int pixel_border = 0);
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
+
 
 // ------------------------------------------------------------------------------------------------
 
@@ -5648,11 +5652,12 @@ void zt_inputReplayFree(ztInputReplayData *replay_data)
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
+bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
 {
 	ZT_PROFILE_INPUT("zt_inputReplayProcessFrame")
 
 	zt_returnValOnNull(replay_data, false);
+	zt_returnValOnNull(input_this_frame, false);
 	zt_returnValOnNull(input_keys, false);
 	zt_returnValOnNull(input_mouse, false);
 	zt_returnValOnNull(input_controller, false);
@@ -5668,6 +5673,13 @@ bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInp
 		}
 
 		zt_assert(read_frame == frame);
+
+		i8 read_bool = 0;
+		if (!zt_fileRead(&replay_data->file, &read_bool)) {
+			zt_fileClose(&replay_data->file);
+			return false;
+		}
+		*input_this_frame = read_bool == 1;
 
 		diff_size = 0;
 		zt_fileRead(&replay_data->file, &diff_size);
@@ -5703,6 +5715,9 @@ bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, ztInp
 	}
 	else if (replay_data->file.open_method == ztFileOpenMethod_WriteOver) {
 		zt_fileWrite(&replay_data->file, frame);
+
+		i8 write_bool = *input_this_frame ? 1 : 0;
+		zt_fileWrite(&replay_data->file, write_bool);
 
 		diff_size = zt_memoryDeltaGet(input_keys, replay_data->input_keys, zt_sizeof(ztInputKeys) * ztInputKeys_MAX, replay_data->working_memory, replay_data->working_memory_size);
 
@@ -6657,11 +6672,14 @@ bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 siz
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera)
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale)
 {
 	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 	zt_drawListPushTexture(draw_list, tex);
 	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(camera);
+	if (scale != 1) {
+		cam_ext *= scale;
+	}
 	if (zt_rendererUvsFlipYRenderTarget()) {
 		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, ztVec2(0, 1), ztVec2(1, 0));
 	}
@@ -8523,6 +8541,8 @@ bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int 
 	ZT_PROFILE_RENDERING("zt_vertexArrayUpdate");
 	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, false);
 
+	zt_game->vertex_arrays[vertex_array_id].vertices = vert_count;
+
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -8547,6 +8567,10 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 {
 	ZT_PROFILE_RENDERING("zt_vertexArrayDraw");
 	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
+
+	if (zt_game->vertex_arrays[vertex_array_id].vertices <= 0) {
+		return;
+	}
 
 	_zt_rendererCheckToResetStats();
 	zt_game->game_details.curr_frame.draw_calls += 1;
@@ -8599,6 +8623,16 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 #			endif
 		} break;
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id)
+{
+	ZT_PROFILE_RENDERING("zt_vertexArrayVertexCount");
+	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, 0);
+
+	return zt_game->vertex_arrays[vertex_array_id].vertices;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -15609,16 +15643,81 @@ ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i ancho
 
 // ------------------------------------------------------------------------------------------------
 
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y)
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y, int pixel_border)
 {
-	return zt_spriteMake(tex, x * w, y * h, w, h, anchor_x, anchor_y);
+	if (pixel_border != 0) {
+		x = (x * w) + pixel_border;
+		y = (y * h) + pixel_border;
+		w -= pixel_border * 2;
+		h -= pixel_border * 2;
+		return zt_spriteMake(tex, x, y, w, h, anchor_x, anchor_y);
+	}
+	else {
+		return zt_spriteMake(tex, x * w, y * h, w, h, anchor_x, anchor_y);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
 
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor, int pixel_border)
 {
-	return zt_spriteMake(tex, pos.x * size.x, pos.y * size.y, size.x, size.y, anchor.x, anchor.y);
+	if (pixel_border != 0) {
+		pos.x = (pos.x * size.x) + pixel_border;
+		pos.y = (pos.y * size.y) + pixel_border;
+		size.x -= pixel_border * 2;
+		size.y -= pixel_border * 2;
+		return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
+	}
+	else {
+		return zt_spriteMake(tex, pos.x * size.x, pos.y * size.y, size.x, size.y, anchor.x, anchor.y);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		ztVec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
+		ztVec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
 }
 
 // ------------------------------------------------------------------------------------------------
