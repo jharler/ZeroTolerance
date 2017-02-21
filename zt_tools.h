@@ -567,6 +567,8 @@ ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
 typedef ztVec4 ztColor;
 #define ztColour ztColor;	// pick your favorite (favourite?)
 
+ztInline ztColor zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
+
 #define ztColor_White          ztColor(1.0f, 1.0f, 1.0f, 1.f)
 #define ztColor_Black          ztColor( .0f,  .0f,  .0f, 1.f)
 #define ztColor_Gray           ztColor(.50f, .50f, .50f, 1.f)
