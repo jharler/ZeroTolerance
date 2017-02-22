@@ -1076,6 +1076,8 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default);
 
 typedef i32 ztTextureID;
 
+#define ztTextureDefault	0
+
 enum ztTextureFlags_Enum
 {
 	ztTextureFlags_MipMaps            = (1<<0),
