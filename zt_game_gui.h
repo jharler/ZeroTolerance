@@ -2682,6 +2682,9 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 		if (top_level_mouse_item != nullptr && top_level_mouse_item != child) {
 			process_input = false;
 		}
+		if (!zt_bitIsSet(child->behavior_flags, ztGuiItemBehaviorFlags_WantsInput) && !zt_bitIsSet(child->behavior_flags, ztGuiItemBehaviorFlags_WantsFocus)) {
+			process_input = false;
+		}
 		if (process_input) {
 
 			struct local
