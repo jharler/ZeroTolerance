@@ -216,6 +216,7 @@ enum ztGuiThemeValue_Enum
 	ztGuiThemeValue_r32_MenuSubmenuIconX,
 	ztGuiThemeValue_r32_MenuSubmenuIconY,
 	ztGuiThemeValue_i32_MenuFontID,
+	ztGuiThemeValue_r32_MenuSeparatorHeight,
 	
 	ztGuiThemeValue_r32_TreeIndent,
 	ztGuiThemeValue_i32_TreeCollapseButtonAlign,
@@ -491,6 +492,7 @@ bool           zt_guiManagerHandleInput(ztGuiManager *gui_manager, ztInputKeys i
 void           zt_guiManagerRender(ztGuiManager *gui_manager, ztDrawList *draw_list, r32 dt);
 
 void           zt_guiSetActiveManager(ztGuiManager *gui_manager);
+ztGuiManager  *zt_guiGetActiveManager();
 
 void           zt_guiManagerSetKeyboardFocus(ztGuiManager *gui_manager, bool keyboard_focus = true);
 bool           zt_guiManagerHasKeyboardFocus(ztGuiManager *gui_manager);
@@ -655,10 +657,12 @@ ztVec2 zt_guiTextEditGetCharacterPos(ztGuiItem *item, int ch, bool bottom_right)
 
 void zt_guiMenuAppend          (ztGuiItem *menu, const char *label, i32 id, void *user_data = nullptr, ztSprite *icon = nullptr);
 void zt_guiMenuAppendSubmenu   (ztGuiItem *menu, const char *label, ztGuiItem *submenu, ztSprite *icon = nullptr);
+void zt_guiMenuAppendSeparator (ztGuiItem *menu);
 void zt_guiMenuPopupAtItem     (ztGuiItem *menu, ztGuiItem *item, i32 align_flags, const ztVec2& offset = ztVec2::zero);
 void zt_guiMenuPopupAtPosition (ztGuiItem *menu, const ztVec2& pos);
 bool zt_guiMenuGetSelected     (ztGuiItem *menu, i32 *selected_id);
 void zt_guiMenuSetCallback     (ztGuiItem *menu, ztFunctionID on_selected);
+void zt_guiMenuClear           (ztGuiItem *menu);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1030,7 +1034,8 @@ struct ztGuiItem
 			i32          item_count;
 			i32          highlighted;
 			i32          selected;
-			bool         just_opened;
+			i32          just_opened;
+			r32          label_offset;
 
 			ztFunctionID on_selected;
 		} menu;
@@ -1130,6 +1135,7 @@ struct ztGuiManager
 	bool           mouse_over_gui;
 	bool           mouse_click;
 	bool           mouse_click_ignored;
+	bool           mouse_just_clicked;
 	bool           keyboard_focus;
 	bool           key_state_alt;
 	bool           key_state_ctrl;
@@ -1157,6 +1163,8 @@ struct ztGuiManager
 
 	ztMemoryArena *arena;
 	i32            base_id;
+
+	bool           in_update;
 
 	ztGuiManager  *next;
 };
@@ -1387,6 +1395,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		
 		case ztGuiThemeValue_r32_MenuSubmenuIconX:            *result =  1 / ppu; break;
 		case ztGuiThemeValue_r32_MenuSubmenuIconY:            *result =  1 / ppu; break;
+		case ztGuiThemeValue_r32_MenuSeparatorHeight:         *result =  3 / ppu; break;
 		
 		case ztGuiThemeValue_r32_TreeIndent:                  *result = 12 / ppu; break;
 		
@@ -1629,6 +1638,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 			if (item->type == ztGuiItemType_Menu) {
 				zt_fiz(item->menu.item_count) {
 					ztVec2 ext = zt_fontGetExtents(font, item->menu.display[i]);
+
+					if (item->menu.ids[i] == ztInvalidID && zt_strStartsWith(item->menu.display[i], "__")) {
+						ext.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_MenuSeparatorHeight);
+					}
 
 					item->size.y += zt_max(zt_max(icon.y, ext.y), icon_orig.y) + padding;
 					item->size.x = zt_max(item->size.x, ext.x + icon.x + icon_orig.x + padding * 3.f);
@@ -2096,20 +2109,30 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			zt_fiz(item->menu.item_count) {
 				ztVec2 ext = zt_fontGetExtents(ztFontDefault, item->menu.display[i]);
 
-				if (item->menu.highlighted == i && highlighted) {
-					if (item->type == ztGuiItemType_Menu) {
-						zt_drawListAddSolidRect2D(draw_list, ztVec2(pos.x + item->size.x / 2 - padding, pos.y - ext.y / 2.f), ztVec2(item->size.x - padding * 2.f, ext.y + 2 / ppu), ztColor(.5f, .5f, 1, .5f));
-					}
-					else {
-						zt_drawListAddSolidRect2D(draw_list, ztVec2(pos.x + ext.x / 2, pos.y - ext.y / 2.f), ztVec2(ext.x + padding * 2, ext.y + 2 / ppu), ztColor(.5f, .5f, 1, .5f));
-					}
-				}
-				zt_drawListAddText2D(draw_list, ztFontDefault, item->menu.display[i], ztVec2(pos.x + icon.x, pos.y - ext.y / 2.f + padding), ztAlign_Left, ztAnchor_Left);
+				if (item->menu.ids[i] == ztInvalidID && zt_strStartsWith(item->menu.display[i], "__")) {
+					ext.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_MenuSeparatorHeight);
 
-				if (item->menu.icons[i] != nullptr) {
-					r32 y = zt_max(item->menu.icons[i]->half_size.y, ext.y / 2.f);
-					zt_drawListAddSprite(draw_list, item->menu.icons[i], ztVec3(pos.x + padding + item->menu.icons[i]->half_size.x, pos.y - y, 0));
+					ztVec2 lpos = pos;
+					lpos.y -= ext.y / 2.f;
+					zt_drawListAddLine(draw_list, lpos, lpos + ztVec2((item->size.x - padding * 2), 0));
 				}
+				else {
+					if (item->menu.highlighted == i && highlighted) {
+						if (item->type == ztGuiItemType_Menu) {
+							zt_drawListAddSolidRect2D(draw_list, ztVec2(pos.x + item->size.x / 2 - padding, pos.y - ext.y / 2.f), ztVec2(item->size.x - padding * 2.f, ext.y + 2 / ppu), ztColor(.5f, .5f, 1, .5f));
+						}
+						else {
+							zt_drawListAddSolidRect2D(draw_list, ztVec2(pos.x + ext.x / 2, pos.y - ext.y / 2.f), ztVec2(ext.x + padding * 2, ext.y + 2 / ppu), ztColor(.5f, .5f, 1, .5f));
+						}
+					}
+					zt_drawListAddText2D(draw_list, ztFontDefault, item->menu.display[i], ztVec2(pos.x + icon.x, pos.y - ext.y / 2.f + padding), ztAlign_Left, ztAnchor_Left);
+
+					if (item->menu.icons[i] != nullptr) {
+						r32 y = zt_max(item->menu.icons[i]->half_size.y, ext.y / 2.f);
+						zt_drawListAddSprite(draw_list, item->menu.icons[i], ztVec3(pos.x + padding + item->menu.icons[i]->half_size.x, pos.y - y, 0));
+					}
+				}
+
 
 				if (item->type == ztGuiItemType_Menu) {
 					if (item->menu.submenus[i] != nullptr) {
@@ -2239,6 +2262,7 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 	gm->focus_item      = nullptr;
 	gm->tooltip_item    = nullptr;
 	gm->item_cache_used = 0;
+	gm->in_update       = false;
 
 	if (theme_default) {
 		gm->default_theme = *theme_default;
@@ -2634,6 +2658,8 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 	zt_returnValOnNull(input_keys, false);
 	zt_returnValOnNull(input_mouse, false);
 
+	gm->in_update = true;
+
 	gm->key_state_alt   = input_keys[ztInputKeys_Menu].pressed();
 	gm->key_state_ctrl  = input_keys[ztInputKeys_Control].pressed();
 	gm->key_state_shift = input_keys[ztInputKeys_Shift].pressed();
@@ -2664,6 +2690,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 	gm->mouse_over_gui = false;
 	gm->mouse_click = mouse_pressed;
 	gm->mouse_click_ignored = mouse_pressed;
+	gm->mouse_just_clicked = input_mouse->leftJustPressed() || input_mouse->middleJustPressed() || input_mouse->rightJustPressed();
 
 	ztGuiItem *child = gm->first_child;
 	while (child && child->sib_next) {
@@ -2871,6 +2898,8 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 		else result = true;
 	}
 
+	gm->in_update = false;
+
 	return result;
 }
 
@@ -2950,7 +2979,9 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 	zt_returnOnNull(draw_list);
 	zt_returnOnNull(gm);
 
+	gm->in_update = true;
 	_zt_guiManagerUpdatePre(gm, dt);
+	gm->in_update = false;
 
 //#define _zt_guiManagerRenderClipAreas
 
@@ -3075,7 +3106,9 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 
 	zt_drawListPopColor(draw_list);
 
+	gm->in_update = true;
 	_zt_guiManagerUpdatePost(gm, dt);
+	gm->in_update = false;
 
 #	if defined(_zt_guiManagerRenderClipAreas)
 #		undef _zt_guiManagerRenderClipAreas
@@ -3088,6 +3121,13 @@ void zt_guiSetActiveManager(ztGuiManager *gm)
 {
 	zt_returnOnNull(gm);
 	zt_gui->gui_manager_active = gm;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiManager *zt_guiGetActiveManager()
+{
+	return zt_gui->gui_manager_active;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5607,7 +5647,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_
 	ZT_PROFILE_GUI("_zt_guiMenuBaseUpdate");
 
 	if (item->type == ztGuiItemType_Menu) {
-		if (item->gm->mouse_click && !item->menu.just_opened && item->gm->item_has_mouse != item && !zt_guiItemIsChildOf(item, item->gm->item_has_mouse)) {
+		if (item->gm->mouse_just_clicked && !item->menu.just_opened && item->gm->item_has_mouse != item && !zt_guiItemIsChildOf(item, item->gm->item_has_mouse)) {
 			bool close = true;
 			if (item->gm->item_has_mouse != nullptr) {
 				if (item->gm->item_has_mouse->type == ztGuiItemType_Menu) {
@@ -5628,7 +5668,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_
 		}
 	}
 
-	item->menu.just_opened = false;
+	item->menu.just_opened = zt_max(0, item->menu.just_opened - 1);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5666,11 +5706,17 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuInputMouse, ztInternal ZT_FUNC_GUI_ITEM_
 	pos.x -= (item->size.x - padding * 2.f) / 2.f;
 	pos.y += (item->size.y - padding * 2.f) / 2.f;
 
+	pos.y -= item->menu.label_offset;
+
 	item->menu.selected = item->menu.highlighted = -1;
 
 	ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_MenuFontID);
 	zt_fiz(item->menu.item_count) {
 		ztVec2 ext = zt_fontGetExtents(font, item->menu.display[i]);
+
+		if (item->menu.ids[i] == ztInvalidID && zt_strStartsWith(item->menu.display[i], "__")) {
+			ext.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_MenuSeparatorHeight);
+		}
 
 		if (item->type == ztGuiItemType_Menu) {
 			if (mpos.y <= pos.y && mpos.y > pos.y - ext.y) {
@@ -5778,8 +5824,9 @@ ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, bool bar)
 
 	item->menu.item_count = 0;
 	item->menu.highlighted = -1;
-	item->menu.just_opened = false;
+	item->menu.just_opened = 0;
 	item->menu.on_selected = ztInvalidID;
+	item->menu.label_offset = 0;
 
 	item->functions.cleanup     = _zt_guiMenuCleanup_FunctionID;
 	item->functions.update      = _zt_guiMenuBaseUpdate_FunctionID;
@@ -5869,6 +5916,26 @@ void zt_guiMenuAppendSubmenu(ztGuiItem *menu, const char *label, ztGuiItem *subm
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_guiMenuAppendSeparator(ztGuiItem *menu)
+{
+	ZT_PROFILE_GUI("zt_guiMenuAppendSeparator");
+
+	zt_assertReturnOnFail(menu->type == ztGuiItemType_Menu);
+
+	zt_assert(menu->menu.item_count < ztGuiMenuMaxMenuItems);
+
+	int idx = menu->menu.item_count++;
+	menu->menu.display[idx] = zt_stringMakeFrom("__________", menu->gm->arena);
+	menu->menu.ids[idx] = ztInvalidID;
+	menu->menu.submenus[idx] = nullptr;
+	menu->menu.user_datas[idx] = nullptr;
+	menu->menu.icons[idx] = nullptr;
+
+	_zt_guiMenuBestSize(menu, nullptr, nullptr, &menu->size, zt_guiItemGetTheme(menu), menu->functions.user_data);
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiMenuPopupAtItem(ztGuiItem *menu, ztGuiItem *item, i32 align_flags, const ztVec2& offset)
 {
 	ZT_PROFILE_GUI("zt_guiMenuPopupAtItem");
@@ -5894,7 +5961,7 @@ void zt_guiMenuPopupAtPosition(ztGuiItem *menu, const ztVec2& pos)
 	_zt_guiMenuClose(menu);
 
 	menu->state_flags |= zt_bit(ztGuiItemStates_Visible);
-	menu->menu.just_opened = true;
+	menu->menu.just_opened = menu->gm->in_update ? 1 : 2;
 
 	ztVec2 position = pos;
 	position.x += menu->size.x / 2;
@@ -5929,6 +5996,14 @@ void zt_guiMenuSetCallback(ztGuiItem *menu, ztFunctionID on_selected)
 {
 	zt_assertReturnOnFail(menu->type == ztGuiItemType_Menu || menu->type == ztGuiItemType_MenuBar);
 	menu->menu.on_selected = on_selected;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiMenuClear(ztGuiItem *menu)
+{
+	zt_assertReturnOnFail(menu->type == ztGuiItemType_Menu || menu->type == ztGuiItemType_MenuBar);
+	menu->menu.item_count = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
