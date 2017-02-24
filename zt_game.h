@@ -1665,6 +1665,8 @@ void zt_drawListFree(ztDrawList *draw_list);
 bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2]);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2& p1, const ztVec2& p2);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 p[2]);
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3]);
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3);
 bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4]); // clockwise or counter clockwise positions
@@ -2067,7 +2069,8 @@ ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x
 ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0));
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0, int pixel_border = 0);
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = ztVec2i(0, 0), int pixel_border = 0);
-void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 pos[6], ztVec2 uvs[6]);
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
@@ -5958,6 +5961,20 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
 	command->line[1] = p[1];
 
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2& p1, const ztVec2& p2)
+{
+	return zt_drawListAddLine(draw_list, ztVec3(p1, 0), ztVec3(p2, 0));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 p[2])
+{
+	return zt_drawListAddLine(draw_list, p[0], p[1]);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -15524,7 +15541,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 						r32 r = zt_strToIntHex(format + 6, 2, 1) / 255.f;
 						r32 g = zt_strToIntHex(format + 8, 2, 1) / 255.f;
 						r32 b = zt_strToIntHex(format + 10, 2, 1) / 255.f;
-						r32 a = str_len == 12 ? 1 : (zt_strToIntHex(format + 12, 2, 1) / 255.f);
+						r32 a = str_len == 12 ? default_color.a : (zt_strToIntHex(format + 12, 2, 1) / 255.f);
 						zt_drawListPushColor(draw_list, ztColor(r, g, b, a));
 						colors_pushed += 1;
 					}
@@ -15687,6 +15704,65 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6
 		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
 		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
 	};
+
+	ztVec2 uvs[4] = {
+		ztVec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
+		ztVec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	if (rotation != ztVec3::zero) {
+		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rotation);
+
+		zt_fiz(4) {
+			pos[i] = rotation_mat * pos[i];
+		}
+	}
+
+	if (scale != ztVec3::one) {
+		zt_fize(pos) pos[i] *= scale;
+	}
 
 	ztVec2 uvs[4] = {
 		ztVec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
