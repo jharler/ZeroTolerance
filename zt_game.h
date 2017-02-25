@@ -227,6 +227,7 @@ ztInline r32 zt_feetToUnits  (r32 feet  ) { return feet * 12 * .0254f; }
 ztInline r32 zt_unitsToInches(r32 units ) { return units / .0254f; }
 ztInline r32 zt_unitsToFeet  (r32 units ) { return units / .0254f / 12; }
 
+void zt_requestQuit();
 
 // ------------------------------------------------------------------------------------------------
 // game details
@@ -5282,6 +5283,13 @@ ztRenderer_Enum zt_currentRenderer()
 r32 zt_pixelsPerUnit()
 {
 	return (r32)zt_game->win_game_settings[0].pixels_per_unit;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_requestQuit()
+{
+	zt_game->quit_requested = true;
 }
 
 // ------------------------------------------------------------------------------------------------
