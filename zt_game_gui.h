@@ -740,6 +740,7 @@ void zt_guiInitDebug(ztGuiManager *gui_manager);
 void zt_guiDebugHide();
 void zt_guiDebugShow();
 void zt_guiDebugToggle();
+void zt_guiDebugBringToFront();
 
 ztGuiItem *zt_guiDebugAddMetric(const char *sample); // returns a static text that will appear in the dropdown when [+] is pressed next to the fps display
 
@@ -9204,7 +9205,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_PlayAudio, ztInternal ZT
 ztInternal void _zt_guiDebugConsoleAddLoggingCallbacks()
 {
 	if (zt_gui->console_window != nullptr) {
+#		ifndef ZT_DEBUG_CONSOLE_LOG_LEVEL
 		zt_logAddCallback(_zt_guiDebugConsoleLogMessageCallback, ztLogMessageLevel_Debug);
+#		else
+		zt_logAddCallback(_zt_guiDebugConsoleLogMessageCallback, ZT_DEBUG_CONSOLE_LOG_LEVEL);
+#		endif
 	}
 }
 
@@ -9675,6 +9680,7 @@ ztInternal void _zt_guiDebugGuiHierarchy()
 
 
 	dgh->window = zt_guiMakeWindow("GUI Hierarchy", ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowCollapse | ztGuiWindowBehaviorFlags_CloseHides);
+	zt_guiItemSetName(dgh->window, window_name);
 	dgh->window->functions.user_data = dgh;
 	dgh->window->functions.cleanup = _zt_guiDebugGuiHierarchyCleanup_FunctionID;
 
@@ -10136,6 +10142,16 @@ void zt_guiDebugToggle()
 	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
 	if (menubar) {
 		zt_guiItemShow(menubar, !zt_guiItemIsShowing(menubar));
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugBringToFront()
+{
+	ztGuiItem *menubar = zt_guiItemFindByName(ZT_DEBUG_MENUBAR_NAME);
+	if (menubar) {
+		zt_guiItemBringToFront(menubar);
 	}
 }
 
