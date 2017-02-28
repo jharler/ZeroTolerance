@@ -7875,7 +7875,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				};
 
 				while (cmp_item) {
-
 					if (cmp_item->clip_region != curr_clip_region && camera->type == ztCameraType_Orthographic) {
 						ZT_PROFILE_RENDERING("zt_renderDrawLists::clip regions");
 						OpenGL::processLastCommand(nullptr, nullptr, active_color, ztDrawCommandType_Invalid, last_command, &buffer);
@@ -7922,6 +7921,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fkz(3) {
 								int idx = buffer.vertices_count++;
+								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
 								if (has_offset) {
 									buffer.vertices[idx].pos = cmp_item->command->tri_pos[k] + offset;
 								}
@@ -7939,6 +7939,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 							}
 
+							if(ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+								OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+								last_command = cmp_item->command->type;
+							}
 						} break;
 
 						case ztDrawCommandType_Billboard: {
@@ -7974,6 +7978,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							zt_fiz(2) {
 								int idx = buffer.vertices_count++;
+								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
 								buffer.vertices[idx].pos = p[0];
 								buffer.vertices[idx].uv = uv[0];
 								buffer.vertices[idx].norm = ztVec3::zero;
@@ -7983,6 +7988,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 
 								idx = buffer.vertices_count++;
+								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
 								buffer.vertices[idx].pos = p[1 + i];
 								buffer.vertices[idx].uv = uv[1 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
@@ -7992,12 +7998,18 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 
 								idx = buffer.vertices_count++;
+								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
 								buffer.vertices[idx].pos = p[2 + i];
 								buffer.vertices[idx].uv = uv[2 + i];
 								buffer.vertices[idx].norm = ztVec3::zero;
 								buffer.vertices[idx].color = active_color;
 								if (transform) {
 									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
+
+								if(ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+									OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+									last_command = cmp_item->command->type;
 								}
 							}
 						} break;
@@ -12510,6 +12522,21 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		return ztInvalidID;
 	}
 
+	struct local
+	{
+		static ztShaderID getNextID()
+		{
+			zt_fiz(zt_game->shaders_count) {
+				if (zt_game->shaders[i].renderer == ztRenderer_Invalid) {
+					return i;
+				}
+			}
+
+			zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
+			return zt_game->shaders_count++;
+		}
+	};
+
 	//_zt_shaderLangDumpSyntaxTree(syntax_root);
 
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
@@ -12523,8 +12550,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 				shader_id = replace;
 			}
 			else {
-				zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
-				shader_id = zt_game->shaders_count++;
+				shader_id = local::getNextID();
 			}
 
 			ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
@@ -12598,8 +12624,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 					shader_id = replace;
 				}
 				else {
-					zt_assert(zt_game->shaders_count < zt_elementsOf(zt_game->shaders));
-					shader_id = zt_game->shaders_count++;
+					shader_id = local::getNextID();
 				}
 
 				ztShader* shader = &zt_game->shaders[shader_id];
@@ -13301,10 +13326,25 @@ ztInternal void _zt_textureAdjustScreenTargets()
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal ztTextureID _zt_textureGetNextID()
+{
+	zt_fiz(zt_game->textures_count) {
+		if (zt_game->textures[i].renderer == ztRenderer_Invalid) {
+			return i;
+		}
+	}
+
+	zt_assert(zt_game->textures_count < zt_elementsOf(zt_game->textures));
+	return zt_game->textures_count++;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
 	ZT_PROFILE_RENDERING("_zt_textureMakeBase");
-	ztTextureID texture_id = zt_game->textures_count++;
+
+	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
 	texture->renderer = zt_currentRenderer();
@@ -13623,7 +13663,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
 
-	ztTextureID texture_id = zt_game->textures_count++;
+	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
 	texture->renderer = zt_currentRenderer();
