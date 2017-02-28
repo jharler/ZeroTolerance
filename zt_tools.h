@@ -1724,6 +1724,12 @@ bool zt_serialWrite(ztSerial *serial, bool value);
 bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len);
 bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len);
 bool zt_serialWrite(ztSerial *serial, ztVariant *variant);
+bool zt_serialWrite(ztSerial *serial, ztGuid guid);
+bool zt_serialWrite(ztSerial *serial, ztVec2 vec);
+bool zt_serialWrite(ztSerial *serial, ztVec3 vec);
+bool zt_serialWrite(ztSerial *serial, ztVec4 vec);
+bool zt_serialWrite(ztSerial *serial, ztVec2i vec);
+bool zt_serialWrite(ztSerial *serial, ztVec3i vec);
 
 bool zt_serialRead(ztSerial *serial, i8 *value);
 bool zt_serialRead(ztSerial *serial, i16 *value);
@@ -1739,6 +1745,12 @@ bool zt_serialRead(ztSerial *serial, bool *value);
 bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len);
 bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len);
 bool zt_serialRead(ztSerial *serial, ztVariant *variant);
+bool zt_serialRead(ztSerial *serial, ztGuid *guid);
+bool zt_serialRead(ztSerial *serial, ztVec2 *vec);
+bool zt_serialRead(ztSerial *serial, ztVec3 *vec);
+bool zt_serialRead(ztSerial *serial, ztVec4 *vec);
+bool zt_serialRead(ztSerial *serial, ztVec2i *vec);
+bool zt_serialRead(ztSerial *serial, ztVec3i *vec);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -8173,6 +8185,12 @@ bool zt_serialWrite(ztSerial *serial, u64 value) { return _zt_writeData(serial, 
 bool zt_serialWrite(ztSerial *serial, r32 value) { return _zt_writeData(serial, ztSerialEntryType_r32, &value, zt_sizeof(value)); }
 bool zt_serialWrite(ztSerial *serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, zt_sizeof(value)); }
 bool zt_serialWrite(ztSerial *serial, bool value) { i8 v = (value ? 1 : 0);  return _zt_writeData(serial, ztSerialEntryType_i8, &v, 1); }
+bool zt_serialWrite(ztSerial *serial, ztGuid guid) { if (!zt_serialWrite(serial, guid.guid[0])) return false; if (!zt_serialWrite(serial, guid.guid[1])) return false; return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec2  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec3  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec4  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec2i vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 
 // ------------------------------------------------------------------------------------------------
 
@@ -8267,6 +8285,12 @@ bool zt_serialRead(ztSerial *serial, u64 *value) { return _zt_readData(serial, z
 bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, ztSerialEntryType_r32, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, zt_sizeof(ival))) { *value = ival == 1; return true; } return false; }
+bool zt_serialRead(ztSerial *serial, ztGuid *guid) { if (!zt_serialRead(serial, &guid->guid[0])) return false; if (!zt_serialRead(serial, &guid->guid[1])) return false; return true; }
+bool zt_serialRead(ztSerial *serial, ztVec2  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec3  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec4  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec2i *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 
 // ------------------------------------------------------------------------------------------------
 
