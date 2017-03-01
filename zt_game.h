@@ -4804,6 +4804,8 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
 
+	zt_memPushGlobalArena(arena);
+
 	int buffer_size = 1024 * 128;
 	char *buffer = zt_mallocStructArrayArena(char, buffer_size, arena);
 
@@ -4874,6 +4876,8 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	zt_directoryMonitor(&asset_mgr->directory_mon, directory, true, ztDirectoryMonitorFlags_Modify);
 
 	zt_freeArena(tokens, arena);
+
+	zt_memPopGlobalArena();
 
 	return true;
 }
@@ -5230,13 +5234,13 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 		return false;
 	}
 
-	(*data) = zt_mallocStructArray(byte, size);
+	(*data) = zt_mallocStructArrayArena(byte, size, asset_mgr->arena);
 	if (!(*data)) {
 		return false;
 	}
 
 	if (!zt_assetLoadData(asset_mgr, asset_id, *data, size)) {
-		zt_free(*data);
+		zt_freeArena(*data, asset_mgr->arena);
 		*data = nullptr;
 		return false;
 	}
@@ -12460,7 +12464,7 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 		return;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		zt_logCritical("shader reload: unable to allocate memory for asset data");
 		return;
@@ -12484,12 +12488,12 @@ ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID as
 
 	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return;
 
 on_error:
 	zt_logCritical("Unable to reload shader (%s). %s.", asset_mgr->asset_name[asset_id], error);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -12830,7 +12834,7 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 		return ztInvalidID;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		return ztInvalidID;
 	}
@@ -12853,12 +12857,12 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 
 	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return shader_id;
 
 on_error:
 	zt_logCritical("Unable to load shader (%s). %s.", asset_mgr->asset_name[asset_id], error);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return ztInvalidID;
 }
 
@@ -13417,7 +13421,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		return ztInvalidID;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		return ztInvalidID;
 	}
@@ -13452,13 +13456,13 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererTextureReload, (void*)texture_id);
 	}
 
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	stbi_image_free(pixel_data);
 	return texture_id;
 
 on_error:
 	zt_logCritical("Unable to load texture (%s). %s.", asset_mgr->asset_name[asset_id], error);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	if (pixel_data) {
 		stbi_image_free(pixel_data);
 	}
@@ -13645,14 +13649,14 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 			return ztInvalidID;
 		}
 
-		tex_data[i] = zt_mallocStructArray(byte, tex_size[i]);
+		tex_data[i] = zt_mallocStructArrayArena(byte, tex_size[i], asset_mgr->arena);
 		if (!tex_data[i]) {
 			return ztInvalidID;
 		}
 
 		if (!zt_assetLoadData(asset_mgr, asset_id, tex_data[i], tex_size[i])) {
 			zt_logCritical("Unable to load image asset: %s", asset_mgr->asset_name[asset_id]);
-			zt_fjzr(i) zt_free(tex_data[j]);
+			zt_fjzr(i) zt_freeArena(tex_data[j], asset_mgr->arena);
 			return ztInvalidID;
 		}
 	}
@@ -13696,7 +13700,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 
 	zt_fiz(ztTextureCubeMapFiles_MAX) {
 		stbi_image_free(pixel_data[i]);
-		zt_free(tex_data[i]);
+		zt_freeArena(tex_data[i], asset_mgr->arena);
 	}
 
 	return texture_id;
@@ -14508,7 +14512,7 @@ ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset
 	}
 
 	ztFontID font_id = _zt_fontMakeFromSTB(asset_mgr->asset_name[asset_id], data, size, size_in_pixels, charset, charset_size);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return font_id;
 }
 
@@ -14865,7 +14869,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	}
 
 	if (asset_mgr) {
-		zt_free(data);
+		zt_freeArena(data, asset_mgr->arena);
 	}
 	return font_id;
 
@@ -14883,7 +14887,7 @@ on_error:
 	}
 
 	if (asset_mgr) {
-		zt_free(data);
+		zt_freeArena(data, asset_mgr->arena);
 	}
 	return ztInvalidID;
 }
@@ -16313,7 +16317,7 @@ int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *m
 		return 0;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		zt_logCritical("Unable to allocate memory: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
 		return 0;
@@ -16325,7 +16329,7 @@ int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *m
 		return 0;
 	}
 	int result = _zt_materialLoadFromFileDataBase(data, size, materials_arr, materials_arr_size, asset_mgr, asset_id, nullptr);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return result;
 }
 
@@ -17376,7 +17380,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 		return ztInvalidID;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		return ztInvalidID;
 	}
@@ -17391,7 +17395,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 	int result = _zt_meshLoadOBJBase(asset_mgr, asset_id, data, size, nullptr, mesh_ids, materials, mesh_mat_size, scale, offset);
 
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 
 	return result;
 }
@@ -20441,7 +20445,7 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 		return ztInvalidID;
 	}
 
-	char *data = zt_mallocStructArray(char, size);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		return ztInvalidID;
 	}
@@ -20460,12 +20464,12 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 
 	// TODO: Add reload callback
 
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return audio_clip_id;
 
 on_error:
 	zt_logCritical("Unable to load audio clip (%s). %s.", asset_mgr->asset_name[asset_id], error);
-	zt_free(data);
+	zt_freeArena(data, asset_mgr->arena);
 	return ztInvalidID;
 }
 
