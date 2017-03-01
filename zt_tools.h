@@ -7240,7 +7240,7 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 	i32 buffer_used = 0;
 
 	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
-	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
+	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath); // these are created on the heap due to stack overflow dangers with the recursion of this function
 	int dir_len = zt_strLen(directory);
 
 	if (!end_sep) {
