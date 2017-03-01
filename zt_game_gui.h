@@ -784,6 +784,10 @@ void zt_debugConsoleToggle     (bool *is_shown = nullptr);
 void zt_debugLogGuiHierarchy   (ztGuiItem *item);
 
 // ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugMemoryInspectorAddArena(ztMemoryArena *arena, char *alias);
+void zt_guiDebugMemoryInspectorRemoveArena(ztMemoryArena *arena);
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
@@ -3701,6 +3705,8 @@ ztGuiItem *zt_guiCollapsingPanelGetContentParent(ztGuiItem *panel)
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiStaticTextRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiStaticTextRender))
 {
+	zt_assert(zt_strLen(item->label) < item->draw_list->commands_size / 2); // this means you need to set the max chars in the constructor to be higher
+
 	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
 }
 
@@ -9958,6 +9964,319 @@ ztInternal void _zt_guiDebugProfiler()
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+#define ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME	    "Memory Inspector"
+#define ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME	    "_zt_debugMemoryInspectorPanelName"
+#define ZT_DEBUG_MEMORY_INSPECTOR_LINE_HEIGHT	    (12 / zt_pixelsPerUnit())
+#define ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MIN    (0.000001f)
+#define ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MAX    (0.0002f)
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztDebugMemory
+{
+	ztMemoryArena *arenas[32];
+	char           aliases[32][64];
+	int            arenas_count = 0;
+	int            active_arena = 0;
+
+	ztVec2         mouse_pos = ztVec2::zero;
+	bool           mouse_clicked = false;
+
+	ztGuiItem     *combobox;
+	ztGuiItem     *hover_info;
+	
+	r32            byte_width_multiplier = .1f;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugMemoryDisplayRefresh(ztDebugMemory *mem)
+{
+
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayComboSelected, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiDebugMemoryDisplayComboSelected))
+{
+	ztDebugMemory *mem = (ztDebugMemory*)user_data;
+	mem->active_arena = selected;
+	_zt_guiDebugMemoryDisplayRefresh(mem);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugMemoryDisplayUpdate))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayUpdate");
+
+	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
+
+	ztMemoryArena *arena = mem->arenas[mem->active_arena];
+	if(arena == nullptr) {
+		return;
+	}
+
+	ztVec2 size = item->size;
+
+	i32 current_used = arena->current_used;
+
+	r32 line_height = ZT_DEBUG_MEMORY_INSPECTOR_LINE_HEIGHT;
+	r32 total_width = zt_lerp(ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MIN, ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MAX, mem->byte_width_multiplier) * arena->total_size;
+
+	item->size.y = (zt_convertToi32Floor(total_width / size.x) + 1) * line_height;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugMemoryDisplayRender))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayRender");
+
+	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
+
+	ztMemoryArena *arena = mem->arenas[mem->active_arena];
+	if(arena == nullptr) {
+		return;
+	}
+
+	ztVec2 pos = offset + item->pos;
+
+	ztVec2 size = item->size;
+
+	i32 current_used = arena->current_used;
+
+	r32 line_height = ZT_DEBUG_MEMORY_INSPECTOR_LINE_HEIGHT;
+	r32 pixels_per_byte = zt_lerp(ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MIN, ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MAX, mem->byte_width_multiplier);
+	r32 total_width = pixels_per_byte * arena->total_size;
+
+	i32 lines = zt_convertToi32Floor(total_width / size.x) + 1;
+
+	int line = 0;
+	r32 x_pos_start = size.x / -2;
+	r32 x_pos = 0;
+	r32 y_pos_start = (size.y / 2) - line_height / 2;
+	r32 y_pos = 0;
+
+	ztColor colors[] = {
+		ztColor_Red,
+		ztColor_Blue,
+		ztColor_Green,
+		ztColor_DarkGreen,
+		ztColor_Cyan,
+		ztColor_Purple,
+		ztColor_Orange,
+	};
+
+	int color_idx = 0;
+
+	char hover_info[512] = {0};
+
+	int hover_count = 0;
+	zt_flink(alloc, arena->latest) {
+		r32 pixels_for_alloc = pixels_per_byte * alloc->length;
+
+		ztColor color = colors[color_idx];
+		color_idx = (color_idx + 1) % zt_elementsOf(colors);
+
+		if(alloc->freed == 1) {
+			color = ztColor_Black;
+		}
+
+		while(pixels_for_alloc > 0) {
+			r32 x_pixels_left_this_line = size.x - x_pos;
+			if(x_pixels_left_this_line <= 0) {
+				y_pos += line_height;
+				x_pos = 0;
+				x_pixels_left_this_line = size.x;
+			}
+
+			r32 x_pixels_this_alloc = zt_min(pixels_for_alloc, x_pixels_left_this_line);
+			pixels_for_alloc = pixels_for_alloc - x_pixels_this_alloc;
+
+			// zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
+			ztVec2 bpos = pos + ztVec2(x_pos_start + x_pos + (x_pixels_this_alloc / 2), y_pos_start - y_pos);
+			ztVec2 bsize = ztVec2(x_pixels_this_alloc, line_height);
+			zt_drawListAddSolidOutlinedRect2D(draw_list, bpos, bsize, color, ztColor_White);
+			x_pos += x_pixels_this_alloc;
+
+			if(zt_collisionPointInRect(mem->mouse_pos, bpos, bsize)) {
+				hover_count += 1;
+				if (hover_count > 1) {
+					int debug_stop = 1;
+				}
+				else {
+					char size[128];
+					zt_strBytesToString(size, zt_elementsOf(size), alloc->length);
+					zt_strCat(hover_info, zt_elementsOf(hover_info), size);
+					zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
+					if (alloc->freed == 1) {
+						zt_strCat(hover_info, zt_elementsOf(hover_info), "free space");
+					}
+					else {
+						zt_strCat(hover_info, zt_elementsOf(hover_info), alloc->file == nullptr ? "(null)" : alloc->file + 1);
+						zt_strCat(hover_info, zt_elementsOf(hover_info), " (");
+						zt_strMakePrintf(file_line, 32, "%d", alloc->file_line);
+						zt_strCat(hover_info, zt_elementsOf(hover_info), file_line);
+						zt_strCat(hover_info, zt_elementsOf(hover_info), ")  //  ");
+
+						zt_strMakePrintf(address, 64, "0x%llx", (long long unsigned int)alloc->start);
+						zt_strCat(hover_info, zt_elementsOf(hover_info), address);
+					}
+					zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
+				}
+			}
+		}		
+	}
+
+	char total_size_str[128];
+	zt_strBytesToString(total_size_str, zt_elementsOf(total_size_str), arena->current_used);
+	zt_strCat(hover_info, zt_elementsOf(hover_info), total_size_str);
+	zt_strCat(hover_info, zt_elementsOf(hover_info), "/");
+	zt_strBytesToString(total_size_str, zt_elementsOf(total_size_str), arena->total_size);
+	zt_strCat(hover_info, zt_elementsOf(hover_info), total_size_str);
+
+	zt_guiItemSetLabel(mem->hover_info, hover_info);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugMemoryDisplayInputMouse))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayInputMouse");
+
+	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
+
+	mem->mouse_pos = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+	mem->mouse_clicked = input_mouse->leftJustPressed();
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugMemoryDisplayCleanup))
+{
+	zt_freeArena(item->functions.user_data, item->gm->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugMemoryInspector()
+{
+	{
+		ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME);
+		if (window != nullptr) {
+			zt_guiItemShow(window, true);
+			zt_guiItemBringToFront(window);
+			return;
+		}
+	}
+
+	ztGuiManager *gm = zt_gui->gui_manager_active;
+	ztDebugMemory *mem = zt_mallocStructArena(ztDebugMemory, gm->arena);
+	*mem = {};
+
+	ztGuiItem *window = zt_guiMakeWindow(ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME, ztGuiWindowBehaviorFlags_Default);
+	zt_guiItemSetName(window, ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME);
+	zt_guiItemSetSize(window, ztVec2(19, 10));
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+	zt_guiSizerSizeToParent(sizer);
+
+	ztGuiItem *top_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz, false);
+	ztGuiItem *combobox = zt_guiMakeComboBox(top_sizer, zt_elementsOf(mem->aliases));
+	mem->combobox = combobox;
+	combobox->size.x = 3;
+	zt_guiComboBoxSetCallback(combobox, _zt_guiDebugMemoryDisplayComboSelected_FunctionID, mem);
+
+	ztGuiItem *slider = zt_guiMakeSlider(top_sizer, ztGuiItemOrient_Horz, &mem->byte_width_multiplier);
+	slider->size.x = 3;
+
+	ztGuiItem *hover_info = zt_guiMakeStaticText(top_sizer, "", 0, 512);
+	zt_guiItemSetAlign(hover_info, ztAlign_Right);
+	mem->hover_info = hover_info;
+
+	ztGuiItem *refresh = zt_guiMakeButton(top_sizer, "Refresh");
+
+	zt_guiSizerAddItem(top_sizer, combobox, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(top_sizer, refresh, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(top_sizer, slider, 0, 3 / zt_pixelsPerUnit(), ztAlign_Center, 0); // todo: check aligning within sizer cell
+	zt_guiSizerAddItem(top_sizer, hover_info, 1, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(sizer, top_sizer, 0, 0);
+
+	ztGuiItem *scroll = zt_guiMakeScrollContainer(sizer, ztGuiScrollContainerBehaviorFlags_StretchHorz);
+
+	ztGuiItem *inspector = zt_guiMakePanel(sizer);
+	zt_guiItemSetName(inspector, ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME);
+	inspector->debug_highlight = ztColor_Blue;
+
+	zt_guiScrollContainerSetItem(scroll, inspector);
+	zt_guiSizerAddItem(sizer, scroll, 1, 3 / zt_pixelsPerUnit());
+
+	inspector->functions.user_data   = mem;
+	inspector->functions.update      = _zt_guiDebugMemoryDisplayUpdate_FunctionID;
+	inspector->functions.render      = _zt_guiDebugMemoryDisplayRender_FunctionID;
+	inspector->functions.input_mouse = _zt_guiDebugMemoryDisplayInputMouse_FunctionID;
+	inspector->functions.cleanup     = _zt_guiDebugMemoryDisplayCleanup_FunctionID;
+
+
+	zt_guiDebugMemoryInspectorAddArena(zt_memGetGlobalArena(), "Global Arena");
+	_zt_guiDebugMemoryDisplayRefresh(mem);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugMemoryInspectorRefreshCombo(ztDebugMemory *mem)
+{
+	int selected = zt_guiComboBoxGetSelected(mem->combobox);
+
+	char selected_text[zt_elementsOf(mem->aliases[0])];
+	zt_guiComboBoxGetItemText(mem->combobox, selected, selected_text, zt_elementsOf(selected_text));
+
+	zt_guiComboBoxClear(mem->combobox);
+
+	int to_select = 0;
+	zt_fiz(mem->arenas_count) {
+		zt_guiComboBoxAppend(mem->combobox, mem->aliases[i], mem->arenas[i]);
+
+		if (zt_strEquals(selected_text, mem->aliases[i])) {
+			to_select = i;
+		}
+	}
+
+	// todo: add function to set combo selection
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugMemoryInspectorAddArena(ztMemoryArena *arena, char *alias)
+{
+	ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME);
+	if (window != nullptr) {
+		ztGuiItem *inspector = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME, window);
+		if (inspector) {
+			ztDebugMemory *mem = (ztDebugMemory*)inspector->functions.user_data;
+
+			zt_assertReturnOnFail(mem->arenas_count < zt_elementsOf(mem->arenas));
+			int idx = mem->arenas_count++;
+			mem->arenas[idx] = arena;
+			zt_strCpy(mem->aliases[idx], zt_elementsOf(mem->aliases[idx]), (alias == nullptr ? "(unknown)" : alias));
+
+			_zt_guiDebugMemoryInspectorRefreshCombo(mem);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugMemoryInspectorRemoveArena(ztMemoryArena *arena)
+{
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 ztInternal void _zt_guiDebugVariables()
 {
 	const char *window_name = "Variables";
@@ -10039,6 +10358,7 @@ enum
 	ztGuiDebugMenu_GuiHierarchy,
 	ztGuiDebugMenu_TextureViewer,
 	ztGuiDebugMenu_Profiler,
+	ztGuiDebugMenu_MemoryInspector,
 
 	ztGuiDebugMenu_Variables,
 };
@@ -10073,6 +10393,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_
 			_zt_guiDebugProfiler();
 		} break;
 
+		case ztGuiDebugMenu_MemoryInspector: {
+			_zt_guiDebugMemoryInspector();
+		} break;
+
 		case ztGuiDebugMenu_Variables: {
 			_zt_guiDebugVariables();
 		} break;
@@ -10100,6 +10424,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 		zt_guiMenuAppend(menu_tools, "GUI Hierarchy", ztGuiDebugMenu_GuiHierarchy);
 		zt_guiMenuAppend(menu_tools, "Texture Viewer", ztGuiDebugMenu_TextureViewer);
 		zt_guiMenuAppend(menu_tools, "Profiler", ztGuiDebugMenu_Profiler);
+		zt_guiMenuAppend(menu_tools, "Memory Inspector", ztGuiDebugMenu_MemoryInspector);
 		zt_guiMenuAppendSubmenu(menubar, "Tools", menu_tools);
 		zt_guiMenuSetCallback(menu_tools, _zt_guiInitDebugOnMenuItem_FunctionID);
 	}
