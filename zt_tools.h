@@ -892,7 +892,10 @@ void zt_assert_raw(const char *condition_name, const char *file, int file_line);
 
 struct ztGuid
 {
-	u64 guid[2];
+	union {
+		u64 guid[2];
+		u32 guid_32[4];
+	};
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -903,6 +906,7 @@ ztInline bool   zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2);
 ztInline bool   operator==(const ztGuid& guid1, const ztGuid& guid2);
 ztInline bool   operator!=(const ztGuid& guid1, const ztGuid& guid2);
 
+ztInline void   zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1170,6 +1174,11 @@ struct ztMemoryArena
 
 	allocation *latest;
 	ztMemoryArena *owner;
+
+	char  file_name_buffer[1024];
+	int   file_name_buffer_pos;
+	char *file_names[256];
+	i32   file_names_hashes[256];
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -2935,6 +2944,33 @@ ztInline bool operator!=(const ztGuid& guid1, const ztGuid& guid2)
 	return (guid1.guid[0] != guid2.guid[0] || guid1.guid[1] != guid2.guid[1]);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+ztInline void zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size)
+{
+	// {163986ff-3ff8-429c-8f1f-de2a4735e171}
+	if (buffer_size < 39) {
+		return;
+	}
+
+	zt_strPrintf(buffer, buffer_size, "{%08x%08x%08x%08x}", guid.guid_32[1], guid.guid_32[0], guid.guid_32[3], guid.guid_32[2]);
+
+	int slen = 35;
+	for (int i = slen; i > 9; --i) {
+		buffer[i] = buffer[i - 1];
+	}
+	buffer[9] = '-';
+	slen += 1;
+	for (int i = slen; i > 14; --i) {
+		buffer[i] = buffer[i - 1];
+	}
+	buffer[14] = '-';
+	slen += 1;
+	for (int i = slen; i > 19; --i) {
+		buffer[i] = buffer[i - 1];
+	}
+	buffer[19] = '-';
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -3739,6 +3775,12 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 		arena->owner = from;
 		arena->freed_allocs = 0;
 
+		arena->file_name_buffer_pos = 0;
+		zt_fize(arena->file_names) {
+			arena->file_names[0] = nullptr;
+			arena->file_names_hashes[0] = 0;
+		}
+
 		zt_memSet(arena->memory, total_size, 0);
 	}
 	return arena;
@@ -3848,6 +3890,43 @@ void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMes
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::allocation *alloc, const char *file_name)
+{
+	alloc->file = nullptr;
+	if(file_name == nullptr) {
+		return;
+	}
+
+	const char *file_name_only = zt_strFindLast(file_name, ztFilePathSeparatorStr);
+	i32 file_name_hash = zt_strHash(file_name_only);
+
+	int idx = -1;
+	zt_fize(arena->file_names_hashes) {
+		if(arena->file_names_hashes[i] == 0 || arena->file_names_hashes[i] == file_name_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if(arena->file_names_hashes[idx] == 0) {
+		int len = zt_strLen(file_name_only);
+
+		if(arena->file_name_buffer_pos + len + 1 >= zt_elementsOf(arena->file_name_buffer)) {
+			return;
+		}
+
+		arena->file_names[idx] = arena->file_name_buffer + arena->file_name_buffer_pos;
+		zt_strCpy(arena->file_names[idx], len + 1, file_name_only);
+
+		arena->file_name_buffer_pos += len + 1;
+		arena->file_names_hashes[idx] = file_name_hash;
+	}
+
+	alloc->file = arena->file_names[idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
 	if (arena == nullptr) {
@@ -3874,13 +3953,9 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 				if (remaining > (zt_sizeof(ztMemoryArena::allocation))) {
 					ztMemoryArena::allocation *original = allocation;
 					original->length = remaining - (zt_sizeof(ztMemoryArena::allocation));
-#					if defined(ZT_DLL)
-					original->file = nullptr;
+
+					_zt_memAllocSetFileName(arena, original, "original");
 					original->file_line = 0;
-#					else
-					original->file = "original";
-					original->file_line = 0;
-#					endif
 
 					byte *end_of_mem = ((byte*)original->start + original->length) - 1;
 					zt_fiz(padding) *end_of_mem-- = 0xcd;
@@ -3893,13 +3968,9 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 					inserted->start = (byte *)inserted + zt_sizeof(ztMemoryArena::allocation);
 					inserted->length = bytes;
 
-#					if defined(ZT_DLL)
-					inserted->file = nullptr;
+
+					_zt_memAllocSetFileName(arena, inserted, "inserted");
 					inserted->file_line = 0;
-#					else
-					inserted->file = "inserted";
-					inserted->file_line = 0;
-#					endif
 
 					inserted->next = original;
 					//allocation->next = alloc;
@@ -3957,13 +4028,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		byte *end_of_mem = ((byte*)allocation->start + allocation->length) - 1;
 		zt_fiz(padding) *end_of_mem-- = 0xcd;
 
-#		if defined(ZT_DLL)
-		allocation->file = nullptr;
+		_zt_memAllocSetFileName(arena, allocation, nullptr);
 		allocation->file_line = 0;
-#		else
-		allocation->file = nullptr;
-		allocation->file_line = 0;
-#		endif
 
 		arena->latest = allocation;
 
@@ -3989,13 +4055,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 	void *result = zt_memAllocFromArena(arena, size);
 	if (result && arena) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
-#if defined(ZT_DLL)
-		allocation->file = nullptr;
+		_zt_memAllocSetFileName(arena, allocation, file);
 		allocation->file_line = file_line;
-#else
-		allocation->file = file;
-		allocation->file_line = file_line;
-#endif
 
 		zt_debugOnly(zt_logMemory("memory (%llx): %d bytes of memory at location 0x%llx (file: %s) (line: %d)", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation, file, file_line));
 	}
