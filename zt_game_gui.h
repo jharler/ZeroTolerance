@@ -3226,7 +3226,7 @@ ztInternal ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuiItemType_Enum 
 	item->functions.best_size   = ztInvalidID;
 	
 	if (draw_list_size != 0) {
-		item->draw_list = zt_mallocStruct(ztDrawList);
+		item->draw_list = zt_mallocStructArena(ztDrawList, gm->arena);
 		zt_drawListMake(item->draw_list, draw_list_size, 0, gm->arena);
 	}
 
@@ -8807,7 +8807,7 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 	details->sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 	zt_guiSizerSizeToParent(details->sizer, false);
 
-	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls", ztGuiStaticTextBehaviorFlags_MonoSpaced);
+	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls", ztGuiStaticTextBehaviorFlags_MonoSpaced, 256);
 	zt_guiItemSetAlign(details->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(details->text, "Rendering Details Text"));
 	zt_guiSizerAddItem(details->sizer, details->text, 0, 3 / zt_pixelsPerUnit());
@@ -8842,7 +8842,7 @@ ztGuiItem *zt_guiDebugAddMetric(const char *sample)
 		ztGuiItem* custom = zt_guiItemFindByType(ztGuiItemType_Custom, window);
 		if (custom) {
 			ztDebugRenderingDetails *details = (ztDebugRenderingDetails*)custom->functions.user_data;
-			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample, ztGuiStaticTextBehaviorFlags_MonoSpaced);
+			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample, ztGuiStaticTextBehaviorFlags_MonoSpaced, zt_strLen(sample) + 64);
 			zt_guiItemSetAlign(static_txt, ztAlign_Right);
 			zt_guiSizerAddItem(details->sizer, static_txt, 0, 3 / zt_pixelsPerUnit());
 			_zt_guiDebugRenderDetailsSize(details);
@@ -9966,9 +9966,9 @@ ztInternal void _zt_guiDebugProfiler()
 
 #define ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME	    "Memory Inspector"
 #define ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME	    "_zt_debugMemoryInspectorPanelName"
-#define ZT_DEBUG_MEMORY_INSPECTOR_LINE_HEIGHT	    (12 / zt_pixelsPerUnit())
+#define ZT_DEBUG_MEMORY_INSPECTOR_LINE_HEIGHT	    (17 / zt_pixelsPerUnit())
 #define ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MIN    (0.000001f)
-#define ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MAX    (0.0002f)
+#define ZT_DEBUG_MEMORY_INSPECTOR_BYTE_WIDTH_MAX    (0.005f)
 
 // ------------------------------------------------------------------------------------------------
 
@@ -9984,8 +9984,16 @@ struct ztDebugMemory
 
 	ztGuiItem     *combobox;
 	ztGuiItem     *hover_info;
+	ztGuiItem     *source_info;
 	
-	r32            byte_width_multiplier = .1f;
+	r32            byte_width_multiplier = .005f;
+	bool           color_by_file = true;
+
+	const char     *source_info_last_file = nullptr;
+	char            source_info_buffer[512];
+
+	char            source_path[ztFileMaxPath];
+	char           *source_dir_listing;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -10040,6 +10048,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 		return;
 	}
 
+	ztVec2 ppos = offset;
+	ztVec2 psize = item->parent ? item->parent->size : ztVec2::zero;
+
+
 	ztVec2 pos = offset + item->pos;
 
 	ztVec2 size = item->size;
@@ -10052,89 +10064,202 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 
 	i32 lines = zt_convertToi32Floor(total_width / size.x) + 1;
 
-	int line = 0;
-	r32 x_pos_start = size.x / -2;
-	r32 x_pos = 0;
-	r32 y_pos_start = (size.y / 2) - line_height / 2;
-	r32 y_pos = 0;
-
 	ztColor colors[] = {
-		ztColor_Red,
-		ztColor_Blue,
-		ztColor_Green,
-		ztColor_DarkGreen,
-		ztColor_Cyan,
-		ztColor_Purple,
-		ztColor_Orange,
+		zt_colorRgb(66, 199, 179),
+		zt_colorRgb(232, 98, 98),
+		zt_colorRgb(111, 98, 232),
+		zt_colorRgb(104, 213, 93),
+		zt_colorRgb(213, 93, 155),
+		zt_colorRgb(224, 226, 71),
+		zt_colorRgb(160, 66, 199),
+		zt_colorRgb(226, 177, 71),
 	};
+
+	ztColor colors_by_file[zt_elementsOf(arena->file_names)];
+	zt_fize(colors_by_file) {
+		colors_by_file[i] = colors[i % zt_elementsOf(colors)];
+	}
 
 	int color_idx = 0;
 
 	char hover_info[512] = {0};
 
 	int hover_count = 0;
-	zt_flink(alloc, arena->latest) {
-		r32 pixels_for_alloc = pixels_per_byte * alloc->length;
 
-		ztColor color = colors[color_idx];
-		color_idx = (color_idx + 1) % zt_elementsOf(colors);
+	zt_fzz(2) {
+		int line = 0;
+		r32 x_pos_start = size.x / -2;
+		r32 x_pos = 0;
+		r32 y_pos_start = (size.y / 2) - line_height / 2;
+		r32 y_pos = 0;
 
-		if(alloc->freed == 1) {
-			color = ztColor_Black;
+		bool has_drawn = false;
+		bool early_out = false;
+
+		if(z == 1) {
+			zt_drawListPushTexture(draw_list, ztTextureDefault);
+			zt_drawListPushColor(draw_list, ztColor_White);
 		}
 
-		while(pixels_for_alloc > 0) {
-			r32 x_pixels_left_this_line = size.x - x_pos;
-			if(x_pixels_left_this_line <= 0) {
-				y_pos += line_height;
-				x_pos = 0;
-				x_pixels_left_this_line = size.x;
+		zt_flink(alloc, arena->latest) {
+			r32 pixels_for_alloc = pixels_per_byte * alloc->length;
+
+			ztColor color = colors[color_idx];
+			color_idx = (color_idx + 1) % zt_elementsOf(colors);
+
+			if(mem->color_by_file) {
+				i32 hash = zt_strHash(alloc->file);
+				zt_fjze(arena->file_names_hashes) {
+					if(arena->file_names_hashes[j] == hash) {
+						color = colors_by_file[j];
+					}
+				}
 			}
 
-			r32 x_pixels_this_alloc = zt_min(pixels_for_alloc, x_pixels_left_this_line);
-			pixels_for_alloc = pixels_for_alloc - x_pixels_this_alloc;
+			if(alloc->freed == 1) {
+				color = ztColor_Black;
+			}
 
-			// zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
-			ztVec2 bpos = pos + ztVec2(x_pos_start + x_pos + (x_pixels_this_alloc / 2), y_pos_start - y_pos);
-			ztVec2 bsize = ztVec2(x_pixels_this_alloc, line_height);
-			zt_drawListAddSolidOutlinedRect2D(draw_list, bpos, bsize, color, ztColor_White);
-			x_pos += x_pixels_this_alloc;
-
-			if(zt_collisionPointInRect(mem->mouse_pos, bpos, bsize)) {
-				hover_count += 1;
-				if (hover_count > 1) {
-					int debug_stop = 1;
+			while(pixels_for_alloc > 0) {
+				r32 x_pixels_left_this_line = size.x - x_pos;
+				if(x_pixels_left_this_line <= 0) {
+					y_pos += line_height;
+					x_pos = 0;
+					x_pixels_left_this_line = size.x;
 				}
-				else {
-					char size[128];
-					zt_strBytesToString(size, zt_elementsOf(size), alloc->length);
-					zt_strCat(hover_info, zt_elementsOf(hover_info), size);
-					zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
-					if (alloc->freed == 1) {
-						zt_strCat(hover_info, zt_elementsOf(hover_info), "free space");
+
+				r32 x_pixels_this_alloc = zt_min(pixels_for_alloc, x_pixels_left_this_line);
+				pixels_for_alloc = pixels_for_alloc - x_pixels_this_alloc;
+
+
+				ztVec2 bpos = pos + ztVec2(x_pos_start + x_pos + (x_pixels_this_alloc / 2), y_pos_start - y_pos);
+				ztVec2 bsize = ztVec2(x_pixels_this_alloc, line_height);
+
+				if(zt_collisionAABBInAABB(ztVec3(ppos,0), ztVec3(psize, 0), ztVec3(bpos, 0), ztVec3(bsize, 0))) {
+					has_drawn = true;
+
+					if(z == 0) {
+						zt_drawListAddSolidRect2D(draw_list, bpos, bsize, color);
+
+						if(zt_collisionPointInRect(mem->mouse_pos, bpos, bsize)) {
+							hover_count += 1;
+							if (hover_count == 1) {
+								char size[128];
+								zt_strBytesToString(size, zt_elementsOf(size), alloc->length);
+								zt_strCat(hover_info, zt_elementsOf(hover_info), size);
+								zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
+								if (alloc->freed == 1) {
+									zt_strCat(hover_info, zt_elementsOf(hover_info), "free space");
+								}
+								else {
+									zt_strCat(hover_info, zt_elementsOf(hover_info), alloc->file == nullptr ? "(null)" : alloc->file + 1);
+									zt_strCat(hover_info, zt_elementsOf(hover_info), " (");
+									zt_strMakePrintf(file_line, 32, "%d", alloc->file_line);
+									zt_strCat(hover_info, zt_elementsOf(hover_info), file_line);
+									zt_strCat(hover_info, zt_elementsOf(hover_info), ")  //  ");
+
+									zt_strMakePrintf(address, 64, "0x%llx", (long long unsigned int)alloc->start);
+									zt_strCat(hover_info, zt_elementsOf(hover_info), address);
+								}
+								zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
+
+								if (!zt_strEquals(alloc->file, mem->source_info_last_file)) {
+									mem->source_info_last_file = alloc->file;
+
+									mem->source_info_buffer[0] = 0;
+									if (alloc->file != nullptr) {
+										char file_name[ztFileMaxPath] = {0};
+
+										ztToken tokens[256];
+										int tokens_count = zt_strTokenize(mem->source_dir_listing, "\n", tokens, zt_elementsOf(tokens));
+										zt_fiz(zt_min(zt_elementsOf(tokens), tokens_count)) {
+											char file_name_only[ztFileMaxPath];
+											zt_strCpy(file_name_only, zt_elementsOf(file_name_only), mem->source_dir_listing + tokens[i].beg, tokens[i].len);
+
+											if (zt_strEquals(file_name_only, alloc->file + 1)) {
+												zt_fileConcatFileToPath(file_name, zt_elementsOf(file_name), mem->source_path, file_name_only);
+												break;
+											}
+										}
+
+										if(file_name[0] == 0 || !zt_fileExists(file_name)) {
+											if(zt_strStartsWith(alloc->file + 1, "zt_")) {
+												char zt_path[ztFileMaxPath];
+												zt_fileConcatFileToPath(zt_path, zt_elementsOf(zt_path), mem->source_path, "../../ZeroTolerance");
+												if(zt_directoryExists(zt_path)) {
+													zt_fileConcatFileToPath(file_name, zt_elementsOf(file_name), zt_path, alloc->file + 1);
+												}
+											}
+										}
+
+										if(zt_fileExists(file_name)) {
+											i32 data_size = 0;
+											char *data_beg = (char*)zt_readEntireFile(file_name, &data_size, false, item->gm->arena);
+											const char *data = data_beg;
+
+											int lines = alloc->file_line;
+											while (lines-- > 0 && data) {
+												data = zt_strFind(data, data_size - (data - data_beg), "\n");
+												if(data) ++data;
+
+												if (lines == 1) {
+													const char *find[] = {"\r", "\n"};
+													while (*data == ' ' || *data == '\t') ++data;
+
+													int end = zt_strFindFirstOfPos(data, find, zt_elementsOf(find));
+													if(end != ztStrPosNotFound) {
+														zt_strCpy(mem->source_info_buffer, zt_elementsOf(mem->source_info_buffer), data, end);
+													}
+												}
+											}
+
+											zt_freeArena(data_beg, item->gm->arena);
+										}
+									}
+									zt_guiItemSetLabel(mem->source_info, mem->source_info_buffer);
+								}
+							}
+						}
 					}
 					else {
-						zt_strCat(hover_info, zt_elementsOf(hover_info), alloc->file == nullptr ? "(null)" : alloc->file + 1);
-						zt_strCat(hover_info, zt_elementsOf(hover_info), " (");
-						zt_strMakePrintf(file_line, 32, "%d", alloc->file_line);
-						zt_strCat(hover_info, zt_elementsOf(hover_info), file_line);
-						zt_strCat(hover_info, zt_elementsOf(hover_info), ")  //  ");
-
-						zt_strMakePrintf(address, 64, "0x%llx", (long long unsigned int)alloc->start);
-						zt_strCat(hover_info, zt_elementsOf(hover_info), address);
+						zt_drawListAddEmptyRect(draw_list, bpos, bsize);
 					}
-					zt_strCat(hover_info, zt_elementsOf(hover_info), "  //  ");
 				}
+				else {
+					if(has_drawn) {
+						early_out = true;
+						break;
+					}
+				}
+
+				x_pos += x_pixels_this_alloc;
+				if(early_out) break;
 			}
-		}		
+			if(early_out) break;
+		}
+
+		if(z == 1) {
+			zt_drawListPopColor(draw_list);
+			zt_drawListPopTexture(draw_list);
+		}
+	}
+
+	if(hover_count == 0 && mem->source_info_buffer[0] != 0) {
+		zt_guiItemSetLabel(mem->source_info, nullptr);
+		mem->source_info_buffer[0] = 0;
+		mem->source_info_last_file = nullptr;
 	}
 
 	char total_size_str[128];
 	zt_strBytesToString(total_size_str, zt_elementsOf(total_size_str), arena->current_used);
 	zt_strCat(hover_info, zt_elementsOf(hover_info), total_size_str);
-	zt_strCat(hover_info, zt_elementsOf(hover_info), "/");
+	zt_strCat(hover_info, zt_elementsOf(hover_info), " used from ");
 	zt_strBytesToString(total_size_str, zt_elementsOf(total_size_str), arena->total_size);
 	zt_strCat(hover_info, zt_elementsOf(hover_info), total_size_str);
+	zt_strBytesToString(total_size_str, zt_elementsOf(total_size_str), arena->peak_used);
+	zt_strCat(hover_info, zt_elementsOf(hover_info), " (peak: ");
+	zt_strCat(hover_info, zt_elementsOf(hover_info), total_size_str);
+	zt_strCat(hover_info, zt_elementsOf(hover_info), ")");
 
 	zt_guiItemSetLabel(mem->hover_info, hover_info);
 }
@@ -10161,11 +10286,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayCleanup, ztInternal ZT_FUN
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal void _zt_guiDebugMemoryInspector()
+ztInternal void _zt_guiDebugMemoryInspector(bool should_hide_if_not_created = false)
 {
 	{
 		ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME);
 		if (window != nullptr) {
+			if (should_hide_if_not_created) {
+				return;
+			}
 			zt_guiItemShow(window, true);
 			zt_guiItemBringToFront(window);
 			return;
@@ -10190,38 +10318,90 @@ ztInternal void _zt_guiDebugMemoryInspector()
 	zt_guiComboBoxSetCallback(combobox, _zt_guiDebugMemoryDisplayComboSelected_FunctionID, mem);
 
 	ztGuiItem *slider = zt_guiMakeSlider(top_sizer, ztGuiItemOrient_Horz, &mem->byte_width_multiplier);
-	slider->size.x = 3;
+	slider->size.x = 9;
 
-	ztGuiItem *hover_info = zt_guiMakeStaticText(top_sizer, "", 0, 512);
+	ztGuiItem *chk_color = zt_guiMakeCheckbox(top_sizer, "Color By File", 0, &mem->color_by_file);
+
+	ztGuiItem *hover_info = zt_guiMakeStaticText(sizer, "ABC", ztGuiStaticTextBehaviorFlags_MonoSpaced, 512);
 	zt_guiItemSetAlign(hover_info, ztAlign_Right);
 	mem->hover_info = hover_info;
+
+	ztGuiItem *source_info = zt_guiMakeStaticText(sizer, "ABC", ztGuiStaticTextBehaviorFlags_MonoSpaced, 1024);
+	zt_guiItemSetAlign(source_info, ztAlign_Right);
+	source_info->color = ztColor(.75f, .75f, 1, 1);
+	mem->source_info = source_info;
 
 	ztGuiItem *refresh = zt_guiMakeButton(top_sizer, "Refresh");
 
 	zt_guiSizerAddItem(top_sizer, combobox, 0, 3 / zt_pixelsPerUnit());
 	zt_guiSizerAddItem(top_sizer, refresh, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddStretcher(top_sizer, 1, 0);
 	zt_guiSizerAddItem(top_sizer, slider, 0, 3 / zt_pixelsPerUnit(), ztAlign_Center, 0); // todo: check aligning within sizer cell
-	zt_guiSizerAddItem(top_sizer, hover_info, 1, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(top_sizer, chk_color, 0, 3 / zt_pixelsPerUnit(), 0);
 	zt_guiSizerAddItem(sizer, top_sizer, 0, 0);
 
 	ztGuiItem *scroll = zt_guiMakeScrollContainer(sizer, ztGuiScrollContainerBehaviorFlags_StretchHorz);
 
 	ztGuiItem *inspector = zt_guiMakePanel(sizer);
 	zt_guiItemSetName(inspector, ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME);
-	inspector->debug_highlight = ztColor_Blue;
 
 	zt_guiScrollContainerSetItem(scroll, inspector);
 	zt_guiSizerAddItem(sizer, scroll, 1, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(sizer, hover_info, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(sizer, source_info, 0, 3 / zt_pixelsPerUnit());
 
 	inspector->functions.user_data   = mem;
 	inspector->functions.update      = _zt_guiDebugMemoryDisplayUpdate_FunctionID;
 	inspector->functions.render      = _zt_guiDebugMemoryDisplayRender_FunctionID;
 	inspector->functions.input_mouse = _zt_guiDebugMemoryDisplayInputMouse_FunctionID;
-	inspector->functions.cleanup     = _zt_guiDebugMemoryDisplayCleanup_FunctionID;
+	inspector->functions.cleanup = _zt_guiDebugMemoryDisplayCleanup_FunctionID;
 
+	{
+		int source_dir_listing_len = zt_kilobytes(64);
+		mem->source_dir_listing = zt_mallocStructArrayArena(char, source_dir_listing_len, window->gm->arena);
+
+		char current_path[ztFileMaxPath];
+		zt_fileGetCurrentPath(current_path, zt_elementsOf(current_path));
+
+		char source_path[ztFileMaxPath];
+		zt_fileConcatFileToPath(source_path, zt_elementsOf(source_path), current_path, ztFilePathSeparatorStr "src");
+
+		if (zt_directoryExists(source_path)) {
+			zt_strCpy(mem->source_path, zt_elementsOf(mem->source_path), source_path);
+
+			int temp_buffer_size = zt_kilobytes(64);
+			char *temp_buffer = zt_mallocStructArrayArena(char, temp_buffer_size, window->gm->arena);
+
+			zt_getDirectoryFiles(source_path, temp_buffer, temp_buffer_size, true);
+			ztToken tokens[256];
+			int tokens_count = zt_strTokenize(temp_buffer, "\n", tokens, zt_elementsOf(tokens));
+			if (tokens_count < zt_elementsOf(tokens)) {
+				zt_fiz(tokens_count) {
+					char file[ztFileMaxPath];
+					zt_strCpy(file, zt_elementsOf(file), temp_buffer + tokens[i].beg, tokens[i].len);
+
+					const char *file_name_only = zt_strFindLast(file, ztFilePathSeparatorStr);
+					if (file_name_only && (zt_striEndsWith(file_name_only, ".c") || zt_striEndsWith(file_name_only, ".cpp") || zt_striEndsWith(file_name_only, ".h") || zt_striEndsWith(file_name_only, ".cc") || zt_striEndsWith(file_name_only, ".hpp"))) {
+						zt_strCat(mem->source_dir_listing, source_dir_listing_len, file_name_only + 1);
+						zt_strCat(mem->source_dir_listing, source_dir_listing_len, "\n");
+					}
+				}
+			}
+
+			zt_freeArena(temp_buffer, window->gm->arena);
+		}
+		else {
+			mem->source_path[0] = 0;
+		}
+	}
 
 	zt_guiDebugMemoryInspectorAddArena(zt_memGetGlobalArena(), "Global Arena");
 	_zt_guiDebugMemoryDisplayRefresh(mem);
+
+	if (should_hide_if_not_created) {
+		zt_guiItemHide(window);
+	}
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -10251,6 +10431,8 @@ ztInternal void _zt_guiDebugMemoryInspectorRefreshCombo(ztDebugMemory *mem)
 
 void zt_guiDebugMemoryInspectorAddArena(ztMemoryArena *arena, char *alias)
 {
+	_zt_guiDebugMemoryInspector(true);
+
 	ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_WINDOW_NAME);
 	if (window != nullptr) {
 		ztGuiItem *inspector = zt_guiItemFindByName(ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME, window);
