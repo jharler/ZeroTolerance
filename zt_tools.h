@@ -77,7 +77,7 @@
 #	define ztReal64Epsilon	2.2204460492503131e-016
 
 #	define ztInt32Max       2147483647
-#	define ztInt32Min      -2147483648
+#	define ztInt32Min      -2147483647
 #	define ztUint32Max      4294967295
 #	define ztUint32Min      0
 #	define ztInt64Max       9223372036854775807
