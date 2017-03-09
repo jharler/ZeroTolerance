@@ -1131,6 +1131,12 @@ enum ztGuiManagerItemCacheFlags_Enum
 
 // ------------------------------------------------------------------------------------------------
 
+#ifndef ZT_GUI_MANAGER_MAX_ITEMS
+#define ZT_GUI_MANAGER_MAX_ITEMS	1024 * 64
+#endif
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztGuiManager
 {
 	i32            id;
@@ -1160,8 +1166,8 @@ struct ztGuiManager
 
 	ztGuiItem     *first_child;
 
-	ztGuiItem      item_cache      [1024 * 64];
-	i32            item_cache_flags[1024 * 64];
+	ztGuiItem      item_cache      [ZT_GUI_MANAGER_MAX_ITEMS];
+	i32            item_cache_flags[ZT_GUI_MANAGER_MAX_ITEMS];
 	i32            item_cache_used;
 
 	ztGuiTheme     default_theme;
@@ -10098,7 +10104,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 
 		if(z == 1) {
 			zt_drawListPushTexture(draw_list, ztTextureDefault);
-			zt_drawListPushColor(draw_list, ztColor_White);
+			zt_drawListPushColor(draw_list, zt_colorRgb(240, 240, 240));
 		}
 
 		zt_flink(alloc, arena->latest) {
@@ -10138,10 +10144,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 				if(zt_collisionAABBInAABB(ztVec3(ppos,0), ztVec3(psize, 0), ztVec3(bpos, 0), ztVec3(bsize, 0))) {
 					has_drawn = true;
 
+					bool mouse_colliding = zt_collisionPointInRect(mem->mouse_pos, bpos, bsize);
 					if(z == 0) {
-						zt_drawListAddSolidRect2D(draw_list, bpos, bsize, color);
 
-						if(zt_collisionPointInRect(mem->mouse_pos, bpos, bsize)) {
+						r32 color_pct = .85f;
+						if (mouse_colliding) {
+							color_pct = 1;
 							hover_count += 1;
 							if (hover_count == 1) {
 								char size[128];
@@ -10220,6 +10228,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 								}
 							}
 						}
+
+						zt_drawListAddSolidRect2D(draw_list, bpos, bsize, color * color_pct);
 					}
 					else {
 						zt_drawListAddEmptyRect(draw_list, bpos, bsize);
@@ -10281,6 +10291,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayInputMouse, ztInternal ZT_
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugMemoryDisplayCleanup))
 {
+	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
+	zt_freeArena(mem->source_dir_listing, item->gm->arena);
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
 
