@@ -1108,6 +1108,10 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
+ztTextureID zt_textureMakeCubeMapFromPixelData(byte *data[ztTextureCubeMapFiles_MAX], i32 width, i32 height, i32 depth);
+
+byte *      zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth);
+void        zt_textureFreePixelData(byte *pixels);
 
 void        zt_textureFree(ztTextureID texture_id);
 
@@ -1317,6 +1321,20 @@ void        zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat);
 
 
 // ------------------------------------------------------------------------------------------------
+// plane
+
+struct ztPlane
+{
+	ztVec3 normal;
+	r32    distance;
+};
+
+
+ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2);
+void    zt_planeNormalize(ztPlane *plane);
+
+
+// ------------------------------------------------------------------------------------------------
 // camera
 
 enum ztCameraType_Enum
@@ -1426,15 +1444,6 @@ void          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *
 struct ztFrustum
 {
 	union {
-		struct{
-			ztVec3 points[8];
-		};
-
-		struct {
-			ztVec3 near_rect[4];
-			ztVec3 far_rect[4];
-		};
-
 		struct {
 			ztVec3 near_nw;
 			ztVec3 near_ne;
@@ -1445,13 +1454,39 @@ struct ztFrustum
 			ztVec3 far_se;
 			ztVec3 far_sw;
 		};
+
+		struct{
+			ztVec3 points[8];
+		};
+
+		struct {
+			ztVec3 near_rect[4];
+			ztVec3 far_rect[4];
+		};
 	};
+
+	union {
+		struct {
+			ztPlane plane_near;
+			ztPlane plane_left;
+			ztPlane plane_right;
+			ztPlane plane_top;
+			ztPlane plane_bottom;
+			ztPlane plane_far;
+		};
+
+		struct {
+			ztPlane planes[6];
+		};
+	};
+
+	ztFrustum& operator=(const ztFrustum& f);
 };
 
 // ------------------------------------------------------------------------------------------------
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera);
-
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
+void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1875,7 +1910,7 @@ void     zt_modelFree(ztModel *model);
 
 ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id);
 
-void     zt_modelCalcMatrix(ztModel *model);
+void     zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
 
 void     zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size);
 void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
@@ -1949,7 +1984,7 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model);
 
 // --------------------------------------------------------
 // Calculates matrices for scene models (should be called after physics)
-void zt_scenePrepare(ztScene *scene, ztCamera *camera);
+void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset = ztVec3::zero);
 
 // --------------------------------------------------------
 // Culls models and lights based on camera view (not absolutely necessary)
@@ -2367,19 +2402,22 @@ bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, cons
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
 
 bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
 bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents);
 bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point = nullptr);
 bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2] = nullptr);
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
-bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point = nullptr);
+bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
 bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2);
 bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3]);
-int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
+int  zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
 bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2] = nullptr);
 
-
+bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far = true);
+bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_point = nullptr);
+bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents);
 
 // ------------------------------------------------------------------------------------------------
 // physics manager
@@ -4812,6 +4850,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	i32 len = zt_getDirectoryFiles(directory, buffer, buffer_size, true);
 	if (len == 0) {
 		zt_logInfo("Asset Manager: No assets found in directory: %s", directory);
+		zt_memPopGlobalArena();
 		zt_freeArena(buffer, arena);
 		return true; // no reason to fail here, but there's nothing more to do
 	}
@@ -4827,6 +4866,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	int tokens_count = zt_strTokenize(buffer, "\n", nullptr, 0);
 	if (tokens_count <= 0) {
 		zt_logCritical("Asset Manager: Unable to parse directory list: %s", buffer);
+		zt_memPopGlobalArena();
 		zt_freeArena(buffer, arena);
 		return false;
 	}
@@ -7091,7 +7131,7 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 
 // ------------------------------------------------------------------------------------------------
 
-#define ztRenderDrawListVertexArraySize	3 * 1024 * 8
+#define ztRenderDrawListVertexArraySize	3 * 1024 * 64
 #define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 48)
 
 // ------------------------------------------------------------------------------------------------
@@ -7274,7 +7314,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					if (points > 0) {
 						zt_fjz(draw_list->commands_count) {
 							ztDrawCommand *command = &draw_list->commands[j];
-							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_Point) {
+							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Point) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
 								cmp_item->clip_region = nullptr;
@@ -7288,7 +7328,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					if (lines > 0) {
 						zt_fjz(draw_list->commands_count) {
 							ztDrawCommand *command = &draw_list->commands[j];
-							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_Line) {
+							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Line) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
 								cmp_item->clip_region = nullptr;
@@ -7372,7 +7412,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_assert(cmp_texture != nullptr);
 									cmp_item_last = cmp_texture->last_item;
 								}
-								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor) {
+								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeOffset) {
 									ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 									cmp_item->command = command;
 									cmp_item->clip_region = cmp_clip_region;
@@ -8055,7 +8095,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_ChangeOffset: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::change offset");
 							offset = cmp_item->command->offset;
-							has_offset = offset == ztVec3::zero;
+							has_offset = offset != ztVec3::zero;
 						} break;
 
 						case ztDrawCommandType_ChangeTransform: {
@@ -8848,7 +8888,7 @@ ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_modelCalcMatrix(ztModel *model)
+void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_modelCalcMatrix");
 
@@ -8903,7 +8943,12 @@ void zt_modelCalcMatrix(ztModel *model)
 		model = model->parent;
 	}
 
-	local::calculateModel(model, &ztMat4::identity);
+	if (world_offset != ztVec3::zero) {
+		local::calculateModel(model, &ztMat4::identity.getTranslate(world_offset));
+	}
+	else {
+		local::calculateModel(model, &ztMat4::identity);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9162,11 +9207,11 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_scenePrepare(ztScene *scene, ztCamera *camera)
+void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_scenePrepare");
 	zt_fiz(scene->models_count) {
-		zt_modelCalcMatrix(scene->models[i].model);
+		zt_modelCalcMatrix(scene->models[i].model, world_offset);
 	}
 }
 
@@ -13667,6 +13712,22 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
 
+	ztTextureID texture_id = zt_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
+
+	zt_fiz(ztTextureCubeMapFiles_MAX) {
+		stbi_image_free(pixel_data[i]);
+		zt_freeArena(tex_data[i], asset_mgr->arena);
+	}
+
+	return texture_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMapFiles_MAX], i32 width, i32 height, i32 depth)
+{
+	zt_returnValOnNull(pixel_data, ztInvalidID);
+
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
@@ -13677,7 +13738,6 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 #			if defined(ZT_OPENGL)
 			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
 			if (texture->gl_texture == nullptr) {
-				zt_game->textures_count--;
 				return ztInvalidID;
 			}
 #			endif
@@ -13687,23 +13747,81 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 #			if defined(ZT_DIRECTX)
 			texture->dx_texture = ztdx_textureMakeCubeMapFromPixelData(zt_game->win_details[0].dx_context, pixel_data, width, height, depth);
 			if (texture->dx_texture == nullptr) {
-				zt_game->textures_count--;
 				return ztInvalidID;
 			}
 #			endif
 		} break;
 	}
 
-	texture->width  = width;
+	texture->width = width;
 	texture->height = height;
-	texture->flags  = 0;
-
-	zt_fiz(ztTextureCubeMapFiles_MAX) {
-		stbi_image_free(pixel_data[i]);
-		zt_freeArena(tex_data[i], asset_mgr->arena);
-	}
+	texture->flags = 0;
 
 	return texture_id;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth)
+{
+	zt_returnValOnNull(asset_mgr, nullptr);
+	zt_returnValOnNull(width, nullptr);
+	zt_returnValOnNull(height, nullptr);
+	zt_returnValOnNull(depth, nullptr);
+	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, nullptr);
+
+	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
+		return nullptr;
+	}
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		return nullptr;
+	}
+
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		return nullptr;
+	}
+
+	const char *error = nullptr;
+	byte *pixel_data = nullptr;
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	*width = *height = *depth = 0;
+
+	{
+		ztBlockProfiler bp_tex("stbi_load_from_memory");
+		pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, width, height, depth, 4);
+	}
+
+	if (pixel_data == nullptr) {
+		error = stbi_failure_reason();
+		goto on_error;
+	}
+
+	zt_freeArena(data, asset_mgr->arena);
+	return pixel_data;
+
+on_error:
+	zt_logCritical("Unable to load texture pixel data (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_freeArena(data, asset_mgr->arena);
+	if (pixel_data) {
+		stbi_image_free(pixel_data);
+	}
+	return nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_textureFreePixelData(byte *pixel_data)
+{
+	zt_returnOnNull(pixel_data);
+	stbi_image_free(pixel_data);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13744,6 +13862,8 @@ void zt_textureFree(ztTextureID texture_id)
 void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetPrepare");
+	zt_assert(zt_game->textures_active_render_target == false); // cannot render to a render target if we're already doing that
+
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -14425,37 +14545,91 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 // ------------------------------------------------------------------------------------------------
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera)
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3& world_offset)
+{
+	ztFrustum result;
+	zt_cameraCalcViewFrustum(&result, camera, far_z, world_offset);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, const ztVec3& world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_cameraCalcViewFrustum");
+
+	zt_returnOnNull(frustum);
+	zt_returnOnNull(camera);
+
 	ztVec3 near_center(0, 0, -camera->near_z);
-	ztVec3 far_center(0, 0, -camera->far_z);
+	ztVec3 far_center(0, 0, far_z == 0 ? -camera->far_z : -far_z);
 
 	r32 near_half_height = zt_tan(camera->fov / 2.f) * camera->near_z;
-	r32 far_half_height = zt_tan(camera->fov / 2.f) * camera->far_z;
+	r32 far_half_height = zt_tan(camera->fov / 2.f) * (far_z == 0 ? camera->far_z : far_z);
 
 	r32 aspect = (r32)camera->width / (r32)camera->height;
 
 	r32 near_half_width = near_half_height * aspect;
 	r32 far_half_width = far_half_height * aspect;
 	
-	ztFrustum results;
-	results.near_nw = ztVec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
-	results.near_ne = ztVec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
-	results.near_se = ztVec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
-	results.near_sw = ztVec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
+	frustum->near_nw = ztVec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
+	frustum->near_ne = ztVec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
+	frustum->near_se = ztVec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
+	frustum->near_sw = ztVec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
 
-	results.far_nw = ztVec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
-	results.far_ne = ztVec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
-	results.far_se = ztVec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
-	results.far_sw = ztVec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
+	frustum->far_nw = ztVec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
+	frustum->far_ne = ztVec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
+	frustum->far_se = ztVec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
+	frustum->far_sw = ztVec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
 
 	ztMat4 cam_view_inv = camera->mat_view.getInverse();
 	zt_fiz(8) {
-		results.points[i] = cam_view_inv * results.points[i];
+		frustum->points[i] = cam_view_inv * frustum->points[i] + world_offset;
 	}
 
-	return results;
+//	frustum->plane_left   = zt_planeMake(frustum->near_sw, frustum->far_sw , frustum->far_nw );
+//	frustum->plane_top    = zt_planeMake(frustum->near_nw, frustum->far_nw , frustum->far_ne );
+//	frustum->plane_right  = zt_planeMake(frustum->near_se, frustum->near_ne, frustum->far_ne );
+//	frustum->plane_bottom = zt_planeMake(frustum->near_se, frustum->far_se , frustum->far_sw );
+//	frustum->plane_near   = zt_planeMake(frustum->near_se, frustum->near_sw, frustum->near_nw);
+//	frustum->plane_far    = zt_planeMake(frustum->far_se , frustum->far_sw , frustum->far_nw );
+
+	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
+	r32 *m =  mat_final.values;
+	frustum->plane_right.normal = ztVec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]);
+	frustum->plane_right.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row0];
+
+	frustum->plane_left.normal = ztVec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row0]);
+	frustum->plane_left.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row0];
+
+	frustum->plane_bottom.normal = ztVec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row1]);
+	frustum->plane_bottom.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row1];
+
+	frustum->plane_top.normal = ztVec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row1]);
+	frustum->plane_top.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row1];
+
+	frustum->plane_far.normal = ztVec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row2]);
+	frustum->plane_far.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row2];
+
+	frustum->plane_near.normal = ztVec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row2]);
+	frustum->plane_near.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row2];
+
+	zt_fize(frustum->planes) {
+		zt_planeNormalize(&frustum->planes[i]);
+		//frustum->planes[i].normal.normalize();
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztFrustum& ztFrustum::operator=(const ztFrustum& f)
+{
+	zt_fize(f.points) this->points[i] = f.points[i];
+	zt_fize(f.planes) {
+		this->planes[i].normal = f.planes[i].normal;
+		this->planes[i].distance = f.planes[i].distance;
+	}
+	return *this;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -17636,6 +17810,34 @@ void zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2)
+{
+	ztPlane result;
+	result.normal = (p1 - p0).cross(p2 - p0).getNormal();
+	result.distance = result.normal.dot(p0);
+
+	zt_planeNormalize(&result);
+
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_planeNormalize(ztPlane *plane)
+{
+	zt_returnOnNull(plane);
+
+	r32 scale = 1.f / plane->normal.length();
+	plane->normal.x /= scale;
+	plane->normal.y /= scale;
+	plane->normal.z /= scale;
+	plane->distance /= scale;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 ztInternal bool _zt_rendererRequestProcess()
 {
 	ZT_PROFILE_RENDERING("_zt_rendererRequestProcess");
@@ -18722,6 +18924,30 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
+	ztVec3 line_dir = (line_end - line_beg);
+
+	r32 dot = plane.distance;
+	if (plane.normal.dot(line_dir) == 0) {
+		// line is parallel
+		return false;
+	}
+
+	r32 x = (dot - plane.normal.dot(line_beg)) / plane.normal.dot(line_dir);
+	if (x < 0 - ztReal32Epsilon || x > 1 + ztReal32Epsilon) {
+		return false;
+	}
+
+	if (intersection_point) {
+		*intersection_point = line_beg + (line_dir * ztVec3(x, x, x));
+	}
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionPointInAABB");
@@ -18837,28 +19063,41 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInAABB");
-	ztVec3 aabb_min_1(aabb_center_1.x - (aabb_extents_1.x / 2.f), aabb_center_1.y - (aabb_extents_1.y / 2.f), aabb_center_1.z - (aabb_extents_1.z / 2.f));
-	ztVec3 aabb_max_1(aabb_center_1.x + (aabb_extents_1.x / 2.f), aabb_center_1.y + (aabb_extents_1.y / 2.f), aabb_center_1.z + (aabb_extents_1.z / 2.f));
+	if (aabb_center_1.x + (aabb_extents_1.x / 2.f) < aabb_center_2.x - (aabb_extents_2.x / 2.f) || aabb_center_1.x - (aabb_extents_1.x / 2.f) > aabb_center_2.x + (aabb_extents_2.x / 2.f)) return false;
+	if (aabb_center_1.y + (aabb_extents_1.y / 2.f) < aabb_center_2.y - (aabb_extents_2.y / 2.f) || aabb_center_1.y - (aabb_extents_1.y / 2.f) > aabb_center_2.y + (aabb_extents_2.y / 2.f)) return false;
+	if (aabb_center_1.z + (aabb_extents_1.z / 2.f) < aabb_center_2.z - (aabb_extents_2.z / 2.f) || aabb_center_1.z - (aabb_extents_1.z / 2.f) > aabb_center_2.z + (aabb_extents_2.z / 2.f)) return false;
 
-	ztVec3 aabb_min_2(aabb_center_2.x - (aabb_extents_2.x / 2.f), aabb_center_2.y - (aabb_extents_2.y / 2.f), aabb_center_2.z - (aabb_extents_2.z / 2.f));
-	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
+//	ztVec3 aabb_min_1(aabb_center_1.x - (aabb_extents_1.x / 2.f), aabb_center_1.y - (aabb_extents_1.y / 2.f), aabb_center_1.z - (aabb_extents_1.z / 2.f));
+//	ztVec3 aabb_max_1(aabb_center_1.x + (aabb_extents_1.x / 2.f), aabb_center_1.y + (aabb_extents_1.y / 2.f), aabb_center_1.z + (aabb_extents_1.z / 2.f));
+//
+//	ztVec3 aabb_min_2(aabb_center_2.x - (aabb_extents_2.x / 2.f), aabb_center_2.y - (aabb_extents_2.y / 2.f), aabb_center_2.z - (aabb_extents_2.z / 2.f));
+//	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
+//
+//	if (aabb_max_1.x < aabb_min_2.x || aabb_min_1.x > aabb_max_2.x) return false;
+//	if (aabb_max_1.y < aabb_min_2.y || aabb_min_1.y > aabb_max_2.y) return false;
+//	if (aabb_max_1.z < aabb_min_2.z || aabb_min_1.z > aabb_max_2.z) return false;
 
-	zt_fiz(3) {
-		if (aabb_max_1.values[i] < aabb_min_2.values[i] || aabb_min_1.values[i] > aabb_max_2.values[i]) {
-			return false;
-		}
-	}
+//	zt_fiz(3) {
+//		if (aabb_max_1.values[i] < aabb_min_2.values[i] || aabb_min_1.values[i] > aabb_max_2.values[i]) {
+//			return false;
+//		}
+//	}
 
 	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point)
+bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInPlane");
-	zt_assert(false); // not yet implemented
-	return false;
+	
+	ztVec3 half_ext(aabb_extents.x / 2, aabb_extents.y / 2, aabb_extents.z / 2);
+
+	r32 int_rad = half_ext.x * zt_abs(plane.normal.x) + half_ext.y * zt_abs(plane.normal.y) + half_ext.z * zt_abs(plane.normal.z);
+	r32 dist = plane.normal.dot(aabb_center) - plane.distance;
+
+	return zt_abs(dist) <= int_rad;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -19073,6 +19312,69 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 
 	return false;
 }
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionPointInFrustum");
+
+	zt_fiz(zt_elementsOf(frustum.planes) - (check_near_far ? 0 : 2)) {
+		r32 dot = point.dot(frustum.planes[i].normal);
+		if (dot - frustum.planes[i].distance < 0 -0.0001f) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_pointer)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionLineInFrustum");
+
+	ztVec3 intersection_point;
+	zt_fize(frustum.planes) {
+		if (zt_collisionLineInPlane(line_beg, line_end, frustum.planes[i], &intersection_point)) {
+			if (zt_collisionPointInFrustum(frustum, intersection_point, false)) {
+				if (intersection_pointer) {
+					*intersection_pointer = intersection_point;
+				}
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionAABBInFrustum");
+	ztVec3 aabb[] = {
+		ztVec3(aabb_center.x - aabb_extents.x / 2, aabb_center.y - aabb_extents.y / 2, aabb_center.z - aabb_extents.z / 2),
+		ztVec3(aabb_center.x + aabb_extents.x / 2, aabb_center.y + aabb_extents.y / 2, aabb_center.z + aabb_extents.z / 2),
+	};
+
+#	define test_plane(plane) \
+		if(ztVec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
+
+	test_plane(frustum.plane_near);
+	test_plane(frustum.plane_left);
+	test_plane(frustum.plane_right);
+	test_plane(frustum.plane_top);
+	test_plane(frustum.plane_bottom);
+	test_plane(frustum.plane_far);
+
+#	undef test_plane
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
 
 
 // ------------------------------------------------------------------------------------------------
