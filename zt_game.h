@@ -3828,13 +3828,14 @@ ztInternal ZT_FUNC_THREAD(_zt_threadJobThread)
 
 	zt_atomicBoolSet(&thread_data->should_exit, false);
 	zt_atomicBoolSet(&thread_data->processing, false);
-	zt_threadMonitorTriggerSignal(thread_data->finish);
 
 	while (!zt_atomicBoolGet(&thread_data->should_exit)) {
 		zt_threadMonitorWaitForSignal(thread_data->start); // sleep until we have a job to do or are exiting
-		zt_threadMonitorReset(thread_data->finish);
-		zt_atomicBoolSet(&thread_data->processing, true);
 		zt_threadMonitorReset(thread_data->start);
+
+		if (zt_atomicBoolGet(&thread_data->should_exit)) {
+			return 0;
+		}
 
 		ZT_PROFILE_GAME("Thread Main");
 
@@ -4096,6 +4097,9 @@ void zt_threadJobQueueStartFrameJobs()
 
 	zt_fiz(queue->threads_count) {
 		if (queue->threads[i].type == ztThreadJobType_Frame && !zt_atomicBoolGet(&queue->threads[i].processing)) {
+			//zt_threadMonitorTriggerSignal(queue->threads[i].finish);
+			zt_threadMonitorReset(queue->threads[i].finish);
+			zt_atomicBoolSet(&queue->threads[i].processing, true);
 			zt_threadMonitorTriggerSignal(queue->threads[i].start);
 		}
 	}
