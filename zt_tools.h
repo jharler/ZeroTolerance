@@ -307,6 +307,9 @@ struct ztVec2i
 
 	ztVec2i() {}
 	ztVec2i(i32 _x, i32 _y) :x(_x), y(_y) {}
+
+	bool operator==(const ztVec2i& v) const { return x == v.x && y == v.y; }
+	bool operator!=(const ztVec2i& v) const { return x != v.x || y != v.y; }
 };
 
 
@@ -325,6 +328,9 @@ struct ztVec3i
 
 	ztVec3i() {}
 	ztVec3i(i32 _x, i32 _y, i32 _z) : x(_x), y(_y), z(_z) {}
+
+	bool operator==(const ztVec3i& v) const { return x == v.x && y == v.y && z == v.z; }
+	bool operator!=(const ztVec3i& v) const { return x != v.x || y != v.y || z != v.z; }
 };
 
 
@@ -344,6 +350,9 @@ struct ztVec4i
 
 	ztVec4i() {}
 	ztVec4i(i32 _x, i32 _y, i32 _z, i32 _w) : x(_x), y(_y), z(_z), w(_w) {}
+
+	bool operator==(const ztVec4i& v) const { return x == v.x && y == v.y && z == v.z && w == v.w; }
+	bool operator!=(const ztVec4i& v) const { return x != v.x || y != v.y || z != v.z || w != v.w; }
 };
 
 
