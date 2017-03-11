@@ -3288,7 +3288,7 @@ struct ztProfiledThread
 
 // ------------------------------------------------------------------------------------------------
 
-#ifndef ZT_MAX_THREADS
+#ifndef ZT_MAX_THREADS // needs to be main thread + additional threads
 #define ZT_MAX_THREADS	5
 #endif
 
@@ -3336,6 +3336,7 @@ struct ztThreadJob
 	ztThread_Func        *thread_func;
 	void                 *thread_func_user_data;
 	r32                   anticipated_length;
+	i32                   frame_created;
 
 	ztAtomicBool          completed;
 	ztAtomicBool          cancelled;
@@ -3518,7 +3519,7 @@ struct ztVertexArray
 };
 
 #ifndef ZT_MAX_VERTEX_ARRAYS
-#define ZT_MAX_VERTEX_ARRAYS	32
+#define ZT_MAX_VERTEX_ARRAYS	1024
 #endif
 
 
@@ -4018,6 +4019,7 @@ ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *
 	job->thread_func_user_data  = user_data;
 	job->anticipated_length     = anticipated_length;
 	job->next                   = nullptr;
+	job->frame_created          = zt_game->game_details.current_frame;
 
 	zt_atomicBoolSet(&job->completed, false);
 	zt_atomicBoolSet(&job->cancelled, false);
