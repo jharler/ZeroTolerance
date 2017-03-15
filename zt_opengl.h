@@ -90,6 +90,7 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_LINK_STATUS 0x8B82
 #define GL_ARRAY_BUFFER 0x8892
 #define GL_STATIC_DRAW 0x88E4
+#define GL_DYNAMIC_DRAW 0x88E8
 #define GL_TEXTURE0 0x84C0
 #define GL_CLAMP_TO_EDGE 0x812F
 #define GL_MULTISAMPLE 0x809D
@@ -306,22 +307,15 @@ struct ztVertexArrayGL
 {
 	GLuint vao;
 	GLuint vbo;
-
-	ztVertexEntryGL *entries;
-	int              entries_count;
-
-	int vert_count;
-
-	ztMemoryArena *arena;
+	int    vert_count;
 };
 
 // ------------------------------------------------------------------------------------------------
 
-ztVertexArrayGL *ztgl_vertexArrayMake  (ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-ztVertexArrayGL *ztgl_vertexArrayMake  (ztMemoryArena *arena, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void             ztgl_vertexArrayFree  (ztVertexArrayGL *vertex_array);
-bool             ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, void *vert_data, int vert_count);
-void             ztgl_vertexArrayDraw  (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
+bool ztgl_vertexArrayMake  (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayFree  (ztVertexArrayGL *vertex_array);
+bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayDraw  (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1640,6 +1634,10 @@ void ztgl_textureFree(ztTextureGL *texture)
 
 void ztgl_textureBindReset(ztShaderGL *shader)
 {
+	if (shader->textures_bound == 0) {
+		return;
+	}
+
 	ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
 	ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
 	shader->textures_bound = 0;
@@ -1759,36 +1757,35 @@ void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count,
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ztVertexArrayGL *ztgl_vertexArrayMake(ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
+ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count, bool create)
 {
-	return ztgl_vertexArrayMake(zt_memGetGlobalArena(), entries, entries_count, vert_data, vert_count);
-}
-
-// ------------------------------------------------------------------------------------------------
-
-ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
-{
-	zt_assertReturnValOnFail(entries_count > 0, nullptr);
-	zt_assertReturnValOnFail(vert_count > 0, nullptr);
-	zt_returnValOnNull(vert_data, nullptr);
-
-	ztVertexArrayGL *vertex_array = zt_mallocStructArena(ztVertexArrayGL, arena);
-	vertex_array->entries = zt_mallocStructArrayArena(ztVertexEntryGL, entries_count, arena);
-	vertex_array->entries_count = entries_count;
-	zt_memCpy(vertex_array->entries, entries_count * zt_sizeof(ztVertexEntryGL), entries, entries_count *  zt_sizeof(ztVertexEntryGL));
+	zt_returnValOnNull(vertex_array, false);
+	zt_returnValOnNull(entries, false);
+	zt_returnValOnNull(vert_data, false);
+	zt_assertReturnValOnFail(entries_count > 0, false);
+	zt_assertReturnValOnFail(vert_count > 0, false);
 
 	int vert_size = 0;
 	zt_fiz(entries_count) {
 		vert_size += entries[i].size;
 	}
 
-	ztgl_callAndReturnValOnError(glGenVertexArrays(1, &vertex_array->vao), nullptr);
-	ztgl_callAndReturnValOnError(glGenBuffers(1, &vertex_array->vbo), nullptr);
+	if (!create) {
+		if (vert_count > vertex_array->vert_count) {
+			ztgl_vertexArrayFree(vertex_array);
+			create = true;
+		}
+	}
 
-	ztgl_callAndReportOnError(glBindVertexArray(vertex_array->vao));
+	if (create) {
+		ztgl_callAndReturnValOnError(glGenVertexArrays(1, &vertex_array->vao), false);
+		ztgl_callAndReturnValOnError(glGenBuffers(1, &vertex_array->vbo), false);
+	}
+
+	ztgl_callAndReturnValOnError(glBindVertexArray(vertex_array->vao), false);
 	{
-		ztgl_callAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo));
-		ztgl_callAndReportOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_STATIC_DRAW));
+		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), false);
+		ztgl_callAndReturnValOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_DYNAMIC_DRAW), false);
 
 		int size = 0;
 		zt_fiz(entries_count) {
@@ -1797,15 +1794,14 @@ ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *ent
 			{
 				case GL_FLOAT: {
 					attrib_size = 4;
-					ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size));
-					ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
+					ztgl_callAndReturnValOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
+					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
 				} break;
 
 				case GL_INT: {
 					attrib_size = 4;
-					//ztgl_callAndReportOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size));
-					ztgl_callAndReportOnError(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size));
-					ztgl_callAndReportOnError(glEnableVertexAttribArray(i));
+					ztgl_callAndReturnValOnError(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size), false);
+					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
 				} break;
 
 				default: {
@@ -1813,16 +1809,21 @@ ztVertexArrayGL *ztgl_vertexArrayMake(ztMemoryArena *arena, ztVertexEntryGL *ent
 				} break;
 			}
 
-
 			size += entries[i].size;
 		}
-		ztgl_callAndReportOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
+		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, 0), false);
 	}
-	ztgl_callAndReportOnError(glBindVertexArray(0));
+	ztgl_callAndReturnValOnError(glBindVertexArray(0), false);
 
 	vertex_array->vert_count = vert_count;
-	vertex_array->arena = arena;
-	return vertex_array;
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
+{
+	return _ztgl_vertexArrayMake(vertex_array, entries, entries_count, vert_data, vert_count, true);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1836,47 +1837,14 @@ void ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array)
 	ztgl_callAndReportOnError(glDeleteVertexArrays(1, &vertex_array->vao));
 	ztgl_callAndReportOnError(glDeleteBuffers(1, &vertex_array->vbo));
 
-	zt_freeArena(vertex_array->entries, vertex_array->arena);
-	zt_freeArena(vertex_array, vertex_array->arena);
+	vertex_array->vao = vertex_array->vbo = vertex_array->vert_count = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, void *vert_data, int vert_count)
+bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
 {
-	int vert_size = 0;
-	zt_fiz(vertex_array->entries_count) {
-		vert_size += vertex_array->entries[i].size;
-	}
-
-	ztgl_callAndReportOnError(glBindVertexArray(vertex_array->vao));
-	{
-		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), false);
-		ztgl_callAndReturnValOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_STATIC_DRAW), false);
-
-		int size = 0;
-		zt_fiz(vertex_array->entries_count) {
-			int attrib_size = 0;
-			switch (vertex_array->entries[i].type)
-			{
-				case GL_FLOAT: {
-					attrib_size = 4;
-				} break;
-
-				default: {
-					zt_assert(false);
-				} break;
-			}
-
-			ztgl_callAndReturnValOnError(glVertexAttribPointer(i, vertex_array->entries[i].size / attrib_size, vertex_array->entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
-			ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
-
-			size += vertex_array->entries[i].size;
-		}
-		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, 0), false);
-	}
-	ztgl_callAndReturnValOnError(glBindVertexArray(0), false);
-	return true;
+	return _ztgl_vertexArrayMake(vertex_array, entries, entries_count, vert_data, vert_count, false);
 }
 
 // ------------------------------------------------------------------------------------------------

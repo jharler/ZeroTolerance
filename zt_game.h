@@ -1006,51 +1006,51 @@ void zt_shaderApplyVariables(ztShaderID shader_id);
 
 // these functions change the default values of the shader
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type);
-void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value);
-void zt_shaderSetVariableInt(ztShaderID shader_id, const char *variable, i32 value);
-void zt_shaderSetVariableVec2(ztShaderID shader_id, const char *variable, const ztVec2& value);
-void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const ztVec3& value);
-void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4& value);
-void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const ztMat4& value);
-void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12]);
-void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id);
-void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 texture_id);
+void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value, bool apply_immediately = false);
+void zt_shaderSetVariableInt(ztShaderID shader_id, const char *variable, i32 value, bool apply_immediately = false);
+void zt_shaderSetVariableVec2(ztShaderID shader_id, const char *variable, const ztVec2& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const ztVec3& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4& value, bool apply_immediately = false);
+void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const ztMat4& value, bool apply_immediately = false);
+void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12], bool apply_immediately = false);
+void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id, bool apply_immediately = false);
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 texture_id, bool apply_immediately = false);
 
 bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVariable_Enum *type);
-void zt_shaderSetVariableFloat(ztShaderID shader_id, u32 variable_hash, r32 value);
-void zt_shaderSetVariableInt(ztShaderID shader_id, u32 variable_hash, i32 value);
-void zt_shaderSetVariableVec2(ztShaderID shader_id, u32 variable_hash, const ztVec2& value);
-void zt_shaderSetVariableVec3(ztShaderID shader_id, u32 variable_hash, const ztVec3& value);
-void zt_shaderSetVariableVec4(ztShaderID shader_id, u32 variable_hash, const ztVec4& value);
-void zt_shaderSetVariableMat4(ztShaderID shader_id, u32 variable_hash, const ztMat4& value);
-void zt_shaderSetVariableMat3(ztShaderID shader_id, u32 variable_hash, r32 value[12]);
-void zt_shaderSetVariableTex(ztShaderID shader_id, u32 variable_hash, i32 texture_id);
-void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 texture_id);
+void zt_shaderSetVariableFloat(ztShaderID shader_id, u32 variable_hash, r32 value, bool apply_immediately = false);
+void zt_shaderSetVariableInt(ztShaderID shader_id, u32 variable_hash, i32 value, bool apply_immediately = false);
+void zt_shaderSetVariableVec2(ztShaderID shader_id, u32 variable_hash, const ztVec2& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec3(ztShaderID shader_id, u32 variable_hash, const ztVec3& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec4(ztShaderID shader_id, u32 variable_hash, const ztVec4& value, bool apply_immediately = false);
+void zt_shaderSetVariableMat4(ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately = false);
+void zt_shaderSetVariableMat3(ztShaderID shader_id, u32 variable_hash, r32 value[12], bool apply_immediately = false);
+void zt_shaderSetVariableTex(ztShaderID shader_id, u32 variable_hash, i32 texture_id, bool apply_immediately = false);
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 texture_id, bool apply_immediately = false);
 
 // ------------------------------------------------------------------------------------------------
 
 // these functions allow for temporary changes of a shader's variables
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type);
-void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value);
-void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value);
-void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value);
-void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value);
-void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value);
-void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value);
-void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]);
-void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
-void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
+int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value);
+int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value);
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value);
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value);
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value);
+int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value);
+int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]);
+int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
+int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
 
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash, ztShaderVariable_Enum *type);
-void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value);
-void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value);
-void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value);
-void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value);
-void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value);
-void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value);
-void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12]);
-void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
-void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
+int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value);
+int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value);
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value);
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value);
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value);
+int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value);
+int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12]);
+int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
+int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -1160,7 +1160,7 @@ struct ztVertexArrayEntry
 ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count);
 void            zt_vertexArrayFree(ztVertexArrayID vertex_array_id);
 
-bool            zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int vert_count);
+bool            zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count);
 void            zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type = ztVertexArrayDrawType_Triangles);
 
 int             zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id);
@@ -3208,6 +3208,12 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 #if defined(ZT_WINDOWS)
 
+#if defined(ZT_COMPILER_MSVC)
+#define VC_EXTRALEAN
+#endif
+
+#define WIN32_LEAN_AND_MEAN
+
 // headers (strive to avoid including anything if possible)
 #include <windows.h>
 #include <windowsx.h>
@@ -3508,10 +3514,10 @@ struct ztTexture
 
 struct ztVertexArray
 {
-	union {
-		void *renderer_data;
+	ztRenderer_Enum renderer;
 
-		zt_openGLSupport(ztVertexArrayGL *gl_va);
+	union {
+		zt_openGLSupport(ztVertexArrayGL gl_va);
 		zt_directxSupport(ztVertexArrayDX *dx_va);
 	};
 
@@ -3519,7 +3525,7 @@ struct ztVertexArray
 };
 
 #ifndef ZT_MAX_VERTEX_ARRAYS
-#define ZT_MAX_VERTEX_ARRAYS	1024
+#define ZT_MAX_VERTEX_ARRAYS	1024 * 16
 #endif
 
 
@@ -3580,7 +3586,7 @@ struct ztMesh
 	ztVec3 obb_center;
 	ztVec3 obb_size;
 
-	zt_openGLSupport(ztVertexArrayGL *gl_vertex_array);
+	zt_openGLSupport(ztVertexArrayGL gl_vertex_array);
 	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
 };
 
@@ -8524,7 +8530,7 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 			}
 
 			zt_fize(zt_game->vertex_arrays) {
-				if (zt_game->vertex_arrays[i].renderer_data == nullptr) {
+				if (zt_game->vertex_arrays[i].renderer == ztRenderer_Invalid) {
 					return i;
 				}
 			}
@@ -8537,7 +8543,8 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			ztVertexEntryGL *gl_entries = zt_mallocStructArray(ztVertexEntryGL, entries_count);
+			ztVertexEntryGL gl_entries[64];
+			zt_assert(entries_count < zt_elementsOf(gl_entries));
 			zt_fiz(entries_count) {
 				switch (entries[i].type)
 				{
@@ -8553,30 +8560,28 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 					default: zt_assert(false);
 				}
 			}
-			ztVertexArrayGL *gl_va = ztgl_vertexArrayMake(gl_entries, entries_count, vert_data, vert_count);
-			zt_free(gl_entries);
+			ztVertexArrayID va_id = local::getNextID();
+			if (va_id == ztInvalidID) return ztInvalidID;
 
-			if (gl_va == nullptr) {
+			if (!ztgl_vertexArrayMake(&zt_game->vertex_arrays[va_id].gl_va, gl_entries, entries_count, vert_data, vert_count)) {
 				return ztInvalidID;
 			}
 
-			ztVertexArrayID va_id = local::getNextID();
-			if (va_id == ztInvalidID) return ztInvalidID;
-			zt_game->vertex_arrays[va_id].gl_va = gl_va;
 			zt_game->vertex_arrays[va_id].vertices = vert_count;
+			zt_game->vertex_arrays[va_id].renderer = ztRenderer_OpenGL;
 			return va_id;
 #			endif
 		} break;
 
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
-			ztVertexEntryDX *dx_entries = zt_mallocStructArray(ztVertexEntryDX, entries_count);
+			ztVertexEntryDX dx_entries[64];
+			zt_assert(entries_count < zt_elementsOf(dx_entries));
 			zt_fiz(entries_count) {
 				dx_entries[i].size = entries[i].count * zt_vertexArrayDataSize(entries[i].type);
 				// DirectX doesn't care about data types here
 			}
 			ztVertexArrayDX *dx_va = ztdx_vertexArrayMake(zt_game->win_details[0].dx_context, dx_entries, entries_count, vert_data, vert_count);
-			zt_free(dx_entries);
 
 			if (dx_va == nullptr) {
 				return ztInvalidID;
@@ -8586,6 +8591,7 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 			if (va_id == ztInvalidID) return ztInvalidID;
 			zt_game->vertex_arrays[va_id].dx_va = dx_va;
 			zt_game->vertex_arrays[va_id].vertices = vert_count;
+			zt_game->vertex_arrays[va_id].renderer = ztRenderer_DirectX;
 
 			return va_id;
 #			endif
@@ -8609,8 +8615,7 @@ void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			ztgl_vertexArrayFree(zt_game->vertex_arrays[vertex_array_id].gl_va);
-			zt_game->vertex_arrays[vertex_array_id].gl_va = nullptr;
+			ztgl_vertexArrayFree(&zt_game->vertex_arrays[vertex_array_id].gl_va);
 #			endif
 		} break;
 
@@ -8621,11 +8626,13 @@ void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 #			endif
 		} break;
 	}
+
+	zt_game->vertex_arrays[vertex_array_id].renderer = ztRenderer_Invalid;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int vert_count)
+bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
 {
 	ZT_PROFILE_RENDERING("zt_vertexArrayUpdate");
 	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, false);
@@ -8636,7 +8643,25 @@ bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, void *vert_data, int 
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			return ztgl_vertexArrayUpdate(zt_game->vertex_arrays[vertex_array_id].gl_va, vert_data, vert_count);
+			ztVertexEntryGL gl_entries[64];
+			zt_assert(entries_count < zt_elementsOf(gl_entries));
+			zt_fiz(entries_count) {
+				switch (entries[i].type)
+				{
+					case ztVertexArrayDataType_Float: {
+						gl_entries[i].type = GL_FLOAT;
+						gl_entries[i].size = sizeof(float) * entries[i].count;
+					} break;
+
+					case ztVertexArrayDataType_Int: {
+						gl_entries[i].type = sizeof(int) * entries[i].count;
+					} break;
+
+					default: zt_assert(false);
+				}
+			}
+
+			return ztgl_vertexArrayUpdate(&zt_game->vertex_arrays[vertex_array_id].gl_va, gl_entries, entries_count, vert_data, vert_count);
 #			endif
 		} break;
 
@@ -8687,7 +8712,7 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 					gl_draw_type = GL_POINTS;
 				} break;
 			}
-			return ztgl_vertexArrayDraw(zt_game->vertex_arrays[vertex_array_id].gl_va, gl_draw_type);
+			return ztgl_vertexArrayDraw(&zt_game->vertex_arrays[vertex_array_id].gl_va, gl_draw_type);
 #			endif
 		} break;
 
@@ -13055,6 +13080,65 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 
 // ------------------------------------------------------------------------------------------------
 
+ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
+{
+	ZT_PROFILE_RENDERING("_zt_shaderApplyVariable");
+	ztShader *shader = &zt_game->shaders[shader_id];
+	ztShaderVariableValues *shader_vars = &shader->variables;
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			if (shader_vars->variables_count) {
+				{
+					ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
+
+					switch (val->type)
+					{
+						case ztShaderVariable_Float: ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
+						case ztShaderVariable_Int: ztgl_shaderVariableInt(shader->gl_shader, val->name_hash, val->val_int); break;
+						case ztShaderVariable_Vec2: ztgl_shaderVariableVec2(shader->gl_shader, val->name_hash, val->val_vec2); break;
+						case ztShaderVariable_Vec3: ztgl_shaderVariableVec3(shader->gl_shader, val->name_hash, val->val_vec3); break;
+						case ztShaderVariable_Vec4: ztgl_shaderVariableVec4(shader->gl_shader, val->name_hash, val->val_vec4); break;
+						case ztShaderVariable_Mat3: ztgl_shaderVariableMat3(shader->gl_shader, val->name_hash, val->val_mat3); break;
+						case ztShaderVariable_Mat4: ztgl_shaderVariableMat4(shader->gl_shader, val->name_hash, val->val_mat4); break;
+						case ztShaderVariable_Tex: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+						case ztShaderVariable_TexCube: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+					}
+				}
+			}
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			// populate cbuffer data
+			if (shader_vars->variables_count) {
+				ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
+
+				switch (val->type)
+				{
+					case ztShaderVariable_Float: ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
+					case ztShaderVariable_Int: ztdx_shaderVariableInt(shader->dx_shader, val->name_hash, val->val_int); break;
+					case ztShaderVariable_Vec2: ztdx_shaderVariableVec2(shader->dx_shader, val->name_hash, val->val_vec2); break;
+					case ztShaderVariable_Vec3: ztdx_shaderVariableVec3(shader->dx_shader, val->name_hash, val->val_vec3); break;
+					case ztShaderVariable_Vec4: ztdx_shaderVariableVec4(shader->dx_shader, val->name_hash, val->val_vec4); break;
+					case ztShaderVariable_Mat3: ztdx_shaderVariableMat3(shader->dx_shader, val->name_hash, val->val_mat3); break;
+					case ztShaderVariable_Mat4: ztdx_shaderVariableMat4(shader->dx_shader, val->name_hash, val->val_mat4); break;
+					case ztShaderVariable_Tex: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+					case ztShaderVariable_TexCube: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+				}
+
+				ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
+			}
+#			endif
+		} break;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_shaderApplyVariables(ztShaderID shader_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderApplyVariables");
@@ -13155,12 +13239,12 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash
 			idx = i; break; \
 						} \
 	} \
-	if (idx == -1) { return; } \
+	if (idx == -1) { return 0; } \
 
 #define _zt_shaderCheckType(shared_vars, shader_type) \
 	if (shader_vars->variables[idx].type != shader_type) { \
 		zt_assert(false); \
-		return; \
+		return 0; \
 			}
 
 #define _zt_shaderCheckHashAndType(shared_vars, shader_type) \
@@ -13170,58 +13254,62 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat  (ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { zt_shaderSetVariableFloat  (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableInt    (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { zt_shaderSetVariableInt    (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec2   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value) { zt_shaderSetVariableVec2   (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec3   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value) { zt_shaderSetVariableVec3   (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec4   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value) { zt_shaderSetVariableVec4   (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat4   (ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value) { zt_shaderSetVariableMat4   (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat3   (ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]      ) { zt_shaderSetVariableMat3   (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableTex    (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { zt_shaderSetVariableTex    (shader_vars, zt_strHash(variable), value); }
-void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { zt_shaderSetVariableTexCube(shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableFloat  (ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { return zt_shaderSetVariableFloat  (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableInt    (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { return zt_shaderSetVariableInt    (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec2   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value) { return zt_shaderSetVariableVec2   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec3   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value) { return zt_shaderSetVariableVec3   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec4   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value) { return zt_shaderSetVariableVec4   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableMat4   (ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value) { return zt_shaderSetVariableMat4   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableMat3   (ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]      ) { return zt_shaderSetVariableMat3   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableTex    (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { return zt_shaderSetVariableTex    (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { return zt_shaderSetVariableTexCube(shader_vars, zt_strHash(variable), value); }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value)
+int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableFloat");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Float);
 	shader_vars->variables[idx].val_float = value;
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value)
+int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableInt");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Int);
 	shader_vars->variables[idx].val_int = value;
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value)
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec2");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec2);
 	shader_vars->variables[idx].val_vec2[0] = value.values[0];
 	shader_vars->variables[idx].val_vec2[1] = value.values[1];
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value)
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec3);
 	shader_vars->variables[idx].val_vec3[0] = value.values[0];
 	shader_vars->variables[idx].val_vec3[1] = value.values[1];
 	shader_vars->variables[idx].val_vec3[2] = value.values[2];
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value)
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec4);
@@ -13229,50 +13317,55 @@ void zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_
 	shader_vars->variables[idx].val_vec4[1] = value.values[1];
 	shader_vars->variables[idx].val_vec4[2] = value.values[2];
 	shader_vars->variables[idx].val_vec4[3] = value.values[3];
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value)
+int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat4);
 	zt_fiz(zt_elementsOf(value.values)) {
 		shader_vars->variables[idx].val_mat4[i] = value.values[i];
 	}
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12])
+int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12])
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat3);
 	zt_fiz(12) {
 		shader_vars->variables[idx].val_mat3[i] = value[i];
 	}
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
+int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableTex");
 	_zt_shaderCheckHash(shader_vars);
 	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
 		shader_vars->variables[idx].val_tex = texture;
 	}
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
+int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableTexCube");
 	_zt_shaderCheckHash(shader_vars);
 	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
 		shader_vars->variables[idx].val_tex = texture;
 	}
+	return idx;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13306,27 +13399,27 @@ bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVaria
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat  (ztShaderID shader_id, const char *variable, r32 value          ) { zt_shaderSetVariableFloat  (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableInt    (ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableInt    (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec2   (ztShaderID shader_id, const char *variable, const ztVec2& value) { zt_shaderSetVariableVec2   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec3   (ztShaderID shader_id, const char *variable, const ztVec3& value) { zt_shaderSetVariableVec3   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec4   (ztShaderID shader_id, const char *variable, const ztVec4& value) { zt_shaderSetVariableVec4   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat4   (ztShaderID shader_id, const char *variable, const ztMat4& value) { zt_shaderSetVariableMat4   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableMat3   (ztShaderID shader_id, const char *variable, r32 value[12]      ) { zt_shaderSetVariableMat3   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableTex    (ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableTex    (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 value          ) { zt_shaderSetVariableTexCube(shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableFloat  (ztShaderID shader_id, const char *variable, r32 value          , bool apply_immediately) { zt_shaderSetVariableFloat  (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableInt    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableInt    (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, const char *variable, const ztVec2& value, bool apply_immediately) { zt_shaderSetVariableVec2   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, const char *variable, const ztVec3& value, bool apply_immediately) { zt_shaderSetVariableVec3   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, const char *variable, const ztVec4& value, bool apply_immediately) { zt_shaderSetVariableVec4   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat4   (ztShaderID shader_id, const char *variable, const ztMat4& value, bool apply_immediately) { zt_shaderSetVariableMat4   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableMat3   (ztShaderID shader_id, const char *variable, r32 value[12]      , bool apply_immediately) { zt_shaderSetVariableMat3   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableTex    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableTex    (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableTexCube(shader_id, zt_strHash(variable), value); }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableInt    (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableTex    (shader_vars, variable_hash, value); }
-void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          ) { _zt_shaderCheck(shader_id); zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); }
+void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableInt    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTex    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 
 // ------------------------------------------------------------------------------------------------
 
@@ -16843,11 +16936,11 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 			}
 
-			mesh->gl_vertex_array = ztgl_vertexArrayMake(entries, 6 + entries_count, vertices, indices_count);
+			bool result = ztgl_vertexArrayMake(&mesh->gl_vertex_array, entries, 6 + entries_count, vertices, indices_count);
 
 			zt_free(entries);
 
-			if (mesh->gl_vertex_array == nullptr) {
+			if (!result) {
 				return ztInvalidID;
 			}
 
@@ -16915,7 +17008,7 @@ void zt_meshFree(ztMeshID mesh_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_vertexArrayFree(mesh->gl_vertex_array));
+			zt_openGLSupport(ztgl_vertexArrayFree(&mesh->gl_vertex_array));
 		} break;
 
 		case ztRenderer_DirectX: {
@@ -17638,7 +17731,7 @@ void zt_meshRender(ztMeshID mesh_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_vertexArrayDraw(mesh->gl_vertex_array));
+			zt_openGLSupport(ztgl_vertexArrayDraw(&mesh->gl_vertex_array));
 		} break;
 
 		case ztRenderer_DirectX: {
