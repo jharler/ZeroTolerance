@@ -874,6 +874,7 @@ r32 zt_lerpBerp(r32 v1, r32 v2, r32 percent, r32 power = 2.5f);
 r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent);
 
 r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
+r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
 r32 zt_normalize(r32 val, r32 min, r32 max);
 r32 zt_approach(r32 var, r32 appr, r32 by);
 
@@ -1778,6 +1779,7 @@ bool zt_serialRead(ztSerial *serial, ztVec3i *vec);
 
 struct ztRandom
 {
+	i32 seed;
 	i32 mt_idx;
 
 	union {
@@ -2123,6 +2125,13 @@ ztInline r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent)
 ztInline r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
 {
 	return zt_lerp(v2a, v2b, zt_unlerp(v1a, v1b, val));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
+{
+	return zt_clamp(zt_linearRemap(val, v1a, v1b, v2a, v2b), zt_min(v2a, v2b), zt_max(v2a, v2b));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -3682,9 +3691,27 @@ void zt_logRemoveCallback(zt_logCallback_Func callback)
 
 void  zt_memSet(void *mem, int32 mem_len, byte value)
 {
-	byte* bmem = (byte*)mem;
-	zt_fiz(mem_len) {
-		bmem[i] = value;
+	int max_idx = mem_len;
+
+	if (max_idx % 4 == 0) {
+		max_idx /= 4;
+		u32 *umem = (u32*)mem;
+		while (max_idx--) {
+			*umem++ = 0;
+		}
+	}
+	else if (max_idx % 2 == 0) {
+		max_idx /= 2;
+		u16 *umem = (u16*)mem;
+		while (max_idx--) {
+			*umem++ = 0;
+		}
+	}
+	else {
+		byte *bmem = (byte*)mem;
+		while (max_idx--) {
+			*bmem++ = 0;
+		}
 	}
 }
 
@@ -8510,6 +8537,7 @@ void zt_randomInit(ztRandom *random, i32 seed)
 		random->mt_buffer[i] = rand();
 	}
 	random->mt_idx = 0;
+	random->seed = seed;
 }
 
 // ------------------------------------------------------------------------------------------------
