@@ -1927,6 +1927,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					case ztShLangTokenType_ivec2:
 					case ztShLangTokenType_ivec3:
 					case ztShLangTokenType_ivec4:
+					case ztShLangTokenType_int:
 						zt_strCat(*s, s_len, "flat ");
 						break;
 				}
@@ -2211,10 +2212,12 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					zt_strCat(*s, s_len, ")");
 				} break;
 
+				case ztShLangSyntaxNodeType_ValueBool:
 				case ztShLangSyntaxNodeType_ValueNumberFloat:
 				case ztShLangSyntaxNodeType_ValueNumberInt: {
 					zt_strCat(*s, s_len, node->value.value);
 				} break;
+
 
 				case ztShLangSyntaxNodeType_Scope: {
 					zt_strCat(*s, s_len, "{\n");
@@ -2228,7 +2231,8 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 				case ztShLangSyntaxNodeType_ConditionTest: {
 					if (!node->condition.is_inline) {
-						zt_strCat(*s, s_len, "if (");
+						zt_strCat(*s, s_len, _zt_shaderLangTokenTypeDesc(node->condition.op));
+						zt_strCat(*s, s_len, " (");
 						write(node->condition.expr, 0, s, s_len, vars);
 						zt_strCat(*s, s_len, ")\n");
 						write(node->condition.if_true, indent, s, s_len, vars);
