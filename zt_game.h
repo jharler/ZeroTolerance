@@ -8554,7 +8554,8 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 					} break;
 
 					case ztVertexArrayDataType_Int: {
-						gl_entries[i].type = sizeof(int) * entries[i].count;
+						gl_entries[i].type = GL_INT;
+						gl_entries[i].size = sizeof(int) * entries[i].count;
 					} break;
 
 					default: zt_assert(false);
@@ -8654,7 +8655,8 @@ bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *e
 					} break;
 
 					case ztVertexArrayDataType_Int: {
-						gl_entries[i].type = sizeof(int) * entries[i].count;
+						gl_entries[i].type = GL_INT;
+						gl_entries[i].size = sizeof(int) * entries[i].count;
 					} break;
 
 					default: zt_assert(false);
@@ -11471,6 +11473,9 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"sin,float,float",
 			"cos,float,float", 
 			"exp,float,float",
+			"fract,float,float",
+			"floor,float,float",
+			"ceil,float,float",
 
 			"int,int,int",
 			"int,uint,int",
