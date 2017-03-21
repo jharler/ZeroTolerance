@@ -2408,6 +2408,8 @@ bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, con
 bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point = nullptr);
 bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2] = nullptr);
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
+bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face);
+bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last);
 bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
 bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2);
@@ -19192,6 +19194,97 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face)
+{
+	zt_returnValOnNull(collision_normal, false);
+	zt_returnValOnNull(collision_depth, false);
+	zt_returnValOnNull(collision_face, false);
+
+	static ztVec3 faces[6] = {
+		ztVec3(-1,  0,  0),
+		ztVec3( 1,  0,  0),
+		ztVec3( 0, -1,  0),
+		ztVec3( 0,  1,  0),
+		ztVec3( 0,  0, -1),
+		ztVec3( 0,  0,  1),
+	};
+
+	ztVec3 aabb_min_1(aabb_center_1.x - (aabb_extents_1.x / 2.f), aabb_center_1.y - (aabb_extents_1.y / 2.f), aabb_center_1.z - (aabb_extents_1.z / 2.f));
+	ztVec3 aabb_max_1(aabb_center_1.x + (aabb_extents_1.x / 2.f), aabb_center_1.y + (aabb_extents_1.y / 2.f), aabb_center_1.z + (aabb_extents_1.z / 2.f));
+	
+	ztVec3 aabb_min_2(aabb_center_2.x - (aabb_extents_2.x / 2.f), aabb_center_2.y - (aabb_extents_2.y / 2.f), aabb_center_2.z - (aabb_extents_2.z / 2.f));
+	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
+	
+	r32 distances[6] = {
+		(aabb_max_2.x - aabb_min_1.x),
+		(aabb_max_1.x - aabb_min_2.x),
+		(aabb_max_2.y - aabb_min_1.y),
+		(aabb_max_1.y - aabb_min_2.y),
+		(aabb_max_2.z - aabb_min_1.z),
+		(aabb_max_1.z - aabb_min_2.z)
+	};
+
+	zt_fiz(6) {
+		if (distances[i] < 0.0f) {
+			return false;
+		}
+
+		if ((i == 0) || (distances[i] < *collision_depth)) {
+			*collision_face   = i;
+			*collision_normal = faces[i];
+			*collision_depth  = distances[i];
+		}
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last)
+{
+	*time_first = 0;
+	*time_last = 1;
+
+	if (zt_collisionAABBInAABB(aabb_center_1, aabb_extents_1, aabb_center_2, aabb_extents_2)) {
+		*time_first = *time_last = 0;
+		return true;
+	}
+
+	ztVec3 velocity = aabb_velocity_2 - aabb_velocity_1;
+
+	if (zt_real32Eq(velocity.x, 0) && zt_real32Eq(velocity.y, 0) && zt_real32Eq(velocity.z, 0)) {
+		return false;
+	}
+
+	ztVec3 aabb_min_1(aabb_center_1.x - (aabb_extents_1.x / 2.f), aabb_center_1.y - (aabb_extents_1.y / 2.f), aabb_center_1.z - (aabb_extents_1.z / 2.f));
+	ztVec3 aabb_max_1(aabb_center_1.x + (aabb_extents_1.x / 2.f), aabb_center_1.y + (aabb_extents_1.y / 2.f), aabb_center_1.z + (aabb_extents_1.z / 2.f));
+	
+	ztVec3 aabb_min_2(aabb_center_2.x - (aabb_extents_2.x / 2.f), aabb_center_2.y - (aabb_extents_2.y / 2.f), aabb_center_2.z - (aabb_extents_2.z / 2.f));
+	ztVec3 aabb_max_2(aabb_center_2.x + (aabb_extents_2.x / 2.f), aabb_center_2.y + (aabb_extents_2.y / 2.f), aabb_center_2.z + (aabb_extents_2.z / 2.f));
+
+	zt_fiz(3) {
+		if (velocity.values[i] < 0.f) {
+			if (aabb_max_2.values[i] < aabb_min_1.values[i]) return false;
+			if (aabb_max_1.values[i] < aabb_min_2.values[i]) *time_first = zt_max((aabb_max_1.values[i] - aabb_min_2.values[i]) / velocity.values[i], *time_first);
+			if (aabb_max_2.values[i] > aabb_min_1.values[i]) *time_last = zt_min((aabb_min_1.values[i] - aabb_max_2.values[i]) / velocity.values[i], *time_last);
+		}
+		else if (velocity.values[i] > 0) {
+			if (aabb_min_2.values[i] > aabb_max_1.values[i]) return false;
+			if (aabb_max_2.values[i] < aabb_min_1.values[i]) *time_first = zt_max((aabb_min_1.values[i] - aabb_max_2.values[i]) / velocity.values[i], *time_first);
+			if (aabb_max_1.values[i] > aabb_min_2.values[i]) *time_last = zt_min((aabb_max_1.values[i] - aabb_min_2.values[i]) / velocity.values[i], *time_last);
+		}
+
+		if (*time_first > *time_last) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInPlane");
@@ -21970,7 +22063,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		} break;
 
 		case WM_KILLFOCUS: {
-			//_zt_inputClearState(true);
+			_zt_inputClearState(true);
 		} break;
 
 		default: {
