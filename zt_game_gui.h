@@ -742,6 +742,8 @@ void zt_guiDebugShow();
 void zt_guiDebugToggle();
 void zt_guiDebugBringToFront();
 
+void zt_guiDebugShowDetails(bool show = true);
+
 ztGuiItem *zt_guiDebugAddMetric(const char *sample); // returns a static text that will appear in the dropdown when [+] is pressed next to the fps display
 
 // ------------------------------------------------------------------------------------------------
@@ -8831,6 +8833,21 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 
 	zt_guiItemSetPosition(window, ztAlign_Top | ztAlign_Right, ztAnchor_Top | ztAnchor_Right, ztVec2(0, y_off));
 	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiDebugShowDetails(bool show)
+{
+	ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_RENDERING_DETAILS_WINDOW_NAME);
+
+	bool needs_hidden = false;
+	if (window == nullptr) {
+		_zt_guiDebugRenderingDetails();
+		return;
+	}
+
+	zt_guiItemShow(window, show);
 }
 
 // ------------------------------------------------------------------------------------------------
