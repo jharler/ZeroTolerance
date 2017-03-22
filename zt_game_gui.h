@@ -8884,7 +8884,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugFpsDisplayUpdate, ztInternal ZT_FUNC_GU
 
 	if (!zt_guiItemIsShowing(fps->panel)) return;
 
-	zt_strMakePrintf(fps_str, 256, "%.0f f/s %.02f us/f", 1.f / dt, dt * 1000000.f);
+	zt_strMakePrintf(fps_str, 256, "(%d) %.0f f/s %.02f us/f", zt_game->game_details.current_frame, 1.f / dt, dt * 1000000.f);
 	zt_guiItemSetLabel(fps->text, fps_str);
 }
 
@@ -8931,7 +8931,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 	ztGuiItem *sizer = zt_guiMakeSizer(fps->panel, ztGuiItemOrient_Horz);
 	zt_guiSizerSizeToParent(sizer);
 
-	fps->text = zt_guiMakeStaticText(fps->panel, "00000 f/s 00.0000f us/f", ztGuiStaticTextBehaviorFlags_MonoSpaced);
+	fps->text = zt_guiMakeStaticText(fps->panel, "(000000000000) 00000 f/s 00.0000f us/f", ztGuiStaticTextBehaviorFlags_MonoSpaced);
 	zt_guiItemSetAlign(fps->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(fps->text, "FPS Display Text"));
 	zt_guiSizerAddItem(sizer, fps->text, 1, 0);
