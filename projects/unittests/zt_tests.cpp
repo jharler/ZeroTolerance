@@ -133,16 +133,16 @@ bool test_memory()
 
 bool test_strings()
 {
-	zt_testResults(zt_strEquals("test string", "test string", true) == true);
-	zt_testResults(zt_strEquals("test string", "test string", false) == true);
-	zt_testResults(zt_strEquals("test string", "not equal", true) == false);
-	zt_testResults(zt_strEquals("test string", "not equal", false) == false);
-	zt_testResults(zt_strEquals("Test String", "test string", true) == false);
-	zt_testResults(zt_strEquals("Test String", "test string", false) == true);
-	zt_testResults(zt_strEquals("Test String", nullptr, true) == false);
-	zt_testResults(zt_strEquals(nullptr, "Test String", true) == false);
-	zt_testResults(zt_strEquals(nullptr, nullptr, true) == true);
-	zt_testResults(zt_strEquals(nullptr, nullptr, false) == true);
+	zt_testResults(zt_strEquals("test string", "test string") == true);
+	zt_testResults(zt_striEquals("test string", "test string") == true);
+	zt_testResults(zt_strEquals("test string", "not equal") == false);
+	zt_testResults(zt_striEquals("test string", "not equal") == false);
+	zt_testResults(zt_strEquals("Test String", "test string") == false);
+	zt_testResults(zt_striEquals("Test String", "test string") == true);
+	zt_testResults(zt_strEquals("Test String", nullptr) == false);
+	zt_testResults(zt_strEquals(nullptr, "Test String") == false);
+	zt_testResults(zt_strEquals(nullptr, nullptr) == true);
+	zt_testResults(zt_striEquals(nullptr, nullptr) == true);
 	zt_testResults(zt_strStartsWith("Test String", "Test "));
 	zt_testResults(zt_strStartsWith("Test String", "test ") == false);
 	zt_testResults(zt_strStartsWith("Test String", "Test String"));

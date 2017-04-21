@@ -267,6 +267,8 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	g_game->scene = zt_sceneMake(zt_memGetGlobalArena());
 
+	ztShaderID shader_litshadow = g_game->shader_id_lit;
+
 	ztMeshID sphere = zt_meshMakePrimitiveSphere(.25f, 10, ztMeshPrimitiveSphere_TexWrapped);
 	if (sphere != ztInvalidID) {
 		ztMaterial mat = zt_materialMake(zt_textureMake(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "textures/spherical_cube_tex.png"), /*ztTextureFlags_PixelPerfect*/ 0), ztVec4::one, ztMaterialFlags_OwnsTexture);
@@ -289,7 +291,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	ztMaterial mat_chair;
 	zt_meshLoadOBJ(&g_game->asset_mgr, zt_assetLoad(&g_game->asset_mgr, "models/chair/SA_LD_Medieval_X_Chair.obj"), &mesh_chair, &mat_chair, 1, ztVec3(.25f, .25f, .25f), ztVec3(0, 1, 0));
 
-	ztShaderID chair_shader = zt_shaderGetDefault(ztShaderDefault_LitShadow);
+	ztShaderID chair_shader = shader_litshadow;
 	ztModel *model_chair = zt_modelMake(zt_memGetGlobalArena(), mesh_chair, &mat_chair, chair_shader, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 
 	zt_sceneAddModel(g_game->scene, model_chair);
@@ -309,10 +311,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	zt_fiz(zt_elementsOf(g_game->model_boxes)) {
 		if (i == 0) {
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimitiveBox(1, 1, 1), &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), zt_meshMakePrimitiveBox(1, 1, 1), &g_game->material_boxes, shader_litshadow, nullptr, ztModelFlags_CastsShadows | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
 		}
 		else {
-			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, ztModelFlags_CastsShadows);
+			g_game->model_boxes[i] = zt_modelMake(zt_memGetGlobalArena(), g_game->cube, &g_game->material_boxes, shader_litshadow, nullptr, ztModelFlags_CastsShadows);
 		}
 
 		r32 angle = (ztMathPi2 / zt_elementsOf(g_game->model_boxes)) * i;
@@ -336,7 +338,7 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 	model->transform.position.y = 1;
 	zt_sceneAddModel(g_game->scene, model);
 	*/
-	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, zt_shaderGetDefault(ztShaderDefault_LitShadow), nullptr, 0);
+	g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, shader_litshadow, nullptr, 0);
 	//g_game->model_plane = zt_modelMake(zt_memGetGlobalArena(), g_game->plane, &g_game->material_plane, g_game->shader_id_lit, nullptr, 0);
 	zt_sceneAddModel(g_game->scene, g_game->model_plane);
 
@@ -392,10 +394,10 @@ bool game_init(ztGameDetails* game_details, ztGameSettings* game_settings)
 
 	{
 		ztVertexArrayEntry entries[] = {
-			{ ztVertexArrayDataType_Float, 3 * zt_sizeof(r32) },
-			{ ztVertexArrayDataType_Float, 2 * zt_sizeof(r32) },
-			{ ztVertexArrayDataType_Float, 3 * zt_sizeof(r32) },
-			{ ztVertexArrayDataType_Float, 4 * zt_sizeof(r32) },
+			{ ztVertexArrayDataType_Float, 3 },
+			{ ztVertexArrayDataType_Float, 2 },
+			{ ztVertexArrayDataType_Float, 3 },
+			{ ztVertexArrayDataType_Float, 4 },
 		};
 
 		struct ztData
