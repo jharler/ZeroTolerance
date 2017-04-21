@@ -2129,7 +2129,7 @@ ztInline r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
 
 // ------------------------------------------------------------------------------------------------
 
-r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
+ztInline r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
 {
 	return zt_clamp(zt_linearRemap(val, v1a, v1b, v2a, v2b), zt_min(v2a, v2b), zt_max(v2a, v2b));
 }
