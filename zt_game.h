@@ -22034,10 +22034,10 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 						r32 h_pct = c_height / (r32)game_settings->native_h;
 
 						if (w_pct > h_pct) {
-							height = (int)(game_settings->native_h * w_pct);
+							height = h_diff + (int)(game_settings->native_h * w_pct);
 						}
 						else {
-							width = (int)(game_settings->native_w * h_pct);
+							width = w_diff + (int)(game_settings->native_w * h_pct);
 						}
 
 						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT)
