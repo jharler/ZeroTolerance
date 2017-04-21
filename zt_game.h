@@ -238,6 +238,7 @@ void zt_requestQuit();
 struct ztGameDetails
 {
 	const char* app_path;
+	const char *data_path;
 	const char* user_path;
 
 	int          argc;
@@ -3297,7 +3298,7 @@ struct ztProfiledThread
 // ------------------------------------------------------------------------------------------------
 
 #ifndef ZT_MAX_THREADS // needs to be main thread + additional threads
-#define ZT_MAX_THREADS	5
+#define ZT_MAX_THREADS	7
 #endif
 
 #ifndef ZT_PROFILER_FRAMES_KEPT
@@ -6685,6 +6686,7 @@ bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_arr
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddVertexArray");
 	_zt_drawListCheck(draw_list);
+	zt_assert(vertex_array_id != ztInvalidID);
 
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
@@ -21440,15 +21442,26 @@ ztInternal HINSTANCE _zt_hinstance;
 
 int main(int argc, const char **argv)
 {
-	char app_path[ztFileMaxPath] = {0};
-	zt_fileGetAppPath(app_path, sizeof(app_path));
+	char *app_path = (char*)malloc(ztFileMaxPath);
+	zt_fileGetAppPath(app_path, ztFileMaxPath);
 
-	char user_path[ztFileMaxPath] = {0};
+	char *data_path_temp = (char*)malloc(ztFileMaxPath);
+	char *data_path = (char*)malloc(ztFileMaxPath);
+	zt_fileGetCurrentPath(data_path_temp, ztFileMaxPath);
+	zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "data");
+
+	if(!zt_directoryExists(data_path)) {
+		zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "run" ztFilePathSeparatorStr "data");
+	}
+
+	free(data_path_temp);
+
+	char *user_path = (char*)malloc(ztFileMaxPath);
 
 #	if defined(ZT_GAME_LOCAL_ONLY)
-	zt_fileGetCurrentPath(user_path, sizeof(user_path));
+	zt_fileGetCurrentPath(user_path, ztFileMaxPath);
 #	else
-	zt_fileGetUserPath(user_path, sizeof(user_path), ZT_GAME_NAME);
+	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
 #	endif
 
 	zt_game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
@@ -21489,6 +21502,7 @@ int main(int argc, const char **argv)
 		zt_game->game_details.argv = argv;
 
 		zt_game->game_details.app_path = app_path;
+		zt_game->game_details.data_path = data_path;
 		zt_game->game_details.user_path = user_path;
 
 		zt_game->game_details.current_frame = 1;
@@ -21703,6 +21717,9 @@ int main(int argc, const char **argv)
 	_zt_profilerFree();
 
 	free(zt_game);
+	free(user_path);
+	free(data_path);
+	free(app_path);
 
 	return 0;
 }
