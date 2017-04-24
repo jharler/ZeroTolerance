@@ -1892,13 +1892,13 @@ public:
 	{ \
 		item_add_ptr->next = nullptr; \
 		auto *prev = item_first_ptr; \
-		while(prev != nullptr && prev->next != nullptr) { \
+				while(prev != nullptr && prev->next != nullptr) { \
 			prev = prev->next; \
-						} \
+										} \
 		if(prev != nullptr) { \
 			prev->next = item_add_ptr; \
-		} \
-		else { \
+				} \
+				else { \
 			item_first_ptr = item_add_ptr; \
 		} \
 	}
@@ -1906,6 +1906,28 @@ public:
 #define zt_singleLinkAddToBegin(item_first_ptr, item_add_ptr) \
 	{ \
 		item_add_ptr->next = item_first_ptr; \
+		item_first_ptr = item_add_ptr; \
+	}
+
+
+#define zt_singleLinkAddToEndVar(item_first_ptr, var_name, item_add_ptr) \
+	{ \
+		item_add_ptr->var_name = nullptr; \
+		auto *prev = item_first_ptr; \
+				while(prev != nullptr && prev->var_name != nullptr) { \
+			prev = prev->var_name; \
+										} \
+		if(prev != nullptr) { \
+			prev->var_name = item_add_ptr; \
+				} \
+				else { \
+			item_first_ptr = item_add_ptr; \
+		} \
+	}
+
+#define zt_singleLinkAddToBeginVar(item_first_ptr, var_name, item_add_ptr) \
+	{ \
+		item_add_ptr->var_name = item_first_ptr; \
 		item_first_ptr = item_add_ptr; \
 	}
 
