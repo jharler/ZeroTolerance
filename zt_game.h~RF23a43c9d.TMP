@@ -17662,7 +17662,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 						indices_idx = 0;
 					}
 					group_idx += 1;
-					//group_mtls = 0; // this is causing materials to be reused, mistakenly
+					group_mtls = 0; // this is causing materials to be reused, mistakenly
 					curr_mesh_id = group_idx < mesh_mat_size ? &mesh_ids[group_idx] : nullptr;
 					curr_mat = group_idx < mesh_mat_size ? &materials[group_idx] : nullptr;
 
