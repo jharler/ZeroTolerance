@@ -3663,6 +3663,8 @@ struct ztGameGlobals
 	xinput_setState_Func      xinput_setState = nullptr;
 	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 	bool                      app_has_focus = true;
+	r32                       window_frame_aspect_ratio = 0;
+	r32                       window_resize_countdown = 0;
 #endif
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
@@ -21371,7 +21373,7 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	GetClientRect(window_details->handle, &window_details->client_rect);
 	GetWindowRect(window_details->handle, &window_details->window_rect);
 
-	window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
+	zt_game->window_frame_aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
 
 	_zt_winUpdateTitle(game_settings, window_details);
 
@@ -21582,11 +21584,7 @@ void _zt_win_processMessages()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-
-#if !defined(ZT_DLL)
-
-void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings)
+void _zt_win_handleWindowSize(ztWindowDetails *details)
 {
 	if (window_details) {
 		GetClientRect(window_details->handle, &window_details->client_rect);
@@ -21668,13 +21666,7 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 		}
 
 		_zt_textureAdjustScreenTargets();
-
-		//window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
-		window_details->resize_cooldown = 0;
-	}
-}
-
-#endif
+	}}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -21902,12 +21894,6 @@ int main(int argc, const char **argv)
 
 		zt_fiz(zt_game->win_count) {
 			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
-			if(zt_game->win_details[i].resize_cooldown > 0) {
-				zt_game->win_details[i].resize_cooldown -= dt;
-				if(zt_game->win_details[i].resize_cooldown < 0) {
-					_zt_win_handleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
-				}
-			}
 		}
 
 		if (zt_game->renderer_requests_count) {
@@ -22164,14 +22150,12 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_MOVE:
 		case WM_SIZE: {
-			if(window_details) {
-				window_details->resize_cooldown = 1;
-			}
+			zt_game->window_resize_countdown = 2;
 		} break;
 
 		case WM_SIZING: {
-			if (window_details && game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
-				r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
+			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
+				r32 aspect_ratio = zt_game->window_frame_aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
 
 				RECT size;
 				memcpy(&size, (const void*)l_param, sizeof(RECT));
@@ -22196,10 +22180,10 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					case WMSZ_BOTTOMRIGHT:
 					case WMSZ_BOTTOMLEFT: {
 						if (width / (r32)height > aspect_ratio) {
-							width = zt_convertToi32Floor(height * aspect_ratio);
+							width = zt_convertToi32Floor(height / aspect_ratio);
 						}
 						else {
-							height = zt_convertToi32Floor(width / aspect_ratio);
+							height = zt_convertToi32Floor(width * aspect_ratio);
 						}
 
 						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT) {
@@ -22215,9 +22199,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 						}
 						else {
 							size.right = size.left + width;
-						}
-
-
+						}				
 					} break;
 				}
 

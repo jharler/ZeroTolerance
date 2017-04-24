@@ -3261,8 +3261,6 @@ struct ztWindowDetails
 	HWND handle;
 
 	int screen_w, screen_h;
-	r32 aspect_ratio;
-	r32 resize_cooldown;
 
 	zt_openGLSupport(ztContextGL *gl_context);
 	zt_directxSupport(ztContextDX *dx_context);
@@ -3653,101 +3651,101 @@ struct ztAudioClip
 struct ztGameGlobals
 {
 #if defined(ZT_WINDOWS)
-	HINSTANCE                 hinstance = NULL;
-	HICON                     exe_icon = NULL;
-	HMODULE                   hmod_xinput = NULL;
+	HINSTANCE hinstance = NULL;
+	HICON     exe_icon = NULL;
+	HMODULE   hmod_xinput = NULL;
 
 	typedef DWORD (__stdcall *xinput_getState_Func)(DWORD, XINPUT_STATE *);
 	typedef DWORD (__stdcall *xinput_setState_Func)(DWORD, XINPUT_VIBRATION *);
-	xinput_getState_Func      xinput_getState = nullptr;
-	xinput_setState_Func      xinput_setState = nullptr;
-	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
-	bool                      app_has_focus = true;
+	xinput_getState_Func xinput_getState = nullptr;
+	xinput_setState_Func xinput_setState = nullptr;
+	r32                  xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
+	bool                 app_has_focus = true;
 #endif
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
 
-	bool                      quit_requested = false;
+	bool quit_requested = false;
 
-	ztProfiler               *profiler         = nullptr;
+	ztProfiler       *profiler         = nullptr;
 
-	ztThreadID                main_thread_id   = ztInvalidID;
-	ztThreadJobQueue         *thread_job_queue = nullptr;
-
-	// ----------------------
-
-	ztDebugVar                debug_vars[ZT_MAX_DEBUG_VARIABLES];
-	int                       debug_vars_count;
-	char                      debug_vars_file[ztFileMaxPath];
-	char                     *debug_vars_file_data;
-	i32                       debug_vars_file_size;
+	ztThreadID        main_thread_id   = ztInvalidID;
+	ztThreadJobQueue *thread_job_queue = nullptr;
 
 	// ----------------------
 
-	ztWindowDetails           win_details[ZT_MAX_WINDOWS];
-	ztGameSettings            win_game_settings[ZT_MAX_WINDOWS];
-	i32                       win_count = 0;
-	ztRendererRequest         renderer_requests[ZT_MAX_RENDERER_REQUESTS];
-	i32                       renderer_requests_count = 0;
-	byte                     *renderer_memory;
-	i32                       renderer_memory_size;
-
-	ztGameDetails             game_details;
-	i32                       last_drawn_frame = 0;
+	ztDebugVar        debug_vars[ZT_MAX_DEBUG_VARIABLES];
+	int               debug_vars_count;
+	char              debug_vars_file[ztFileMaxPath];
+	char             *debug_vars_file_data;
+	i32               debug_vars_file_size;
 
 	// ----------------------
 
-	ztShader                  shaders[ZT_MAX_SHADERS];
-	i32                       shaders_count = 0;
+	ztWindowDetails   win_details[ZT_MAX_WINDOWS];
+	ztGameSettings    win_game_settings[ZT_MAX_WINDOWS];
+	i32               win_count = 0;
+	ztRendererRequest renderer_requests[ZT_MAX_RENDERER_REQUESTS];
+	i32               renderer_requests_count = 0;
+	byte             *renderer_memory;
+	i32               renderer_memory_size;
 
-	ztShaderID                default_shader_solid = 0;
-
-	// ----------------------
-
-	ztTexture                 textures[ZT_MAX_TEXTURES];
-	i32                       textures_count = 0;
-	bool                      textures_active_render_target = false;
-
-	// ----------------------
-
-	ztVertexArray             vertex_arrays[ZT_MAX_VERTEX_ARRAYS];
-	i32                       vertex_arrays_count = 0;
+	ztGameDetails     game_details;
+	i32               last_drawn_frame = 0;
 
 	// ----------------------
 
-	ztFont                    fonts[ZT_MAX_FONTS];
-	i32                       fonts_count = 0;
-	i32                       fonts_count_system = 0;
+	ztShader      shaders[ZT_MAX_SHADERS];
+	i32           shaders_count = 0;
+
+	ztShaderID    default_shader_solid = 0;
 
 	// ----------------------
 
-	ztMesh                    meshes[ZT_MAX_MESHES];
-	i32                       meshes_count = 0;
+	ztTexture     textures[ZT_MAX_TEXTURES];
+	i32           textures_count = 0;
+	bool          textures_active_render_target = false;
+
+	// ----------------------
+
+	ztVertexArray vertex_arrays[ZT_MAX_VERTEX_ARRAYS];
+	i32           vertex_arrays_count = 0;
+
+	// ----------------------
+
+	ztFont        fonts[ZT_MAX_FONTS];
+	i32           fonts_count = 0;
+	i32           fonts_count_system = 0;
+
+	// ----------------------
+
+	ztMesh        meshes[ZT_MAX_MESHES];
+	i32           meshes_count = 0;
 
 	// ----------------------
 
 	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
 
-	ztAudioClip               audio_clips[ZT_MAX_AUDIO_CLIPS];
-	i32                       audio_clips_count = 0;
-	bool                      audio_muted = false;
+	ztAudioClip   audio_clips[ZT_MAX_AUDIO_CLIPS];
+	i32           audio_clips_count = 0;
+	bool          audio_muted = false;
 
 
 	// ----------------------
 
-	bool                      input_this_frame = false;
+	bool              input_this_frame = false;
 
-	ztInputKeys_Enum          input_key_strokes[ZT_MAX_INPUT_KEYSTROKES];
-	i32                       input_key_strokes_count = 0;
+	ztInputKeys_Enum  input_key_strokes[ZT_MAX_INPUT_KEYSTROKES];
+	i32               input_key_strokes_count = 0;
 
-	i32                       input_keys_mapping[256];
-	ztInputKeys               input_keys[ztInputKeys_MAX];
+	i32               input_keys_mapping[256];
+	ztInputKeys       input_keys[ztInputKeys_MAX];
 
-	ztInputMouse              input_mouse;
-	bool                      input_mouse_look = false;
-	i32                       input_mouse_captures = 0;
+	ztInputMouse      input_mouse;
+	bool              input_mouse_look = false;
+	i32               input_mouse_captures = 0;
 
-	ztInputController         input_controllers[ZT_MAX_INPUT_CONTROLLERS];
+	ztInputController input_controllers[ZT_MAX_INPUT_CONTROLLERS];
 
 	// ----------------------
 };
@@ -21371,8 +21369,6 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	GetClientRect(window_details->handle, &window_details->client_rect);
 	GetWindowRect(window_details->handle, &window_details->window_rect);
 
-	window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
-
 	_zt_winUpdateTitle(game_settings, window_details);
 
 	return true;
@@ -21581,100 +21577,6 @@ void _zt_win_processMessages()
 		zt_game->quit_requested = false;
 	}
 }
-
-// ------------------------------------------------------------------------------------------------
-
-#if !defined(ZT_DLL)
-
-void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings)
-{
-	if (window_details) {
-		GetClientRect(window_details->handle, &window_details->client_rect);
-		GetWindowRect(window_details->handle, &window_details->window_rect);
-
-		int screen_w = window_details->client_rect.right - window_details->client_rect.left;
-		int screen_h = window_details->client_rect.bottom - window_details->client_rect.top;
-		int native_w = game_settings->native_w;
-		int native_h = game_settings->native_h;
-		int native_w_reset = 0;
-		int native_h_reset = 0;
-
-		// the viewport scales to the width of the screen (resizing up/down doesn't affect the size of things)
-		if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToHorz) {
-			native_w_reset = native_w;
-			native_h_reset = native_h;
-
-			r32 screen_aspect_w = screen_w / (r32)native_w;
-			r32 screen_aspect_h = screen_h / (r32)native_h;
-
-			if ( zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
-				// no aspect change, do nothing
-			}
-			else {
-				if (screen_aspect_w < 1.f) {
-					screen_aspect_h /= screen_aspect_w;
-					screen_aspect_w = 1;
-				}
-				native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
-				native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
-			}
-		}
-		// the viewport scales to the height of the screen (resizing left/right doesn't affect the size of things)
-		else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToVert) {
-			native_w_reset = native_w;
-			native_h_reset = native_h;
-
-			r32 screen_aspect_w = screen_w / (r32)native_w;
-			r32 screen_aspect_h = screen_h / (r32)native_h;
-
-			if (zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
-				// no aspect change, do nothing
-			}
-			else {
-				if (screen_aspect_h < 1.f) {
-					screen_aspect_w /= screen_aspect_h;
-					screen_aspect_h = 1;
-				}
-				native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
-				native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
-			}
-		}
-		else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_Resize) {
-			native_h = screen_h;
-			native_w = screen_w;
-		}
-		else {
-			//screen_w = native_w;
-			//screen_h = native_h;
-		}
-
-		game_settings->native_h = native_h;
-		game_settings->native_w = native_w;
-		game_settings->screen_w = screen_w;
-		game_settings->screen_h = screen_h;
-
-		zt_logDebug("screen: %d/%d; native: %d/%d",game_settings->native_w, game_settings->native_h, game_settings->screen_w, game_settings->screen_h);
-
-		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
-		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
-
-		_zt_rendererSetViewport(window_details, game_settings, true);
-		_zt_callFuncScreenChange(game_settings);
-		_zt_winUpdateTitle(game_settings, window_details);
-
-		if (native_w_reset != 0 && native_h_reset != 0) {
-			game_settings->native_w = native_w_reset;
-			game_settings->native_h = native_h_reset;
-		}
-
-		_zt_textureAdjustScreenTargets();
-
-		//window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
-		window_details->resize_cooldown = 0;
-	}
-}
-
-#endif
 
 // ------------------------------------------------------------------------------------------------
 
@@ -21902,12 +21804,6 @@ int main(int argc, const char **argv)
 
 		zt_fiz(zt_game->win_count) {
 			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
-			if(zt_game->win_details[i].resize_cooldown > 0) {
-				zt_game->win_details[i].resize_cooldown -= dt;
-				if(zt_game->win_details[i].resize_cooldown < 0) {
-					_zt_win_handleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
-				}
-			}
 		}
 
 		if (zt_game->renderer_requests_count) {
@@ -22164,14 +22060,90 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_MOVE:
 		case WM_SIZE: {
-			if(window_details) {
-				window_details->resize_cooldown = 1;
+			if (window_details) {
+				GetClientRect(window_details->handle, &window_details->client_rect);
+				GetWindowRect(window_details->handle, &window_details->window_rect);
+
+				int screen_w = window_details->client_rect.right - window_details->client_rect.left;
+				int screen_h = window_details->client_rect.bottom - window_details->client_rect.top;
+				int native_w = game_settings->native_w;
+				int native_h = game_settings->native_h;
+				int native_w_reset = 0;
+				int native_h_reset = 0;
+
+				// the viewport scales to the width of the screen (resizing up/down doesn't affect the size of things)
+				if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToHorz) {
+					native_w_reset = native_w;
+					native_h_reset = native_h;
+
+					r32 screen_aspect_w = screen_w / (r32)native_w;
+					r32 screen_aspect_h = screen_h / (r32)native_h;
+
+					if ( zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
+						// no aspect change, do nothing
+					}
+					else {
+						if (screen_aspect_w < 1.f) {
+							screen_aspect_h /= screen_aspect_w;
+							screen_aspect_w = 1;
+						}
+						native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
+						native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
+					}
+				}
+				// the viewport scales to the height of the screen (resizing left/right doesn't affect the size of things)
+				else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToVert) {
+					native_w_reset = native_w;
+					native_h_reset = native_h;
+
+					r32 screen_aspect_w = screen_w / (r32)native_w;
+					r32 screen_aspect_h = screen_h / (r32)native_h;
+
+					if (zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
+						// no aspect change, do nothing
+					}
+					else {
+						if (screen_aspect_h < 1.f) {
+							screen_aspect_w /= screen_aspect_h;
+							screen_aspect_h = 1;
+						}
+						native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
+						native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
+					}
+				}
+				else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_Resize) {
+					native_h = screen_h;
+					native_w = screen_w;
+				}
+				else {
+					screen_w = native_w;
+					screen_h = native_h;
+				}
+
+				game_settings->native_h = native_h;
+				game_settings->native_w = native_w;
+				game_settings->screen_w = screen_w;
+				game_settings->screen_h = screen_h;
+
+				zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
+				zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
+
+				_zt_rendererSetViewport(window_details, game_settings, true);
+				_zt_callFuncScreenChange(game_settings);
+				_zt_winUpdateTitle(game_settings, window_details);
+
+				if (native_w_reset != 0 && native_h_reset != 0) {
+					game_settings->native_w = native_w_reset;
+					game_settings->native_h = native_h_reset;
+				}
+
+				_zt_textureAdjustScreenTargets();
 			}
 		} break;
 
 		case WM_SIZING: {
-			if (window_details && game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
-				r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
+			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
+				r32 aspect_ratio = game_settings->native_h / (r32)game_settings->native_w;
 
 				RECT size;
 				memcpy(&size, (const void*)l_param, sizeof(RECT));
@@ -22179,45 +22151,52 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 				int width = size.right - size.left;
 				int height = size.bottom - size.top;
 
+				RECT client_size;
+				GetClientRect(window_details->handle, &client_size);
+
+				int c_width = (client_size.right - client_size.left);
+				int c_height = (client_size.bottom - client_size.top);
+
+				int w_diff = width - c_width;
+				int h_diff = height - c_height;
+
+				//zt_logDebug("window w/h: %d/%d; client w/h: %d/%d; diff w/h: %d/%d", width, height, c_width, c_height, w_diff, h_diff);
+
 				switch (w_param)
 				{
 					case WMSZ_LEFT:
 					case WMSZ_RIGHT: {
-						size.bottom = zt_convertToi32Floor(width * (1 / aspect_ratio)) + size.top;
+						size.bottom = zt_convertToi32Floor(c_width * aspect_ratio + h_diff) + size.top;
 					} break;
 
 					case WMSZ_TOP:
 					case WMSZ_BOTTOM: {
-						size.right = zt_convertToi32Floor(height * aspect_ratio) + size.left;
+						size.right = zt_convertToi32Floor(c_height * (1 / aspect_ratio) + w_diff) + size.left;
 					} break;
 
 					case WMSZ_TOPRIGHT:
 					case WMSZ_TOPLEFT:
 					case WMSZ_BOTTOMRIGHT:
 					case WMSZ_BOTTOMLEFT: {
-						if (width / (r32)height > aspect_ratio) {
-							width = zt_convertToi32Floor(height * aspect_ratio);
+						r32 w_pct = c_width / (r32)game_settings->native_w;
+						r32 h_pct = c_height / (r32)game_settings->native_h;
+
+						if (w_pct > h_pct) {
+							height = h_diff + (int)(game_settings->native_h * w_pct);
 						}
 						else {
-							height = zt_convertToi32Floor(width / aspect_ratio);
+							width = w_diff + (int)(game_settings->native_w * h_pct);
 						}
 
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT) {
+						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT)
 							size.top = size.bottom - height;
-						}
-						else {
+						else
 							size.bottom = size.top + height;
-						}
 
-						// Adjust Width
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_BOTTOMLEFT) {
+						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_BOTTOMLEFT)
 							size.left = size.right - width;
-						}
-						else {
+						else
 							size.right = size.left + width;
-						}
-
-
 					} break;
 				}
 

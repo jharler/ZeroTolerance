@@ -3261,8 +3261,6 @@ struct ztWindowDetails
 	HWND handle;
 
 	int screen_w, screen_h;
-	r32 aspect_ratio;
-	r32 resize_cooldown;
 
 	zt_openGLSupport(ztContextGL *gl_context);
 	zt_directxSupport(ztContextDX *dx_context);
@@ -3663,6 +3661,8 @@ struct ztGameGlobals
 	xinput_setState_Func      xinput_setState = nullptr;
 	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 	bool                      app_has_focus = true;
+	r32                       window_frame_aspect_ratio = 0;
+	r32                       window_resize_countdown = 0;
 #endif
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
@@ -21371,7 +21371,7 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	GetClientRect(window_details->handle, &window_details->client_rect);
 	GetWindowRect(window_details->handle, &window_details->window_rect);
 
-	window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
+	zt_game->window_frame_aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
 
 	_zt_winUpdateTitle(game_settings, window_details);
 
@@ -21581,100 +21581,6 @@ void _zt_win_processMessages()
 		zt_game->quit_requested = false;
 	}
 }
-
-// ------------------------------------------------------------------------------------------------
-
-#if !defined(ZT_DLL)
-
-void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings)
-{
-	if (window_details) {
-		GetClientRect(window_details->handle, &window_details->client_rect);
-		GetWindowRect(window_details->handle, &window_details->window_rect);
-
-		int screen_w = window_details->client_rect.right - window_details->client_rect.left;
-		int screen_h = window_details->client_rect.bottom - window_details->client_rect.top;
-		int native_w = game_settings->native_w;
-		int native_h = game_settings->native_h;
-		int native_w_reset = 0;
-		int native_h_reset = 0;
-
-		// the viewport scales to the width of the screen (resizing up/down doesn't affect the size of things)
-		if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToHorz) {
-			native_w_reset = native_w;
-			native_h_reset = native_h;
-
-			r32 screen_aspect_w = screen_w / (r32)native_w;
-			r32 screen_aspect_h = screen_h / (r32)native_h;
-
-			if ( zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
-				// no aspect change, do nothing
-			}
-			else {
-				if (screen_aspect_w < 1.f) {
-					screen_aspect_h /= screen_aspect_w;
-					screen_aspect_w = 1;
-				}
-				native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
-				native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
-			}
-		}
-		// the viewport scales to the height of the screen (resizing left/right doesn't affect the size of things)
-		else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToVert) {
-			native_w_reset = native_w;
-			native_h_reset = native_h;
-
-			r32 screen_aspect_w = screen_w / (r32)native_w;
-			r32 screen_aspect_h = screen_h / (r32)native_h;
-
-			if (zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
-				// no aspect change, do nothing
-			}
-			else {
-				if (screen_aspect_h < 1.f) {
-					screen_aspect_w /= screen_aspect_h;
-					screen_aspect_h = 1;
-				}
-				native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
-				native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
-			}
-		}
-		else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_Resize) {
-			native_h = screen_h;
-			native_w = screen_w;
-		}
-		else {
-			//screen_w = native_w;
-			//screen_h = native_h;
-		}
-
-		game_settings->native_h = native_h;
-		game_settings->native_w = native_w;
-		game_settings->screen_w = screen_w;
-		game_settings->screen_h = screen_h;
-
-		zt_logDebug("screen: %d/%d; native: %d/%d",game_settings->native_w, game_settings->native_h, game_settings->screen_w, game_settings->screen_h);
-
-		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
-		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
-
-		_zt_rendererSetViewport(window_details, game_settings, true);
-		_zt_callFuncScreenChange(game_settings);
-		_zt_winUpdateTitle(game_settings, window_details);
-
-		if (native_w_reset != 0 && native_h_reset != 0) {
-			game_settings->native_w = native_w_reset;
-			game_settings->native_h = native_h_reset;
-		}
-
-		_zt_textureAdjustScreenTargets();
-
-		//window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
-		window_details->resize_cooldown = 0;
-	}
-}
-
-#endif
 
 // ------------------------------------------------------------------------------------------------
 
@@ -21902,12 +21808,6 @@ int main(int argc, const char **argv)
 
 		zt_fiz(zt_game->win_count) {
 			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
-			if(zt_game->win_details[i].resize_cooldown > 0) {
-				zt_game->win_details[i].resize_cooldown -= dt;
-				if(zt_game->win_details[i].resize_cooldown < 0) {
-					_zt_win_handleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
-				}
-			}
 		}
 
 		if (zt_game->renderer_requests_count) {
@@ -22164,14 +22064,92 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_MOVE:
 		case WM_SIZE: {
-			if(window_details) {
-				window_details->resize_cooldown = 1;
+			if (window_details) {
+				GetClientRect(window_details->handle, &window_details->client_rect);
+				GetWindowRect(window_details->handle, &window_details->window_rect);
+
+				int screen_w = window_details->client_rect.right - window_details->client_rect.left;
+				int screen_h = window_details->client_rect.bottom - window_details->client_rect.top;
+				int native_w = game_settings->native_w;
+				int native_h = game_settings->native_h;
+				int native_w_reset = 0;
+				int native_h_reset = 0;
+
+				// the viewport scales to the width of the screen (resizing up/down doesn't affect the size of things)
+				if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToHorz) {
+					native_w_reset = native_w;
+					native_h_reset = native_h;
+
+					r32 screen_aspect_w = screen_w / (r32)native_w;
+					r32 screen_aspect_h = screen_h / (r32)native_h;
+
+					if ( zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
+						// no aspect change, do nothing
+					}
+					else {
+						if (screen_aspect_w < 1.f) {
+							screen_aspect_h /= screen_aspect_w;
+							screen_aspect_w = 1;
+						}
+						native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
+						native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
+					}
+				}
+				// the viewport scales to the height of the screen (resizing left/right doesn't affect the size of things)
+				else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_ScaleToVert) {
+					native_w_reset = native_w;
+					native_h_reset = native_h;
+
+					r32 screen_aspect_w = screen_w / (r32)native_w;
+					r32 screen_aspect_h = screen_h / (r32)native_h;
+
+					if (zt_real32Eq(screen_aspect_w, 1.f) && zt_real32Eq(screen_aspect_h, 1.f)) {
+						// no aspect change, do nothing
+					}
+					else {
+						if (screen_aspect_h < 1.f) {
+							screen_aspect_w /= screen_aspect_h;
+							screen_aspect_h = 1;
+						}
+						native_w = zt_convertToi32Ceil(native_w * screen_aspect_w);
+						native_h = zt_convertToi32Ceil(native_h * screen_aspect_h);
+					}
+				}
+				else if (game_settings->renderer_screen_change_behavior == ztRendererScreenChangeBehavior_Resize) {
+					native_h = screen_h;
+					native_w = screen_w;
+				}
+				else {
+					//screen_w = native_w;
+					//screen_h = native_h;
+				}
+
+				game_settings->native_h = native_h;
+				game_settings->native_w = native_w;
+				game_settings->screen_w = screen_w;
+				game_settings->screen_h = screen_h;
+
+				zt_logDebug("screen: %d/%d; native: %d/%d",game_settings->native_w, game_settings->native_h, game_settings->screen_w, game_settings->screen_h);
+
+				zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
+				zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
+
+				_zt_rendererSetViewport(window_details, game_settings, true);
+				_zt_callFuncScreenChange(game_settings);
+				_zt_winUpdateTitle(game_settings, window_details);
+
+				if (native_w_reset != 0 && native_h_reset != 0) {
+					game_settings->native_w = native_w_reset;
+					game_settings->native_h = native_h_reset;
+				}
+
+				_zt_textureAdjustScreenTargets();
 			}
 		} break;
 
 		case WM_SIZING: {
-			if (window_details && game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
-				r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
+			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
+				r32 aspect_ratio = zt_game->window_frame_aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
 
 				RECT size;
 				memcpy(&size, (const void*)l_param, sizeof(RECT));
@@ -22196,29 +22174,26 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					case WMSZ_BOTTOMRIGHT:
 					case WMSZ_BOTTOMLEFT: {
 						if (width / (r32)height > aspect_ratio) {
-							width = zt_convertToi32Floor(height * aspect_ratio);
+							width = zt_convertToi32Floor(height / aspect_ratio);
 						}
 						else {
-							height = zt_convertToi32Floor(width / aspect_ratio);
+							height = zt_convertToi32Floor(width * aspect_Ratio);
 						}
 
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT) {
-							size.top = size.bottom - height;
-						}
-						else {
-							size.bottom = size.top + height;
+						// Adjust Height
+						if (wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOPRIGHT) {
+							size.top = sz.bottom - height;
+						}else{
+							size.bottom = sz.top + height;
 						}
 
 						// Adjust Width
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_BOTTOMLEFT) {
-							size.left = size.right - width;
-						}
-						else {
-							size.right = size.left + width;
-						}
-
-
-					} break;
+						if (wParam == WMSZ_TOPLEFT || wParam == WMSZ_BOTTOMLEFT)
+						{
+							sz.left = sz.right - w;
+						}else{
+							sz.right = sz.left + w;
+						}					} break;
 				}
 
 				memcpy((void*)l_param, &size, sizeof(RECT));
