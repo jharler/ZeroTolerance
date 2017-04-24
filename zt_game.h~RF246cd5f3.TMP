@@ -21461,7 +21461,7 @@ void _zt_winControllerInputCleanup()
 void _zt_winControllerInputUpdate(r32 dt)
 {
 	ZT_PROFILE_INPUT("_zt_winControllerInputUpdate");
-	if (!zt_game->xinput_getState || !zt_game->app_has_focus) {
+	if (!zt_game->xinput_getState) {
 		return;
 	}
 
@@ -22229,11 +22229,6 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_KILLFOCUS: {
 			_zt_inputClearState(true);
-			zt_game->app_has_focus = false;
-		} break;
-
-		case WM_SETFOCUS: {
-			zt_game->app_has_focus = true;
 		} break;
 
 		default: {
