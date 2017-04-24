@@ -1496,10 +1496,15 @@ struct ztCameraControllerFPS
 	// settings:
 	ztCamera *camera;
 
+	ztVec3 prev_pos;
+
 	r32 mouse_sensitivity;
 	r32 speed;
 	r32 boosted_speed;
 	r32 sneaking_speed;
+
+	bool lock_y_axis;
+
 
 	// per-frame input:
 	r32 mouse_delta_x;
@@ -1868,9 +1873,6 @@ enum ztModelFlags_Enum
 	ztModelFlags_ShaderSupportsSpecular         = (1<<28),		// "specular_tex", "specular_color"
 	ztModelFlags_ShaderSupportsNormal           = (1<<29),		// "normal_tex"
 	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
-
-	// toggled and used internally:
-	ztSceneModelFlags_Culled = (1 << 31),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1922,9 +1924,12 @@ void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
 
 enum ztSceneModelFlags_Enum
 {
-	ztSceneModelFlags_ShaderLit      = (1<<1),
-	ztSceneModelFlags_ShaderBones    = (1<<2),
-	ztSceneModelFlags_HasTranslucent = (1<<3),
+	ztSceneModelFlags_ShaderLit       = (1<<1),
+	ztSceneModelFlags_ShaderBones     = (1<<2),
+	ztSceneModelFlags_HasTranslucent  = (1<<3),
+	ztSceneModelFlags_ExcludeFromCull = (1<<4),
+
+	ztSceneModelFlags_Culled          = (1<<31),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1958,6 +1963,8 @@ struct ztScene
 
 	ModelInfo skybox;
 
+	r32 culling_distance;
+
 	ztMemoryArena *arena;
 
 	ztTextureID tex_directional_shadow_map;
@@ -1979,7 +1986,7 @@ void zt_sceneFreeAllModels(ztScene *scene);
 void zt_sceneAddLight(ztScene *scene, ztLight *light);
 void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
 
-void zt_sceneAddModel(ztScene *scene, ztModel *model);
+void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
 void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
 bool zt_sceneHasModel(ztScene *scene, ztModel *model);
 
@@ -2072,11 +2079,11 @@ i32 zt_fontGetSizeInPixels(ztFontID font_id);
 ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text);
 ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
 
 // fancy fonts allows colors to be added in the middle of text using the format:
 // "This text is <color=ff0000ff>red</color> text.
@@ -2085,11 +2092,11 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text);
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
 
 // ------------------------------------------------------------------------------------------------
 // sprites
@@ -2421,6 +2428,9 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far = true);
 bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_point = nullptr);
 bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents);
+
+bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows); // check for non-zero elements in the given line
+
 
 // ------------------------------------------------------------------------------------------------
 // physics manager
@@ -2824,7 +2834,7 @@ struct ztPathProgress
 
 // ------------------------------------------------------------------------------------------------
 
-#define ZT_FUNC_PATH_EARLY_EXIT(name)	bool name(ztPathProgress *progress, void *user_data);
+#define ZT_FUNC_PATH_EARLY_EXIT(name)	bool name(ztPathProgress *progress, void *user_data)
 typedef ZT_FUNC_PATH_EARLY_EXIT(ztPathEarlyExit_Func);
 
 // ------------------------------------------------------------------------------------------------
@@ -7428,7 +7438,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_assert(cmp_texture != nullptr);
 									cmp_item_last = cmp_texture->last_item;
 								}
-								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeOffset) {
+								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset) {
 									ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 									cmp_item->command = command;
 									cmp_item->clip_region = cmp_clip_region;
@@ -9092,6 +9102,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->models_count = 0;
 	scene->models_size = max_models;
 	scene->arena = arena;
+	scene->culling_distance = ztReal32Max;
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
@@ -9172,7 +9183,7 @@ void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_sceneAddModel(ztScene *scene, ztModel *model)
+void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_sceneAddModel");
 	zt_returnOnNull(scene);
@@ -9195,6 +9206,7 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model)
 	int idx = scene->models_count++;
 	scene->models[idx].model = model;
 	scene->models[idx].dist_from_cam = 0;
+	scene->models[idx].flags = flags;
 	
 	if (zt_shaderHasVariable(model->shader, "light_pos", nullptr)) {
 		scene->models[idx].flags |= ztSceneModelFlags_ShaderLit;
@@ -9247,8 +9259,23 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_scenePrepare");
-	zt_fiz(scene->models_count) {
-		zt_modelCalcMatrix(scene->models[i].model, world_offset);
+
+	if (scene->culling_distance != ztReal32Max) {
+		zt_fiz(scene->models_count) {
+			scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distance(camera->position));
+			if (scene->models[i].dist_from_cam <= scene->culling_distance || zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
+				zt_bitRemove(scene->models[i].flags, ztSceneModelFlags_Culled);
+				zt_modelCalcMatrix(scene->models[i].model, world_offset);
+			}
+			else {
+				scene->models[i].flags |= ztSceneModelFlags_Culled;
+			}
+		}
+	}
+	else {
+		zt_fiz(scene->models_count) {
+			zt_modelCalcMatrix(scene->models[i].model, world_offset);
+		}
 	}
 }
 
@@ -9341,10 +9368,18 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_shaderApplyVariables(shader);
 		ztShaderVariableValues *shader_vars = nullptr;
 
-		zt_fiz(scene->models_count) {
-			local::renderModelAndChildren(scene, shader, scene->models[i].model, ztModelFlags_CastsShadows);
+		if (scene->culling_distance != ztReal32Max) {
+			zt_fiz(scene->models_count) {
+				if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
+					local::renderModelAndChildren(scene, shader, scene->models[i].model, ztModelFlags_CastsShadows);
+				}
+			}
 		}
-
+		else {
+			zt_fiz(scene->models_count) {
+				local::renderModelAndChildren(scene, shader, scene->models[i].model, ztModelFlags_CastsShadows);
+			}
+		}
 		zt_shaderEnd(shader);
 
 		zt_textureRenderTargetCommit(scene->tex_directional_shadow_map);
@@ -9503,8 +9538,17 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 		zt_shaderEnd(scene->skybox.model->shader);
 	}
 
-	zt_fiz(scene->models_count) {
-		local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
+	if (scene->culling_distance != ztReal32Max) {
+		zt_fiz(scene->models_count) {
+			if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
+				local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
+			}
+		}
+	}
+	else {
+		zt_fiz(scene->models_count) {
+			local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
+		}
 	}
 
 	if (shader != ztInvalidID) {
@@ -11480,6 +11524,9 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"fract,float,float",
 			"floor,float,float",
 			"ceil,float,float",
+			"abs,float,float",
+			"distance,vec2,vec2,float",
+			"distance,vec3,vec3,float",
 
 			"int,int,int",
 			"int,uint,int",
@@ -14474,6 +14521,7 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 	controller.speed = 10.f;
 	controller.boosted_speed = 30.f;
 	controller.sneaking_speed = 2.f;
+	controller.lock_y_axis = false;
 
 	controller.rotation = initial_rotation;
 	controller.camera->rotation = ztQuat::makeFromEuler(controller.rotation.x, 0, 0);
@@ -14504,13 +14552,15 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 
 		controller->rotation.x = zt_clamp(controller->rotation.x + delta_y, -89, 89);
 
-		controller->camera->rotation = ztQuat::makeFromEuler(controller->rotation.x, 0, 0);
+		controller->camera->rotation = controller->lock_y_axis ? ztQuat::identity : ztQuat::makeFromEuler(controller->rotation.x, 0, 0);
 		controller->camera->rotation *= ztQuat::makeFromEuler(0, controller->rotation.y, 0);
 	}
 
 	r32 movement_speed = controller->is_boosted ? controller->boosted_speed : (controller->is_sneaking ? controller->sneaking_speed : controller->speed);
 
 	ztVec3 movement_velocity = controller->velocity;
+
+	controller->prev_pos = controller->camera->position;
 
 	bool moved_x = false, moved_z = false;
 	if (controller->move_forward) { movement_velocity.z = zt_approach(movement_velocity.z, -1, 2 * dt); moved_z = true; }
@@ -15440,28 +15490,28 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents);
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents);
+	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents);
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddText2D");
 	zt_returnOnNull(draw_list);
@@ -15506,6 +15556,10 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	else if (zt_bitIsSet(align_flags, ztAlign_Bottom)) { start_pos_y -= (total_height - true_total_height) / 2.f; }
 
 	zt_drawListPushTexture(draw_list, font->texture);
+
+	if (transform) {
+		zt_drawListPushTransform(draw_list, *transform);
+	}
 
 	r32 ppu = zt_pixelsPerUnit();
 
@@ -15599,6 +15653,10 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 		}
 
 		start_pos_y -= font->line_spacing * scale_y;
+	}
+
+	if (transform) {
+		zt_drawListPopTransform(draw_list);
 	}
 
 	zt_drawListPopTexture(draw_list);
@@ -15735,28 +15793,28 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color, transform);
 }
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFancyText2D");
 	zt_returnOnNull(draw_list);
@@ -15801,6 +15859,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 	else if (zt_bitIsSet(align_flags, ztAlign_Bottom)) { start_pos_y -= (total_height - true_total_height) / 2.f; }
 
 	zt_drawListPushTexture(draw_list, font->texture);
+
+	if (transform) {
+		zt_drawListPushTransform(draw_list, *transform);
+	}
 
 	r32 ppu = zt_pixelsPerUnit();
 
@@ -15954,6 +16016,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		zt_drawListPopColor(draw_list);
 	}
 	zt_drawListPopColor(draw_list);
+
+	if (transform) {
+		zt_drawListPopTransform(draw_list);
+	}
 
 	zt_drawListPopTexture(draw_list);
 }
@@ -17657,7 +17723,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 
-	zt_logInfo("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
+	zt_logDebug("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
 	if (size <= 0) {
 		return ztInvalidID;
 	}
@@ -19575,6 +19641,87 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_cent
 
 // ------------------------------------------------------------------------------------------------
 
+bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows)
+{
+	x1 = zt_clamp(x1, 0, cols - 1);
+	y1 = zt_clamp(y1, 0, rows - 1);
+	x2 = zt_clamp(x2, 0, cols - 1);
+	y2 = zt_clamp(y2, 0, rows - 1);
+
+	if (x1 == x2) {
+		for (int y = zt_min(y1, y2) + 1; y < zt_max(y1, y2); ++y) {
+			if (array2d[y * cols + x1] != 0) return true;
+		}
+		return false;
+	}
+	else if (y1 == y2) {
+		for (int x = zt_min(x1, x2) + 1; x < zt_max(x1, x2); ++x) {
+			if (array2d[y1 * cols + x] != 0) return true;
+		}
+		return false;
+	}
+
+	// using Xiaolin Wu's AA line drawing algorithm
+
+	r32 dx = (r32)x2 - (r32)x1;
+	r32 dy = (r32)y2 - (r32)y1;
+
+#	define lp_pixel(PX, PY) if( array2d[(PY) * cols + (PX)] != 0 && !((PX == x1 && PY == y1) || (PX == x2 && PY == y2))) return true;
+
+	int p_idx = 0;
+	if (zt_abs(dx) > zt_abs(dy)) {
+		if (x2 < x1) {
+			zt_swap(x1, x2);
+			zt_swap(y1, y2);
+		}
+		r32 gradient = dy / dx;
+		r32 xend = (real32)x1;
+		r32 yend = y1 + gradient * (xend - x1);
+		int xpxl1 = (int)xend;
+		int ypxl1 = (int)(yend);
+
+		r32 intery = yend + gradient;
+
+		xend = (r32)x2;
+		yend = y2 + gradient*(xend - x2);
+		int xpxl2 = (int)xend;
+		int ypxl2 = (int)(yend);
+
+		int x;
+		for (x = xpxl1 + 1; x <= xpxl2 - 1; ++x) {
+			lp_pixel(x, (int)(intery));
+			lp_pixel(x, (int)(intery)+1);
+			intery += gradient;
+		}
+	}
+	else {
+		if (y2 < y1) {
+			zt_swap(x1, x2);
+			zt_swap(y1, y2);
+		}
+		r32 gradient = dx / dy;
+		r32 yend = (r32)y1;
+		r32 xend = x1 + gradient * (yend - y1);
+		int ypxl1 = (int)yend;
+		int xpxl1 = (int)(xend);
+		r32 interx = xend + gradient;
+
+		yend = (r32)y2;
+		xend = x2 + gradient*(yend - y2);
+		int ypxl2 = (int)yend;
+		int xpxl2 = (int)(xend);
+
+		int y;
+		for (y = ypxl1 + 1; y <= ypxl2 - 1; ++y) {
+			lp_pixel((int)(interx), y);
+			lp_pixel((int)(interx)+1, y);
+			interx += gradient;
+		}
+	}
+
+#undef lp_pixel
+	return false;
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -21684,9 +21831,9 @@ int main(int argc, const char **argv)
 			zt_fontFree(i);
 		}
 
-		_zt_callFuncCleanup();
-
 		_zt_threadJobQueueFree();
+
+		_zt_callFuncCleanup();
 
 #		if defined(ZT_DSOUND)
 		if (zt_game->ds_context != nullptr) {
