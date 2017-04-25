@@ -22232,45 +22232,59 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		} break;
 
 		case WM_SETCURSOR: {
-			bool process_l_param = true;
 			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_HideCursor) && GetFocus() == handle) {
 				if (zt_game->input_mouse_look || LOWORD(l_param) == HTCLIENT) {
 					SetCursor(NULL);
 					zt_game->input_mouse.over_window = true;
-					process_l_param = false;
+				}
+				else {
+					switch(LOWORD(l_param))
+					{
+						/*
+						#define HTLEFT              10
+						#define HTRIGHT             11
+						#define HTTOP               12
+						#define HTTOPLEFT           13
+						#define HTTOPRIGHT          14
+						#define HTBOTTOM            15
+						#define HTBOTTOMLEFT        16
+						#define HTBOTTOMRIGHT       17
+						*/
+						case HTTOP:
+						case HTBOTTOM: {
+							SetCursor(LoadCursor(0, IDC_SIZENS));
+						} break;
+
+						case HTLEFT:
+						case HTRIGHT: {
+							SetCursor(LoadCursor(0, IDC_SIZEWE));
+						} break;
+
+							/*
+							#define IDC_SIZENWSE        MAKEINTRESOURCE(32642)
+							#define IDC_SIZENESW        MAKEINTRESOURCE(32643)
+							*/
+						case HTTOPRIGHT:
+						case HTBOTTOMLEFT: {
+							SetCursor(LoadCursor(0, IDC_SIZENESW));
+						} break;
+
+						case HTTOPLEFT:
+						case HTBOTTOMRIGHT: {
+							SetCursor(LoadCursor(0, IDC_SIZENWSE));
+						} break;
+
+						default: {
+							SetCursor(LoadCursor(NULL, IDC_ARROW));
+						} break;
+					}
+
+					zt_game->input_mouse.over_window = false;
 				}
 			}
-
-			if (process_l_param) {
+			else {
 				zt_game->input_mouse.over_window = false;
-
-				switch(LOWORD(l_param))
-				{
-					case HTTOP:
-					case HTBOTTOM: {
-						SetCursor(LoadCursor(0, IDC_SIZENS));
-					} break;
-
-					case HTLEFT:
-					case HTRIGHT: {
-						SetCursor(LoadCursor(0, IDC_SIZEWE));
-					} break;
-
-					case HTTOPRIGHT:
-					case HTBOTTOMLEFT: {
-						SetCursor(LoadCursor(0, IDC_SIZENESW));
-					} break;
-
-					case HTTOPLEFT:
-					case HTBOTTOMRIGHT: {
-						SetCursor(LoadCursor(0, IDC_SIZENWSE));
-					} break;
-
-					default: {
-						zt_inputMouseSetCursor(zt_game->input_mouse.cursor);
-						zt_game->input_mouse.over_window = true;
-					} break;
-				}
+				zt_inputMouseSetCursor(zt_game->input_mouse.cursor);
 			}
 		} break;
 

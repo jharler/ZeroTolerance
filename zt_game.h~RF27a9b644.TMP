@@ -22267,10 +22267,15 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 					} break;
 
 					default: {
-						zt_inputMouseSetCursor(zt_game->input_mouse.cursor);
+						SetCursor(LoadCursor(NULL, IDC_ARROW));
 						zt_game->input_mouse.over_window = true;
 					} break;
 				}
+
+			}
+			else {
+				zt_game->input_mouse.over_window = false;
+				zt_inputMouseSetCursor(zt_game->input_mouse.cursor);
 			}
 		} break;
 
