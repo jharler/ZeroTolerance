@@ -594,6 +594,12 @@ enum ztInputMouseCursor_Enum
 	ztInputMouseCursor_ResizeEW,
 	ztInputMouseCursor_ResizeNWSE,
 	ztInputMouseCursor_ResizeSWNE,
+	ztInputMouseCursor_IBeam,
+	ztInputMouseCursor_Wait,
+	ztInputMouseCursor_Cross,
+	ztInputMouseCursor_Stop,
+	ztInputMouseCursor_Hand,
+	ztInputMouseCursor_Help,
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -5656,6 +5662,12 @@ void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 	case ztInputMouseCursor_ResizeEW:	SetCursor(LoadCursor(NULL, IDC_SIZEWE)); break;
 	case ztInputMouseCursor_ResizeNWSE:	SetCursor(LoadCursor(NULL, IDC_SIZENWSE)); break;
 	case ztInputMouseCursor_ResizeSWNE:	SetCursor(LoadCursor(NULL, IDC_SIZENESW)); break;
+	case ztInputMouseCursor_IBeam:      SetCursor(LoadCursor(NULL, IDC_IBEAM)); break;
+	case ztInputMouseCursor_Wait:       SetCursor(LoadCursor(NULL, IDC_WAIT)); break;
+	case ztInputMouseCursor_Cross:      SetCursor(LoadCursor(NULL, IDC_CROSS)); break;
+	case ztInputMouseCursor_Stop:      SetCursor(LoadCursor(NULL, IDC_NO)); break;
+	case ztInputMouseCursor_Hand:      SetCursor(LoadCursor(NULL, IDC_HAND)); break;
+	case ztInputMouseCursor_Help:      SetCursor(LoadCursor(NULL, IDC_HELP)); break;
 	}
 
 	zt_game->input_mouse.cursor = cursor;
