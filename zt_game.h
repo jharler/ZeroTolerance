@@ -22206,8 +22206,10 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_MOVE:
 		case WM_SIZE: {
-			if(window_details) {
-				window_details->resize_cooldown = 1;
+			if(!IsIconic(handle)) {
+				if(window_details) {
+					window_details->resize_cooldown = 1;
+				}
 			}
 		} break;
 
