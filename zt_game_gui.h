@@ -1817,7 +1817,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 		case ztGuiItemType_StaticText: {
 			ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:StaticText");
-
+#			if 0
 			if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Dirty))) {
 				if (item->draw_list) {
 					ztVec2 ext = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(0, item->label) : zt_fontGetExtents(ztFontDefault, item->label);
@@ -1843,6 +1843,25 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 			zt_alignToPixel(&pos, zt_pixelsPerUnit());
 			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(pos, 0));
+#			else
+			ztVec2 ext = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(0, item->label) : zt_fontGetExtents(ztFontDefault, item->label);
+			ztVec2 off = pos;
+
+			if (item->align_flags != 0) {
+				if (zt_bitIsSet(item->align_flags, ztAlign_Left)) off.x -= (item->size.x - ext.x) / 2.f;
+				if (zt_bitIsSet(item->align_flags, ztAlign_Right)) off.x += (item->size.x - ext.x) / 2.f;
+				if (zt_bitIsSet(item->align_flags, ztAlign_Top)) off.y += (item->size.y - ext.y) / 2.f;
+				if (zt_bitIsSet(item->align_flags, ztAlign_Bottom)) off.y -= (item->size.y - ext.y) / 2.f;
+			}
+
+			ztGuiTheme *theme = zt_guiItemGetTheme(item);
+			if (zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy)) {
+				zt_drawListAddFancyText2D(draw_list, ztFontDefault, item->label, off, item->align_flags, item->anchor_flags);
+			}
+			else {
+				zt_drawListAddText2D(draw_list, ztFontDefault, item->label, off, item->align_flags, item->anchor_flags);
+			}
+#			endif
 		} break;
 
 		// ------------------------------------------------------------------------------------------------
@@ -5381,6 +5400,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputKey, ztInternal ZT_FUNC_GUI_ITE
 				item->textedit.text_buffer[j + 1] = item->textedit.text_buffer[j];
 			}
 			item->textedit.text_buffer[item->textedit.cursor_pos++] = shifting ? input_keys[input_key_strokes[i]].shift_display : input_keys[input_key_strokes[i]].display;
+			item->textedit.text_buffer[item->textedit.cursor_pos] = 0;
 			recalc_cursor = true;
 			keys += 1;
 		}
@@ -9255,7 +9275,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 // ------------------------------------------------------------------------------------------------
 
 #ifndef ZT_DEBUG_CONSOLE_BUFFER_SIZE
-#define ZT_DEBUG_CONSOLE_BUFFER_SIZE	1024 * 32
+#define ZT_DEBUG_CONSOLE_BUFFER_SIZE	1024 * 16
 #endif
 
 #ifndef ZT_DEBUG_CONSOLE_MAX_COMMANDS
