@@ -5268,7 +5268,7 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 					zt_fjz(asset_callbacks_count) {
 						if (asset_callback_ids[j] == i) {
 							if (asset_callbacks[j] != ztInvalidID) {
-								((zt_assetManagerAssetUpdated_Func*)zt_functionPointer(asset_callbacks[j]))(asset_mgr, i, asset_callback_user_data[j]);
+								((zt_assetManagerAssetUpdated_Func*)zt_functionPointer(asset_callbacks[j])(asset_mgr, i, asset_callback_user_data[j]);
 							}
 						}
 					}
@@ -12628,20 +12628,20 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 
 // ---------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_UPDATED(_zt_rendererShaderReload))
+ztInternal void _zt_rendererShaderReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
 	ZT_PROFILE_RENDERING("_zt_rendererShaderReload");
-	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_manager->asset_name[asset_id]);
+	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_mgr->asset_name[asset_id]);
 	ztShaderID shader_id = (ztShaderID)user_data;
 	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
-	i32 size = zt_assetSize(asset_manager, asset_id);
+	i32 size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
 		zt_logCritical("shader reload: unable to determine asset size");
 		return;
 	}
 
-	char *data = zt_mallocStructArrayArena(char, size, asset_manager->arena);
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
 		zt_logCritical("shader reload: unable to allocate memory for asset data");
 		return;
@@ -12649,28 +12649,28 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 
 	const char *error = nullptr;
 
-	if (!zt_assetLoadData(asset_manager, asset_id, data, size)) {
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	ztShaderID result_shader_id = _zt_shaderMakeBase(asset_manager->asset_name[asset_id], data, size, shader_id);
+	ztShaderID result_shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size, shader_id);
 	if (result_shader_id == ztInvalidID) {
 		goto on_error;
 	}
 
 	zt_game->shaders[shader_id].load_type = ztShaderLoadType_Asset;
-	zt_game->shaders[shader_id].asset_mgr = asset_manager;
-	zt_game->shaders[shader_id].asset_id  = asset_id;
+	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
+	zt_game->shaders[shader_id].asset_id = asset_id;
 
-	zt_assetAddReloadCallback(asset_manager, asset_id, _zt_rendererShaderReload_FunctionID, (void*)shader_id); // since re-making the shader removed this, we need to add it back for future use
+	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
-	zt_freeArena(data, asset_manager->arena);
+	zt_freeArena(data, asset_mgr->arena);
 	return;
 
 on_error:
-	zt_logCritical("Unable to reload shader (%s). %s.", asset_manager->asset_name[asset_id], error);
-	zt_freeArena(data, asset_manager->arena);
+	zt_logCritical("Unable to reload shader (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_freeArena(data, asset_mgr->arena);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -13032,7 +13032,7 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
 	zt_game->shaders[shader_id].asset_id = asset_id;
 
-	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload_FunctionID, (void*)shader_id);
+	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload, (void*)shader_id);
 
 	zt_freeArena(data, asset_mgr->arena);
 	return shader_id;
@@ -13537,7 +13537,7 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rendererTextureReload, ztInternal ZT_FUNC_ASSET_UPDATED(_zt_rendererTextureReload))
+ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_id)
 {
 }
 
@@ -13698,7 +13698,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		texture->asset_mgr = asset_mgr;
 		texture->asset_id = asset_id;
 
-		zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererTextureReload_FunctionID, (void*)texture_id);
+		zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererTextureReload, (void*)texture_id);
 	}
 
 	zt_freeArena(data, asset_mgr->arena);
