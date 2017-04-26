@@ -7992,8 +7992,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
 								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
-								r32 w_pct = camera->width / (r32)camera->native_w;
-								r32 h_pct = camera->height / (r32)camera->native_h;
+								r32 w_pct = zt_game->win_game_settings[0].screen_w / (r32)w;
+								r32 h_pct = zt_game->win_game_settings[0].screen_h / (r32)h;
 
 								pos.x = zt_convertToi32Ceil(pos.x * w_pct);
 								pos.y = zt_convertToi32Ceil(pos.y * h_pct);
@@ -14200,7 +14200,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
 	r32 aspect_h = native_w > native_h ? 1.f : native_h / (r32)native_w;
 
-	r32 scale = (zt_min(native_w, native_h) / (r32)zt_game->win_game_settings[0].pixels_per_unit) / 2;
+	r32 scale = (zt_min(width, height) / (r32)zt_game->win_game_settings[0].pixels_per_unit) / 2;
 	aspect_w *= scale;
 	aspect_h *= scale;
 
@@ -14341,7 +14341,7 @@ ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera)
 		return ztVec2::zero;
 	}
 
-	return ztVec2(camera->native_w / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->native_h / (r32)zt_game->win_game_settings[0].pixels_per_unit);
+	return ztVec2(camera->width / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->height / (r32)zt_game->win_game_settings[0].pixels_per_unit);
 }
 
 // ------------------------------------------------------------------------------------------------

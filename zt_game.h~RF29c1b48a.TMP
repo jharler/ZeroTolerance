@@ -7685,14 +7685,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
-			if (zt_bitIsSet(zt_game->textures[render_target_id].flags, ztTextureFlags_RenderTargetScreen)) {
-				r32 to_nw = camera->native_w / (r32)camera->width;
-				r32 to_nh = camera->native_h / (r32)camera->height;
-				zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_convertToi32Floor(zt_game->textures[render_target_id].width * to_nw), zt_convertToi32Floor(zt_game->textures[render_target_id].height * to_nh), camera->near_z, camera->far_z);
-			}
-			else {
-				zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->near_z, camera->far_z);
-			}
+			zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->near_z, camera->far_z);
 			rt_cam.zoom = camera->zoom;
 			rt_cam.position = camera->position;
 		}
@@ -7977,31 +7970,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						if (curr_clip_region) {
 							r32 ppu = zt_pixelsPerUnit();
 
-							if(zt_game->win_game_settings[0].screen_w == zt_game->win_game_settings[0].native_w && zt_game->win_game_settings[0].screen_h == zt_game->win_game_settings[0].native_h) {
-								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
-								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
-								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
+							ztVec2 clip_size = curr_clip_region->command->clip_size;
+							ztVec2 clip_size_pix(clip_size.x * ppu, clip_size.y * ppu);
 
-								ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
-							}
-							else {
-								/// need to properly adjust the clip rectangle
-								// x, y is lower left corner of the screen, in pixels
+							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
+							int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
+							int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
-								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * ztVec2(.5f, .5f));
-								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
-								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
-
-								r32 w_pct = camera->width / (r32)camera->native_w;
-								r32 h_pct = camera->height / (r32)camera->native_h;
-
-								pos.x = zt_convertToi32Ceil(pos.x * w_pct);
-								pos.y = zt_convertToi32Ceil(pos.y * h_pct);
-								w     = zt_convertToi32Ceil(    w * w_pct);
-								h     = zt_convertToi32Ceil(    h * w_pct);
-
-								ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
-							}
+							ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
 						}
 						else {
 							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
@@ -13543,8 +13519,8 @@ ztInternal void _zt_rendererTextureReload(ztAssetManager *asset_mgr, ztAssetID a
 
 ztInternal void _zt_textureAdjustScreenTargets()
 {
-	int width = zt_game->win_game_settings[0].screen_w;
-	int height = zt_game->win_game_settings[0].screen_h;
+	int width = zt_game->win_game_settings[0].native_w;
+	int height = zt_game->win_game_settings[0].native_h;
 
 	zt_fiz(zt_game->textures_count) {
 		if (zt_bitIsSet(zt_game->textures[i].flags, ztTextureFlags_RenderTargetScreen)) {
@@ -14200,7 +14176,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	r32 aspect_w = native_w > native_h ? native_w / (r32)native_h : 1.f;
 	r32 aspect_h = native_w > native_h ? 1.f : native_h / (r32)native_w;
 
-	r32 scale = (zt_min(native_w, native_h) / (r32)zt_game->win_game_settings[0].pixels_per_unit) / 2;
+	r32 scale = (zt_min(width, height) / (r32)zt_game->win_game_settings[0].pixels_per_unit) / 2;
 	aspect_w *= scale;
 	aspect_h *= scale;
 
@@ -14341,7 +14317,7 @@ ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera)
 		return ztVec2::zero;
 	}
 
-	return ztVec2(camera->native_w / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->native_h / (r32)zt_game->win_game_settings[0].pixels_per_unit);
+	return ztVec2(camera->width / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->height / (r32)zt_game->win_game_settings[0].pixels_per_unit);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -14377,8 +14353,8 @@ ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 	r32 ppu = (r32)zt_game->win_game_settings[0].pixels_per_unit;
 	ztVec2 diff = pos - camera->position.xy;
 
-	r32 x = (diff.x + ((camera->native_w / ppu) / 2.f)) * ppu;
-	r32 y = (((camera->native_h / ppu) / 2) + diff.y) * ppu;
+	r32 x = (diff.x + ((camera->width / ppu) / 2.f)) * ppu;
+	r32 y = (((camera->height / ppu) / 2) + diff.y) * ppu;
 
 	return ztVec2i(x < 0 ? zt_convertToi32Floor(x) : zt_convertToi32Ceil(x),
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
@@ -21693,10 +21669,10 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 		game_settings->screen_w = screen_w;
 		game_settings->screen_h = screen_h;
 
-		zt_logDebug("screen: %d/%d; native: %d/%d", game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h);
+		zt_logDebug("screen: %d/%d; native: %d/%d",game_settings->native_w, game_settings->native_h, game_settings->screen_w, game_settings->screen_h);
 
-		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h, native_w, native_h));
-		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, native_w, native_h));
+		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h));
+		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, screen_w, screen_h));
 
 		_zt_rendererSetViewport(window_details, game_settings, true);
 		_zt_callFuncScreenChange(game_settings);

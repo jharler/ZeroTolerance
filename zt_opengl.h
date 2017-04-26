@@ -131,7 +131,7 @@ void         ztgl_contextFree(ztContextGL *context);
 void         ztgl_contextDisplay(ztContextGL *context);
 
 ztVec2i      ztgl_contextGetSize(ztContextGL *context);
-bool         ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h);
+bool         ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh);
 bool         ztgl_contextIsFullscreen(ztContextGL *context);
 bool         ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen);
 
@@ -486,6 +486,8 @@ struct ztContextGL
 	HWND handle;
 
 	ztVec2i size;
+	ztVec2i native_size;
+
 	i32 pixels_per_unit;
 	i32 flags;
 
@@ -672,6 +674,8 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 	result->handle = handle;
 	result->size.x = client_w;
 	result->size.y = client_h;
+	result->native_size.x = client_w;
+	result->native_size.y = client_h;
 	result->pixels_per_unit = pixels_per_unit;
 	result->flags = flags;
 	result->arena = arena;
@@ -693,10 +697,12 @@ void ztgl_win_contextFree(ztContextGL *context)
 
 // ------------------------------------------------------------------------------------------------
 
-bool ztgl_win_contextSetSize(ztContextGL *context, i32 w, i32 h)
+bool ztgl_win_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
 {
 	context->size.x = w;
 	context->size.y = h;
+	context->native_size.x = nw;
+	context->native_size.y = nh;
 	return ztgl_setViewport(context);
 }
 
@@ -769,8 +775,8 @@ bool ztgl_win_setViewport(ztContextGL *context)
 
 	ztgl_clearErrors(); // make sure previously failed calls don't make the app exit
 
-	r32 realw = (context->size.x / (r32)context->pixels_per_unit) / 2.f;
-	r32 realh = (context->size.y / (r32)context->pixels_per_unit) / 2.f;
+	r32 realw = (context->native_size.x / (r32)context->pixels_per_unit) / 2.f;
+	r32 realh = (context->native_size.y / (r32)context->pixels_per_unit) / 2.f;
 
 	if (zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
 		int screen_x = GetSystemMetrics(SM_CXSCREEN);
@@ -853,9 +859,9 @@ ztVec2i ztgl_contextGetSize(ztContextGL *context)
 
 // ------------------------------------------------------------------------------------------------
 
-bool ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h)
+bool ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
 {
-	zt_winOnly(return ztgl_win_contextSetSize(context, w, h));
+	zt_winOnly(return ztgl_win_contextSetSize(context, w, h, nw, nh));
 }
 
 // ------------------------------------------------------------------------------------------------
