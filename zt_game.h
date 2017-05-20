@@ -2068,7 +2068,8 @@ void zt_alignToPixel(ztVec3 *val, r32 ppu);
 
 typedef i32 ztFontID;
 
-#define ztFontDefault	0
+#define ztFontDefault		0
+#define ztFontDefaultMono	1
 
 const char *zt_fontGetCharsetStandard( i32 *size );
 
@@ -3286,6 +3287,9 @@ struct ztProfiledThread;
 
 struct ztProfiledSection
 {
+	const char        *system;
+	i32                system_hash;
+
 	const char        *section;
 	i32                section_hash;
 
@@ -3326,7 +3330,7 @@ struct ztProfiledThread
 #endif
 
 #ifndef ZT_PROFILER_MAX_SECTIONS_PER_FRAME
-#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	256
+#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	1024 * 2
 #endif
 
 // ------------------------------------------------------------------------------------------------
@@ -3801,6 +3805,7 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 		zt_fize(zt_game->profiler->threads) {
 			zt_fjz(ZT_PROFILER_FRAMES_KEPT) {
 				zt_fkz(zt_game->profiler->threads[i].sections[j]) {
+					zt_game->profiler->threads[i].allocations[j][k].system = "(dll reload string loss)";
 					zt_game->profiler->threads[i].allocations[j][k].section = "(dll reload string loss)";
 				}
 			}
@@ -4179,7 +4184,7 @@ void zt_threadJobQueueWaitForAllJobs()
 int zt_threadGetIndex()
 {
 	ztThreadID thread_id = zt_threadGetCurrentID();
-	if (thread_id == zt_game->main_thread_id) {
+	if (zt_game == nullptr || thread_id == zt_game->main_thread_id || zt_game->thread_job_queue == nullptr) {
 		return 0;
 	}
 
@@ -4593,7 +4598,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx)
 {
 #	if !defined(ZT_NO_PROFILE)
-	if (zt_game->profiler->paused) {
+	if (zt_game == nullptr || zt_game->profiler == nullptr || zt_game->profiler->paused) {
 		return nullptr;
 	}
 
@@ -4633,7 +4638,7 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 	}
 	else {
 		zt_flink(child, pt->current->children) {
-			if (child->section_hash == section_hash) {
+			if (child->section_hash == section_hash && child->system_hash == system_hash) {
 				ps = child;
 				ps_existing = true;
 				break;
@@ -4663,6 +4668,8 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 			ps->next         = nullptr;
 			ps->section      = section;
 			ps->section_hash = section_hash;
+			ps->system       = system;
+			ps->system_hash  = system_hash;
 		}
 
 		if (pt->current && !ps_existing) {
@@ -6885,6 +6892,11 @@ bool zt_drawListPopColor(ztDrawList *draw_list)
 	ZT_PROFILE_RENDERING("zt_drawListPopColor");
 	_zt_drawListCheck(draw_list);
 
+#if 1
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type = ztDrawCommandType_ChangeColor;
+	command->color_pop = true;
+#else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeColor) {
@@ -6905,7 +6917,7 @@ bool zt_drawListPopColor(ztDrawList *draw_list)
 	command->type = ztDrawCommandType_ChangeColor;
 	command->color = ztColor(1,1,1,1);
 	command->color_pop = true;
-
+#endif
 	return true;
 }
 
@@ -6941,7 +6953,6 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 	//_zt_drawListVerifyShader(draw_list);
 
 	auto *command = & draw_list->commands[draw_list->commands_count++];
-
 	command->type = ztDrawCommandType_ChangeTexture;
 
 	if (tex_count > zt_elementsOf(command->texture)) {
@@ -6955,7 +6966,6 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 	command->texture_pop = false;
 
 	zt_debugOnly(draw_list->active_textures++);
-
 	return true;
 }
 
@@ -6964,6 +6974,11 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 bool zt_drawListPopTexture(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopTexture");
+#if 1
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type = ztDrawCommandType_ChangeTexture;
+	command->texture_pop = true;
+#else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeTexture) {
@@ -6992,8 +7007,10 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 	command->texture[0]    = 0;
 	command->texture_count = 1;
 	command->texture_pop   = false;
+#endif
 
 	zt_debugOnly(draw_list->active_textures--);
+
 	return false;
 }
 
@@ -7019,17 +7036,17 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 	zt_alignToPixel(&command->clip_size, ppu);
 	//zt_alignToPixel(&command->clip_center, ppu);
 
-	command->clip_size.x += 2 / ppu;
-	command->clip_size.y += 2 / ppu;
-	command->clip_center.x -= 1 / ppu;
+	//command->clip_size.x += 2 / ppu;
+	//command->clip_size.y += 2 / ppu;
+	//command->clip_center.x -= 1 / ppu;
 
 
-	if (command->clip_center.y - command->clip_size.y / 2.f < 0) {
-		command->clip_center.y -= 1 / ppu;
-	}
-	else{
-		command->clip_center.y += 1 / ppu;
-	}
+	//if (command->clip_center.y - command->clip_size.y / 2.f < 0) {
+	//	command->clip_center.y -= 1 / ppu;
+	//}
+	//else{
+	//	command->clip_center.y += 1 / ppu;
+	//}
 
 	return true;
 }
@@ -7047,6 +7064,17 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 	command->clip_center = ztVec2::zero;
 	command->clip_size = ztVec2::zero;
 	command->clip_idx = 0;
+
+#	if 0
+	zt_fizr(draw_list->commands_count - 2) {
+		if (draw_list->commands[i].type == ztDrawCommandType_ChangeClipping) {
+			zt_drawListPushColor(draw_list, ztColor_Green);
+			zt_drawListAddEmptyRect(draw_list, draw_list->commands[i].clip_center, draw_list->commands[i].clip_size);
+			zt_drawListPopColor(draw_list);
+			break;
+		}
+	}
+#	endif
 
 	return true;
 }
@@ -7072,6 +7100,12 @@ bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset)
 bool zt_drawListPopOffset(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopOffset");
+
+#if 1
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type       = ztDrawCommandType_ChangeOffset;
+	command->offset_pop = true;
+#else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeOffset) {
@@ -7092,11 +7126,10 @@ bool zt_drawListPopOffset(ztDrawList *draw_list)
 	_zt_drawListCheck(draw_list);
 
 	auto *command = &draw_list->commands[draw_list->commands_count++];
-
 	command->type       = ztDrawCommandType_ChangeOffset;
 	command->offset     = ztVec3::zero;
 	command->offset_pop = true;
-
+#endif
 	return false;
 }
 
@@ -7121,6 +7154,12 @@ bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform)
 bool zt_drawListPopTransform(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopTransform");
+
+#if 1
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type          = ztDrawCommandType_ChangeTransform;
+	command->transform_pop = true;
+#else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeTransform) {
@@ -7141,11 +7180,10 @@ bool zt_drawListPopTransform(ztDrawList *draw_list)
 	_zt_drawListCheck(draw_list);
 
 	auto *command = &draw_list->commands[draw_list->commands_count++];
-
 	command->type          = ztDrawCommandType_ChangeTransform;
 	command->transform     = ztMat4::identity;
 	command->transform_pop = true;
-
+#endif
 	return false;
 }
 
@@ -7290,6 +7328,72 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		zt_assert(clip_stack_idx == -1); // if you're here, you have mismatching push/pop clip regions
+	}
+
+	{
+		// calculate various push/pop pairs
+		ztDrawCommand *stack_textures  [512]; int stack_textures_idx   = -1;
+		ztDrawCommand *stack_colors    [512]; int stack_colors_idx     = -1;
+		ztDrawCommand *stack_offsets   [512]; int stack_offsets_idx    = -1;
+		ztDrawCommand *stack_transforms[512]; int stack_transforms_idx = -1;
+
+		zt_fiz(draw_lists_count) {
+			ztDrawList *draw_list = draw_lists[i];
+			zt_fjz(draw_list->commands_count) {
+				if(draw_list->commands[j].type == ztDrawCommandType_ChangeTexture) {
+					if(draw_list->commands[j].texture_pop) {
+						if (--stack_textures_idx >= 0) {
+							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_textures[stack_textures_idx], zt_sizeof(ztDrawCommand));
+						}
+						else {
+							draw_list->commands[j].texture_count = 0;
+						}
+					}
+					else {
+						stack_textures[++stack_textures_idx] = &draw_list->commands[j];
+					}
+				}
+				if(draw_list->commands[j].type == ztDrawCommandType_ChangeColor) {
+					if(draw_list->commands[j].color_pop) {
+						if (--stack_colors_idx >= 0) {
+							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_colors[stack_colors_idx], zt_sizeof(ztDrawCommand));
+						}
+						else {
+							draw_list->commands[j].color = ztColor_White;
+						}
+					}
+					else {
+						stack_colors[++stack_colors_idx] = &draw_list->commands[j];
+					}
+				}
+				if(draw_list->commands[j].type == ztDrawCommandType_ChangeOffset) {
+					if(draw_list->commands[j].offset_pop) {
+						if (--stack_offsets_idx >= 0) {
+							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_offsets[stack_offsets_idx], zt_sizeof(ztDrawCommand));
+						}
+						else {
+							draw_list->commands[j].offset = ztVec3::zero;
+						}
+					}
+					else {
+						stack_offsets[++stack_offsets_idx] = &draw_list->commands[j];
+					}
+				}
+				if(draw_list->commands[j].type == ztDrawCommandType_ChangeTransform) {
+					if(draw_list->commands[j].transform_pop) {
+						if (--stack_transforms_idx >= 0) {
+							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_transforms[stack_transforms_idx], zt_sizeof(ztDrawCommand));
+						}
+						else {
+							draw_list->commands[j].transform = ztMat4::identity;
+						}
+					}
+					else {
+						stack_transforms[++stack_transforms_idx] = &draw_list->commands[j];
+					}
+				}
+			}
+		}
 	}
 
 #	define _zt_castMem(type) (type*)mem; mem += zt_sizeof(type); mem_left -= zt_sizeof(type); zt_assert(mem_left >= 0); // if you assert here, you need more ztGameSettings::renderer_memory
@@ -7454,6 +7558,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									zt_linkFind(cmp_shader->texture, cmp_texture, texturesMatch(cmp_texture->command, command));
 									zt_assert(cmp_texture != nullptr);
 									cmp_item_last = cmp_texture->last_item;
+
 								}
 								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset) {
 									ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
@@ -7791,7 +7896,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 	}
 #endif // defined(ZT_DEBUG)
-
 
 	if (zt_game->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
@@ -14839,17 +14943,38 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztInternal byte *_zt_fontLoadFontPng(i32 *size)
+{
+	// base64 is a space efficient way to store binary data inline
+	char *data = "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";
+	*size = 9880;
+	byte *result = zt_mallocStructArray(byte, *size);
+	zt_assert(zt_base64Decode(data, 13177, result, *size) == 9880);
+	return result;
+}
 
-ztInternal byte _zt_default_font_data[] = {
-	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x10, 0x08, 0x06, 0x00, 0x00, 0x00, 0x88, 0x84, 0x0d, 0x0b, 0x00, 0x00, 0x00, 0x19, 0x74, 0x45, 0x58, 0x74, 0x53, 0x6f, 0x66, 0x74, 0x77, 0x61, 0x72, 0x65, 0x00, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x52, 0x65, 0x61, 0x64, 0x79, 0x71, 0xc9, 0x65, 0x3c, 0x00, 0x00, 0x04, 0xf3, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0xec, 0x9d, 0xd9, 0x8e, 0xdd, 0x30, 0x08, 0x40, 0x4d, 0xd5, 0xff, 0xff, 0x65, 0xaa, 0x3e, 0x54, 0x1d, 0x5d, 0x25, 0x31, 0x18, 0xf0, 0x92, 0x7b, 0x8e, 0x34, 0x1a, 0xcd, 0x24, 0xde, 0xb1, 0x0d, 0x78, 0x89, 0xa8, 0x6a, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x77, 0xf3, 0x8b, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x3f, 0xbf, 0x9d, 0xef, 0xff, 0xdd, 0x2e, 0x20, 0x9d, 0x67, 0x77, 0xef, 0xfc, 0xfc, 0x7f, 0xef, 0x9d, 0xa7, 0x74, 0x7a, 0xe1, 0xff, 0x21, 0xce, 0xfc, 0x5f, 0xc5, 0x23, 0x37, 0x7f, 0x9f, 0x4e, 0xaf, 0xfe, 0x64, 0xb0, 0xfd, 0x7b, 0x75, 0xdf, 0x0c, 0xf5, 0x78, 0x97, 0x87, 0xab, 0xad, 0x2a, 0xe2, 0x48, 0x23, 0x1a, 0xde, 0x53, 0x86, 0x5d, 0xdb, 0xdc, 0x5a, 0x36, 0xaf, 0x0c, 0x58, 0xea, 0xf6, 0x29, 0x0f, 0xea, 0x68, 0x17, 0x4b, 0x78, 0x4b, 0x1c, 0x62, 0x28, 0x93, 0x24, 0xd5, 0x9f, 0x3a, 0xff, 0xf6, 0xf4, 0x57, 0x19, 0xc8, 0x7f, 0x45, 0xfd, 0x8d, 0x86, 0x7f, 0xda, 0x82, 0x26, 0x83, 0xf5, 0x67, 0xad, 0x5f, 0xeb, 0x9c, 0x65, 0x79, 0xde, 0x02, 0xe3, 0x8b, 0x65, 0x5e, 0xd2, 0xc1, 0xbe, 0x99, 0x35, 0xbf, 0x57, 0x84, 0xcb, 0x8e, 0x73, 0x74, 0x9e, 0xf6, 0xe8, 0x05, 0x32, 0xf0, 0x8e, 0xa7, 0x7d, 0xdf, 0xa2, 0x63, 0xb4, 0x4d, 0xe4, 0x68, 0xe7, 0xb9, 0xd8, 0x2a, 0x27, 0xc8, 0x06, 0x00, 0x2c, 0x77, 0x00, 0xcc, 0x36, 0x54, 0x3c, 0x03, 0xa0, 0x57, 0xa9, 0xf6, 0x4c, 0x42, 0x62, 0x8c, 0x33, 0xfa, 0x7c, 0x97, 0xc9, 0xd7, 0x6a, 0xe4, 0x55, 0x2a, 0xe4, 0x16, 0x85, 0xda, 0x93, 0x87, 0x5e, 0x79, 0xb2, 0xca, 0xb0, 0x52, 0xf9, 0x95, 0xa4, 0xf6, 0x19, 0xc9, 0x83, 0x04, 0xd3, 0x14, 0x63, 0x1f, 0x6c, 0x09, 0xb2, 0x31, 0x5a, 0xbe, 0xa7, 0x30, 0x62, 0xec, 0x2b, 0x59, 0x32, 0xa1, 0x81, 0xf6, 0xb7, 0xf6, 0x0f, 0x99, 0x10, 0x7e, 0x56, 0x9f, 0xf2, 0xb6, 0xad, 0x27, 0x2f, 0x16, 0x87, 0x90, 0x55, 0x8e, 0x2d, 0xce, 0x90, 0x36, 0xe0, 0xac, 0xf8, 0x26, 0xe3, 0xb1, 0xaa, 0x0e, 0x24, 0xe9, 0x9d, 0x27, 0x19, 0x04, 0x9c, 0x1c, 0x6d, 0x40, 0xff, 0xfc, 0xf6, 0xfe, 0x0f, 0x00, 0x4e, 0x32, 0x8f, 0x00, 0x48, 0x70, 0x02, 0xfc, 0xa9, 0x10, 0x5e, 0x4d, 0x86, 0xde, 0xc9, 0x5d, 0x06, 0x26, 0xe7, 0x5e, 0xdc, 0xd2, 0x71, 0x50, 0x54, 0x1a, 0x00, 0x95, 0x13, 0xd0, 0x95, 0x32, 0xaf, 0x8e, 0xba, 0x63, 0xc2, 0x59, 0xab, 0x20, 0x44, 0x14, 0xc8, 0x4f, 0xc5, 0x59, 0x1f, 0xe2, 0xd3, 0xc1, 0x74, 0xbc, 0x06, 0xfd, 0x0c, 0x65, 0x58, 0x0e, 0x6b, 0xdf, 0xb7, 0x21, 0x87, 0xe5, 0x35, 0xea, 0x70, 0xa9, 0x34, 0xfe, 0xf4, 0x63, 0xfe, 0xd5, 0xc4, 0x72, 0xb6, 0x8f, 0xb1, 0x41, 0x8d, 0xef, 0x78, 0x9e, 0x65, 0x3c, 0xef, 0xc9, 0x96, 0x25, 0xbc, 0x25, 0xfd, 0x36, 0x18, 0x3e, 0xa2, 0x1f, 0xe8, 0xcd, 0xef, 0xab, 0xe7, 0xa3, 0x6d, 0xe3, 0x29, 0xff, 0x48, 0x1c, 0x9e, 0xf6, 0xb3, 0xd4, 0x97, 0x3a, 0xf4, 0xaf, 0x19, 0x7f, 0x6b, 0xb0, 0x8c, 0x19, 0x73, 0x0a, 0x73, 0x0b, 0x00, 0x98, 0x99, 0xb5, 0x03, 0x40, 0x6f, 0x06, 0x6d, 0xab, 0x51, 0x69, 0x35, 0xf8, 0x57, 0xaf, 0x20, 0xbd, 0x41, 0xc1, 0xaf, 0xc8, 0xbf, 0x2c, 0x48, 0x77, 0xc5, 0x4e, 0x8c, 0xaa, 0x1d, 0x22, 0xd6, 0xd5, 0x44, 0x69, 0x63, 0xab, 0xe7, 0x57, 0x8e, 0x00, 0x14, 0x89, 0xbd, 0xfa, 0x96, 0x5c, 0x28, 0x7a, 0xba, 0xc9, 0xf8, 0xf7, 0x16, 0x87, 0x84, 0x76, 0xfa, 0xd0, 0xae, 0x8a, 0xf6, 0x48, 0x7f, 0xf7, 0x1a, 0xcf, 0x91, 0x1d, 0x3e, 0x23, 0xbb, 0xab, 0x3c, 0x69, 0x79, 0xfb, 0x5d, 0xaf, 0x3c, 0x4f, 0xed, 0x1f, 0x75, 0xe4, 0x44, 0x77, 0x26, 0xde, 0xc9, 0x60, 0xa4, 0xbe, 0x3d, 0xe1, 0x75, 0xa0, 0x6c, 0xd6, 0xf4, 0x7f, 0xfe, 0x96, 0x8d, 0xfa, 0xbe, 0xa7, 0xcf, 0xac, 0x18, 0x1b, 0x64, 0x41, 0x9d, 0x01, 0x00, 0x0e, 0x00, 0xf7, 0x00, 0x9b, 0x31, 0x09, 0xce, 0x34, 0xea, 0x46, 0xcb, 0x78, 0x67, 0xc0, 0x45, 0xce, 0x29, 0x46, 0x95, 0xbc, 0xd5, 0x75, 0x14, 0x9d, 0xdc, 0x2b, 0xcf, 0xe0, 0x4b, 0x27, 0x7e, 0xab, 0x02, 0x58, 0xe1, 0x94, 0xc8, 0xdc, 0xaa, 0x9e, 0xd1, 0xf7, 0xa4, 0xf9, 0xce, 0x98, 0x67, 0xca, 0x4e, 0x6b, 0x35, 0xf7, 0x33, 0xe8, 0x04, 0xd9, 0xff, 0x56, 0x05, 0x4d, 0x26, 0xc8, 0x47, 0xf5, 0x18, 0x5e, 0xdd, 0xce, 0x3b, 0x3b, 0x70, 0xb2, 0xb7, 0xbe, 0xcb, 0x80, 0xbc, 0xec, 0x50, 0xc6, 0x95, 0x73, 0x9f, 0x14, 0xe7, 0x5f, 0x02, 0x7d, 0x79, 0x24, 0x8e, 0x93, 0xe4, 0x1f, 0x00, 0x00, 0x07, 0xc0, 0x44, 0x25, 0x31, 0xea, 0xe1, 0x9f, 0xad, 0x64, 0x3e, 0xed, 0x00, 0xc8, 0x58, 0x59, 0x95, 0x49, 0x65, 0x90, 0xc2, 0x38, 0xac, 0x2b, 0x14, 0x96, 0xf2, 0xf7, 0xee, 0x29, 0x88, 0x9e, 0xa1, 0xef, 0xad, 0xa4, 0xeb, 0x66, 0xf5, 0x6e, 0x51, 0xa6, 0x2a, 0x15, 0x2c, 0x99, 0x50, 0xa6, 0x8c, 0xfe, 0x71, 0x27, 0x23, 0x9e, 0x3b, 0x2f, 0x56, 0x19, 0x97, 0x95, 0x69, 0x44, 0x0d, 0xf4, 0x5e, 0xf8, 0x99, 0xb2, 0x58, 0xd5, 0xd7, 0xaa, 0x9c, 0x6b, 0x27, 0xa0, 0x07, 0xa4, 0xbf, 0xf3, 0x65, 0x69, 0xdf, 0xbc, 0xbb, 0x2a, 0xa2, 0xdb, 0xcd, 0xce, 0xe3, 0x0a, 0xe7, 0x1f, 0x00, 0xc0, 0x6b, 0x1d, 0x00, 0xd6, 0x23, 0x00, 0x59, 0x97, 0xae, 0xcd, 0x9e, 0x6c, 0x7b, 0xdb, 0xf3, 0x76, 0x51, 0xe0, 0x64, 0xe3, 0x34, 0x32, 0x14, 0x4c, 0xcf, 0x45, 0x83, 0x6f, 0x53, 0x3e, 0xa2, 0x65, 0x94, 0xf6, 0x7c, 0xae, 0x72, 0x07, 0x23, 0x20, 0x5b, 0x11, 0x3f, 0xad, 0x9d, 0x2b, 0xc7, 0x96, 0xec, 0x15, 0xc4, 0x13, 0x95, 0xe1, 0xc8, 0xf8, 0xad, 0x49, 0x75, 0x78, 0xca, 0xdc, 0xb1, 0xe3, 0x0a, 0xfd, 0x09, 0xf2, 0xf6, 0xad, 0x2b, 0xdd, 0x3b, 0x5c, 0xf6, 0xb9, 0xc3, 0x0e, 0x48, 0x41, 0x76, 0x00, 0xe0, 0x9b, 0x1c, 0x00, 0x59, 0x47, 0x00, 0x76, 0x55, 0x30, 0x33, 0xcf, 0x60, 0xee, 0x54, 0x8e, 0xac, 0xf6, 0xf0, 0xdc, 0xf7, 0xf0, 0x16, 0x43, 0x33, 0x73, 0x72, 0xf7, 0x6c, 0xb9, 0xac, 0xd8, 0x65, 0x72, 0x92, 0x33, 0xe5, 0xdb, 0x0d, 0x80, 0x19, 0xdb, 0xa7, 0xdf, 0xd8, 0x3f, 0x7b, 0x47, 0x5c, 0x00, 0xe0, 0xbd, 0x44, 0x17, 0x6f, 0xac, 0xbb, 0x18, 0xa3, 0x8b, 0x24, 0x8c, 0x49, 0x00, 0x90, 0xc2, 0xaf, 0x8d, 0xf2, 0xe2, 0xfd, 0xcc, 0x5c, 0x4f, 0xe9, 0xcd, 0x58, 0x05, 0x8d, 0x1a, 0xb2, 0x99, 0x06, 0x76, 0x96,
-	0x72, 0x6b, 0x29, 0x77, 0xf4, 0x92, 0xa5, 0x37, 0x1a, 0x1d, 0x33, 0xd2, 0xbf, 0x93, 0x3f, 0xb9, 0xf9, 0xc9, 0x90, 0x4f, 0xeb, 0x97, 0x2d, 0xb2, 0xcb, 0xa5, 0x8b, 0xe5, 0xe9, 0x54, 0xd9, 0xdc, 0xa1, 0x5e, 0x64, 0xb3, 0xfa, 0xb1, 0x5e, 0xc2, 0x3a, 0xfa, 0x15, 0x8b, 0x99, 0xe3, 0xdf, 0x09, 0x9f, 0x83, 0x8b, 0x8e, 0x17, 0x5a, 0xfc, 0x1c, 0xea, 0xc6, 0x30, 0x2d, 0x8c, 0x7b, 0x34, 0xbe, 0x37, 0x5d, 0xc2, 0x0c, 0x00, 0x30, 0x05, 0xef, 0x0e, 0x80, 0xac, 0xdb, 0x85, 0x2d, 0x86, 0x48, 0xd4, 0x90, 0x89, 0xdc, 0xe8, 0xfa, 0x79, 0x96, 0x70, 0xd6, 0xd9, 0xc2, 0x95, 0x67, 0xd0, 0xa4, 0x53, 0xce, 0xde, 0x04, 0xab, 0x9d, 0xf6, 0x8e, 0x9e, 0x01, 0xf4, 0x5e, 0xd2, 0x27, 0x0b, 0xe2, 0x8f, 0x7e, 0x05, 0x20, 0x22, 0xb7, 0x96, 0x30, 0xea, 0x70, 0x02, 0x54, 0x9c, 0x01, 0x7f, 0xaa, 0x3f, 0xcf, 0x25, 0x7f, 0xde, 0xfc, 0x65, 0x96, 0x4f, 0x0b, 0x64, 0xaf, 0xb5, 0xdc, 0x4b, 0xf2, 0xee, 0xc6, 0xc2, 0xec, 0xfa, 0xf3, 0x7c, 0x92, 0x35, 0x33, 0x7d, 0xef, 0x25, 0x62, 0x9f, 0xcf, 0x2c, 0x3b, 0xd2, 0xbc, 0xfd, 0x50, 0x93, 0xe7, 0xcb, 0x19, 0xc6, 0x9d, 0x24, 0xcb, 0x93, 0x0e, 0x8e, 0xff, 0xbd, 0xf8, 0xb3, 0xc7, 0xf6, 0x48, 0x1d, 0x56, 0x7e, 0x41, 0xa6, 0x2a, 0x7e, 0x4f, 0xff, 0xe9, 0xb5, 0xcf, 0x48, 0x5d, 0x5a, 0xdb, 0xef, 0x2e, 0x0f, 0x1e, 0xf9, 0xeb, 0xf5, 0xff, 0xde, 0xdd, 0x38, 0x57, 0xef, 0x58, 0x16, 0x86, 0x5a, 0xdb, 0xff, 0x9e, 0x03, 0x00, 0x80, 0xff, 0x83, 0x94, 0xaa, 0x6b, 0x2c, 0xaf, 0xf6, 0xae, 0x7e, 0xfb, 0xf7, 0x4c, 0xf1, 0x5e, 0xd3, 0xb6, 0x00, 0xc0, 0x18, 0xc0, 0x38, 0x72, 0xe6, 0x58, 0x7c, 0xf2, 0xdd, 0x17, 0xc8, 0x60, 0x7d, 0xf9, 0x23, 0x47, 0x25, 0xe9, 0xfb, 0x00, 0x90, 0xc6, 0xcc, 0x1d, 0x00, 0x9e, 0xf8, 0x31, 0xfe, 0xe1, 0x6d, 0xd0, 0xb6, 0x00, 0x90, 0xf5, 0x19, 0x58, 0x00, 0x00, 0x00, 0x80, 0x29, 0x0e, 0x00, 0xc0, 0x40, 0x04, 0x00, 0x80, 0xb9, 0x63, 0x3c, 0xf3, 0xc3, 0x38, 0xac, 0xf8, 0xc3, 0x2e, 0x6d, 0xdc, 0x3b, 0x6a, 0x79, 0x97, 0x3e, 0x63, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x1a, 0x5d, 0xd9, 0x86, 0xd4, 0x09, 0xdf, 0xb8, 0x87, 0xbd, 0xda, 0x58, 0x92, 0xfe, 0x0f, 0x00, 0x30, 0xcc, 0x1f, 0x01, 0x06, 0x00, 0x51, 0xde, 0x2e, 0x82, 0xa6, 0x77, 0x29, 0x89, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82 };
+// ------------------------------------------------------------------------------------------------
 
 ztInternal void _zt_fontMakeDefaults()
 {
-	ztTextureID tex = zt_textureMakeFromFileData(_zt_default_font_data, zt_sizeof(_zt_default_font_data), ztTextureFlags_PixelPerfect);
-	char *data = "info face=ZeroToleranceGui size=16 bold=0 italic=0 charset=unicode=stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=512 scaleH=64 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=8 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=34 x=16 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=35 x=24 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=36 x=32 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=37 x=40 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=38 x=48 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=39 x=56 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=40 x=64 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=41 x=72 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=42 x=80 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=43 x=88 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=44 x=96 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=45 x=104 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=46 x=112 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=47 x=120 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=48 x=128 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=49 x=136 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=50 x=144 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=51 x=152 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=52 x=160 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=53 x=168 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=54 x=176 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=55 x=184 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=56 x=192 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=57 x=200 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=58 x=208 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=59 x=216 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=60 x=224 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=61 x=232 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=62 x=240 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=63 x=248 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=64 x=256 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=65 x=264 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=66 x=272 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=67 x=280 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=68 x=288 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=69 x=296 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=70 x=304 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=71 x=312 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=72 x=320 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=73 x=328 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=74 x=336 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=75 x=344 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=76 x=352 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=77 x=360 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=78 x=368 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=79 x=376 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=80 x=384 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=81 x=392 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=82 x=400 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=83 x=408 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=84 x=416 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=85 x=424 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=86 x=432 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=87 x=440 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=88 x=448 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=89 x=456 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=90 x=464 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=91 x=472 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=92 x=480 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=93 x=488 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=94 x=496 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=95 x=504 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=96 x=512 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=97 x=520 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=98 x=528 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=99 x=536 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=100 x=544 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=101 x=552 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=102 x=560 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=103 x=568 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=104 x=576 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=105 x=584 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=106 x=592 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=107 x=600 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=108 x=608 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=109 x=616 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=110 x=624 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=111 x=632 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=112 x=640 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=113 x=648 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=114 x=656 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=115 x=664 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=116 x=672 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=117 x=680 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=118 x=688 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=119 x=696 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=120 x=704 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=121 x=712 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=122 x=720 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=123 x=728 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=124 x=736 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=125 x=744 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\nchar id=126 x=744 y=0 width=8 height=16 xoffset=0 yoffset=5 xadvance=8 page=0 chnl=15\n";
-	ztFontID font = zt_fontMakeFromBmpFontData(data, tex, ztVec2i(0, 1));
-	zt_game->fonts_count_system += 1;
+	i32 tex_data_size = 0;
+	byte *tex_data = _zt_fontLoadFontPng(&tex_data_size);
+	ztTextureID tex = zt_textureMakeFromFileData(tex_data, tex_data_size, ztTextureFlags_PixelPerfect);
+
+	{
+		// default
+		char *data = "info face=ZeroToleranceGui size=16 bold=0 italic=0 charset=unicode=stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=512 scaleH=64 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=11 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=34 x=15 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=35 x=23 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\nchar id=36 x=35 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=37 x=44 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=38 x=55 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=39 x=65 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=40 x=71 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=41 x=78 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=42 x=86 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=43 x=94 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=44 x=106 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=45 x=111 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=46 x=118 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=47 x=124 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=48 x=133 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=49 x=142 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=149 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=51 x=157 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=52 x=166 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=53 x=175 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=54 x=183 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=55 x=191 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=56 x=200 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=57 x=208 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=58 x=217 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=59 x=223 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=60 x=230 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=61 x=240 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=62 x=252 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=63 x=263 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=64 x=271 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=65 x=281 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=66 x=291 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=67 x=300 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=68 x=309 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=69 x=318 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=70 x=326 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=71 x=334 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=72 x=343 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=73 x=353 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=74 x=358 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=75 x=365 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=76 x=374 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=77 x=382 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=78 x=393 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=79 x=403 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=80 x=412 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=81 x=420 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=82 x=429 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=83 x=438 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=84 x=447 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=85 x=455 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=86 x=464 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=87 x=473 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=88 x=484 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=89 x=493 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=90 x=501 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=91 x=510 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=92 x=517 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=93 x=527 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=94 x=535 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=95 x=547 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=96 x=558 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=97 x=564 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=98 x=572 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=99 x=581 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=100 x=589 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=101 x=598 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=102 x=606 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=103 x=613 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=104 x=622 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=105 x=631 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=106 x=636 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=107 x=642 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=108 x=651 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=109 x=657 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=110 x=668 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=111 x=677 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=112 x=685 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=113 x=693 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=114 x=702 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=115 x=709 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=116 x=717 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=117 x=724 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=118 x=734 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=119 x=741 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=120 x=751 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=121 x=759 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=122 x=767 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=123 x=775 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=124 x=784 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=125 x=789 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=126 x=798 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\n";
+		ztFontID font = zt_fontMakeFromBmpFontData(data, tex, ztVec2i(0, 20));
+		zt_game->fonts_count_system += 1;
+	}
+
+	{
+		// monospaced default
+		char *data = "info face=ZeroToleranceDefaultMono size=16 bold=0 italic=0 charset=unicode stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=1024 scaleH=32 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=8 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=34 x=16 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=35 x=24 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=36 x=32 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=37 x=40 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=38 x=48 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=39 x=56 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=40 x=64 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=41 x=72 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=42 x=80 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=43 x=88 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=44 x=96 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=45 x=104 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=46 x=112 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=47 x=120 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=48 x=128 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=49 x=136 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=50 x=144 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=51 x=152 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=52 x=160 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=53 x=168 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=54 x=176 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=55 x=184 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=56 x=192 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=57 x=200 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=58 x=208 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=59 x=216 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=60 x=224 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=61 x=232 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=62 x=240 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=63 x=248 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=64 x=256 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=65 x=264 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=66 x=272 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=67 x=280 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=68 x=288 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=69 x=296 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=70 x=304 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=71 x=312 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=72 x=320 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=73 x=328 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=74 x=336 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=75 x=344 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=76 x=352 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=77 x=360 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=78 x=368 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=79 x=376 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=80 x=384 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=81 x=392 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=82 x=400 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=83 x=408 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=84 x=416 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=85 x=424 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=86 x=432 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=87 x=440 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=88 x=448 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=89 x=456 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=90 x=464 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=91 x=472 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=92 x=480 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=93 x=488 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=94 x=496 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=95 x=504 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=96 x=512 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=97 x=520 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=98 x=528 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=99 x=536 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=100 x=544 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=101 x=552 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=102 x=560 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=103 x=568 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=104 x=576 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=105 x=584 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=106 x=592 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=107 x=600 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=108 x=608 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=109 x=616 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=110 x=624 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=111 x=632 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=112 x=640 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=113 x=648 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=114 x=656 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=115 x=664 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=116 x=672 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=117 x=680 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=118 x=688 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=119 x=696 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=120 x=704 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=121 x=712 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=122 x=720 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=123 x=728 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=124 x=736 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=125 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=126 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\n";
+		ztFontID font = zt_fontMakeFromBmpFontData(data, tex, ztVec2i(0, 1));
+		zt_game->fonts_count_system += 1;
+	}
+	zt_free(tex_data);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -15187,6 +15312,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			if (*codepoint == ' ') {
 				font->space_width = glyph->x_adv;
 			}
+
+			//font->line_height = zt_max(font->line_height, glyph->size.y - glyph->offset.y));
 		}
 	}
 
@@ -15493,8 +15620,10 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 		r32 x = font->glyphs[glyph_idx].x_adv;
 		r32 y = font->glyphs[glyph_idx].size.y;
 
+
+
 		row_width += x;
-		row_height = zt_max(zt_max(row_height, font->line_height), y);
+		row_height = font->line_height;// zt_max(zt_max(row_height, font->line_height), y);
 	}
 	total_height +=  row_height;
 	total_width = zt_max(total_width, row_width);
@@ -15601,7 +15730,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	else if (zt_bitIsSet(align_flags, ztAlign_Bottom)) { start_pos_y -= (total_height - true_total_height) / 2.f; }
 
 	zt_drawListPushTexture(draw_list, font->texture);
-
+	
 	if (transform) {
 		zt_drawListPushTransform(draw_list, *transform);
 	}
@@ -21752,8 +21881,10 @@ int main(int argc, const char **argv)
 	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
 #	endif
 
-	zt_game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
-	zt_memSet(zt_game, zt_sizeof(ztGameGlobals), 0);
+	ztGameGlobals *game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
+	zt_memSet(game, zt_sizeof(ztGameGlobals), 0);
+	zt_game = game;
+
 	{
 		char size[128];
 		zt_strBytesToString(size, zt_sizeof(size), zt_sizeof(ztGameGlobals));
@@ -21896,7 +22027,7 @@ int main(int argc, const char **argv)
 
 	do {
 		zt_profilerFrameBegin();
-		ZT_PROFILE_INPUT("Game Loop");
+		ZT_PROFILE_PLATFORM("Game Loop");
 
 		{
 			ZT_PROFILE_INPUT("Mouse Handling");
