@@ -513,6 +513,7 @@ void ztds_bufferPlay(ztDirectSoundBuffer *buffer, bool loop)
 	}
 	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
 		if (buffer->buffer[i] != nullptr) {
+			status = 0;
 			buffer->buffer[i]->GetStatus(&status);
 			if (!zt_bitIsSet(status, DSBSTATUS_PLAYING) && !zt_bitIsSet(status, DSBSTATUS_LOOPING)) {
 				buffer->buffer[i]->Play(0, 0, loop ? DSBPLAY_LOOPING : 0);
