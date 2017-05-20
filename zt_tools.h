@@ -1156,6 +1156,14 @@ int  zt_memCmp(const void *one, const void *two, i32 size);
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztMemoryArenaFlags_Enum
+{
+	ztMemoryArenaFlags_ClearMem = (1 << 0), // clear the memory to zero with every allocation
+	ztMemoryArenaFlags_Validate = (1 << 1), // validate the contents of the arena after every allocation/free
+};
+
+// ------------------------------------------------------------------------------------------------
+
 struct ztMemoryArena
 {
 	byte *memory;
@@ -1165,6 +1173,7 @@ struct ztMemoryArena
 	i32 alloc_cnt;
 	i32 free_cnt;
 	i32 freed_allocs;
+	i32 flags;
 
 	struct allocation
 	{
@@ -1193,7 +1202,7 @@ struct ztMemoryArena
 
 // ------------------------------------------------------------------------------------------------
 
-ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from = nullptr);
+ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from = nullptr, i32 flags = ztMemoryArenaFlags_ClearMem);
 void zt_memFreeArena(ztMemoryArena *arena);
 
 // arena can be null and if so, standard malloc/realloc/free will be used
@@ -1201,6 +1210,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size);
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line);
 void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size);
 void zt_memFree(ztMemoryArena *arena, void *data);
+
+bool zt_memBelongsTo(ztMemoryArena *arena, void *data);
 
 void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory);
 
@@ -1243,114 +1254,118 @@ void zt_memFreeGlobal(void *data);
 
 #define zt_strMakePrintf(varname, varsize, format, ...)	char varname[varsize] = {0}; zt_strPrintf(varname, varsize, format, __VA_ARGS__);
 
-bool zt_strValid(const char *s, const char **invalid_ch = nullptr);
+bool                  zt_strValid(const char *s, const char **invalid_ch = nullptr);
 
-ztInline const char *zt_strCodepoint(const char *s, i32* code_point);
-ztInline i32 zt_strCodepoint(const char *s, int pos);
+ztInline const char  *zt_strCodepoint(const char *s, i32* code_point);
+ztInline i32          zt_strCodepoint(const char *s, int pos);
 
-bool zt_strEquals(const char *s1, const char *s2);
-bool zt_strEquals(const char *s1, int s1_len, const char *s2);
-bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len);
-bool zt_striEquals(const char *s1, const char *s2);
-bool zt_striEquals(const char *s1, int s1_len, const char *s2);
-bool zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len);
-int zt_strLen(const char *s);
-int zt_strSize(const char *s); // size in bytes including null terminator
-const char *zt_strMoveForward(const char *s, int characters);
+bool                  zt_strEquals(const char *s1, const char *s2);
+bool                  zt_strEquals(const char *s1, int s1_len, const char *s2);
+bool                  zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len);
+bool                  zt_striEquals(const char *s1, const char *s2);
+bool                  zt_striEquals(const char *s1, int s1_len, const char *s2);
+bool                  zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_strLen(const char *s);
+int                   zt_strSize(const char *s); // size in bytes including null terminator
+const char           *zt_strMoveForward(const char *s, int characters);
 
-int zt_strCmp(const char *s1, const char *s2);
-int zt_striCmp(const char *s1, const char *s2);
+int                   zt_strCmp(const char *s1, const char *s2);
+int                   zt_striCmp(const char *s1, const char *s2);
 
-int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len);
-int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len);
 
-int zt_strCpy(char *scopy, int scopy_len, const char *sfrom);
-int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
+int                   zt_strCpy(char *scopy, int scopy_len, const char *sfrom);
+int                   zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
 
-int zt_strCat(char *scopy, int scopy_len, const char *sfrom);
-int zt_strCat(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
+int                   zt_strCat(char *scat, int scat_len, const char *scopy);
+int                   zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len);
 
-bool zt_strIsInt(char *s);
-bool zt_strIsInt(char *s, int s_len);
-bool zt_strIsIntHex(char *s);
-bool zt_strIsIntHex(char *s, int s_len);
-bool zt_strIsReal32(char *s);
-bool zt_strIsReal32(char *s, int s_len);
-bool zt_strIsReal64(char *s);
-bool zt_strIsReal64(char *s, int s_len);
+int                   zt_strCatf(char *scopy, int scopy_len, const char *format, ...);
 
-i32 zt_strToInt(const char *s, i32 def, bool *success = nullptr);
-i32 zt_strToInt(const char *s, int s_len, i32 def, bool *success = nullptr);
-u32 zt_strToUint(const char *s, u32 def, bool *success = nullptr);
-u32 zt_strToUint(const char *s, int s_len, u32 def, bool *success = nullptr);
-u32 zt_strToIntHex(const char *s, u32 def, bool *success = nullptr);
-u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool *success = nullptr);
-i64 zt_strToInt64(const char *s, i64 def, bool *success = nullptr);
-i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success = nullptr);
-u64 zt_strToUint64(const char *s, u64 def, bool *success = nullptr);
-u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success = nullptr);
+bool                  zt_strIsInt(char *s);
+bool                  zt_strIsInt(char *s, int s_len);
+bool                  zt_strIsIntHex(char *s);
+bool                  zt_strIsIntHex(char *s, int s_len);
+bool                  zt_strIsReal32(char *s);
+bool                  zt_strIsReal32(char *s, int s_len);
+bool                  zt_strIsReal64(char *s);
+bool                  zt_strIsReal64(char *s, int s_len);
 
-r32 zt_strToReal32(const char *s, r32 def, bool* success = nullptr);
-r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
-r64 zt_strToReal64(const char *s, r64 def, bool* success = nullptr);
-r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success = nullptr);
+i32                   zt_strToInt(const char *s, i32 def, bool *success = nullptr);
+i32                   zt_strToInt(const char *s, int s_len, i32 def, bool *success = nullptr);
+u32                   zt_strToUint(const char *s, u32 def, bool *success = nullptr);
+u32                   zt_strToUint(const char *s, int s_len, u32 def, bool *success = nullptr);
+u32                   zt_strToIntHex(const char *s, u32 def, bool *success = nullptr);
+u32                   zt_strToIntHex(const char *s, int s_len, u32 def, bool *success = nullptr);
+i64                   zt_strToInt64(const char *s, i64 def, bool *success = nullptr);
+i64                   zt_strToInt64(const char *s, int s_len, i64 def, bool *success = nullptr);
+u64                   zt_strToUint64(const char *s, u64 def, bool *success = nullptr);
+u64                   zt_strToUint64(const char *s, int s_len, u64 def, bool *success = nullptr);
 
-u32 zt_strHash(const char *s);
+r32                   zt_strToReal32(const char *s, r32 def, bool* success = nullptr);
+r32                   zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
+r64                   zt_strToReal64(const char *s, r64 def, bool* success = nullptr);
+r64                   zt_strToReal64(const char *s, int s_len, r64 def, bool* success = nullptr);
 
-const char *zt_strFind(const char *haystack, const char *needle);
-const char *zt_strFind(const char *haystack, int haystack_len, const char *needle);
-int zt_strFindPos(const char *haystack, const char *needle, int start_pos);
-int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
+u32                   zt_strHash(const char *s);
 
-const char *zt_strFindLast(const char *haystack, const char *needle);
-const char *zt_strFindLast(const char *haystack, int haystack_len, const char *needle);
-int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
-int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
+const char           *zt_strFind(const char *haystack, const char *needle);
+const char           *zt_strFind(const char *haystack, int haystack_len, const char *needle);
+int                   zt_strFindPos(const char *haystack, const char *needle, int start_pos);
+int                   zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
 
-const char *zt_striFind(const char *haystack, const char *needle);
-const char *zt_striFind(const char *haystack, int haystack_len, const char *needle);
-int zt_striFindPos(const char *haystack, const char *needle, int start_pos);
-int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
+const char           *zt_strFindLast(const char *haystack, const char *needle);
+const char           *zt_strFindLast(const char *haystack, int haystack_len, const char *needle);
+int                   zt_strFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
+int                   zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
 
-const char *zt_striFindLast(const char *haystack, const char *needle);
-const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle);
-int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
-int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
+const char           *zt_striFind(const char *haystack, const char *needle);
+const char           *zt_striFind(const char *haystack, int haystack_len, const char *needle);
+int                   zt_striFindPos(const char *haystack, const char *needle, int start_pos);
+int                   zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
 
-const char *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count);
-const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count);
-int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count);
-int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count);
+const char           *zt_striFindLast(const char *haystack, const char *needle);
+const char           *zt_striFindLast(const char *haystack, int haystack_len, const char *needle);
+int                   zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
+int                   zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
 
-int zt_strCount(const char *haystack, const char *needle);
-int zt_strCount(const char *haystack, int haystack_len, const char *needle);
-int zt_striCount(const char *haystack, const char *needle);
-int zt_striCount(const char *haystack, int haystack_len, const char *needle);
+const char           *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count);
+const char           *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count);
+int                   zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count);
+int                   zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count);
 
-bool zt_strStartsWith(const char *s, const char *starts_with);
-bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
-bool zt_strEndsWith(const char *s, const char *ends_with);
-bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
+int                   zt_strCount(const char *haystack, const char *needle);
+int                   zt_strCount(const char *haystack, int haystack_len, const char *needle);
+int                   zt_striCount(const char *haystack, const char *needle);
+int                   zt_striCount(const char *haystack, int haystack_len, const char *needle);
 
-bool zt_striStartsWith(const char *s, const char *starts_with);
-bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
-bool zt_striEndsWith(const char *s, const char *ends_with);
-bool zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
+bool                  zt_strStartsWith(const char *s, const char *starts_with);
+bool                  zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
+bool                  zt_strEndsWith(const char *s, const char *ends_with);
+bool                  zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
 
-const char *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
-const char *zt_strJumpToNextToken(const char *s, int s_len);
+bool                  zt_striStartsWith(const char *s, const char *starts_with);
+bool                  zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
+bool                  zt_striEndsWith(const char *s, const char *ends_with);
+bool                  zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
 
-int zt_strGetNextTokenPos(const char *s);
-int zt_strGetNextTokenPos(const char *s, int s_len);
+const char           *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
+const char           *zt_strJumpToNextToken(const char *s, int s_len);
 
-const char *zt_strJumpToNextLine(const char *s);
-const char *zt_strJumpToNextLine(const char *s, int s_len);
+int                   zt_strGetNextTokenPos(const char *s);
+int                   zt_strGetNextTokenPos(const char *s, int s_len);
 
-int zt_strGetNextLinePos(const char *s);
-int zt_strGetNextLinePos(const char *s, int s_len);
+const char           *zt_strJumpToNextLine(const char *s);
+const char           *zt_strJumpToNextLine(const char *s, int s_len);
 
-int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
-int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetNextLinePos(const char *s);
+int                   zt_strGetNextLinePos(const char *s, int s_len);
+
+int                   zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+
+// ------------------------------------------------------------------------------------------------
 
 enum ztStrTokenizeFlags_Enum
 {
@@ -1360,11 +1375,15 @@ enum ztStrTokenizeFlags_Enum
 	ztStrTokenizeFlags_TrimWhitespace = (1<<3),
 };
 
+// ------------------------------------------------------------------------------------------------
+
 struct ztToken
 {
 	i32 beg;
 	i32 len;
 };
+
+// ------------------------------------------------------------------------------------------------
 
 // populates the given array of ztTokens with the parsed information
 // if the given array isn't large enough, it populates as many as it cans and returns the required buffer size
@@ -1387,13 +1406,48 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 
 typedef char* ztString;
 
-ztString zt_stringMake(int size, ztMemoryArena *arena = nullptr);
-ztString zt_stringResize(ztString string, int size, ztMemoryArena *arena = nullptr);
-ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena = nullptr);
-ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena = nullptr);
-ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena = nullptr);
-void zt_stringFree(ztString string, ztMemoryArena *arena = nullptr);
-int zt_stringSize(ztString string);
+ztString  zt_stringMake      (int size, ztMemoryArena *arena = nullptr);
+ztString  zt_stringResize    (ztString string, int size, ztMemoryArena *arena = nullptr);
+ztString  zt_stringMakeFrom  (const char *str, ztMemoryArena *arena = nullptr);
+ztString  zt_stringMakeFrom  (const char *str, int s_len, ztMemoryArena *arena = nullptr);
+ztString  zt_stringOverwrite (ztString string, const char *str, ztMemoryArena *arena = nullptr);
+void      zt_stringFree      (ztString string, ztMemoryArena *arena = nullptr);
+int       zt_stringSize      (ztString string);
+
+// ------------------------------------------------------------------------------------------------
+
+struct ztStringPool
+{
+	ztString       *strings = nullptr;
+	bool           *used    = nullptr;
+	int             size    = 0;
+	ztMemoryArena  *arena   = nullptr;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+// string pools are used to pre-allocate strings for instances where strings will potentially be created/destroyed often.
+// the prealloacted strings can be variable sizes using the sizes and proportions paramters. example:
+//
+//      int sizes[] = {16, 32, 64, 128};
+//      int props[] = {10,  5,  2,   1};
+//
+//      ztStringPool pool = zt_stringPoolMake(100, sizes, props, zt_elementsOf(sizes));
+//
+// out of the 100 allocated strings, 55 of them will be 16 characters (10/18), 27 will be 32 characters (5/18), 11 will be 64 characters (2/18), 7 will be 128 characters (1/18 + remainder)
+// if the pool has no available entries, it will allocate them from the arena given
+
+ztStringPool zt_stringPoolMake        (int total_strings, int *sizes, int *proportions, int sizes_count, ztMemoryArena *arena = nullptr);
+void         zt_stringPoolFree        (ztStringPool *pool);
+i32          zt_stringPoolBytesNeeded (int total_strings, int *sizes, int *proportions, int sizes_count);
+
+ztString     zt_stringMake            (ztStringPool *pool, int size);
+ztString     zt_stringMakeFrom        (ztStringPool *pool, const char* str);
+ztString     zt_stringMakeFrom        (ztStringPool *pool, const char* str, int s_len);
+ztString     zt_stringResize          (ztStringPool *pool, ztString string, int size);
+ztString     zt_stringOverwrite       (ztStringPool *pool, ztString string, const char *str);
+void         zt_stringFreeFrom        (ztStringPool *pool, ztString string);
+
 
 
 // ------------------------------------------------------------------------------------------------
@@ -1773,6 +1827,15 @@ bool zt_serialRead(ztSerial *serial, ztVec3i *vec);
 
 
 // ------------------------------------------------------------------------------------------------
+// base64 encoding/decoding
+
+#define zt_base64GetEncodedSize(bytes_to_encode) ((((bytes_to_encode) / 3) * 4) + 3 + 1) // includes null terminator
+
+int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
+int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
+
+
+// ------------------------------------------------------------------------------------------------
 // random numbers
 
 #define ztRandom_MTLen	624
@@ -1892,13 +1955,13 @@ public:
 	{ \
 		item_add_ptr->next = nullptr; \
 		auto *prev = item_first_ptr; \
-				while(prev != nullptr && prev->next != nullptr) { \
+		while(prev != nullptr && prev->next != nullptr) { \
 			prev = prev->next; \
-										} \
+		} \
 		if(prev != nullptr) { \
 			prev->next = item_add_ptr; \
-				} \
-				else { \
+		} \
+		else { \
 			item_first_ptr = item_add_ptr; \
 		} \
 	}
@@ -1914,13 +1977,13 @@ public:
 	{ \
 		item_add_ptr->var_name = nullptr; \
 		auto *prev = item_first_ptr; \
-				while(prev != nullptr && prev->var_name != nullptr) { \
+		while(prev != nullptr && prev->var_name != nullptr) { \
 			prev = prev->var_name; \
-										} \
+		} \
 		if(prev != nullptr) { \
 			prev->var_name = item_add_ptr; \
-				} \
-				else { \
+		} \
+		else { \
 			item_first_ptr = item_add_ptr; \
 		} \
 	}
@@ -3459,6 +3522,17 @@ extern ztGlobals *zt;
 #ifndef __zt_tools_implementation__
 #define __zt_tools_implementation__
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+#ifdef ZT_PROFILE
+#define ZT_SYSTEM_INTRINSICS          "Intrinsics"
+#define ZT_PROFILE_TOOLS(section)     ZT_PROFILE((section), ZT_SYSTEM_INTRINSICS)
+#else
+#define ZT_PROFILE_TOOLS(section)
+#endif
+
 // headers (strive to avoid including anything if possible)
 #include <stdlib.h>
 #include <stdarg.h>
@@ -3569,6 +3643,8 @@ ztFunctionID zt_registerFunctionPointer(const char *function_name, void *functio
 
 void *zt_functionPointer(ztFunctionID function_id)
 {
+	ZT_PROFILE_TOOLS("zt_functionPointer");
+
 	zt_fiz(_zt_function_count) {
 		if (_zt_function_hashes[i] == function_id) {
 			return _zt_function_pointers[i];
@@ -3616,6 +3692,8 @@ void  _zt_call_free(void* mem)
 ztInternal
 void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 {
+	ZT_PROFILE_TOOLS("_zt_logMessageRaw");
+
 #if defined(ZT_COMPILER_MSVC)
 	if (level < ztLogMessageLevel_Verbose) {
 		OutputDebugStringA(message);
@@ -3713,6 +3791,8 @@ void zt_logRemoveCallback(zt_logCallback_Func callback)
 
 void  zt_memSet(void *mem, int32 mem_len, byte value)
 {
+	ZT_PROFILE_TOOLS("zt_memSet");
+
 	int max_idx = mem_len;
 
 	if (max_idx % 4 == 0) {
@@ -3741,6 +3821,8 @@ void  zt_memSet(void *mem, int32 mem_len, byte value)
 
 void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 {
+	ZT_PROFILE_TOOLS("zt_memCpy");
+
 	int max_idx = zt_min(dst_len, src_len);
 
 //	for (int i = 0; i < max_idx; ++i) {
@@ -3776,6 +3858,8 @@ void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 
 int zt_memCmp(const void *one, const void *two, i32 size)
 {
+	ZT_PROFILE_TOOLS("zt_memCmp");
+
 	byte *bone = (byte*)one;
 	byte *btwo = (byte*)two;
 	zt_fiz(size) {
@@ -3796,8 +3880,10 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 
 // ------------------------------------------------------------------------------------------------
 
-ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
+ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 {
+	ZT_PROFILE_TOOLS("zt_memMakeArena");
+
 	ztMemoryArena *arena = nullptr;
 	if (from == nullptr) {
 #if defined(ZT_COMPILER_MSVC)
@@ -3832,6 +3918,7 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 		arena->latest = nullptr;
 		arena->owner = from;
 		arena->freed_allocs = 0;
+		arena->flags = flags;
 
 		arena->file_name_buffer_pos = 0;
 		zt_fize(arena->file_names) {
@@ -3848,6 +3935,8 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from)
 
 void zt_memFreeArena(ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_memFreeArena");
+
 	if (arena == nullptr) {
 		return;
 	}
@@ -3868,6 +3957,8 @@ void zt_memFreeArena(ztMemoryArena *arena)
 
 void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
 {
+	ZT_PROFILE_TOOLS("zt_memArenaClearAllocations");
+
 	arena->current_used = 0;
 	arena->peak_used = 0;
 	arena->alloc_cnt = 0;
@@ -3885,6 +3976,8 @@ void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
 void zt_memValidateArena(ztMemoryArena *arena)
 {
 #if 1 || defined(ZT_DEBUG)
+	ZT_PROFILE_TOOLS("zt_memValidateArena");
+
 	{
 		// the list of allocations need to be in ascending memory location order, test for that
 		auto *prev = arena->latest;
@@ -3940,6 +4033,8 @@ void zt_memValidateArena(ztMemoryArena *arena)
 
 void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
+	ZT_PROFILE_TOOLS("zt_memDumpArenaDiagnostics");
+
 	zt_flink(alloc, arena->latest) {
 		zt_debugOnly(zt_logMessage(log_level, "[%s] alloc: %llx; start: %llx; length: %d (%s:%d)", name, (i64)alloc, (i64)alloc->start, alloc->length, alloc->file, alloc->file_line));
 		zt_releaseOnly(zt_logMessage(log_level, "[%s] alloc: %llx; start: %llx; length: %d", name, (i64)alloc, (i64)alloc->start, alloc->length));
@@ -3950,6 +4045,8 @@ void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMes
 
 ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::allocation *alloc, const char *file_name)
 {
+	ZT_PROFILE_TOOLS("_zt_memAllocSetFileName");
+
 	alloc->file = nullptr;
 	if(file_name == nullptr) {
 		return;
@@ -3987,6 +4084,8 @@ ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::all
 
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
+	ZT_PROFILE_TOOLS("zt_memAllocFromArena");
+
 	if (arena == nullptr) {
 		return zt->mem_malloc(bytes);
 	}
@@ -3999,7 +4098,9 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	int padding = ztPointerSize;
 	bytes += padding; // add for end of memory padding
 
-	zt_memValidateArena(arena);
+	if (zt_bitIsSet(arena->flags, ztMemoryArenaFlags_Validate)) {
+		zt_memValidateArena(arena);
+	}
 
 	ztMemoryArena::allocation *allocation = nullptr;
 	if (arena->freed_allocs > 0) { // use pre-allocated memory if it exists before going to the end of the buffer
@@ -4094,10 +4195,14 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		arena->current_used += allocation->length + (zt_sizeof(ztMemoryArena::allocation));
 		arena->peak_used = zt_max(arena->peak_used, arena->current_used);
 
-		zt_memSet(allocation->start, allocation->length - padding, 0);
+		if (zt_bitIsSet(arena->flags, ztMemoryArenaFlags_ClearMem)) {
+			zt_memSet(allocation->start, allocation->length - padding, 0);
+		}
 	}
 	else {
-		zt_memSet(allocation->start, allocation->length - padding, 0);
+		if (zt_bitIsSet(arena->flags, ztMemoryArenaFlags_ClearMem)) {
+			zt_memSet(allocation->start, allocation->length - padding, 0);
+		}
 	}
 
 	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next, arena->alloc_cnt);
@@ -4110,6 +4215,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line)
 {
+	ZT_PROFILE_TOOLS("zt_memAllocFromArena");
+
 	void *result = zt_memAllocFromArena(arena, size);
 	if (result && arena) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
@@ -4126,6 +4233,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 
 void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 {
+	ZT_PROFILE_TOOLS("zt_memRealloc");
+
 	if (data == nullptr) {
 		return zt_memAllocFromArena(arena, size);
 	}
@@ -4169,6 +4278,8 @@ void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 
 void zt_memFree(ztMemoryArena *arena, void *data)
 {
+	ZT_PROFILE_TOOLS("zt_memFree");
+
 	if (data == nullptr) {
 		return;
 	}
@@ -4231,13 +4342,27 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 		allocation = allocation->next;
 	}
 
-	zt_memValidateArena(arena);
+	if (zt_bitIsSet(arena->flags, ztMemoryArenaFlags_Validate)) {
+		zt_memValidateArena(arena);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_memBelongsTo(ztMemoryArena *arena, void *data)
+{
+	zt_returnValOnNull(arena, false);
+	zt_returnValOnNull(data, false);
+
+	return (data >= arena->memory && data <= (arena->memory + arena->total_size));
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
+	ZT_PROFILE_TOOLS("zt_memDumpArena");
+
 	if(arena == nullptr) {
 		zt_logMessage(log_level, "memory: no arena was allocated");
 		return;
@@ -4268,6 +4393,8 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 
 bool zt_memArenaValidate(ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_memArenaValidate");
+
 	ztMemoryArena::allocation *alloc = arena->latest;
 	bool failed = false;
 	while (alloc != nullptr) {
@@ -4290,6 +4417,8 @@ bool zt_memArenaValidate(ztMemoryArena *arena)
 
 bool zt_memPushGlobalArena(ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_memPushGlobalArena");
+
 	zt_assert(zt->mem_global_arena_stack_count < ZT_MEM_GLOBAL_ARENA_STACK_SIZE);
 	if (zt->mem_global_arena_stack_count >= ZT_MEM_GLOBAL_ARENA_STACK_SIZE) {
 		return false;
@@ -4303,6 +4432,8 @@ bool zt_memPushGlobalArena(ztMemoryArena *arena)
 
 void zt_memPopGlobalArena()
 {
+	ZT_PROFILE_TOOLS("zt_memPopGlobalArena");
+
 	zt_assert(zt->mem_global_arena_stack_count > 0);
 	zt->mem_global_arena_stack_count -= 1;
 }
@@ -4329,6 +4460,8 @@ void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(v
 
 void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 {
+	ZT_PROFILE_TOOLS("zt_memAllocGlobalFull");
+
 	ztMemoryArena* arena = zt_memGetGlobalArena();
 	if (arena) {
 		return zt_memAllocFromArena(arena, size, file, file_line);
@@ -4344,6 +4477,8 @@ void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 
 void zt_memFreeGlobal(void *data)
 {
+	ZT_PROFILE_TOOLS("zt_memFreeGlobal");
+
 	ztMemoryArena* arena = zt_memGetGlobalArena();
 	if (arena) {
 		zt_memFree(arena, data);
@@ -4381,6 +4516,8 @@ void zt_memFreeGlobal(void *data)
 
 r32 zt_sin(r32 x)
 {
+	ZT_PROFILE_TOOLS("zt_sin");
+
 	return sinf(x);
 }
 
@@ -4388,6 +4525,8 @@ r32 zt_sin(r32 x)
 
 r32 zt_asin(r32 x)
 {
+	ZT_PROFILE_TOOLS("zt_asin");
+
 	return asinf(x);
 }
 
@@ -4395,6 +4534,8 @@ r32 zt_asin(r32 x)
 
 r32 zt_cos(r32 y)
 {
+	ZT_PROFILE_TOOLS("zt_cos");
+
 	return cosf(y);
 }
 
@@ -4402,6 +4543,8 @@ r32 zt_cos(r32 y)
 
 r32 zt_acos(r32 y)
 {
+	ZT_PROFILE_TOOLS("zt_acos");
+
 	return acosf(y);
 }
 
@@ -4409,6 +4552,8 @@ r32 zt_acos(r32 y)
 
 r32 zt_tan(r32 r)
 {
+	ZT_PROFILE_TOOLS("zt_tan");
+
 	return tan(r);
 }
 
@@ -4416,6 +4561,8 @@ r32 zt_tan(r32 r)
 
 r32 zt_atan(r32 v)
 {
+	ZT_PROFILE_TOOLS("zt_atan");
+
 	return atanf(v);
 }
 
@@ -4423,6 +4570,8 @@ r32 zt_atan(r32 v)
 
 r32 zt_atan2(r32 x, r32 y)
 {
+	ZT_PROFILE_TOOLS("zt_atan2");
+
 	return atan2f(x, y);
 }
 
@@ -4430,6 +4579,8 @@ r32 zt_atan2(r32 x, r32 y)
 
 r32 zt_sqrt(r32 v)
 {
+	ZT_PROFILE_TOOLS("zt_sqrt");
+
 	return sqrtf(v);
 }
 
@@ -4437,6 +4588,8 @@ r32 zt_sqrt(r32 v)
 
 r32 zt_pow(r32 v, r32 p)
 {
+	ZT_PROFILE_TOOLS("zt_pow");
+
 	return powf(v, p);
 }
 
@@ -4444,6 +4597,8 @@ r32 zt_pow(r32 v, r32 p)
 
 r32 zt_exp(r32 v)
 {
+	ZT_PROFILE_TOOLS("zt_exp");
+
 	return expf(v);
 }
 
@@ -4460,6 +4615,8 @@ void ztMat4::rotateEuler(const ztVec3& euler)
 
 void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 {
+	ZT_PROFILE_TOOLS("ztMat4::rotateEuler");
+
 #if 0
 	x = zt_degreesToRadians(x);
 	y = zt_degreesToRadians(y);
@@ -4517,6 +4674,8 @@ void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 
 ztMat4 ztMat4::getRotateEuler(const ztVec3& euler) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getRotateEuler");
+
 	ztMat4 copy(*this);
 	copy.rotateEuler(euler);
 	return copy;
@@ -4526,6 +4685,8 @@ ztMat4 ztMat4::getRotateEuler(const ztVec3& euler) const
 
 ztMat4 ztMat4::getRotateEuler(r32 x, r32 y, r32 z) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getRotateEuler");
+
 	ztMat4 copy(*this);
 	copy.rotateEuler(x, y, z);
 	return copy;
@@ -4535,6 +4696,8 @@ ztMat4 ztMat4::getRotateEuler(r32 x, r32 y, r32 z) const
 
 void ztMat4::multiply(const ztMat4& m2)
 {
+	ZT_PROFILE_TOOLS("ztMat4::multiply");
+
 	ztMat4 m1(*this);
 
 	values[ztMat4_Col0Row0] = (m1.values[ztMat4_Col0Row0] * m2.values[ztMat4_Col0Row0]) + (m1.values[ztMat4_Col1Row0] * m2.values[ztMat4_Col0Row1]) + (m1.values[ztMat4_Col2Row0] * m2.values[ztMat4_Col0Row2]) + (m1.values[ztMat4_Col3Row0] * m2.values[ztMat4_Col0Row3]);
@@ -4562,6 +4725,8 @@ void ztMat4::multiply(const ztMat4& m2)
 
 ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getMultiply");
+
 	ztMat4 copy(*this);
 	copy.multiply(mat);
 	return copy;
@@ -4571,6 +4736,8 @@ ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
 
 ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getMultiply");
+
 	return ztVec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
 	              (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
 	              (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
@@ -4580,6 +4747,8 @@ ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 
 void ztMat4::transpose()
 {
+	ZT_PROFILE_TOOLS("ztMat4::transpose");
+
 	ztMat4 m(*this);
 	values[0] = m.values[ 0]; values[4] = m.values[ 1]; values[ 8] = m.values[ 2]; values[12] = m.values[ 3];
 	values[1] = m.values[ 4]; values[5] = m.values[ 5]; values[ 9] = m.values[ 6]; values[13] = m.values[ 7];
@@ -4591,6 +4760,8 @@ void ztMat4::transpose()
 
 ztMat4 ztMat4::getTranspose() const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getTranspose");
+
 	ztMat4 copy(*this);
 	copy.transpose();
 	return copy;
@@ -4600,6 +4771,8 @@ ztMat4 ztMat4::getTranspose() const
 
 void ztMat4::inverse()
 {
+	ZT_PROFILE_TOOLS("ztMat4::inverse");
+
 	ztMat4 m(*this);
 
 	values[ztMat4_Col0Row0] = ( m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3]) - (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2]) - (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3]) + (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2]) + (m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3]) - (m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2]);
@@ -4641,6 +4814,8 @@ void ztMat4::inverse()
 
 ztMat4 ztMat4::getInverse() const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getInverse");
+
 	ztMat4 copy(*this);
 	copy.inverse();
 	return copy;
@@ -4650,6 +4825,8 @@ ztMat4 ztMat4::getInverse() const
 
 void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 {
+	ZT_PROFILE_TOOLS("ztMat4::lookAt");
+
 	ztVec3 d = target_pos - eye_pos;
 	ztVec3 f = d.getNormal();
 	ztVec3 s = f.cross(up_vec).getNormal();
@@ -4674,6 +4851,8 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 
 ztMat4 ztMat4::getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::getLookAt");
+
 	ztMat4 copy(*this);
 	copy.lookAt(eye_pos, target_pos, up_vec);
 	return copy;
@@ -4683,6 +4862,8 @@ ztMat4 ztMat4::getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec) const
 
 void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const // does not work well with scaled matrices
 {
+	ZT_PROFILE_TOOLS("ztMat4::extract");
+
 	ztMat4 m(*this);
 
 	if (position) {
@@ -4723,6 +4904,8 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const //
 
 void ztMat4::extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const
 {
+	ZT_PROFILE_TOOLS("ztMat4::extract");
+
 	if (position) {
 		position->x = values[ztMat4_Col3Row0];
 		position->y = values[ztMat4_Col3Row1];
@@ -4744,6 +4927,8 @@ void ztMat4::extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const
 
 void ztMat4::removeTranslation()
 {
+	ZT_PROFILE_TOOLS("ztMat4::removeTranslation");
+
 	values[ztMat4_Col3Row0] = values[ztMat4_Col3Row1] = values[ztMat4_Col3Row2] = 0;
 	//values[ztMat4_Col0Row3] = values[ztMat4_Col1Row3] = values[ztMat4_Col2Row3] = 0;
 }
@@ -4752,6 +4937,8 @@ void ztMat4::removeTranslation()
 
 ztMat4 ztMat4::getRemoveTranslation()
 {
+	ZT_PROFILE_TOOLS("ztMat4::::getRemoveTranslation");
+
 	ztMat4 copy(*this);
 	copy.removeTranslation();
 	return copy;
@@ -4761,6 +4948,8 @@ ztMat4 ztMat4::getRemoveTranslation()
 
 ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 {
+	ZT_PROFILE_TOOLS("ztMat4::operator*=");
+
 	multiply(mat4);
 	return *this;
 }
@@ -4769,6 +4958,8 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 /*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
 {
+	ZT_PROFILE_TOOLS("ztMat4::makeOrthoProjection");
+
 	r32 m[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	m[ztMat4_Row0Col0] =  2.f / (right - left);
 	m[ztMat4_Row1Col1] =  2.f / (top - bottom);
@@ -4783,6 +4974,8 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 /*static*/ ztMat4 ztMat4::makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z)
 {
+	ZT_PROFILE_TOOLS("ztMat4::makePerspectiveProjection");
+
 	const r32 k = 1.0f / tanf(angle_of_view / 2.0f);
 	const r32 c = (near_z + far_z) / (far_z - near_z);
 
@@ -4800,6 +4993,8 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 void ztMat4::cleanup(int digits)
 {
+	ZT_PROFILE_TOOLS("ztMat4::cleanup");
+
 	r32 pow = zt_pow(10.f, (r32)digits);
 	zt_fize(values) {
 		values[i] = (zt_convertToi32Ceil(values[i] * pow)) / pow;
@@ -4812,6 +5007,8 @@ void ztMat4::cleanup(int digits)
 
 /*static*/ ztInline ztQuat ztQuat::makeFromAxisAngle(r32 axis_x, r32 axis_y, r32 axis_z, r32 angle)
 {
+	ZT_PROFILE_TOOLS("ztQuat::makeFromAxisAngle");
+
 	r32 angle_rad = zt_degreesToRadians(angle);
 	ztQuat quat(axis_x, axis_y, axis_z, 0);
 	quat.xyz.normalize();
@@ -4830,6 +5027,8 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 // ------------------------------------------------------------------------------------------------
 /*static*/ztInline  ztQuat ztQuat::makeFromEuler(r32 x, r32 y, r32 z)
 {
+	ZT_PROFILE_TOOLS("ztQuat::makeFromEuler");
+
 	x = zt_degreesToRadians(x) * .5f;
 	y = zt_degreesToRadians(y) * .5f;
 	z = zt_degreesToRadians(z) * .5f;
@@ -4853,6 +5052,8 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 
 /*static*/ ztQuat ztQuat::makeFromMat4(const ztMat4& mat)
 {
+	ZT_PROFILE_TOOLS("ztQuat::makeFromMat4");
+
 	r32 four_x_squared_minus_1 = mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col2Row2];
 	r32 four_y_squared_minus_1 = mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col2Row2];
 	r32 four_z_squared_minus_1 = mat.values[ztMat4_Col2Row2] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1];
@@ -4883,6 +5084,8 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 
 /*static*/ ztQuat ztQuat::makeFromDirection(const ztVec3& dir, const ztVec3& up)
 {
+	ZT_PROFILE_TOOLS("ztQuat::makeFromDirection");
+
 	ztMat4 mat = ztMat4::identity;
 	mat.lookAt(ztVec3::zero, dir, up);
 
@@ -4893,6 +5096,8 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 
 /*static*/ ztQuat ztQuat::makeFromPoints(const ztVec3& p1, const ztVec3 p2)
 {
+	ZT_PROFILE_TOOLS("ztQuat::makeFromPoints");
+
 	ztQuat quat;
 	quat.xyz = p1.cross(p2);
 	quat.w = zt_sqrt(zt_pow(p1.length(), 2) * zt_pow(p2.length(), 2)) + p1.dot(p2);
@@ -4906,6 +5111,8 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 
 bool zt_strEquals(const char *s1, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_strEquals");
+
 	return zt_strCmp(s1, s2) == 0;
 }
 
@@ -4913,6 +5120,8 @@ bool zt_strEquals(const char *s1, const char *s2)
 
 bool zt_strEquals(const char *s1, int s1_len, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_strEquals");
+
 	return zt_strCmp(s1, s1_len, s2, zt_strLen(s2)) == 0;
 }
 
@@ -4920,6 +5129,8 @@ bool zt_strEquals(const char *s1, int s1_len, const char *s2)
 
 bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 {
+	ZT_PROFILE_TOOLS("zt_strEquals");
+
 	return zt_strCmp(s1, s1_len, s2, s2_len) == 0;
 }
 
@@ -4927,6 +5138,8 @@ bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 
 bool zt_striEquals(const char *s1, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_striEquals");
+
 	return zt_striCmp(s1, s2) == 0;
 }
 
@@ -4934,6 +5147,8 @@ bool zt_striEquals(const char *s1, const char *s2)
 
 bool zt_striEquals(const char *s1, int s1_len, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_striEquals");
+
 	return zt_striCmp(s1, s1_len, s2, zt_strLen(s2)) == 0;
 }
 
@@ -4941,6 +5156,8 @@ bool zt_striEquals(const char *s1, int s1_len, const char *s2)
 
 bool zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 {
+	ZT_PROFILE_TOOLS("zt_striEquals");
+
 	return zt_striCmp(s1, s1_len, s2, s2_len) == 0;
 }
 
@@ -4948,6 +5165,8 @@ bool zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 
 bool zt_strValid(const char *s, const char **invalid_ch)
 {
+	ZT_PROFILE_TOOLS("zt_strValid");
+
 	while ('\0' != *s) {
 		if (0xf0 == (0xf8 & *s)) {
 			// ensure each of the 3 following bytes in this 4-byte
@@ -5043,6 +5262,8 @@ bool zt_strValid(const char *s, const char **invalid_ch)
 
 int zt_strLen(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strLen");
+
 	if (!s) return 0;
 
 	int len = 0;
@@ -5060,6 +5281,8 @@ int zt_strLen(const char *s)
 
 int zt_strSize(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strSize");
+
 	if (!s) return 0;
 
 	int size = 0;
@@ -5076,6 +5299,8 @@ int zt_strSize(const char *s)
 
 int zt_strCmp(const char *s1, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_strCmp");
+
 	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
 		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
 		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
@@ -5092,6 +5317,8 @@ int zt_strCmp(const char *s1, const char *s2)
 
 int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 {
+	ZT_PROFILE_TOOLS("zt_strCmp");
+
 	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
 		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
 		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
@@ -5111,6 +5338,8 @@ int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 
 int zt_striCmp(const char *s1, const char *s2)
 {
+	ZT_PROFILE_TOOLS("zt_striCmp");
+
 	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
 		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
 		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
@@ -5136,6 +5365,8 @@ int zt_striCmp(const char *s1, const char *s2)
 
 int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 {
+	ZT_PROFILE_TOOLS("zt_striCmp");
+
 	if (_zt_strCmpIsEmpty(s1) || _zt_strCmpIsEmpty(s2)) {
 		if (_zt_strCmpIsEmpty(s1) && !_zt_strCmpIsEmpty(s2)) return -1;
 		if (!_zt_strCmpIsEmpty(s1) && _zt_strCmpIsEmpty(s2)) return 1;
@@ -5165,6 +5396,8 @@ int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 
 const char *zt_strMoveForward(const char *s, int characters)
 {
+	ZT_PROFILE_TOOLS("zt_strMoveForward");
+
 	if (!s || characters < 0) return nullptr;
 
 	while (*s && characters-- > 0) {
@@ -5187,6 +5420,8 @@ int zt_strCpy(char *scopy, int scopy_len, const char *sfrom)
 
 int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
 {
+	ZT_PROFILE_TOOLS("zt_strCpy");
+
 	if (!scopy || scopy_len <= 0) {
 		return 0;
 	}
@@ -5205,41 +5440,72 @@ int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strCat(char *scopy, int scopy_len, const char *sfrom)
+int zt_strCat(char *scat, int scat_len, const char *scopy)
 {
-	return zt_strCat(scopy, scopy_len, sfrom, zt_strLen(sfrom));
+	return zt_strCat(scat, scat_len, scopy, zt_strLen(scopy));
 }
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_strCat(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
+int zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len)
 {
-	if (!scopy || scopy_len <= 0) {
+	ZT_PROFILE_TOOLS("zt_strCat");
+
+	if (!scat || scat_len <= 0) {
 		return 0;
 	}
-	if (!sfrom || sfrom_len <= 0) {
-		scopy[0] = 0;
+	if (!scopy || scopy_len <= 0) {
+		scat[0] = 0;
 		return 0;
 	}
 
 	int start = 0;
-	while (*scopy) {
+	while (*scat) {
 		start += 1;
-		scopy++;
+		scat++;
 	}
 
-	int max_idx = zt_min((scopy_len - start) - 1, sfrom_len);
+	int max_idx = zt_min((scat_len - start) - 1, scopy_len);
 	zt_fiz(max_idx) {
-		scopy[i] = sfrom[i];
+		scat[i] = scopy[i];
 	}
-	scopy[max_idx] = 0;
+	scat[max_idx] = 0;
 	return max_idx + start;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_strCatf(char *scat, int scat_len, const char *format, ...)
+{
+	ZT_PROFILE_TOOLS("zt_strCatf");
+
+	if (!scat || scat_len <= 0) {
+		return 0;
+	}
+
+	int start = 0;
+	while (*scat) {
+		start += 1;
+		scat++;
+	}
+
+	int max_idx = (scat_len - start) - 1;
+
+#	if defined(ZT_WINDOWS)
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
+	return vsnprintf_s(scat, max_idx, max_idx, format, arg_ptr);
+#	else
+#	error "zt_strCatf needs an implementation for this platform"
+#	endif
 }
 
 // ------------------------------------------------------------------------------------------------
 
 bool zt_strIsInt(char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strIsInt");
+
 	bool success = false;
 	zt_strToInt(s, 0, &success);
 	return success;
@@ -5249,6 +5515,8 @@ bool zt_strIsInt(char *s)
 
 bool zt_strIsInt(char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strIsInt");
+
 	bool success = false;
 	zt_strToInt(s, s_len, 0, &success);
 	return success;
@@ -5258,6 +5526,8 @@ bool zt_strIsInt(char *s, int s_len)
 
 bool zt_strIsIntHex(char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strIsIntHex");
+
 	bool success = false;
 	zt_strToIntHex(s, 0, &success);
 	return success;
@@ -5267,6 +5537,8 @@ bool zt_strIsIntHex(char *s)
 
 bool zt_strIsIntHex(char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strIsIntHex");
+
 	bool success = false;
 	zt_strToIntHex(s, s_len, 0, &success);
 	return success;
@@ -5276,6 +5548,8 @@ bool zt_strIsIntHex(char *s, int s_len)
 
 bool zt_strIsReal32(char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strIsReal32");
+
 	bool success = false;
 	zt_strToReal32(s, 0, &success);
 	return success;
@@ -5285,6 +5559,8 @@ bool zt_strIsReal32(char *s)
 
 bool zt_strIsReal32(char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strIsReal32");
+
 	bool success = false;
 	zt_strToReal32(s, s_len, 0, &success);
 	return success;
@@ -5294,6 +5570,8 @@ bool zt_strIsReal32(char *s, int s_len)
 
 bool zt_strIsReal64(char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strIsReal64");
+
 	bool success = false;
 	zt_strToReal64(s, 0, &success);
 	return success;
@@ -5303,6 +5581,8 @@ bool zt_strIsReal64(char *s)
 
 bool zt_strIsReal64(char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strIsReal64");
+
 	bool success = false;
 	zt_strToReal64(s, s_len, 0, &success);
 	return success;
@@ -5336,6 +5616,8 @@ i32 zt_strToInt(const char *s, i32 def, bool* success)
 
 i32 zt_strToInt(const char *s, int s_len, i32 def, bool* success)
 {
+	ZT_PROFILE_TOOLS("zt_strToInt");
+
 	_zt_str_to_prepare_and_check;
 
 	zt_fiz(s_len) {
@@ -5366,6 +5648,8 @@ u32 zt_strToUint(const char *s, u32 def, bool* success)
 
 u32 zt_strToUint(const char *s, int s_len, u32 def, bool* success)
 {
+	ZT_PROFILE_TOOLS("zt_strToUint");
+
 	_zt_str_to_prepare_and_check;
 
 	zt_fiz(s_len) {
@@ -5394,6 +5678,8 @@ u32 zt_strToIntHex(const char *s, u32 def, bool* success)
 
 u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool* success)
 {
+	ZT_PROFILE_TOOLS("zt_strToIntHex");
+
 	_zt_str_to_prepare_and_check;
 
 	zt_fiz(s_len) {
@@ -5427,6 +5713,8 @@ i64 zt_strToInt64(const char *s, i64 def, bool *success)
 
 i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success)
 {
+	ZT_PROFILE_TOOLS("zt_strToInt64");
+
 	_zt_str_to_prepare_and_check;
 
 	zt_fiz(s_len) {
@@ -5461,6 +5749,8 @@ u64 zt_strToUint64(const char *s, u64 def, bool *success)
 
 u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success)
 {
+	ZT_PROFILE_TOOLS("zt_strToUint64");
+
 	_zt_str_to_prepare_and_check;
 
 	zt_fiz(s_len) {
@@ -5493,6 +5783,8 @@ r32 zt_strToReal32(const char *s, r32 def, bool* success)
 
 r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success)
 {
+	ZT_PROFILE_TOOLS("zt_strToReal32");
+
 	_zt_str_to_prepare_and_check;
 
 	char *end = nullptr;
@@ -5519,6 +5811,8 @@ r64 zt_strToReal64(const char *s, r64 def, bool* success)
 
 r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 {
+	ZT_PROFILE_TOOLS("zt_strToReal64");
+
 	_zt_str_to_prepare_and_check;
 
 	char *end = nullptr;
@@ -5540,6 +5834,12 @@ r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 
 u32 zt_strHash(const char *s)
 {
+	//ZT_PROFILE_TOOLS("zt_strHash"); this is called in the profiling code
+
+	if(s == nullptr) {
+		return 0;
+	}
+
 	// MurmurHash2, by Austin Appleby
 	// Note - This code makes a few assumptions about how your machine behaves -
 	// 1. We can read a 4-byte value from any address without crashing
@@ -5554,7 +5854,16 @@ u32 zt_strHash(const char *s)
 	const u32 m = 0x5bd1e995;
 	const int r = 24;
 
-	u32 s_len = s == nullptr ? 0 : zt_strLen(s);
+	u32 s_len = 0;
+	const char *sc = s;
+	while (*sc) {
+		if (0xf0 == (0xf8 & *sc)) { sc += 4; } // 4-byte utf8 code point (began with 0b11110xxx)
+		else if (0xe0 == (0xf0 & *sc)) { sc += 3; } // 3-byte utf8 code point (began with 0b1110xxxx)
+		else if (0xc0 == (0xe0 & *sc)) { sc += 2; } // 2-byte utf8 code point (began with 0b110xxxxx)
+		else { sc += 1; } // if (0x00 == (0x80 & *s)) { // 1-byte ascii (began with 0b0xxxxxxx)
+		++s_len;
+	}
+
 	u32 seed = s_len + 1;
 
 	// Initialize the hash to a 'random' value
@@ -5603,6 +5912,8 @@ u32 zt_strHash(const char *s)
 
 const char *zt_strFind(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strFind");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_strFind(haystack, haystack_len, needle);
 }
@@ -5611,6 +5922,8 @@ const char *zt_strFind(const char *haystack, const char *needle)
 
 const char *zt_strFind(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strFind");
+
 	if (haystack_len == 0 || !haystack || !needle) return nullptr;
 
 	while (*haystack && haystack_len-- >= -1) {
@@ -5643,6 +5956,8 @@ const char *zt_strFind(const char *haystack, int haystack_len, const char *needl
 
 int zt_strFindPos(const char *haystack, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_strFindPos");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_strFindPos(haystack, haystack_len, needle, start_pos);
 }
@@ -5651,6 +5966,8 @@ int zt_strFindPos(const char *haystack, const char *needle, int start_pos)
 
 int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_strFindPos");
+
 	if (haystack_len == 0 || !haystack || !needle || start_pos < 0) return -1;
 
 	const char *haystack_orig = haystack;
@@ -5687,6 +6004,8 @@ int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, in
 
 const char *zt_strFindLast(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strFindLast");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_strFindLast(haystack, haystack_len, needle);
 }
@@ -5695,6 +6014,8 @@ const char *zt_strFindLast(const char *haystack, const char *needle)
 
 const char *zt_strFindLast(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strFindLast");
+
 	if (haystack_len == 0 || !haystack || !needle) return nullptr;
 
 	const char *found = zt_strFind(haystack, haystack_len, needle);
@@ -5715,6 +6036,8 @@ const char *zt_strFindLast(const char *haystack, int haystack_len, const char *n
 
 int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_strFindLastPos");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_strFindLastPos(haystack, haystack_len, needle, start_pos);
 }
@@ -5723,6 +6046,8 @@ int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos)
 
 int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_strFindLastPos");
+
 	if (haystack_len == 0 || !haystack || !needle) return -1;
 
 	if (start_pos < 0) {
@@ -5755,6 +6080,8 @@ int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle
 
 const char *zt_striFind(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striFind");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_striFind(haystack, haystack_len, needle);
 }
@@ -5763,6 +6090,8 @@ const char *zt_striFind(const char *haystack, const char *needle)
 
 const char *zt_striFind(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striFind");
+
 	if (haystack_len == 0 || !haystack || !needle) return nullptr;
 
 	while (*haystack && haystack_len-- >= -1) {
@@ -5795,6 +6124,8 @@ const char *zt_striFind(const char *haystack, int haystack_len, const char *need
 
 int zt_striFindPos(const char *haystack, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_striFindPos");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_striFindPos(haystack, haystack_len, needle, start_pos);
 }
@@ -5803,6 +6134,8 @@ int zt_striFindPos(const char *haystack, const char *needle, int start_pos)
 
 int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_striFindPos");
+
 	if (haystack_len == 0 || !haystack || !needle || start_pos < 0) return -1;
 
 	const char *haystack_orig = haystack;
@@ -5839,6 +6172,8 @@ int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, i
 
 const char *zt_striFindLast(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striFindLast");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_striFindLast(haystack, haystack_len, needle);
 }
@@ -5847,6 +6182,8 @@ const char *zt_striFindLast(const char *haystack, const char *needle)
 
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striFindLast");
+
 	if (haystack_len == 0 || !haystack || !needle) return nullptr;
 
 	const char *found = zt_striFind(haystack, haystack_len, needle);
@@ -5867,6 +6204,8 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 
 int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_striFindLastPos");
+
 	int haystack_len = zt_strLen(haystack);
 	return zt_striFindLastPos(haystack, haystack_len, needle, start_pos);
 }
@@ -5875,6 +6214,8 @@ int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos)
 
 int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
+	ZT_PROFILE_TOOLS("zt_striFindLastPos");
+
 	if (haystack_len == 0 || !haystack || !needle) return -1;
 
 	if (start_pos < 0) {
@@ -5905,6 +6246,8 @@ int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needl
 
 const char *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count)
 {
+	ZT_PROFILE_TOOLS("zt_strFindFirstOf");
+
 	return zt_strFindFirstOf(haystack, zt_strLen(haystack), needles, needles_count);
 }
 
@@ -5912,6 +6255,8 @@ const char *zt_strFindFirstOf(const char *haystack, const char **needles, int ne
 
 const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count)
 {
+	ZT_PROFILE_TOOLS("zt_strFindFirstOf");
+
 	const char *result = nullptr;
 	zt_fiz(needles_count) {
 		const char *found = zt_strFind(haystack, haystack_len, needles[i]);
@@ -5927,6 +6272,8 @@ const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char
 
 int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count)
 {
+	ZT_PROFILE_TOOLS("zt_strFindFirstOfPos");
+
 	return zt_strFindFirstOfPos(haystack, zt_strLen(haystack), needles, needles_count);
 }
 
@@ -5934,6 +6281,8 @@ int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles
 
 int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count)
 {
+	ZT_PROFILE_TOOLS("zt_strFindFirstOfPos");
+
 	int result = ztStrPosNotFound;
 	zt_fiz(needles_count) {
 		int found = zt_strFindPos(haystack, haystack_len, needles[i], 0);
@@ -5950,6 +6299,8 @@ int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **ne
 
 int zt_strCount(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strCount");
+
 	return zt_strCount(haystack, zt_strLen(haystack), needle);
 }
 
@@ -5957,6 +6308,8 @@ int zt_strCount(const char *haystack, const char *needle)
 
 int zt_strCount(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_strCount");
+
 	int count = 0;
 	int pos = zt_strFindPos(haystack, haystack_len, needle, 0);
 	while(pos != ztStrPosNotFound) {
@@ -5971,6 +6324,8 @@ int zt_strCount(const char *haystack, int haystack_len, const char *needle)
 
 int zt_striCount(const char *haystack, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striCount");
+
 	return zt_striCount(haystack, zt_strLen(haystack), needle);
 }
 
@@ -5978,6 +6333,8 @@ int zt_striCount(const char *haystack, const char *needle)
 
 int zt_striCount(const char *haystack, int haystack_len, const char *needle)
 {
+	ZT_PROFILE_TOOLS("zt_striCount");
+
 	int count = 0;
 	int pos = zt_striFindPos(haystack, haystack_len, needle, 0);
 	while(pos != ztStrPosNotFound) {
@@ -5992,6 +6349,8 @@ int zt_striCount(const char *haystack, int haystack_len, const char *needle)
 
 bool zt_strStartsWith(const char *s, const char *starts_with)
 {
+	ZT_PROFILE_TOOLS("zt_strStartsWith");
+
 	return zt_strStartsWith(s, zt_strLen(s), starts_with, zt_strLen(starts_with));
 }
 
@@ -5999,6 +6358,8 @@ bool zt_strStartsWith(const char *s, const char *starts_with)
 
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
+	ZT_PROFILE_TOOLS("zt_strStartsWith");
+
 	if (!s || !starts_with || s_len <= 0 || sw_len <= 0 || s_len < sw_len) return false;
 
 	zt_fiz(sw_len) {
@@ -6013,6 +6374,8 @@ bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_
 
 bool zt_strEndsWith(const char *s, const char *ends_with)
 {
+	ZT_PROFILE_TOOLS("zt_strEndsWith");
+
 	return zt_strEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
 }
 
@@ -6020,6 +6383,8 @@ bool zt_strEndsWith(const char *s, const char *ends_with)
 
 bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 {
+	ZT_PROFILE_TOOLS("zt_strEndsWith");
+
 	if (!s || !ends_with || s_len <= 0 || ew_len <= 0 || s_len < ew_len) return false;
 
 	for (int i = s_len - ew_len, e = 0; i < s_len; ++i, ++e) {
@@ -6034,6 +6399,8 @@ bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 
 bool zt_striStartsWith(const char *s, const char *starts_with)
 {
+	ZT_PROFILE_TOOLS("zt_striStartsWith");
+
 	return zt_striStartsWith(s, zt_strLen(s), starts_with, zt_strLen(starts_with));
 }
 
@@ -6041,6 +6408,8 @@ bool zt_striStartsWith(const char *s, const char *starts_with)
 
 bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
+	ZT_PROFILE_TOOLS("zt_striStartsWith");
+
 	if (!s || !starts_with || s_len <= 0 || sw_len <= 0 || s_len < sw_len) return false;
 
 	zt_fiz(sw_len) {
@@ -6055,6 +6424,8 @@ bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw
 
 bool zt_striEndsWith(const char *s, const char *ends_with)
 {
+	ZT_PROFILE_TOOLS("zt_striEndsWith");
+
 	return zt_striEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
 }
 
@@ -6062,6 +6433,8 @@ bool zt_striEndsWith(const char *s, const char *ends_with)
 
 bool zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 {
+	ZT_PROFILE_TOOLS("zt_striEndsWith");
+
 	if (!s || !ends_with || s_len <= 0 || ew_len <= 0 || s_len < ew_len) return false;
 
 	for (int i = s_len - ew_len, e = 0; i < s_len; ++i, ++e) {
@@ -6076,6 +6449,8 @@ bool zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len
 
 const char *zt_strJumpToNextToken(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strJumpToNextToken");
+
 	return zt_strJumpToNextToken(s, zt_strLen(s));
 }
 
@@ -6083,6 +6458,8 @@ const char *zt_strJumpToNextToken(const char *s)
 
 const char *zt_strJumpToNextToken(const char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strJumpToNextToken");
+
 	if (!s || s_len <= 0) return nullptr;
 
 	for (int i = 1; i < s_len; ++i) {
@@ -6099,6 +6476,8 @@ const char *zt_strJumpToNextToken(const char *s, int s_len)
 
 int zt_strGetNextTokenPos(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strGetNextTokenPos");
+
 	return zt_strGetNextTokenPos(s, zt_strLen(s));
 }
 
@@ -6106,6 +6485,8 @@ int zt_strGetNextTokenPos(const char *s)
 
 int zt_strGetNextTokenPos(const char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strGetNextTokenPos");
+
 	if (!s || s_len <= 0) return ztStrPosNotFound;
 
 	for (int i = 1; i < s_len; ++i) {
@@ -6122,6 +6503,8 @@ int zt_strGetNextTokenPos(const char *s, int s_len)
 
 const char *zt_strJumpToNextLine(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strJumpToNextLine");
+
 	return zt_strJumpToNextLine(s, zt_strLen(s));
 }
 
@@ -6129,6 +6512,8 @@ const char *zt_strJumpToNextLine(const char *s)
 
 const char *zt_strJumpToNextLine(const char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strJumpToNextLine");
+
 	if (!s || s_len <= 0) return nullptr;
 
 	for (int i = 1; i < s_len; ++i) {
@@ -6145,6 +6530,8 @@ const char *zt_strJumpToNextLine(const char *s, int s_len)
 
 int zt_strGetNextLinePos(const char *s)
 {
+	ZT_PROFILE_TOOLS("zt_strGetNextLinePos");
+
 	return zt_strGetNextLinePos(s, zt_strLen(s));
 }
 
@@ -6152,6 +6539,8 @@ int zt_strGetNextLinePos(const char *s)
 
 int zt_strGetNextLinePos(const char *s, int s_len)
 {
+	ZT_PROFILE_TOOLS("zt_strGetNextLinePos");
+
 	if (!s || s_len <= 0) return ztStrPosNotFound;
 
 	for (int i = 1; i < s_len; ++i) {
@@ -6168,6 +6557,8 @@ int zt_strGetNextLinePos(const char *s, int s_len)
 
 int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset, int end_offset)
 {
+	ZT_PROFILE_TOOLS("zt_strGetBetween");
+
 	return zt_strGetBetween(buffer, buffer_len, s, zt_strLen(s), beg, end, beg_offset, end_offset);
 }
 
@@ -6175,6 +6566,8 @@ int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *be
 
 int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset, int end_offset)
 {
+	ZT_PROFILE_TOOLS("zt_strGetBetween");
+
 	if (buffer_len == 0 || !s || s_len <= 0) {
 		return 0;
 	}
@@ -6206,6 +6599,8 @@ int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, con
 
 int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int results_count, int32 flags)
 {
+	ZT_PROFILE_TOOLS("zt_strTokenize");
+
 	return zt_strTokenize(s, zt_strLen(s), tokens, results, results_count, flags);
 }
 
@@ -6213,6 +6608,8 @@ int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int resu
 
 int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* results, int results_count, int32 flags)
 {
+	ZT_PROFILE_TOOLS("zt_strTokenize");
+
 	if (!s || s_len == 0) return 0;
 
 	int t_len = zt_strLen(tokens);
@@ -6345,6 +6742,8 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 
 int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 {
+	ZT_PROFILE_TOOLS("zt_strPrintf");
+
 #if defined(ZT_WINDOWS)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
@@ -6358,6 +6757,8 @@ int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 
 int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes)
 {
+	ZT_PROFILE_TOOLS("zt_strBytesToString");
+
 	if (bytes < 1024) {
 		return zt_strPrintf(buffer, buffer_size, "%d b", bytes);
 	}
@@ -6375,6 +6776,8 @@ int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes)
 
 int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 {
+	ZT_PROFILE_TOOLS("zt_strNumberToString");
+
 	if (buffer_size < 64) return 0;
 
 	char* buffer_pos = buffer;
@@ -6428,6 +6831,8 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 
 int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_strConvertToUTF16");
+
 #if defined(ZT_WINDOWS)
 	if (!s || s_len < 0 || !buffer || buffer_size <= 0)
 		return 0;
@@ -6447,8 +6852,10 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 
 ztString zt_stringMake(int size, ztMemoryArena *arena)
 {
-	if (size < 60) {
-		size = 60;
+	ZT_PROFILE_TOOLS("zt_stringMake");
+
+	if (size < 16) {
+		size = 16;
 	}
 
 	size += zt_sizeof(i32);
@@ -6466,6 +6873,8 @@ ztString zt_stringMake(int size, ztMemoryArena *arena)
 
 ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_stringMakeFrom");
+
 	int size = zt_strSize(str);
 	if (size == 0) {
 		return nullptr;
@@ -6480,6 +6889,8 @@ ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
 
 ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_stringMakeFrom");
+
 	int size = s_len;
 	if (size == 0) {
 		return nullptr;
@@ -6495,6 +6906,8 @@ ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena)
 
 ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_stringOverwrite");
+
 	int size = zt_strSize(str);
 	if (size == 0) {
 		return nullptr;
@@ -6509,6 +6922,8 @@ ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *are
 
 ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_stringResize");
+
 	if (string == nullptr) {
 		return zt_stringMake(nsize, arena);
 	}
@@ -6526,6 +6941,8 @@ ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
 
 void zt_stringFree(ztString string, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_stringFree");
+
 	if (string) {
 		void *data = (string - zt_sizeof(i32));
 		zt_freeArena(data, arena);
@@ -6536,6 +6953,8 @@ void zt_stringFree(ztString string, ztMemoryArena *arena)
 
 int zt_stringSize(ztString string)
 {
+	ZT_PROFILE_TOOLS("zt_stringSize");
+
 	if (string == nullptr) {
 		return 0;
 	}
@@ -6547,8 +6966,210 @@ int zt_stringSize(ztString string)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+ztStringPool zt_stringPoolMake(int total_strings, int *sizes, int *proportions, int sizes_count, ztMemoryArena *arena)
+{
+	ZT_PROFILE_TOOLS("zt_stringPoolMake");
+	zt_assert(sizes != nullptr && proportions != nullptr);
+	zt_assert(total_strings > 0 && sizes_count > 0);
+
+	ztStringPool pool = {};
+	pool.arena   = arena ? arena : zt_memGetGlobalArena();
+	pool.size    = total_strings;
+	pool.strings = zt_mallocStructArrayArena(ztString, total_strings, pool.arena);
+	pool.used    = zt_mallocStructArrayArena(bool, total_strings, pool.arena);
+
+	r32 total_prop = 0;
+	zt_fiz(sizes_count) {
+		total_prop += (r32)proportions[i];
+	}
+
+	int idx = 0;
+	zt_fiz(sizes_count) {
+		int count_this_entry = zt_convertToi32Floor((proportions[i] / total_prop) * total_strings);
+		if (i == sizes_count - 1) {
+			count_this_entry = total_strings - idx;
+		}
+
+		zt_fjz(count_this_entry) {
+			pool.strings[idx] = zt_stringMake(sizes[i], pool.arena);
+			pool.used   [idx] = false;
+			idx += 1;
+		}
+	}
+
+	return pool;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_stringPoolFree(ztStringPool *pool)
+{
+	ZT_PROFILE_TOOLS("zt_stringPoolFree");
+	zt_returnOnNull(pool);
+
+	zt_fiz(pool->size) {
+		zt_stringFree(pool->strings[i], pool->arena);
+	}
+
+	zt_freeArena(pool->used, pool->arena);
+	zt_freeArena(pool->strings, pool->arena);
+
+	pool->used    = nullptr;
+	pool->strings = nullptr;
+	pool->size    = 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+i32 zt_stringPoolBytesNeeded(int total_strings, int *sizes, int *proportions, int sizes_count)
+{
+	r32 total_prop = 0;
+	zt_fiz(sizes_count) {
+		total_prop += (r32)proportions[i];
+	}
+
+	i32 bytes_needed = 0;
+
+	int idx = 0;
+	zt_fiz(sizes_count) {
+		int count_this_entry = zt_convertToi32Floor(proportions[i] / total_prop);
+		if (i == sizes_count - 1) {
+			count_this_entry = total_strings - idx;
+		}
+
+		zt_fjz(count_this_entry) {
+			bytes_needed += zt_max(16, sizes[i]) + zt_sizeof(i32);
+			idx += 1;
+		}
+	}
+
+	i32 buffer_per_alloc = 16;
+
+	bytes_needed += total_strings * (zt_sizeof(ztMemoryArena::allocation) + zt_sizeof(ztPointerSize) + buffer_per_alloc);
+
+	return bytes_needed;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMake(ztStringPool *pool, int size)
+{
+	ZT_PROFILE_TOOLS("zt_stringMakeFromPool");
+	zt_returnValOnNull(pool, zt_stringMake(size));
+
+	zt_fiz(pool->size) {
+		if (!pool->used[i] && zt_stringSize(pool->strings[i]) >= size) {
+			pool->used[i] = true;
+			return pool->strings[i];
+		}
+	}
+
+	if ((pool->arena->total_size - pool->arena->current_used) < size + zt_sizeof(ztMemoryArena::allocation) + ztPointerSize + 16) {
+		return zt_stringMake(size);
+	}
+
+	return zt_stringMake(size, pool->arena);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMakeFrom(ztStringPool *pool, const char* str)
+{
+	return zt_stringMakeFrom(pool, str, zt_strLen(str));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringMakeFrom(ztStringPool *pool, const char* str, int s_len)
+{
+	ZT_PROFILE_TOOLS("zt_stringMakeFromFromPool");
+
+	int size = s_len;
+	if (size == 0) {
+		return nullptr;
+	}
+	size += 1;
+
+	ztString result = zt_stringMake(pool, size);
+	if(result) {
+		zt_strCpy(result, size, str);
+	}
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringResize(ztStringPool *pool, ztString string, int size)
+{
+	ZT_PROFILE_TOOLS("zt_stringResizeFromPool");
+	zt_returnValOnNull(pool, zt_stringResize(string, size));
+
+	int str_size = zt_stringSize(string);
+	if (str_size >= size) {
+		return string;
+	}
+
+	zt_fiz(pool->size) {
+		if(pool->strings[i] == string) {
+			pool->used[i] = false;
+			break;
+		}
+	}
+
+	return zt_stringMake(pool, size);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztString zt_stringOverwrite(ztStringPool *pool, ztString string, const char *str)
+{
+	ZT_PROFILE_TOOLS("zt_stringOverwrite");
+	zt_returnValOnNull(pool, zt_stringOverwrite(string, str));
+
+	int size = zt_strSize(str);
+	if (size == 0) {
+		return nullptr;
+	}
+
+	ztString result = zt_stringResize(pool, string, size);
+	zt_strCpy(result, size, str);
+	return result;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_stringFree(ztStringPool *pool, ztString string)
+{
+	ZT_PROFILE_TOOLS("zt_stringFreeFromPool");
+	if (pool == nullptr) {
+		zt_assert(false);
+		zt_stringFree(string);
+		return;
+	}
+
+	zt_fiz(pool->size) {
+		if(pool->strings[i] == string) {
+			pool->used[i] = false;
+			return;
+		}
+	}
+
+	if (zt_memBelongsTo(pool->arena, string)) {
+		zt_stringFree(string, pool->arena);
+	}
+	else {
+		zt_stringFree(string);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_fileOpen");
+
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(file_name, false);
 
@@ -6567,7 +7188,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 	HFILE hfile = OpenFile(file_name, &ofs, style);
 	if (hfile == HFILE_ERROR) {
-		zt_logCritical("zt_fileOpen: unable to open file: %s (error code: %d)", file_name, (i32)ofs.nErrCode);
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)ofs.nErrCode);
 		return false;
 	}
 
@@ -6575,7 +7196,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 	file->full_name = (char *)zt_memAllocFromArena(arena, path_len + 1);
 	if (file->full_name == nullptr) {
-		zt_logCritical("zt_fileOpen: unable to allocate memory for file information (file: %s)", file_name);
+		zt_logCritical("zt_fileOpen: unable to allocate memory for file information (file: '%s')", file_name);
 		CloseHandle((HANDLE)hfile);
 		return false;
 	}
@@ -6600,6 +7221,8 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 void zt_fileClose(ztFile *file)
 {
+	ZT_PROFILE_TOOLS("zt_fileClose");
+
 	zt_returnOnNull(file);
 
 #if defined(ZT_WINDOWS)
@@ -6621,6 +7244,8 @@ void zt_fileClose(ztFile *file)
 
 i32 zt_fileGetReadPos(ztFile *file)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetReadPos");
+
 	zt_returnValOnNull(file, 0);
 
 #if defined(ZT_WINDOWS)
@@ -6632,6 +7257,8 @@ i32 zt_fileGetReadPos(ztFile *file)
 
 bool zt_fileSetReadPos(ztFile *file, i32 pos)
 {
+	ZT_PROFILE_TOOLS("zt_fileSetReadPos");
+
 	zt_returnValOnNull(file, false);
 
 	if (pos > file->size) {
@@ -6679,6 +7306,8 @@ i32 zt_fileGetFileExt(ztFile *file, char *buffer, int buffer_size)
 
 i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetFullPath");
+
 	if (file_name == nullptr) {
 		return 0;
 	}
@@ -6703,6 +7332,8 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 
 i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetFileName");
+
 	if (file_name == nullptr) {
 		return 0;
 	}
@@ -6729,6 +7360,8 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 
 i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetFileExt");
+
 	if (file_name == nullptr) {
 		return 0;
 	}
@@ -6748,6 +7381,8 @@ i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 
 i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetAppBin");
+
 	zt_returnValOnNull(buffer, 0);
 
 #if defined(ZT_WINDOWS)
@@ -6764,6 +7399,8 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 
 i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetAppPath");
+
 	zt_returnValOnNull(buffer, 0);
 
 #if defined(ZT_WINDOWS)
@@ -6786,6 +7423,8 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 
 i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetUserPath");
+
 	zt_returnValOnNull(buffer, 0);
 
 #if defined(ZT_WINDOWS)
@@ -6808,6 +7447,8 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 
 i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetCurrentPath");
+
 	zt_returnValOnNull(buffer, 0);
 
 #if defined(ZT_WINDOWS)
@@ -6819,6 +7460,8 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 
 void zt_fileSetCurrentPath(const char *path)
 {
+	ZT_PROFILE_TOOLS("zt_fileSetCurrentPath");
+
 #if defined(ZT_WINDOWS)
 	SetCurrentDirectoryA(path);
 #endif
@@ -6828,6 +7471,8 @@ void zt_fileSetCurrentPath(const char *path)
 
 i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path)
 {
+	ZT_PROFILE_TOOLS("zt_fileGetFileInOtherFileDirectory");
+
 	int posEnd = zt_max(zt_strFindLastPos(other_file_full_path, "/"), zt_strFindLastPos(other_file_full_path, "\\"));
 	if (posEnd == ztStrPosNotFound) {
 		posEnd = zt_strFindLastPos(other_file_full_path, "/");
@@ -6849,6 +7494,8 @@ i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *fil
 
 i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, const char *cfile)
 {
+	ZT_PROFILE_TOOLS("zt_fileConcatFileToPath");
+
 	char *file = (char*)cfile;
 
 	int dirs_back = 0;
@@ -6883,6 +7530,8 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, con
 
 i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int path_len, const char *cfile, int cfile_len)
 {
+	ZT_PROFILE_TOOLS("zt_fileConcatFileToPath");
+
 	char *file = (char*)cfile;
 
 	int dirs_back = 0;
@@ -6917,6 +7566,8 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int
 
 bool zt_fileExists(const char *file_name)
 {
+	ZT_PROFILE_TOOLS("zt_fileExists");
+
 #if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 
@@ -6933,6 +7584,8 @@ bool zt_fileExists(const char *file_name)
 
 bool zt_fileDelete(const char *file_name)
 {
+	ZT_PROFILE_TOOLS("zt_fileDelete");
+
 #if defined(ZT_WINDOWS)
 	if (DeleteFileA(file_name) == FALSE) {
 		zt_logCritical("zt_fileDelete: unable to delete file '%s' (error: %d)", file_name, GetLastError());
@@ -6947,6 +7600,8 @@ bool zt_fileDelete(const char *file_name)
 
 bool zt_fileCopy(const char *orig_file, const char *new_file)
 {
+	ZT_PROFILE_TOOLS("zt_fileCopy");
+
 #if defined(ZT_WINDOWS)
 	if (CopyFileA(orig_file, new_file, TRUE) == FALSE) {
 		zt_logCritical("zt_fileCopy: unable to copy file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
@@ -6961,6 +7616,8 @@ bool zt_fileCopy(const char *orig_file, const char *new_file)
 
 bool zt_fileRename(const char *orig_file, const char *new_file)
 {
+	ZT_PROFILE_TOOLS("zt_fileRename");
+
 #if defined(ZT_WINDOWS)
 	if (MoveFileA(orig_file, new_file) == FALSE) {
 		zt_logCritical("zt_fileRename: unable to rename file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
@@ -6975,6 +7632,8 @@ bool zt_fileRename(const char *orig_file, const char *new_file)
 
 i32 zt_fileSize(const char *file_name)
 {
+	ZT_PROFILE_TOOLS("zt_fileSize");
+
 #if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
@@ -6995,6 +7654,8 @@ i32 zt_fileSize(const char *file_name)
 
 bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32 *hour, i32 *minute, i32 *second, i32 *ms)
 {
+	ZT_PROFILE_TOOLS("zt_fileModified");
+
 #if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
@@ -7027,6 +7688,8 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 
 bool zt_fileModified(const char *file_name, i64* date_time)
 {
+	ZT_PROFILE_TOOLS("zt_fileModified");
+
 #if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
@@ -7056,6 +7719,8 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 
 i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileRead");
+
 	zt_returnValOnNull(file, 0);
 	zt_returnValOnNull(buffer, 0);
 
@@ -7079,6 +7744,8 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 
 i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_fileWrite");
+
 	zt_returnValOnNull(file, 0);
 	zt_returnValOnNull(buffer, 0);
 
@@ -7104,6 +7771,8 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 
 bool zt_fileWritef(ztFile *file, const char *format, ...)
 {
+	ZT_PROFILE_TOOLS("zt_fileWritef");
+
 #if defined(ZT_WINDOWS)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
@@ -7118,6 +7787,8 @@ bool zt_fileWritef(ztFile *file, const char *format, ...)
 
 void zt_fileFlush(ztFile *file)
 {
+	ZT_PROFILE_TOOLS("zt_fileFlush");
+
 	zt_returnOnNull(file);
 
 #if defined(ZT_WINDOWS)
@@ -7129,6 +7800,8 @@ void zt_fileFlush(ztFile *file)
 
 void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_bom, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_readEntireFile");
+
 	zt_returnValOnNull(file_name, nullptr);
 	zt_returnValOnNull(file_size, nullptr);
 
@@ -7169,6 +7842,8 @@ void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_
 
 i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom)
 {
+	ZT_PROFILE_TOOLS("zt_readEntireFile");
+
 	zt_returnValOnNull(file_name, 0);
 	zt_returnValOnNull(buffer, 0);
 
@@ -7202,6 +7877,8 @@ i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool
 
 i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena)
 {
+	ZT_PROFILE_TOOLS("zt_writeEntireFile");
+
 	zt_returnValOnNull(file_name, 0);
 	zt_returnValOnNull(data, 0);
 
@@ -7224,6 +7901,8 @@ i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemor
 
 bool zt_directoryExists(const char *dir)
 {
+	ZT_PROFILE_TOOLS("zt_directoryExists");
+
 #if defined(ZT_WINDOWS)
 	DWORD attribs = GetFileAttributesA(dir);
 	return (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY));
@@ -7236,6 +7915,8 @@ bool zt_directoryExists(const char *dir)
 
 bool zt_directoryMake(const char *dir)
 {
+	ZT_PROFILE_TOOLS("zt_directoryMake");
+
 #if defined(ZT_WINDOWS)
 	return FALSE != CreateDirectoryA(dir, NULL);
 #else
@@ -7247,6 +7928,8 @@ bool zt_directoryMake(const char *dir)
 
 bool zt_directoryDelete(const char *dir, bool force)
 {
+	ZT_PROFILE_TOOLS("zt_directoryDelete");
+
 #if defined(ZT_WINDOWS)
 	if (RemoveDirectoryA(dir) == TRUE) {
 		return true;
@@ -7294,6 +7977,8 @@ bool zt_directoryDelete(const char *dir, bool force)
 
 i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive)
 {
+	ZT_PROFILE_TOOLS("zt_getDirectorySubs");
+
 #if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
 
@@ -7357,6 +8042,8 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 
 i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive)
 {
+	ZT_PROFILE_TOOLS("zt_getDirectoryFiles");
+
 #if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
 
@@ -7421,6 +8108,8 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 
 bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, bool recursive, i32 flags)
 {
+	ZT_PROFILE_TOOLS("zt_directoryMonitor");
+
 	zt_returnValOnNull(dir_mon, false);
 	zt_returnValOnNull(directory, false);
 
@@ -7472,6 +8161,8 @@ on_error:
 
 void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 {
+	ZT_PROFILE_TOOLS("zt_directoryStopMonitor");
+
 	zt_returnOnNull(dir_mon);
 
 #if defined(ZT_WINDOWS)
@@ -7488,6 +8179,8 @@ void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 
 bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 {
+	ZT_PROFILE_TOOLS("zt_directoryMonitorHasChanged");
+
 	zt_returnValOnNull(dir_mon, false);
 
 #if defined(ZT_WINDOWS)
@@ -7540,6 +8233,8 @@ unsigned int __stdcall _zt_threadProc(LPVOID param)
 
 ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id)
 {
+	ZT_PROFILE_TOOLS("zt_threadMake");
+
 	ztThread *thread = zt_mallocStruct(ztThread);
 	thread->thread              = thread_func;
 	thread->thread_user_data    = user_data;
@@ -7562,6 +8257,8 @@ ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExi
 
 void zt_threadFree(ztThread *thread)
 {
+	ZT_PROFILE_TOOLS("zt_threadFree");
+
 	if(thread == nullptr) {
 		return;
 	}
@@ -7577,6 +8274,8 @@ void zt_threadFree(ztThread *thread)
 
 void zt_threadJoin(ztThread *thread)
 {
+	ZT_PROFILE_TOOLS("zt_threadJoin");
+
 	zt_returnOnNull(thread);
 	WaitForSingleObject((HANDLE)thread->thread_handle, INFINITE);
 }
@@ -7585,6 +8284,8 @@ void zt_threadJoin(ztThread *thread)
 
 bool zt_threadIsRunning(ztThread *thread)
 {
+	ZT_PROFILE_TOOLS("zt_threadIsRunning");
+
 	zt_returnValOnNull(thread, false);
 	return thread->running;
 }
@@ -7593,6 +8294,8 @@ bool zt_threadIsRunning(ztThread *thread)
 
 ztThreadID zt_threadGetCurrentID()
 {
+	//ZT_PROFILE_TOOLS("zt_threadGetCurrentID"); called by profiling code, can't use here
+
 	return GetCurrentThreadId();
 }
 
@@ -7600,6 +8303,8 @@ ztThreadID zt_threadGetCurrentID()
 
 void zt_threadYield()
 {
+	ZT_PROFILE_TOOLS("zt_threadYield");
+
 	zt_sleep(0);
 }
 
@@ -7609,6 +8314,8 @@ void zt_threadYield()
 
 ztThreadMutex *zt_threadMutexMake()
 {
+	ZT_PROFILE_TOOLS("zt_threadMutexMake");
+
 	ztThreadMutex *mutex = zt_mallocStruct(ztThreadMutex);
 	InitializeCriticalSection(&mutex->cs);
 	return mutex;
@@ -7618,6 +8325,8 @@ ztThreadMutex *zt_threadMutexMake()
 
 void zt_threadMutexFree(ztThreadMutex *mutex)
 {
+	ZT_PROFILE_TOOLS("zt_threadMutexFree");
+
 	if(mutex == nullptr) {
 		return;
 	}
@@ -7630,6 +8339,8 @@ void zt_threadMutexFree(ztThreadMutex *mutex)
 
 void zt_threadMutexLock(ztThreadMutex *mutex)
 {
+	ZT_PROFILE_TOOLS("zt_threadMutexLock");
+
 	zt_returnOnNull(mutex);
 	EnterCriticalSection(&mutex->cs);
 }
@@ -7638,6 +8349,8 @@ void zt_threadMutexLock(ztThreadMutex *mutex)
 
 void zt_threadMutexUnlock(ztThreadMutex *mutex)
 {
+	ZT_PROFILE_TOOLS("zt_threadMutexUnlock");
+
 	zt_returnOnNull(mutex);
 	LeaveCriticalSection(&mutex->cs);
 }
@@ -7648,6 +8361,8 @@ void zt_threadMutexUnlock(ztThreadMutex *mutex)
 
 ztThreadMonitor *zt_threadMonitorMake()
 {
+	ZT_PROFILE_TOOLS("zt_threadMonitorMake");
+
 	ztThreadMonitor *monitor = zt_mallocStruct(ztThreadMonitor);
 	monitor->event_handle = (i32)CreateEvent(NULL, TRUE, FALSE, NULL);
 	return monitor;
@@ -7657,6 +8372,8 @@ ztThreadMonitor *zt_threadMonitorMake()
 
 void zt_threadMonitorFree(ztThreadMonitor *monitor)
 {
+	ZT_PROFILE_TOOLS("zt_threadMonitorFree");
+
 	if(monitor == nullptr) {
 		return;
 	}
@@ -7669,6 +8386,8 @@ void zt_threadMonitorFree(ztThreadMonitor *monitor)
 
 void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
 {
+	ZT_PROFILE_TOOLS("zt_threadMonitorWaitForSignal");
+
 	zt_returnOnNull(monitor);
 	WaitForSingleObject((HANDLE)monitor->event_handle, INFINITE);
 }
@@ -7677,6 +8396,8 @@ void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
 
 void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
 {
+	ZT_PROFILE_TOOLS("zt_threadMonitorTriggerSignal");
+
 	zt_returnOnNull(monitor);
 	SetEvent((HANDLE)monitor->event_handle);
 }
@@ -7685,6 +8406,8 @@ void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
 
 void zt_threadMonitorReset(ztThreadMonitor *monitor)
 {
+	ZT_PROFILE_TOOLS("zt_threadMonitorReset");
+
 	zt_returnOnNull(monitor);
 	ResetEvent((HANDLE)monitor->event_handle);
 }
@@ -7695,6 +8418,8 @@ void zt_threadMonitorReset(ztThreadMonitor *monitor)
 
 i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntInc");
+
 	return InterlockedIncrement(atomic_int);
 }
 
@@ -7702,6 +8427,8 @@ i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
 
 i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIncDec");
+
 	return InterlockedDecrement(atomic_int);
 }
 
@@ -7709,6 +8436,8 @@ i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
 
 i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntSet");
+
 	return InterlockedExchange(atomic_int, value);
 }
 
@@ -7716,6 +8445,8 @@ i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
 
 i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntGet");
+
 	return InterlockedExchange(atomic_int, *atomic_int);
 }
 
@@ -7723,6 +8454,8 @@ i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
 
 i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntAnd");
+
 	return InterlockedAnd(atomic_int, and_val);
 }
 
@@ -7730,6 +8463,8 @@ i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
 
 i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntOr");
+
 	return InterlockedOr(atomic_int, or_val);
 }
 
@@ -7737,6 +8472,8 @@ i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
 
 i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
 {
+	ZT_PROFILE_TOOLS("zt_atomicIntXor");
+
 	return InterlockedXor(atomic_int, xor_val);
 }
 
@@ -7744,6 +8481,8 @@ i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
 
 bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
 {
+	ZT_PROFILE_TOOLS("zt_atomicBoolSet");
+
 	return InterlockedExchange(atomic_bool, value ? 1 : 0) != 0;
 }
 
@@ -7751,6 +8490,8 @@ bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
 
 bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
 {
+	ZT_PROFILE_TOOLS("zt_atomicBoolGet");
+
 	return InterlockedExchange(atomic_bool, *atomic_bool) != 0;
 }
 
@@ -7758,6 +8499,8 @@ bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
 
 bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 {
+	ZT_PROFILE_TOOLS("zt_atomicBoolToggle");
+
 	return zt_atomicBoolSet(atomic_bool, !zt_atomicBoolGet(atomic_bool));
 }
 
@@ -7801,6 +8544,8 @@ static int byte_idx = 0;
 
 ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, byte data)
 {
+	ZT_PROFILE_TOOLS("_zt_serialAddToChecksum");
+
 	serial->_checksum1 = (serial->_checksum1 + data) % _zt_mod_adler;
 	serial->_checksum2 = (serial->_checksum2 + serial->_checksum1) % _zt_mod_adler;
 }
@@ -7809,6 +8554,8 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, byte data)
 
 ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i32 data_len)
 {
+	ZT_PROFILE_TOOLS("_zt_serialAddToChecksum");
+
 	zt_fiz(data_len) {
 		serial->_checksum1 = (serial->_checksum1 + ((byte*)data)[i]) % _zt_mod_adler;
 		serial->_checksum2 = (serial->_checksum2 + serial->_checksum1) % _zt_mod_adler;
@@ -7819,6 +8566,8 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i
 
 ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 {
+	ZT_PROFILE_TOOLS("_zt_validateChecksum");
+
 	bool is_valid = false;
 
 	i16 sum1 = 1, sum2 = 0;
@@ -7868,6 +8617,8 @@ ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 
 ztInternal ztInline bool _zt_writeByte(ztSerial *serial, byte b)
 {
+	ZT_PROFILE_TOOLS("_zt_writeByte");
+
 	if (serial->mode != ztSerialMode_Writing) {
 		return false;
 	}
@@ -7881,6 +8632,8 @@ ztInternal ztInline bool _zt_writeByte(ztSerial *serial, byte b)
 
 ztInternal ztInline bool _zt_writeData(ztSerial *serial, ztSerialEntryType_Enum entry_type, void *data, int data_size)
 {
+	ZT_PROFILE_TOOLS("_zt_writeData");
+
 	if (serial->mode != ztSerialMode_Writing) {
 		return false;
 	}
@@ -7909,6 +8662,8 @@ ztInternal ztInline bool _zt_writeData(ztSerial *serial, ztSerialEntryType_Enum 
 
 ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size)
 {
+	ZT_PROFILE_TOOLS("_zt_readData");
+
 	if (serial->file_data) {
 		if (serial->file_data_size < data_size)
 			return 0;
@@ -7928,6 +8683,8 @@ ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size
 
 ztInternal ztInline bool _zt_readByte(ztSerial *serial, byte *byte)
 {
+	ZT_PROFILE_TOOLS("_zt_readByte");
+
 	if (serial->mode != ztSerialMode_Reading) {
 		return false;
 	}
@@ -7939,6 +8696,8 @@ ztInternal ztInline bool _zt_readByte(ztSerial *serial, byte *byte)
 
 ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum expected_type, void *data, int data_size)
 {
+	ZT_PROFILE_TOOLS("_zt_readData");
+
 	if (serial->mode != ztSerialMode_Reading) {
 		return false;
 	}
@@ -7991,6 +8750,8 @@ ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum e
 
 bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 version)
 {
+	ZT_PROFILE_TOOLS("_zt_serialMakeWriterDoHeader");
+
 	serial->mode = ztSerialMode_Writing;
 	serial->_checksum1 = 1;
 	serial->_checksum2 = 0;
@@ -8020,6 +8781,8 @@ bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 
 
 bool _zt_serialMakeReaderDoHeader(ztSerial *serial, const char *identifier)
 {
+	ZT_PROFILE_TOOLS("_zt_serialMakeReaderDoHeader");
+
 	if (!_zt_validateChecksum(serial)) {
 		serial->mode = ztSerialMode_Corrupt;
 		return false;
@@ -8061,6 +8824,8 @@ on_error:
 
 bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *identifier, i32 version)
 {
+	ZT_PROFILE_TOOLS("zt_serialMakeWriter");
+
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file_name, false);
 	zt_returnValOnNull(identifier, false);
@@ -8079,6 +8844,8 @@ bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *id
 
 bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier, i32 version)
 {
+	ZT_PROFILE_TOOLS("zt_serialMakeWriter");
+
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(identifier, false);
@@ -8098,6 +8865,8 @@ bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier,
 
 bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier)
 {
+	ZT_PROFILE_TOOLS("zt_serialMakeReader");
+
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file_name, false);
 	zt_returnValOnNull(identifier, false);
@@ -8116,6 +8885,8 @@ bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *id
 
 bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier)
 {
+	ZT_PROFILE_TOOLS("zt_serialMakeReader");
+
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(data, false);
 	zt_returnValOnNull(identifier, false);
@@ -8133,6 +8904,8 @@ bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char
 
 bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 {
+	ZT_PROFILE_TOOLS("zt_serialMakeReader");
+
 	zt_returnValOnNull(serial, false);
 	zt_returnValOnNull(file, false);
 	zt_returnValOnNull(identifier, false);
@@ -8152,6 +8925,8 @@ bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 
 void zt_serialClose(ztSerial *serial)
 {
+	ZT_PROFILE_TOOLS("zt_serialClose");
+
 	zt_returnOnNull(serial);
 
 	if (serial->mode != ztSerialMode_Reading && serial->mode != ztSerialMode_Writing) {
@@ -8177,6 +8952,8 @@ void zt_serialClose(ztSerial *serial)
 
 bool zt_serialGroupPush(ztSerial *serial)
 {
+	ZT_PROFILE_TOOLS("zt_serialGroupPush");
+
 	if (serial->mode == ztSerialMode_Writing) {
 		if (!_zt_writeByte(serial, ztSerialEntryType_GroupBeg))
 			return false;
@@ -8230,6 +9007,8 @@ bool zt_serialGroupPush(ztSerial *serial)
 
 bool zt_serialGroupPop(ztSerial *serial)
 {
+	ZT_PROFILE_TOOLS("zt_serialGroupPop");
+
 	if (serial->mode == ztSerialMode_Writing) {
 		if (!_zt_writeByte(serial, ztSerialEntryType_GroupEnd))
 			return false;
@@ -8315,6 +9094,8 @@ bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if(!z
 
 bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
 {
+	ZT_PROFILE_TOOLS("zt_serialWrite");
+
 	if (!zt_serialWrite(serial, (i32)variant->type)) {
 		return false;
 	}
@@ -8348,6 +9129,8 @@ bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
 
 bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 {
+	ZT_PROFILE_TOOLS("zt_serialWrite");
+
 	if (!_zt_writeByte(serial, ztSerialEntryType_String))
 		return false;
 
@@ -8371,6 +9154,8 @@ bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 
 bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 {
+	ZT_PROFILE_TOOLS("zt_serialWrite");
+
 	if (!_zt_writeByte(serial, ztSerialEntryType_Binary))
 		return false;
 
@@ -8415,6 +9200,8 @@ bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if(!
 
 bool zt_serialRead(ztSerial *serial, ztVariant *variant)
 {
+	ZT_PROFILE_TOOLS("zt_serialRead");
+
 	i32 type = 0;
 	if (!zt_serialRead(serial, &type)) {
 		return false;
@@ -8450,6 +9237,8 @@ bool zt_serialRead(ztSerial *serial, ztVariant *variant)
 
 bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 {
+	ZT_PROFILE_TOOLS("zt_serialRead");
+
 	if (serial->next_entry != ztSerialEntryType_String) {
 		if (serial->next_entry == ztSerialEntryType_GroupEnd || serial->next_entry == ztSerialEntryType_GroupBeg) {
 			return true;
@@ -8496,6 +9285,8 @@ bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 
 bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 {
+	ZT_PROFILE_TOOLS("zt_serialRead");
+
 	if (serial->next_entry != ztSerialEntryType_Binary) {
 		if (serial->next_entry == ztSerialEntryType_GroupEnd || serial->next_entry == ztSerialEntryType_GroupBeg) {
 			return true;
@@ -8540,6 +9331,98 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size)
+{
+#	define b64_encode(B) (B < 26 ? ('A' + B) : (B < 52 ? ('a' + (B - 26)) : (B < 62 ? ('0' + (B - 52)) : (B == 62 ? '+' : '/'))))
+
+	zt_returnValOnNull(data_to_encode, 0);
+	zt_returnValOnNull(encoded_data_buffer, 0);
+	zt_assertReturnValOnFail(encoded_data_buffer_size >= zt_base64GetEncodedSize(data_len), 0);
+
+	char *result = encoded_data_buffer;
+
+	for (int i = 0; i < data_len; i += 3) {
+		byte b1 = data_to_encode[i];
+		byte b2 = (i + 1 < data_len ? data_to_encode[i + 1] : 0);
+		byte b3 = (i + 2 < data_len ? data_to_encode[i + 2] : 0);
+
+		byte e1 = b1 >> 2;
+		byte e2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+		byte e3 = ((b2 & 0xf) << 2) | (b3 >> 6);
+		byte e4 = b3 & 0x3f;
+
+		*result++ = b64_encode(e1);
+		*result++ = b64_encode(e2);
+		*result++ = (i + 1 < data_len ? b64_encode(e3) : '=');
+		*result++ = (i + 2 < data_len ? b64_encode(e4) : '=');
+	}
+
+	*result++ = '\0';
+
+	return (int)(result - encoded_data_buffer);
+
+#	undef b64_encode
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size)
+{
+#	define b64_decode(C) (C >= 'A' && C <= 'Z') ? (C - 'A') : ((C >= 'a' && C <= 'z') ? (C - 'a' + 26) : ((C >= '0' && C <= '9') ? (C - '0' + 52) : ((C == '+' ? 62 : 63))))
+#	define b64_find_next_char(VAR) \
+		while(true) { \
+			if(i >= data_len) { \
+				VAR = 'A'; break; \
+			} else if (data_to_decode[i] == '\n' || data_to_decode[i] == '\r' || data_to_decode[i] == '\t' || data_to_decode[i] == ' ') { \
+				++i; \
+			} else { \
+				VAR = data_to_decode[i]; ++i; break; \
+			}\
+		}
+
+	while (data_to_decode[data_len - 1] == '\0') {
+		data_len -= 1;
+	}
+
+	byte *result = decoded_data_buffer;
+
+	int i = 0;
+	char c1, c2, c3, c4;
+	while (i < data_len) {
+		b64_find_next_char(c1);
+		b64_find_next_char(c2);
+		b64_find_next_char(c3);
+		b64_find_next_char(c4);
+
+		byte u1 = b64_decode(c1);
+		byte u2 = b64_decode(c2);
+		byte u3 = b64_decode(c3);
+		byte u4 = b64_decode(c4);
+
+		*result++ = (u1 << 2) | (u2 >> 4);
+
+		if (c3 != '=') {
+			*result++ = ((u2 & 0xf) << 4) | (u3 >> 2);
+		}
+		else break;
+
+		if (c4 != '=') {
+			*result++ = ((u3 & 0x3) << 6) | u4;
+		}
+		else break;
+	}
+
+	return (int)(result - decoded_data_buffer);
+
+#	undef b64_find_next_char
+#	undef b64_decode
+}
+
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
 // this was adapted from: http://en.literateprograms.org/Mersenne_twister_(C)
 
 #define ztRandom_MT_IA           397
@@ -8554,6 +9437,8 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 
 void zt_randomInit(ztRandom *random, i32 seed)
 {
+	ZT_PROFILE_TOOLS("zt_randomInit");
+
 	srand(seed);
 	for (int i = 0; i < ztRandom_MTLen; ++i) {
 		random->mt_buffer[i] = rand();
@@ -8566,6 +9451,8 @@ void zt_randomInit(ztRandom *random, i32 seed)
 
 i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 {
+	ZT_PROFILE_TOOLS("zt_randomInt");
+
 	i32 *b = random->mt_buffer;
 	i32 idx = random->mt_idx;
 	i32 s;
@@ -8597,6 +9484,8 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 
 r32 zt_randomVal(ztRandom *random)
 {
+	ZT_PROFILE_TOOLS("zt_randomVal");
+
 	return zt_randomInt(random, 0, 10001) / 10000.f;
 }
 
@@ -8604,6 +9493,8 @@ r32 zt_randomVal(ztRandom *random)
 
 r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 {
+	ZT_PROFILE_TOOLS("zt_randomVal");
+
 	return zt_randomVal(random) * (max - min) + min;
 }
 
@@ -8680,6 +9571,8 @@ ztInternal const signed char _zt_gradients_4d[] = {
 
 ztSimplexNoise *zt_simplexNoiseMake(i64 seed)
 {
+	ZT_PROFILE_TOOLS("zt_simplexNoiseMake");
+
 	ztSimplexNoise *noise = zt_mallocStruct(ztSimplexNoise);
 
 	int nperm = 256;
@@ -8713,6 +9606,8 @@ ztSimplexNoise *zt_simplexNoiseMake(i64 seed)
 
 void zt_simplexNoiseFree(ztSimplexNoise *noise)
 {
+	ZT_PROFILE_TOOLS("zt_simplexNoiseFree");
+
 	if (noise == nullptr) {
 		return;
 	}
@@ -8732,6 +9627,8 @@ ztInternal ztInline int zt_fastFloor(r64 x)
 
 r32 zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y)
 {
+	ZT_PROFILE_TOOLS("zt_simplexNoise2D");
+
 #	define extrapolate2(noise, xsb, ysb, dx, dy) \
 		(_zt_gradients_2d[noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E] * dx + _zt_gradients_2d[(noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E) + 1] * dy)
 
@@ -8869,6 +9766,7 @@ r32 zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y)
 r32 zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z)
 {
 	zt_returnValOnNull(noise, 0);
+	zt_assert(false);
 	return 0;
 }
 
@@ -8877,6 +9775,7 @@ r32 zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z)
 r32 zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w)
 {
 	zt_returnValOnNull(noise, 0);
+	zt_assert(false);
 	return 0;
 }
 
@@ -8886,6 +9785,8 @@ r32 zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w)
 
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_iniFileGetValue");
+
 #if defined(ZT_WINDOWS)
 	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
 #else
@@ -8897,6 +9798,8 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, i32 dflt)
 {
+	ZT_PROFILE_TOOLS("zt_iniFileGetValue");
+
 	char value_buffer[128] = { 0 };
 	char dflt_buffer[128] = { 0 };
 	zt_strPrintf(dflt_buffer, zt_sizeof(dflt_buffer), "%d", dflt);
@@ -8917,6 +9820,8 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 
 r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, r32 dflt)
 {
+	ZT_PROFILE_TOOLS("zt_iniFileGetValue");
+
 	char value_buffer[128] = { 0 };
 	char dflt_buffer[128] = { 0 };
 	zt_strPrintf(dflt_buffer, zt_sizeof(dflt_buffer), "%f", dflt);
@@ -8932,6 +9837,8 @@ r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 
 bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value)
 {
+	ZT_PROFILE_TOOLS("zt_iniFileSetValue");
+
 #if defined(ZT_WINDOWS)
 	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
 #else
@@ -8945,6 +9852,8 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 
 bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long)
 {
+	ZT_PROFILE_TOOLS("zt_cmdHasArg");
+
 	zt_fiz(argc) {
 		if (zt_strStartsWith(argv[i], "--") && zt_strStartsWith(argv[i] + 2, arg_long)) {
 			return true;
@@ -8960,6 +9869,8 @@ bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char
 
 bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size)
 {
+	ZT_PROFILE_TOOLS("zt_cmdGetArg");
+
 	zt_fiz(argc) {
 		int data_pos = -1;
 		if (zt_strStartsWith(argv[i], "--") && zt_strStartsWith(argv[i] + 2, arg_long)) {
@@ -9009,6 +9920,8 @@ int zt_processRun(const char *command)
 
 int zt_processRun(const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written)
 {
+	ZT_PROFILE_TOOLS("zt_processRun");
+
 #	if defined(ZT_WINDOWS)
 
 	HANDLE pipe_read, pipe_write;
@@ -9093,6 +10006,8 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 
 r64 zt_getTime()
 {
+	//ZT_PROFILE_TOOLS("zt_getTime"); called in profiling code, so can't use here
+
 	struct local_init
 	{
 		local_init(LARGE_INTEGER *large_integer, r64 *seconds_per_count, LARGE_INTEGER *start_time)
@@ -9119,6 +10034,8 @@ r64 zt_getTime()
 
 void zt_sleep(r32 seconds)
 {
+	ZT_PROFILE_TOOLS("zt_sleep");
+
 #if defined(ZT_WINDOWS)
 	Sleep(zt_convertToi32Floor(seconds * 1000.f));
 #else
@@ -9130,6 +10047,8 @@ void zt_sleep(r32 seconds)
 
 void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *second)
 {
+	ZT_PROFILE_TOOLS("zt_getDate");
+
 	time_t tt = time(nullptr);
 	tm t;
 	localtime_s(&t, &tt);
@@ -9155,6 +10074,8 @@ ztDate zt_getDate()
 
 bool operator<(ztDate& d1, ztDate& d2)
 {
+	ZT_PROFILE_TOOLS("operator< (ztDate)");
+
 	if (d1.year < d2.year) return true;
 	if (d1.year > d2.year) return false;
 
@@ -9180,6 +10101,8 @@ bool operator<(ztDate& d1, ztDate& d2)
 
 bool operator>(ztDate& d1, ztDate& d2)
 {
+	ZT_PROFILE_TOOLS("operator> (ztDate)");
+
 	return !(d1 < d2) && !(d1 == d2);
 }
 
@@ -9187,6 +10110,8 @@ bool operator>(ztDate& d1, ztDate& d2)
 
 bool operator==(ztDate& d1, ztDate& d2)
 {
+	ZT_PROFILE_TOOLS("operator== (ztDate)");
+
 	return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day && d1.hour == d2.hour && d1.minute == d2.minute && d1.second == d2.second;
 }
 
@@ -9194,6 +10119,8 @@ bool operator==(ztDate& d1, ztDate& d2)
 
 bool operator!=(ztDate& d1, ztDate& d2)
 {
+	ZT_PROFILE_TOOLS("operator!= (ztDate)");
+
 	return !(d1 == d2);
 }
 
@@ -9204,6 +10131,8 @@ bool operator!=(ztDate& d1, ztDate& d2)
 
 i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, int data_size)
 {
+	ZT_PROFILE_TOOLS("zt_memoryDeltaGet");
+
 	ztMemoryChunk memChunk = zt_memoryChunkMake(data, data_size);
 
 	byte *bchunk1 = (byte*)chunk1;
@@ -9257,6 +10186,8 @@ i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, in
 
 void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
 {
+	ZT_PROFILE_TOOLS("zt_memoryDeltaApply");
+
 	ztMemoryReader memReader = zt_memoryReaderMake(diff, diff_size);
 
 	byte *bchunk = (byte*)chunk;
