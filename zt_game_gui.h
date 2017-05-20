@@ -112,6 +112,8 @@ ztVec2 zt_guiThemeButtonSpriteGetSize(ztGuiThemeButtonSprite *sprite);
 	_ztGIT(ztGuiItemType_ProgressBar    ) \
 	_ztGIT(ztGuiItemType_Sizer          ) \
 	_ztGIT(ztGuiItemType_Spinner        ) \
+	_ztGIT(ztGuiItemType_ListBox        ) \
+	_ztGIT(ztGuiItemType_ListGrid       ) \
 	_ztGIT(ztGuiItemType_Custom         )
 
 // ------------------------------------------------------------------------------------------------
@@ -135,24 +137,25 @@ enum ztGuiItemBehaviorFlags_Enum
 	ztGuiItemBehaviorFlags_ClipChildren        = (1 << 3),
 	ztGuiItemBehaviorFlags_ClipContents        = (1 << 4),
 	ztGuiItemBehaviorFlags_BringToFront        = (1 << 5),
+	ztGuiItemBehaviorFlags_WantsKeyboardAlways = (1 << 6),
 };
 
 // --------------------------
 
-#define ztGuiItemBehaviorFlags_MaxBit             5
+#define ztGuiItemBehaviorFlags_MaxBit            7
 
 
 // ------------------------------------------------------------------------------------------------
 
 enum ztGuiItemStates_Enum
 {
-	ztGuiItemStates_Visible   = 1,
-	ztGuiItemStates_Dirty     = 2,
-	ztGuiItemStates_Disabled  = 3,
-	ztGuiItemStates_Locked    = 4,
-	ztGuiItemStates_HasFocus  = 5,
-	ztGuiItemStates_MouseOver = 6,
-	ztGuiItemStates_Resized   = 7,
+	ztGuiItemStates_Visible    = 1,
+	ztGuiItemStates_Dirty      = 2,
+	ztGuiItemStates_Disabled   = 3,
+	ztGuiItemStates_Locked     = 4,
+	ztGuiItemStates_HasFocus   = 5,
+	ztGuiItemStates_MouseOver  = 6,
+	ztGuiItemStates_Resized    = 7,
 	ztGuiItemStates_MAX,
 };
 
@@ -162,6 +165,8 @@ enum ztGuiItemStates_Enum
 enum ztGuiThemeValue_Enum
 {
 	ztGuiThemeValue_r32_Padding,
+
+	ztGuiThemeValue_i32_FontID,
 	
 	ztGuiThemeValue_r32_WindowTitleHeight,
 	ztGuiThemeValue_i32_WindowCollapseButtonAlign,
@@ -361,6 +366,9 @@ typedef ZT_FUNC_GUI_ITEM_INPUT_MOUSE(zt_guiItemInputMouse_Func);
 #define ZT_FUNC_GUI_BUTTON_PRESSED(name) void name(ztGuiItem *button, void *user_data)
 typedef ZT_FUNC_GUI_BUTTON_PRESSED(zt_guiButtonPressed_Func);
 
+#define ZT_FUNC_GUI_SCROLLBAR_SCROLLED(name) void name(ztGuiItem *scrollbar, r32 value, void *user_data)
+typedef ZT_FUNC_GUI_SCROLLBAR_SCROLLED(zt_guiScrollbarScrolled_Func);
+
 #define ZT_FUNC_GUI_MENU_SELECTED(name) void name(ztGuiItem *menu, i32 menu_item, void *user_data)
 typedef ZT_FUNC_GUI_MENU_SELECTED(zt_guiMenuSelected_Func);
 
@@ -375,6 +383,9 @@ typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(zt_guiComboBoxItemSelected_Func);
 
 #define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(name) void name(ztGuiItem *spinner, int value, void *user_data)
 typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(zt_guiSpinnerValueChanged_Func);
+
+#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) void name(ztGuiItem *listbox, int selected, void *user_data);
+typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(zt_guiListBoxItemSelected_Func);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -477,6 +488,34 @@ enum ztGuiTextEditBehaviorFlags_Enum
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztGuiTreeItemFlags_Enum
+{
+	ztGuiTreeItemFlags_StretchToMax = (1<<0),
+};
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztGuiListBoxBehaviorFlags_Enum
+{
+	ztGuiListBoxBehaviorFlags_MultiSelect       = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiListBoxBehaviorFlags_AlternateRowColor = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+};
+
+#define ztGuiListBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 2)
+
+
+// ------------------------------------------------------------------------------------------------
+
+enum ztGuiListGridBehaviorFlags_Enum
+{
+	ztGuiListGridBehaviorFlags_MultiSelect = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+};
+
+#define ztGuiListGridBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 1)
+
+
+// ------------------------------------------------------------------------------------------------
+
 enum ztGuiItemOrient_Enum
 {
 	ztGuiItemOrient_Horz = (1 << 1),
@@ -492,229 +531,279 @@ enum ztGuiColumnSizerType_Enum
 };
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
-ztGuiManager  *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default, ztMemoryArena *arena);
-void           zt_guiManagerFree(ztGuiManager *gui_manager);
+enum ztGuiManagerStringPool_Enum
+{
+	ztGuiManagerStringPool_None,
+	ztGuiManagerStringPool_Minimal,
+	ztGuiManagerStringPool_Standard,
+	ztGuiManagerStringPool_Heavy,
 
-bool           zt_guiManagerHandleInput(ztGuiManager *gui_manager, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], ztInputMouse *input_mouse);
-void           zt_guiManagerRender(ztGuiManager *gui_manager, ztDrawList *draw_list, r32 dt);
-
-void           zt_guiSetActiveManager(ztGuiManager *gui_manager);
-ztGuiManager  *zt_guiGetActiveManager();
-
-void           zt_guiManagerSetKeyboardFocus(ztGuiManager *gui_manager, bool keyboard_focus = true);
-bool           zt_guiManagerHasKeyboardFocus(ztGuiManager *gui_manager);
-
-bool           zt_guiManagerMouseOverGui(ztGuiManager *gui_manager);
+	ztGuiManagerStringPool_MAX,
+};
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItem *zt_guiMakeWindow            (const char *title, i32 behavior_flags = ztGuiWindowBehaviorFlags_Default);
-ztGuiItem *zt_guiMakeScrollWindow      (const char *title, i32 scroll_dir, i32 behavior_flags = ztGuiWindowBehaviorFlags_Default); // set the size of the content item
-ztGuiItem *zt_guiMakePanel             (ztGuiItem *parent, i32 behavior_flags = 0, void *user_data = nullptr, ztMemoryArena *arena = nullptr); // user data is freed by the panel item
-ztGuiItem *zt_guiMakeCollapsingPanel   (ztGuiItem *parent, const char *label);
-ztGuiItem *zt_guiMakeStaticText        (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, i32 max_chars = 64);
-ztGuiItem *zt_guiMakeButton            (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
-ztGuiItem *zt_guiMakeToggleButton      (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
-ztGuiItem *zt_guiMakeCheckbox          (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
-ztGuiItem *zt_guiMakeRadioButton       (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
-ztGuiItem *zt_guiMakeSlider            (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
-ztGuiItem *zt_guiMakeScrollbar         (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
-ztGuiItem *zt_guiMakeScrollContainer   (ztGuiItem *parent, i32 behavior_flags = 0);
-ztGuiItem *zt_guiMakeTextEdit          (ztGuiItem *parent, const char *value, i32 behavior_flags = 0, i32 buffer_size = 1024);
-ztGuiItem *zt_guiMakeMenu              ();
-ztGuiItem *zt_guiMakeMenuBar           (ztGuiItem *parent);
-ztGuiItem *zt_guiMakeTree              (ztGuiItem *parent, i32 max_items);
-ztGuiItem *zt_guiMakeComboBox          (ztGuiItem *parent, i32 max_items);
-ztGuiItem *zt_guiMakeSpriteDisplay     (ztGuiItem *parent, ztGuiThemeSprite *sprite);
-ztGuiItem *zt_guiMakeSpinner           (ztGuiItem *parent, int *live_value = nullptr);
-ztGuiItem *zt_guiMakeSizer             (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
-ztGuiItem *zt_guiMakeColumnSizer       (ztGuiItem *parent, int columns, ztGuiColumnSizerType_Enum type, bool size_to_parent = true);
+
+ztGuiManager   *zt_guiManagerMake                      (ztCamera *gui_camera, ztGuiTheme *theme_default, ztMemoryArena *arena, ztGuiManagerStringPool_Enum string_pool = ztGuiManagerStringPool_Standard);
+void            zt_guiManagerFree                      (ztGuiManager *gui_manager);
+
+bool            zt_guiManagerHandleInput               (ztGuiManager *gui_manager, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], ztInputMouse *input_mouse);
+void            zt_guiManagerRender                    (ztGuiManager *gui_manager, ztDrawList *draw_list, r32 dt);
+
+void            zt_guiSetActiveManager                 (ztGuiManager *gui_manager);
+ztGuiManager   *zt_guiGetActiveManager                 ();
+
+void            zt_guiManagerSetKeyboardFocus          (ztGuiManager *gui_manager, bool keyboard_focus = true);
+bool            zt_guiManagerHasKeyboardFocus          (ztGuiManager *gui_manager);
+
+bool            zt_guiManagerMouseOverGui              (ztGuiManager *gui_manager);
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, r32 *value, r32 min, r32 max, r32 step);
-ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, i32 *value, i32 min, i32 max, i32 step);
-ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2 *value, ztVec2 min, ztVec2 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y");
-ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3 *value, ztVec3 min, ztVec3 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z");
-ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value, ztVec4 min, ztVec4 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z", char *label_w = "W");
+ztGuiItem       *zt_guiMakeWindow                      (const char *title, i32 behavior_flags = ztGuiWindowBehaviorFlags_Default);
+ztGuiItem       *zt_guiMakeScrollWindow                (const char *title, i32 scroll_dir, i32 behavior_flags = ztGuiWindowBehaviorFlags_Default); // set the size of the content item
+ztGuiItem       *zt_guiMakePanel                       (ztGuiItem *parent, i32 behavior_flags = 0, void *user_data = nullptr, ztMemoryArena *arena = nullptr); // user data is freed by the panel item
+ztGuiItem       *zt_guiMakeCollapsingPanel             (ztGuiItem *parent, const char *label);
+ztGuiItem       *zt_guiMakeStaticText                  (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, i32 max_chars = 64);
+ztGuiItem       *zt_guiMakeButton                      (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
+ztGuiItem       *zt_guiMakeToggleButton                (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
+ztGuiItem       *zt_guiMakeCheckbox                    (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
+ztGuiItem       *zt_guiMakeRadioButton                 (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
+ztGuiItem       *zt_guiMakeSlider                      (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
+ztGuiItem       *zt_guiMakeScrollbar                   (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
+ztGuiItem       *zt_guiMakeScrollContainer             (ztGuiItem *parent, i32 behavior_flags = 0);
+ztGuiItem       *zt_guiMakeTextEdit                    (ztGuiItem *parent, const char *value, i32 behavior_flags = 0, i32 buffer_size = 1024);
+ztGuiItem       *zt_guiMakeMenu                        ();
+ztGuiItem       *zt_guiMakeMenuBar                     (ztGuiItem *parent);
+ztGuiItem       *zt_guiMakeTree                        (ztGuiItem *parent, i32 max_items);
+ztGuiItem       *zt_guiMakeComboBox                    (ztGuiItem *parent, i32 max_items);
+ztGuiItem       *zt_guiMakeSpriteDisplay               (ztGuiItem *parent, ztGuiThemeSprite *sprite);
+ztGuiItem       *zt_guiMakeSpinner                     (ztGuiItem *parent, int *live_value = nullptr);
+ztGuiItem       *zt_guiMakeListBox                     (ztGuiItem *parent, i32 behavior_flags = 0, i32 max_items = 128);
+ztGuiItem       *zt_guiMakeSizer                       (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
+ztGuiItem       *zt_guiMakeColumnSizer                 (ztGuiItem *parent, int columns, ztGuiColumnSizerType_Enum type, bool size_to_parent = true);
 
 // ------------------------------------------------------------------------------------------------
 
-void       zt_guiItemFree                   (ztGuiItem *item_id);
-
-void       zt_guiItemSetSize                (ztGuiItem *item, const ztVec2& size);
-void       zt_guiItemAutoSize               (ztGuiItem *item);
-void       zt_guiItemSetPosition            (ztGuiItem *item, const ztVec2& pos);
-void       zt_guiItemSetPosition            (ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset = ztVec2::zero);
-
-void       zt_guiItemSetName                (ztGuiItem *item, const char *name);
-void       zt_guiItemSetLabel               (ztGuiItem *item, const char *label);
-void       zt_guiItemSetTooltip             (ztGuiItem *item, const char *tooltip);
-void       zt_guiItemSetThemeType           (ztGuiItem *item, const char *theme_type);
-void       zt_guiItemSetTheme               (ztGuiItem *item, ztGuiTheme *theme);
-void       zt_guiItemSetUserData            (ztGuiItem *item, void *user_data); // this is never used internally, so it can be set for any item without worry
-
-ztString   zt_guiItemGetName                (ztGuiItem *item);
-ztString   zt_guiItemGetLabel               (ztGuiItem *item);
-ztString   zt_guiItemGetTooltip             (ztGuiItem *item);
-ztString   zt_guiItemGetThemeType           (ztGuiItem *item);
-void      *zt_guiItemGetUserData            (ztGuiItem *item);
-
-void       zt_guiItemSetAlign               (ztGuiItem *item, i32 align_flags);
-i32        zt_guiItemGetAlign               (ztGuiItem *item);
-
-bool       zt_guiItemIsShowing              (ztGuiItem *item);
-
-void       zt_guiItemShow                   (ztGuiItem *item, bool show = true);
-void       zt_guiItemHide                   (ztGuiItem *item);
-bool       zt_guiItemIsVisible              (ztGuiItem *item);
-
-void       zt_guiItemEnable                 (ztGuiItem *item, bool enable = true);
-void       zt_guiItemDisable                (ztGuiItem *item);
-bool       zt_guiItemIsEnabled              (ztGuiItem *item);
-
-void       zt_guiItemBringToFront           (ztGuiItem *item);
-
-ztGuiItem *zt_guiItemGetTopLevelParent      (ztGuiItem *item);
-bool       zt_guiItemIsChildOf              (ztGuiItem *parent, ztGuiItem *child); // determine if the child is a descendent of the parent
-
-ztGuiItem *zt_guiItemFindByName             (const char *name, ztGuiItem *parent = nullptr);
-ztGuiItem *zt_guiItemFindByType             (ztGuiItemType_Enum type, ztGuiItem *parent = nullptr, ztGuiItem *find_after = nullptr);
-
-ztVec2     zt_guiItemPositionLocalToScreen  (ztGuiItem *item, const ztVec2& pos);
-ztVec2     zt_guiItemPositionScreenToLocal  (ztGuiItem *item, const ztVec2& pos);
-
-void        zt_guiItemSetFocus              (ztGuiItem *item, ztGuiItem **prev_focus_item = nullptr);
-
-ztGuiTheme *zt_guiItemGetTheme              (ztGuiItem *item);
-
-void        zt_guiItemLock                  (ztGuiItem *item);
-void        zt_guiItemUnlock                (ztGuiItem *item);
-
-void        zt_guiItemReparent              (ztGuiItem *item, ztGuiItem *new_parent);
-
-bool        zt_guiItemTopLevelIsOverlapping (ztGuiItem *item); // determine if there is another window below this one in z-order and is entirely or partially covered by this one
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, r32 *value, r32 min, r32 max, r32 step);
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, i32 *value, i32 min, i32 max, i32 step);
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec2 *value, ztVec2 min, ztVec2 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y");
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec3 *value, ztVec3 min, ztVec3 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z");
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec4 *value, ztVec4 min, ztVec4 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z", char *label_w = "W");
 
 // ------------------------------------------------------------------------------------------------
 
-void        zt_guiWindowSetMenuBar(ztGuiItem *window, ztGuiItem *menubar);
-ztGuiItem  *zt_guiWindowGetContentParent(ztGuiItem *window);
+void             zt_guiItemFree                        (ztGuiItem *item_id);
+void             zt_guiItemQueueFree                   (ztGuiItem *item_id);
+
+void             zt_guiItemSetSize                     (ztGuiItem *item, const ztVec2& size);
+void             zt_guiItemAutoSize                    (ztGuiItem *item);
+void             zt_guiItemSetPosition                 (ztGuiItem *item, const ztVec2& pos);
+void             zt_guiItemSetPosition                 (ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset = ztVec2::zero);
+
+void             zt_guiItemSetName                     (ztGuiItem *item, const char *name);
+void             zt_guiItemSetLabel                    (ztGuiItem *item, const char *label);
+void             zt_guiItemSetTooltip                  (ztGuiItem *item, const char *tooltip);
+void             zt_guiItemSetThemeType                (ztGuiItem *item, const char *theme_type);
+void             zt_guiItemSetTheme                    (ztGuiItem *item, ztGuiTheme *theme);
+void             zt_guiItemSetUserData                 (ztGuiItem *item, void *user_data); // this is never used internally, so it can be set for any item without worry
+
+ztString         zt_guiItemGetName                     (ztGuiItem *item);
+ztString         zt_guiItemGetLabel                    (ztGuiItem *item);
+ztString         zt_guiItemGetTooltip                  (ztGuiItem *item);
+ztString         zt_guiItemGetThemeType                (ztGuiItem *item);
+void            *zt_guiItemGetUserData                 (ztGuiItem *item);
+
+void             zt_guiItemSetAlign                    (ztGuiItem *item, i32 align_flags);
+i32              zt_guiItemGetAlign                    (ztGuiItem *item);
+
+bool             zt_guiItemIsShowing                   (ztGuiItem *item);
+
+void             zt_guiItemShow                        (ztGuiItem *item, bool show = true);
+void             zt_guiItemHide                        (ztGuiItem *item);
+bool             zt_guiItemIsVisible                   (ztGuiItem *item);
+
+void             zt_guiItemEnable                      (ztGuiItem *item, bool enable = true);
+void             zt_guiItemDisable                     (ztGuiItem *item);
+bool             zt_guiItemIsEnabled                   (ztGuiItem *item);
+
+void             zt_guiItemBringToFront                (ztGuiItem *item);
+
+ztGuiItem       *zt_guiItemGetTopLevelParent           (ztGuiItem *item);
+bool             zt_guiItemIsChildOf                   (ztGuiItem *parent, ztGuiItem *child); // determine if the child is a descendent of the parent
+
+ztGuiItem       *zt_guiItemFindByName                  (const char *name, ztGuiItem *parent = nullptr);
+ztGuiItem       *zt_guiItemFindByType                  (ztGuiItemType_Enum type, ztGuiItem *parent = nullptr, ztGuiItem *find_after = nullptr);
+
+ztVec2           zt_guiItemPositionLocalToScreen       (ztGuiItem *item, const ztVec2& pos);
+ztVec2           zt_guiItemPositionScreenToLocal       (ztGuiItem *item, const ztVec2& pos);
+
+void             zt_guiItemSetFocus                    (ztGuiItem *item, ztGuiItem **prev_focus_item = nullptr);
+
+ztGuiTheme      *zt_guiItemGetTheme                    (ztGuiItem *item);
+
+void             zt_guiItemLock                        (ztGuiItem *item);
+void             zt_guiItemUnlock                      (ztGuiItem *item);
+
+void             zt_guiItemReparent                    (ztGuiItem *item, ztGuiItem *new_parent);
+
+bool             zt_guiItemTopLevelIsOverlapping       (ztGuiItem *item); // determine if there is another window below this one in z-order and is entirely or partially covered by this one
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiItem  *zt_guiCollapsingPanelGetContentParent (ztGuiItem *panel);
-void        zt_guiCollapsingPanelCollapse         (ztGuiItem *panel);
-void        zt_guiCollapsingPanelExpand           (ztGuiItem *panel);
+void             zt_guiWindowSetMenuBar                (ztGuiItem *window, ztGuiItem *menubar);
+ztGuiItem       *zt_guiWindowGetContentParent          (ztGuiItem *window);
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem       *zt_guiCollapsingPanelGetContentParent (ztGuiItem *panel);
+void             zt_guiCollapsingPanelCollapse         (ztGuiItem *panel);
+void             zt_guiCollapsingPanelExpand           (ztGuiItem *panel);
 
 // ------------------------------------------------------------------------------------------------
 
 // used for button and toggle button
-void zt_guiButtonSetIcon         (ztGuiItem *button, ztSprite *icon);
-void zt_guiButtonSetTextPosition (ztGuiItem *button, i32 align_flags);
-void zt_guiButtonSetCallback     (ztGuiItem *button, ztFunctionID, void *user_data = nullptr);
+void             zt_guiButtonSetIcon                   (ztGuiItem *button, ztSprite *icon);
+void             zt_guiButtonSetTextPosition           (ztGuiItem *button, i32 align_flags);
+void             zt_guiButtonSetCallback               (ztGuiItem *button, ztFunctionID, void *user_data = nullptr);
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_guiToggleButtonGetValue(ztGuiItem *button);
-void zt_guiToggleButtonSetValue(ztGuiItem *button, bool value);
+bool             zt_guiToggleButtonGetValue            (ztGuiItem *button);
+void             zt_guiToggleButtonSetValue            (ztGuiItem *button, bool value);
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_guiCheckboxGetValue(ztGuiItem *checkbox);
-void zt_guiCheckboxSetValue(ztGuiItem *checkbox, bool value);
+bool             zt_guiCheckboxGetValue                (ztGuiItem *checkbox);
+void             zt_guiCheckboxSetValue                (ztGuiItem *checkbox, bool value);
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_guiRadioButtonGetValue(ztGuiItem *radio);
-void zt_guiRadioButtonSetValue(ztGuiItem *radio, bool value);
+bool             zt_guiRadioButtonGetValue             (ztGuiItem *radio);
+void             zt_guiRadioButtonSetValue             (ztGuiItem *radio, bool value);
 
 // ------------------------------------------------------------------------------------------------
 
-r32  zt_guiSliderGetValue(ztGuiItem *slider);
-void zt_guiSliderSetValue(ztGuiItem *slider, r32 value);
+r32              zt_guiSliderGetValue                  (ztGuiItem *slider);
+void             zt_guiSliderSetValue                  (ztGuiItem *slider, r32 value);
 
 // ------------------------------------------------------------------------------------------------
 
-r32  zt_guiScrollbarGetValue     (ztGuiItem *scrollbar);
-void zt_guiScrollbarSetValue     (ztGuiItem *scrollbar, r32 value);
-void zt_guiScrollbarSetSteps     (ztGuiItem *scrollbar, r32 step_single, r32 step_page);
-bool zt_guiScrollbarStepNeg      (ztGuiItem *scrollbar);
-bool zt_guiScrollbarStepPageNeg  (ztGuiItem *scrollbar);
-bool zt_guiScrollbarStepPos      (ztGuiItem *scrollbar);
-bool zt_guiScrollbarStepPagePos  (ztGuiItem *scrollbar);
-void zt_guiScrollbarSetPercent   (ztGuiItem *scrollbar, r32 percent); // what percent of the total scrolled area is current displayed
+r32              zt_guiScrollbarGetValue               (ztGuiItem *scrollbar);
+void             zt_guiScrollbarSetValue               (ztGuiItem *scrollbar, r32 value);
+void             zt_guiScrollbarSetSteps               (ztGuiItem *scrollbar, r32 step_single, r32 step_page);
+void             zt_guiScrollbarSetStepsAndPercent     (ztGuiItem *scrollbar, r32 step_single, r32 step_page, r32 percent);
+bool             zt_guiScrollbarStepNeg                (ztGuiItem *scrollbar);
+bool             zt_guiScrollbarStepPageNeg            (ztGuiItem *scrollbar);
+bool             zt_guiScrollbarStepPos                (ztGuiItem *scrollbar);
+bool             zt_guiScrollbarStepPagePos            (ztGuiItem *scrollbar);
+void             zt_guiScrollbarSetPercent             (ztGuiItem *scrollbar, r32 percent); // what percent of the total scrolled area is current displayed
+void             zt_guiScrollbarSetCallback            (ztGuiItem *scrollbar, ztFunctionID callback, void *user_data);
+
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiScrollContainerSetItem     (ztGuiItem *scroll, ztGuiItem *internal_item);
-void zt_guiScrollContainerResetScroll (ztGuiItem *scroll);
-void zt_guiScrollContainerSetScroll   (ztGuiItem *scroll, ztGuiItemOrient_Enum orient, r32 value);
+void             zt_guiScrollContainerSetItem          (ztGuiItem *scroll, ztGuiItem *internal_item);
+void             zt_guiScrollContainerResetScroll      (ztGuiItem *scroll);
+void             zt_guiScrollContainerSetScroll        (ztGuiItem *scroll, ztGuiItemOrient_Enum orient, r32 value);
 
 // ------------------------------------------------------------------------------------------------
 
-int    zt_guiTextEditGetValue       (ztGuiItem *text, char *buffer, int buffer_len);
-void   zt_guiTextEditSetValue       (ztGuiItem *text, const char *value);
-void   zt_guiTextEditSetSelection   (ztGuiItem *text, int sel_beg, int sel_end);
-void   zt_guiTextEditGetSelection   (ztGuiItem *text, int *sel_beg, int *sel_end);
-void   zt_guiTextEditSelectAll      (ztGuiItem *text);
-int    zt_guiTextEditGetCursorPos   (ztGuiItem *text);
-void   zt_guiTextEditSetCursorPos   (ztGuiItem *text, int cursor_pos);
-void   zt_guiTextEditSetCallback    (ztGuiItem *text, ztFunctionID on_key, void *user_data = nullptr);
-ztVec2 zt_guiTextEditGetCharacterPos(ztGuiItem *item, int ch, bool bottom_right);
+int              zt_guiTextEditGetValue                (ztGuiItem *text, char *buffer, int buffer_len);
+void             zt_guiTextEditSetValue                (ztGuiItem *text, const char *value);
+void             zt_guiTextEditSetSelection            (ztGuiItem *text, int sel_beg, int sel_end);
+void             zt_guiTextEditGetSelection            (ztGuiItem *text, int *sel_beg, int *sel_end);
+void             zt_guiTextEditSelectAll               (ztGuiItem *text);
+int              zt_guiTextEditGetCursorPos            (ztGuiItem *text);
+void             zt_guiTextEditSetCursorPos            (ztGuiItem *text, int cursor_pos);
+void             zt_guiTextEditSetCallback             (ztGuiItem *text, ztFunctionID on_key, void *user_data = nullptr);
+ztVec2           zt_guiTextEditGetCharacterPos         (ztGuiItem *item, int ch, bool bottom_right);
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiMenuAppend          (ztGuiItem *menu, const char *label, i32 id, void *user_data = nullptr, ztSprite *icon = nullptr);
-void zt_guiMenuAppendSubmenu   (ztGuiItem *menu, const char *label, ztGuiItem *submenu, ztSprite *icon = nullptr);
-void zt_guiMenuAppendSeparator (ztGuiItem *menu);
-void zt_guiMenuPopupAtItem     (ztGuiItem *menu, ztGuiItem *item, i32 align_flags, const ztVec2& offset = ztVec2::zero);
-void zt_guiMenuPopupAtPosition (ztGuiItem *menu, const ztVec2& pos);
-bool zt_guiMenuGetSelected     (ztGuiItem *menu, i32 *selected_id);
-void zt_guiMenuSetCallback     (ztGuiItem *menu, ztFunctionID on_selected);
-void zt_guiMenuClear           (ztGuiItem *menu);
+void             zt_guiMenuAppend                      (ztGuiItem *menu, const char *label, i32 id, void *user_data = nullptr, ztSprite *icon = nullptr);
+void             zt_guiMenuAppendSubmenu               (ztGuiItem *menu, const char *label, ztGuiItem *submenu, ztSprite *icon = nullptr);
+void             zt_guiMenuAppendSeparator             (ztGuiItem *menu);
+void             zt_guiMenuPopupAtItem                 (ztGuiItem *menu, ztGuiItem *item, i32 align_flags, const ztVec2& offset = ztVec2::zero);
+void             zt_guiMenuPopupAtPosition             (ztGuiItem *menu, const ztVec2& pos);
+bool             zt_guiMenuGetSelected                 (ztGuiItem *menu, i32 *selected_id);
+void             zt_guiMenuSetCallback                 (ztGuiItem *menu, ztFunctionID on_selected);
+void             zt_guiMenuClear                       (ztGuiItem *menu);
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiTreeNodeID  zt_guiTreeAppend          (ztGuiItem *tree, const char *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID);
-ztGuiTreeNodeID  zt_guiTreeAppend          (ztGuiItem *tree, ztGuiItem *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID);
+ztGuiTreeNodeID  zt_guiTreeAppend                      (ztGuiItem *tree, const char *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID, i32 flags = 0);
+ztGuiTreeNodeID  zt_guiTreeAppend                      (ztGuiItem *tree, ztGuiItem *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID, i32 flags = 0);
 
-ztGuiTreeNodeID  zt_guiTreeGetSelected     (ztGuiItem *tree);
-void             zt_guiTreeSetSelected     (ztGuiItem *tree, ztGuiTreeNodeID node);
+ztGuiTreeNodeID  zt_guiTreeGetSelected                 (ztGuiItem *tree);
+void             zt_guiTreeSetSelected                 (ztGuiItem *tree, ztGuiTreeNodeID node);
 
-ztGuiTreeNodeID  zt_guiTreeGetRoot         (ztGuiItem *tree);
-ztGuiItem       *zt_guiTreeGetNodeItem     (ztGuiItem *tree, ztGuiTreeNodeID node);
-void            *zt_guiTreeGetNodeUserData (ztGuiItem *tree, ztGuiTreeNodeID node);
-void             zt_guiTreeSetCallback     (ztGuiItem *tree, ztFunctionID on_item_sel, void *user_data);
+ztGuiTreeNodeID  zt_guiTreeGetRoot                     (ztGuiItem *tree);
+ztGuiItem       *zt_guiTreeGetNodeItem                 (ztGuiItem *tree, ztGuiTreeNodeID node);
+void            *zt_guiTreeGetNodeUserData             (ztGuiItem *tree, ztGuiTreeNodeID node);
+void             zt_guiTreeSetCallback                 (ztGuiItem *tree, ztFunctionID on_item_sel, void *user_data);
 
-void             zt_guiTreeCollapseNode    (ztGuiItem *tree, ztGuiTreeNodeID node);
-void             zt_guiTreeExpandNode      (ztGuiItem *tree, ztGuiTreeNodeID node);
+void             zt_guiTreeCollapseNode                (ztGuiItem *tree, ztGuiTreeNodeID node);
+void             zt_guiTreeExpandNode                  (ztGuiItem *tree, ztGuiTreeNodeID node);
 
-
-void             zt_guiTreeClear           (ztGuiItem *tree);
-
-// ------------------------------------------------------------------------------------------------
-
-void zt_guiComboBoxSetContents     (ztGuiItem *combobox, const char **contents, int contents_count, int active);
-void zt_guiComboBoxClear           (ztGuiItem *combobox);
-void zt_guiComboBoxAppend          (ztGuiItem *combobox, const char *content, void *user_data = nullptr);
-int  zt_guiComboBoxGetSelected     (ztGuiItem *combobox);
-int  zt_guiComboBoxGetItemCount    (ztGuiItem *combobox);
-int  zt_guiComboBoxGetItemText     (ztGuiItem *combobox, int index, char* buffer, int buffer_len);
-void *zt_guiComboBoxGetItemUserData(ztGuiItem *combobox, int index);
-void zt_guiComboBoxSetCallback     (ztGuiItem *combobox, ztFunctionID on_item_sel, void *user_data);
+void             zt_guiTreeClear                       (ztGuiItem *tree);
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiSpriteDisplaySetSprite(ztGuiItem *item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one);
+void             zt_guiComboBoxSetContents             (ztGuiItem *combobox, const char **contents, int contents_count, int active);
+void             zt_guiComboBoxClear                   (ztGuiItem *combobox);
+void             zt_guiComboBoxAppend                  (ztGuiItem *combobox, const char *content, void *user_data = nullptr);
+int              zt_guiComboBoxGetSelected             (ztGuiItem *combobox);
+void             zt_guiComboBoxSetSelected             (ztGuiItem *combobox);
+int              zt_guiComboBoxGetItemCount            (ztGuiItem *combobox);
+int              zt_guiComboBoxGetItemText             (ztGuiItem *combobox, int index, char* buffer, int buffer_len);
+void            *zt_guiComboBoxGetItemUserData         (ztGuiItem *combobox, int index);
+void             zt_guiComboBoxSetCallback             (ztGuiItem *combobox, ztFunctionID on_item_sel, void *user_data);
 
 // ------------------------------------------------------------------------------------------------
 
-int zt_guiSpinnerGetValue(ztGuiItem *spinner);	// -1 or +1
-void zt_guiSpinnerSetCallback(ztGuiItem *spinner, ztFunctionID on_value_changed, void *user_data);
+void             zt_guiSpriteDisplaySetSprite          (ztGuiItem *item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one);
 
-void zt_guiSpinnerTickUp(ztGuiItem *spinner);
-void zt_guiSpinnerTickDown(ztGuiItem *spinner);
+// ------------------------------------------------------------------------------------------------
+
+int              zt_guiSpinnerGetValue                 (ztGuiItem *spinner);	// -1 or +1
+void             zt_guiSpinnerSetCallback              (ztGuiItem *spinner, ztFunctionID on_value_changed, void *user_data);
+
+void             zt_guiSpinnerTickUp                   (ztGuiItem *spinner);
+void             zt_guiSpinnerTickDown                 (ztGuiItem *spinner);
+
+// ------------------------------------------------------------------------------------------------
+
+int              zt_guiListBoxAppend                   (ztGuiItem *listbox, ztGuiItem *item, void *user_data);
+int              zt_guiListBoxAppend                   (ztGuiItem *listbox, const char *item, void *user_data);
+void             zt_guiListBoxClear                    (ztGuiItem *listbox);
+
+int              zt_guiListBoxGetActiveItem            (ztGuiItem *listbox);
+int              zt_guiListBoxGetSelectedCount         (ztGuiItem *listbox);
+int              zt_guiListBoxGetSelected              (ztGuiItem *listbox, int which = 0);
+bool             zt_guiListBoxIsSelected               (ztGuiItem *listbox, int item_idx);
+int              zt_guiListBoxSetSelected              (ztGuiItem *listbox, int item_idx, bool append_to_selection = false, bool force_visible = true);
+
+int              zt_guiListBoxGetCount                 (ztGuiItem *listbox);
+ztGuiItem       *zt_guiListBoxGetItem                  (ztGuiItem *listbox, int item_idx);
+void            *zt_guiListBoxGetItemUserData          (ztGuiItem *listbox, int item_idx);
+
+void             zt_guiListBoxShowItem                 (ztGuiItem *listbox, int item_idx, bool show = true);
+void             zt_guiListBoxHideItem                 (ztGuiItem *listbox, int item_idx);
+bool             zt_guiListBoxIsItemShown              (ztGuiItem *listbox, int item_idx);
+
+void             zt_guiListBoxScrollToItem             (ztGuiItem *listbox, int item_idx);
+
+void             zt_guiListBoxSetHeaderItem            (ztGuiItem *listbox, ztGuiItem *header);
+
+
+// ------------------------------------------------------------------------------------------------
+
+
+
 
 // ------------------------------------------------------------------------------------------------
 
@@ -943,6 +1032,7 @@ struct ztGuiItem
 		ztGuiItem      *control_button;
 		ztGuiItem      *item;
 		void           *user_data;
+		i32             flags;
 
 		ztTreeItem     *first_child;
 		ztTreeItem     *next;
@@ -1005,6 +1095,8 @@ struct ztGuiItem
 			int                  press_button;
 			r32                  press_time;
 			r32                  step, step_page, handle_pct;
+			ztFunctionID         on_scrollbar_scroll;
+			void                *on_scrollbar_scroll_user_data;
 		} slider;
 
 		// -------------------------------------------------
@@ -1142,6 +1234,33 @@ struct ztGuiItem
 		} spinner;
 
 		// -------------------------------------------------
+
+		struct {
+			ztGuiItem  **items;
+			void       **user_datas;
+			bool        *selected;
+			r32         *heights;
+			bool        *hidden;
+
+			i32          item_count;
+			i32          item_size;
+			r32          total_height;
+			r32          total_width;
+			i32          active_item;
+			i32          prev_active_item;
+
+			ztGuiItem   *container;
+			ztGuiItem   *scrollbar_vert;
+			ztGuiItem   *scrollbar_horz;
+			ztGuiItem   *header;
+
+			r32          scroll_amt_vert;
+			r32          scroll_amt_horz;
+
+			ztFunctionID on_selected;
+		} listbox;
+
+		// -------------------------------------------------
 	};
 };
 
@@ -1149,8 +1268,9 @@ struct ztGuiItem
 
 enum ztGuiManagerItemCacheFlags_Enum
 {
-	ztGuiManagerItemCacheFlags_Used      = (1<<0),
-	ztGuiManagerItemCacheFlags_MouseOver = (1<<1),
+	ztGuiManagerItemCacheFlags_Used       = (1<<0),
+	ztGuiManagerItemCacheFlags_MouseOver  = (1<<1),
+	ztGuiManagerItemCacheFlags_FreeQueued = (1<<2),
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1200,6 +1320,8 @@ struct ztGuiManager
 	i32            base_id;
 
 	bool           in_update;
+
+	ztStringPool   string_pool;
 
 	ztGuiManager  *next;
 };
@@ -1402,7 +1524,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		case ztGuiThemeValue_r32_CollapsingPanelHeight:       *result = 26 / ppu; break;
 
 		case ztGuiThemeValue_r32_ButtonDefaultW:              *result = 96 / ppu; break;
-		case ztGuiThemeValue_r32_ButtonDefaultH:              *result = 32 / ppu; break;
+		case ztGuiThemeValue_r32_ButtonDefaultH:              *result = 26 / ppu; break;
 		case ztGuiThemeValue_r32_ButtonPaddingW:              *result =  3 / ppu; break;
 		case ztGuiThemeValue_r32_ButtonPaddingH:              *result =  3 / ppu; break;
 
@@ -1415,10 +1537,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		case ztGuiThemeValue_r32_SliderHandleSize:            *result =  8 / ppu; break;
 		case ztGuiThemeValue_r32_SliderHandleMinHeight:       *result = 20 / ppu; break;
 		
-		case ztGuiThemeValue_r32_ScrollbarButtonW:            *result = 16 / ppu; break;
-        case ztGuiThemeValue_r32_ScrollbarButtonH:            *result = 16 / ppu; break;
+		case ztGuiThemeValue_r32_ScrollbarButtonW:            *result =  0 / ppu; break;
+        case ztGuiThemeValue_r32_ScrollbarButtonH:            *result =  0 / ppu; break;
 		case ztGuiThemeValue_r32_ScrollbarMinHandleSize:      *result =  8 / ppu; break;
-		case ztGuiThemeValue_r32_ScrollbarMinWidth:           *result = 16 / ppu; break;
+		case ztGuiThemeValue_r32_ScrollbarMinWidth:           *result = 10 / ppu; break;
 		
 		case ztGuiThemeValue_r32_ScrollContainerPaddingX:     *result =  3 / ppu; break;
 		case ztGuiThemeValue_r32_ScrollContainerPaddingY:     *result =  3 / ppu; break;
@@ -1450,6 +1572,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetIValue, ztInternal ZT_FUNC_TH
 
 	switch (value)
 	{
+		case ztGuiThemeValue_i32_FontID:                            *result = ztFontDefault; break;
+
 		case ztGuiThemeValue_i32_WindowCollapseButtonAlign:         *result = ztAlign_Left | ztAlign_Top; break;
 		case ztGuiThemeValue_i32_WindowCollapseButtonAnchor:        *result = ztAnchor_Left | ztAnchor_Top; break;
 		case ztGuiThemeValue_i32_WindowCollapseButtonBehaviorFlags: *result = ztGuiButtonBehaviorFlags_NoBackground | ztGuiButtonBehaviorFlags_OnPressDip; break;
@@ -1508,17 +1632,20 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 					char *name = zt_guiItemGetName(subitem);
 
 					if (zt_strEquals(name, "Close")) {
-						zt_guiItemSetLabel(subitem, "X");
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(1007, 16), ztVec2i(16, 16)));
+						//zt_guiItemSetLabel(subitem, "X");
 					}
 					else if (zt_strEquals(name, "Collapse")) {
 						if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed))) {
-							zt_guiItemSetLabel(subitem, ">");
+							zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(992, 1), ztVec2i(12, 12)));
+							//zt_guiItemSetLabel(subitem, ">");
 						}
 						else {
-							zt_guiItemSetLabel(subitem, "v");
+							zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(992, 14), ztVec2i(12, 12)));
+							//zt_guiItemSetLabel(subitem, "v");
 						}
 					}
-					zt_guiItemSetSize(subitem, ztVec2(21 / ppu, 21 / ppu));
+					zt_guiItemSetSize(subitem, ztVec2(18 / ppu, 18 / ppu));
 				} break;
 			}
 
@@ -1531,10 +1658,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 			{
 				case ztGuiItemType_Button: {
 					if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiCollapsingPanelInternalStates_Collapsed))) {
-						zt_guiItemSetLabel(subitem, ">");
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(992, 1), ztVec2i(12, 12)));
+						//zt_guiItemSetLabel(subitem, ">");
 					}
 					else {
-						zt_guiItemSetLabel(subitem, "v");
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(992, 14), ztVec2i(12, 12)));
+						//zt_guiItemSetLabel(subitem, "v");
 					}
 					zt_guiItemSetSize(subitem, ztVec2(21 / ppu, 21 / ppu));
 				} break;
@@ -1549,10 +1678,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 			{
 				case ztGuiItemType_Button: {
 					if (data == nullptr || *((bool*)data) == true) {
-						zt_guiItemSetLabel(subitem, "-");
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(979, 16), ztVec2i(9, 9)));
+						//zt_guiItemSetLabel(subitem, "-");
 					}
 					else {
-						zt_guiItemSetLabel(subitem, "+");
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(979, 2), ztVec2i(9, 9)));
+						//zt_guiItemSetLabel(subitem, "+");
 					}
 					zt_guiItemSetSize(subitem, ztVec2(17 / ppu, 17 / ppu));
 				} break;
@@ -1592,7 +1723,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 		// ------------------------------------------------------------------------------------------------
 
 		case ztGuiItemType_StaticText: {
-			item->size = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(0, item->label) : zt_fontGetExtents(ztFontDefault, item->label);
+			ztFontID font = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_MonoSpaced) ? ztFontDefaultMono : ztFontDefault;
+			item->size = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(font, item->label) : zt_fontGetExtents(font, item->label);
 		} break;
 
 		// ------------------------------------------------------------------------------------------------
@@ -1702,8 +1834,19 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 		// ------------------------------------------------------------------------------------------------
 
 		case ztGuiItemType_ComboBox: {
+			r32 base_width = 22 / ppu;
+
 			item->size.x = 80 / ppu;
-			item->size.y = 22 / ppu;
+			item->size.y = 18 / ppu;
+
+			r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding);
+			ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_FontID);
+			zt_fiz(item->combobox.contents_count) {
+				ztVec2 ext = zt_fontGetExtents(font, item->combobox.contents[i]);
+				item->size.x = zt_max(item->size.x, base_width + ext.x);
+				item->size.y = zt_max(item->size.y, ext.y + padding * 2);
+			}
+
 		} break;
 
 
@@ -1737,6 +1880,22 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			if (highlighted) return ztColor(.25f, .25f, .25f, 1);
 			return ztColor(0, 0, 0, .85f);
 		}
+
+		static ztColor fancyOutline(bool highlighted, bool pressed)
+		{
+			ztColor color = ztColor(120 / 255.f, 201 / 255.f, 242 / 255.f, .95f);
+			if (pressed) return color * .8f;
+			if (highlighted) return color * .9f;
+			return color;
+		}
+
+		static ztColor fancyFace(bool highlighted, bool pressed)
+		{
+			ztColor color = ztColor(0 / 255.f, 137 / 255.f, 207 / 255.f, .95f);
+			if (pressed) return color * .8f;
+			if (highlighted) return color * .9f;
+			return color;
+		}
 	};
 
 	r32 ppu = zt_pixelsPerUnit();
@@ -1744,6 +1903,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	bool highlighted = zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
 	bool pressed     = (highlighted && item->gm->item_has_mouse == item) || (!highlighted && zt_bitIsSet(item->state_flags, zt_bit(ztGuiButtonInternalStates_IsToggled)));
 	bool enabled     = true;
+
+	//zt_alignToPixel(&pos, ppu);
+	ztVec2 size = item->size;
+	zt_alignToPixel(&size, ppu);
 
 	switch (item->type)
 	{
@@ -1773,10 +1936,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			}
 
 			if (item->label != nullptr) {
-				ztVec2 title_pos(pos.x, pos.y + (item->size.y / 2) - (3 / ppu));
+				ztVec2 title_pos(pos.x, pos.y + (item->size.y / 2) - (4 / ppu));
 				ztVec2 title_size;
 				zt_drawListAddText2D(draw_list, 0, item->label, title_pos, ztAlign_Top, ztAnchor_Top, &title_size);
-				title_size.y += 6 / ppu;
+				title_size.y += 4 / ppu;
 				zt_drawListPushColor(draw_list, has_focus ? local::outline(false, false) : ztColor(.65f, .65f, .65f, 1));
 				zt_drawListAddLine(draw_list, ztVec3((title_pos + ztVec2(item->size.x / -2, -title_size.y)), 0), ztVec3((title_pos + ztVec2(item->size.x / 2, -title_size.y)), 0));
 				zt_drawListPopColor(draw_list);
@@ -1844,7 +2007,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			zt_alignToPixel(&pos, zt_pixelsPerUnit());
 			zt_drawListAddDrawList(draw_list, item->draw_list, ztVec3(pos, 0));
 #			else
-			ztVec2 ext = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(0, item->label) : zt_fontGetExtents(ztFontDefault, item->label);
+			ztFontID font = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_MonoSpaced) ? ztFontDefaultMono : ztFontDefault;
+			ztVec2 ext = zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy) ? zt_fontGetExtentsFancy(font, item->label) : zt_fontGetExtents(font, item->label);
 			ztVec2 off = pos;
 
 			if (item->align_flags != 0) {
@@ -1856,11 +2020,20 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 			ztGuiTheme *theme = zt_guiItemGetTheme(item);
 			if (zt_bitIsSet(item->behavior_flags, ztGuiStaticTextBehaviorFlags_Fancy)) {
-				zt_drawListAddFancyText2D(draw_list, ztFontDefault, item->label, off, item->align_flags, item->anchor_flags);
+				zt_drawListAddFancyText2D(draw_list, font, item->label, off, item->align_flags, item->anchor_flags);
+
+				//zt_drawListPushColor(draw_list, ztColor_LightRed);
+				//zt_drawListAddEmptyRect(draw_list, ztVec3(off.x, off.y, 0), ext);
+				//zt_drawListPopColor(draw_list);
 			}
 			else {
-				zt_drawListAddText2D(draw_list, ztFontDefault, item->label, off, item->align_flags, item->anchor_flags);
+				zt_drawListAddText2D(draw_list, font, item->label, off, item->align_flags, item->anchor_flags);
+
+				//zt_drawListPushColor(draw_list, ztColor_LightBlue);
+				//zt_drawListAddEmptyRect(draw_list, ztVec3(off.x, off.y, 0), ext);
+				//zt_drawListPopColor(draw_list);
 			}
+
 #			endif
 		} break;
 
@@ -2038,14 +2211,16 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				}
 				else {
 					zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
-					handle_size = ztVec2( zt_max(10 / ppu, item->slider.handle_size),item->size.y);
+					handle_size = ztVec2( zt_max(10 / ppu, item->slider.handle_size - (2 / ppu)),item->size.y - (2 / ppu));
 
-					ztVec2 btn_size(16 / ppu, 16 / ppu);
-					bool neg_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight)), neg_pressed = neg_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)),
-					     pos_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosHighlight)), pos_pressed = pos_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosPressed));
+					ztVec2 btn_size(scrollbar_button_w / ppu, scrollbar_button_w / ppu);
+					if(btn_size.x > 0 && btn_size.y > 0) {
+						bool neg_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight)), neg_pressed = neg_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)),
+							 pos_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosHighlight)), pos_pressed = pos_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosPressed));
 
-					zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(item->size.x / -2.f + scrollbar_button_w / 2.f, 0), btn_size, local::face(neg_highlight, neg_pressed), local::outline(neg_highlight, neg_pressed));
-					zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(item->size.x /  2.f - scrollbar_button_w / 2.f, 0), btn_size, local::face(pos_highlight, pos_pressed), local::outline(pos_highlight, pos_pressed));
+						zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(item->size.x / -2.f + scrollbar_button_w / 2.f, 0), btn_size, local::face(neg_highlight, neg_pressed), local::outline(neg_highlight, neg_pressed));
+						zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(item->size.x /  2.f - scrollbar_button_w / 2.f, 0), btn_size, local::face(pos_highlight, pos_pressed), local::outline(pos_highlight, pos_pressed));
+					}
 				}
 			}
 			else {
@@ -2056,14 +2231,16 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				}
 				else {
 					zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
-					handle_size = ztVec2(item->size.x, zt_max(10 / ppu, item->slider.handle_size));
+					handle_size = ztVec2(item->size.x - (2 / ppu), zt_max(10 / ppu, item->slider.handle_size - (2 / ppu)));
 
-					ztVec2 btn_size(16 / ppu, 16 / ppu);
-					bool neg_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight)), neg_pressed = neg_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)),
-					     pos_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosHighlight)), pos_pressed = pos_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosPressed));
+					ztVec2 btn_size(scrollbar_button_w / ppu, scrollbar_button_w / ppu);
+					if(btn_size.x > 0 && btn_size.y > 0) {
+						bool neg_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight)), neg_pressed = neg_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)),
+							 pos_highlight = enabled && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosHighlight)), pos_pressed = pos_highlight && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_PosPressed));
 
-					zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(0, item->size.y /  2.f - scrollbar_button_w / 2.f), btn_size, local::face(neg_highlight, neg_pressed), local::outline(neg_highlight, neg_pressed));
-					zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(0, item->size.y / -2.f + scrollbar_button_w / 2.f), btn_size, local::face(pos_highlight, pos_pressed), local::outline(pos_highlight, pos_pressed));
+						zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(0, item->size.y /  2.f - scrollbar_button_w / 2.f), btn_size, local::face(neg_highlight, neg_pressed), local::outline(neg_highlight, neg_pressed));
+						zt_drawListAddSolidOutlinedRect2D(draw_list, pos + ztVec2(0, item->size.y / -2.f + scrollbar_button_w / 2.f), btn_size, local::face(pos_highlight, pos_pressed), local::outline(pos_highlight, pos_pressed));
+					}
 				}
 			}
 
@@ -2071,7 +2248,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			if (enabled) {
 				bool highlight = item->slider.highlight && zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
 				bool pressed = item->slider.drag_state.dragging;
-				zt_drawListAddSolidOutlinedRect2D(draw_list, handle_pos, handle_size, local::face(highlight, pressed), local::outline(highlight, pressed));
+				zt_drawListAddSolidOutlinedRect2D(draw_list, handle_pos, handle_size, local::fancyFace(highlight, pressed), local::fancyOutline(highlight, pressed));
 			}
 		} break;
 
@@ -2179,7 +2356,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 							zt_drawListAddSolidRect2D(draw_list, ztVec2(pos.x + ext.x / 2, pos.y - ext.y / 2.f), ztVec2(ext.x + padding * 2, ext.y + 2 / ppu), ztColor(.5f, .5f, 1, .5f));
 						}
 					}
-					zt_drawListAddText2D(draw_list, ztFontDefault, item->menu.display[i], ztVec2(pos.x + icon.x, pos.y - ext.y / 2.f + padding), ztAlign_Left, ztAnchor_Left);
+					zt_drawListAddText2D(draw_list, ztFontDefault, item->menu.display[i], ztVec2(pos.x + icon.x, pos.y - ext.y / 2.f), ztAlign_Left, ztAnchor_Left);
 
 					if (item->menu.icons[i] != nullptr) {
 						r32 y = zt_max(item->menu.icons[i]->half_size.y, ext.y / 2.f);
@@ -2241,7 +2418,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(highlighted, pressed), local::outline(highlighted, pressed));
 
 			r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, ztGuiThemeValue_r32_Padding, &padding);
-			pos.y += padding;
+			//pos.y += padding;
 
 			r32 button_w = 0; _zt_guiDefaultThemeGetRValue(theme, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
 			zt_drawListAddText2D(draw_list, ztFontDefault, "v", ztVec2(pos.x + (item->size.x - button_w) / 2, pos.y));
@@ -2276,6 +2453,35 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 		// ------------------------------------------------------------------------------------------------
 
+		case ztGuiItemType_ListBox: {
+			ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:ListBox");
+
+			zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
+
+			r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding);
+
+			int item_drawn = 0;
+			zt_fiz(item->listbox.item_count) {
+				item_drawn += 1;
+
+				if (!zt_guiItemIsVisible(item->listbox.items[i])) {
+					if (item->listbox.hidden[i]) {
+						item_drawn -= 1;
+					}
+					continue;
+				}
+
+				if (item->listbox.selected[i]) {
+					zt_drawListAddSolidRect2D(draw_list, pos + item->listbox.container->pos + ztVec2(0, item->listbox.items[i]->pos.y), ztVec2(item->listbox.container->size.x, item->listbox.items[i]->size.y), ztColor(.5f, .5f, 1, .5f));
+				}
+				else if (zt_bitIsSet(item->behavior_flags, ztGuiListBoxBehaviorFlags_AlternateRowColor) && item_drawn % 2 == 0) {
+					zt_drawListAddSolidRect2D(draw_list, pos + item->listbox.container->pos + ztVec2(0, item->listbox.items[i]->pos.y), ztVec2(item->listbox.container->size.x, item->listbox.items[i]->size.y), ztColor(.5f, .5f, 1, .125f));
+				}
+			}
+		} break;
+
+		// ------------------------------------------------------------------------------------------------
+
 		default: return true; // return false to use the default (this is the default though)
 	} 
 
@@ -2284,7 +2490,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default, ztMemoryArena *arena)
+ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default, ztMemoryArena *arena, ztGuiManagerStringPool_Enum string_pool)
 {
 	ZT_PROFILE_GUI("zt_guiManagerMake");
 
@@ -2317,12 +2523,54 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 	gm->tooltip_item    = nullptr;
 	gm->item_cache_used = 0;
 	gm->in_update       = false;
+	gm->string_pool     = {};
+
+	if(string_pool != ztGuiManagerStringPool_None) {
+		int sp_sizes[4];
+		int sp_props[4];
+		int count = 0;
+
+		switch(string_pool)
+		{
+			case ztGuiManagerStringPool_Minimal: {
+				sp_sizes[0] =  16; sp_props[0] = 8;
+				sp_sizes[1] =  32; sp_props[1] = 4;
+				sp_sizes[2] =  64; sp_props[2] = 2;
+				sp_sizes[3] = 128; sp_props[3] = 1;
+				count = 1024;
+			} break;
+
+			case ztGuiManagerStringPool_Standard: {
+				sp_sizes[0] =  16; sp_props[0] = 8;
+				sp_sizes[1] =  32; sp_props[1] = 4;
+				sp_sizes[2] =  64; sp_props[2] = 2;
+				sp_sizes[3] = 128; sp_props[3] = 1;
+				count = 1024 * 8;
+			} break;
+
+			case ztGuiManagerStringPool_Heavy:  {
+				sp_sizes[0] =  16; sp_props[0] = 8;
+				sp_sizes[1] =  32; sp_props[1] = 4;
+				sp_sizes[2] =  64; sp_props[2] = 2;
+				sp_sizes[3] = 128; sp_props[3] = 1;
+				count = 1024 * 16;
+			} break;
+		}
+
+		i32 bytes_needed = zt_stringPoolBytesNeeded(count, sp_sizes, sp_props, zt_elementsOf(sp_sizes));
+		ztMemoryArena *sp_arena = zt_memMakeArena(bytes_needed, arena, 0);
+
+		gm->string_pool = zt_stringPoolMake(count, sp_sizes, sp_props, zt_elementsOf(sp_sizes), sp_arena);
+	}
+	else {
+		gm->string_pool.arena = arena;
+	}
 
 	if (theme_default) {
 		gm->default_theme = *theme_default;
 	}
 	else {
-#if defined(ZT_WINDOWS)
+#		if defined(ZT_WINDOWS)
 		gm->internal_flags |= ztGuiManagerInternalFlags_OwnsTheme;
 
 		zt_memSet(&gm->default_theme, zt_sizeof(ztGuiTheme), 0);
@@ -2342,7 +2590,7 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 
 		// ----------------------------------------------------------------
 
-#endif
+#		endif
 	}
 
 	if (zt_gui->gui_managers_count++ == 0) {
@@ -2478,7 +2726,7 @@ ztInternal void _zt_guiItemFree(ztGuiManager *gm, ztGuiItem *item)
 			if (item->parent && item->parent->first_child == child) {
 				item->parent->first_child = child->sib_next;
 			}
-			else if(gm->first_child == child) {
+			else if (gm->first_child == child) {
 				gm->first_child = child->sib_next;
 			}
 			break;
@@ -2494,10 +2742,10 @@ ztInternal void _zt_guiItemFree(ztGuiManager *gm, ztGuiItem *item)
 		child = next_child;
 	}
 
-	if (item->name      ) zt_stringFree(item->name, gm->arena);
-	if (item->label     ) zt_stringFree(item->label, gm->arena);
-	if (item->tooltip   ) zt_stringFree(item->tooltip, gm->arena);
-	if (item->theme_type) zt_stringFree(item->theme_type, gm->arena);
+	if (item->name      ) zt_stringFree(&gm->string_pool, item->name);
+	if (item->label     ) zt_stringFree(&gm->string_pool, item->label);
+	if (item->tooltip   ) zt_stringFree(&gm->string_pool, item->tooltip);
+	if (item->theme_type) zt_stringFree(&gm->string_pool, item->theme_type);
 
 	if (item->draw_list) {
 		zt_drawListFree(item->draw_list);
@@ -2561,6 +2809,10 @@ void zt_guiManagerFree(ztGuiManager *gm)
 //		zt_textureFree(gm->default_theme.sprite_combobox_background.normal.sns.tex);
 	}
 
+	zt_memFreeArena(gm->string_pool.arena);
+	//zt_stringPoolFree(&gm->string_pool); can skip this since it was contained in the arena
+	gm->string_pool = {};
+
 	zt_freeArena(gm, gm->arena);
 
 	zt_gui->gui_managers_count--;
@@ -2618,6 +2870,7 @@ ztInternal void _zt_guiManagerUpdatePre(ztGuiManager *gm, r32 dt)
 	ZT_PROFILE_GUI("_zt_guiManagerUpdatePre");
 
 	int item_count = gm->item_cache_used;
+	int items_freed = 0;
 	zt_fiz(zt_elementsOf(gm->item_cache_flags)) {
 		if (gm->item_cache_flags[i] != 0) {
 			if (gm->item_cache[i].prev_state_flags != gm->item_cache[i].state_flags) {
@@ -2653,8 +2906,16 @@ ztInternal void _zt_guiManagerUpdatePre(ztGuiManager *gm, r32 dt)
 			else {
 				zt_bitRemove(gm->item_cache[i].state_flags, zt_bit(ztGuiItemStates_Resized));
 			}
-			if (gm->item_cache[i].functions.update != ztInvalidID) {
-				((zt_guiItemUpdate_Func*)zt_functionPointer(gm->item_cache[i].functions.update))(&gm->item_cache[i], dt, gm->item_cache[i].functions.user_data);
+
+			if (zt_bitIsSet(gm->item_cache_flags[i], ztGuiManagerItemCacheFlags_FreeQueued)) {
+				if (items_freed++ < 10) {
+					zt_guiItemFree(&gm->item_cache[i]);
+				}
+			}
+			else {
+				if (gm->item_cache[i].functions.update != ztInvalidID) {
+					((zt_guiItemUpdate_Func*)zt_functionPointer(gm->item_cache[i].functions.update))(&gm->item_cache[i], dt, gm->item_cache[i].functions.user_data);
+				}
 			}
 			if (--item_count == 0) {
 				break;
@@ -2730,7 +2991,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 	if (gm->focus_item != nullptr && zt_guiItemIsShowing(gm->focus_item)) {
 		bool key_handled = false;
 		ztGuiItem *f_item = gm->focus_item;
-		if (!key_handled && f_item && input_key_strokes[0] != ztInputKeys_Invalid) {
+		if (!key_handled && f_item && (input_key_strokes[0] != ztInputKeys_Invalid || zt_bitIsSet(f_item->behavior_flags, ztGuiItemBehaviorFlags_WantsKeyboardAlways))) {
 			if (f_item->functions.input_key != ztInvalidID) {
 				if (((zt_guiItemInputKey_Func*)zt_functionPointer(f_item->functions.input_key))(gm->focus_item, input_keys, input_key_strokes, f_item->functions.user_data)) {
 					key_handled = true;
@@ -2835,7 +3096,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 						gm->tooltip_item = nullptr;
 					}
 
-					if(mouse_intersecting && gm->item_has_mouse == nullptr && (input_mouse->leftJustPressed() || input_mouse->rightJustPressed() || input_mouse->middleJustPressed()) && zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_WantsFocus)) {
+					if (mouse_intersecting && gm->item_has_mouse == nullptr && (input_mouse->leftJustPressed() || input_mouse->rightJustPressed() || input_mouse->middleJustPressed()) && zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_WantsFocus)) {
 						gm->item_has_mouse = item;
 						recv_focus = true;
 					}
@@ -3053,6 +3314,7 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 		static void renderItem(ztGuiManager *gm, ztGuiItem *item, ztDrawList *draw_list, const ztVec2& offset)
 		{
 			if (!zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Visible)) || item->size.x <= 0 || item->size.y <= 0) {
+				zt_bitRemove(item->state_flags, zt_bit(ztGuiItemStates_Dirty));
 				return;
 			}
 
@@ -3060,7 +3322,7 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 
 			ztGuiTheme *theme = item->theme == nullptr ? &gm->default_theme : item->theme;
 
-			if(item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_begin != ztInvalidID) {
+			if (item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_begin != ztInvalidID) {
 				((ztGuiThemeRenderPassBegin_Func*)zt_functionPointer(theme->pass_begin))(theme, item, draw_list);
 			}
 
@@ -3114,7 +3376,7 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 			}
 			else if (clip && !zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_ClipChildren)) {
 #				if defined(_zt_guiManagerRenderClipAreas)
-					zt_drawListPushColor(draw_list, ztVec4(1, 0, 0, .5f));
+					zt_drawListPushColor(draw_list, ztVec4(0, 1, 0, .5f));
 					zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
 					zt_drawListPopColor(draw_list);
 #				else
@@ -3136,7 +3398,7 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 						zt_drawListAddEmptyRect(draw_list, pos + item->clip_area.xy, item->clip_area.zw);
 					}
 					else {
-						zt_drawListPushClipRegion(draw_list, pos, item->size);
+						zt_drawListAddEmptyRect(draw_list, pos, item->size);
 					}
 					zt_drawListPopColor(draw_list);
 #				else
@@ -3144,7 +3406,7 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 #				endif
 			}
 
-			if(item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_end != ztInvalidID) {
+			if (item->parent == nullptr && zt_bitIsSet(theme->flags, ztGuiThemeFlags_SeparatePasses) && theme->pass_end != ztInvalidID) {
 				((ztGuiThemeRenderPassEnd_Func*)zt_functionPointer(theme->pass_end))(theme, item, draw_list);
 			}
 		}
@@ -3384,7 +3646,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonClose, ztInternal ZT_FUNC_GUI_
 		zt_guiItemHide(window);
 	}
 	else {
-		zt_guiItemFree(window);
+		zt_guiItemQueueFree(window);
 	}
 }
 
@@ -3791,7 +4053,7 @@ void zt_guiCollapsingPanelExpand(ztGuiItem *panel)
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiStaticTextRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiStaticTextRender))
 {
-	zt_assert(zt_strLen(item->label) < item->draw_list->commands_size / 2); // this means you need to set the max chars in the constructor to be higher
+//	zt_assert(zt_strLen(item->label) < item->draw_list->commands_size / 2); // this means you need to set the max chars in the constructor to be higher
 
 	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
 }
@@ -3811,7 +4073,7 @@ ztGuiItem *zt_guiMakeStaticText(ztGuiItem *parent, const char *label, i32 behavi
 {
 	ZT_PROFILE_GUI("zt_guiMakeStaticText");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_StaticText, behavior_flags, zt_max(zt_strLen(label), max_chars) * 2);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_StaticText, behavior_flags);// , zt_max(zt_strLen(label), max_chars) * 2);
 	zt_returnValOnNull(item, nullptr);
 
 	item->functions.render    = _zt_guiStaticTextRender_FunctionID;
@@ -4102,7 +4364,7 @@ ztGuiItem *zt_guiMakeRadioButton(ztGuiItem *parent, const char *label, i32 behav
 
 // ------------------------------------------------------------------------------------------------
 
-bool zt_guiRadioGetValue(ztGuiItem *radio)
+bool zt_guiRadioButtonGetValue(ztGuiItem *radio)
 {
 	zt_returnValOnNull(radio, false);
 	zt_assertReturnValOnFail(radio->type == ztGuiItemType_RadioButton, false);
@@ -4112,7 +4374,7 @@ bool zt_guiRadioGetValue(ztGuiItem *radio)
 
 // ------------------------------------------------------------------------------------------------
 
-void zt_guiRadioSetValue(ztGuiItem *radio, bool value)
+void zt_guiRadioButtonSetValue(ztGuiItem *radio, bool value)
 {
 	zt_returnOnNull(radio);
 	zt_assertReturnOnFail(radio->type == ztGuiItemType_RadioButton);
@@ -4159,6 +4421,15 @@ ztInternal void _zt_guiSliderBaseCalcHandleSizeAndPos(ztGuiItem *item)
 	}
 }
 
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiSliderDoCallback(ztGuiItem *item)
+{
+	if (item->slider.on_scrollbar_scroll != ztInvalidID) {
+		((zt_guiScrollbarScrolled_Func*)zt_functionPointer(item->slider.on_scrollbar_scroll))(item, item->slider.value, item->slider.on_scrollbar_scroll_user_data);
+	}
+}
+
 // ------------------------------------------------------------------------------------
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSliderBaseUpdate))
@@ -4177,6 +4448,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITE
 				item->slider.press_time -= dt;
 				if (item->slider.press_time <= 0) {
 					zt_guiScrollbarStepNeg(item);
+					_zt_guiSliderDoCallback(item);
 					item->slider.press_time = .1f;
 				}
 			}
@@ -4184,6 +4456,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITE
 				item->slider.press_time -= dt;
 				if (item->slider.press_time <= 0) {
 					zt_guiScrollbarStepPos(item);
+					_zt_guiSliderDoCallback(item);
 					item->slider.press_time = .1f;
 				}
 			}
@@ -4241,6 +4514,7 @@ ztInternal void _zt_guiItemSliderProcessDragReturn(ztGuiItem *item, ztGuiTheme *
 			r32 pos_y = (mouse_pos.y - item->slider.drag_state.offset_y) + ((item->size.y - slider_handle_w) / 2);
 			item->slider.value = zt_clamp(1.f - (pos_y / (item->size.y - slider_handle_w)), 0, 1);
 		}
+		_zt_guiSliderDoCallback(item);
 	}
 	else {
 		r32 handle_size = item->slider.handle_size;
@@ -4266,7 +4540,7 @@ ztInternal void _zt_guiItemSliderProcessDragReturn(ztGuiItem *item, ztGuiTheme *
 	if (item->slider.live_value) {
 		*item->slider.live_value = item->slider.value;
 	}
-
+	_zt_guiSliderDoCallback(item);
 	_zt_guiSliderBaseCalcHandleSizeAndPos(item);
 }
 
@@ -4293,11 +4567,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiItemSliderInputMouse, ztInternal ZT_FUNC_GUI
 				if (button == -1) {
 					item->state_flags |= zt_bit(ztGuiSliderInternalStates_NegPressed);
 					zt_guiScrollbarStepNeg(item);
+					_zt_guiSliderDoCallback(item);
 					item->slider.press_time = 0.25f;
 				}
 				else if (button == 1) {
 					item->state_flags |= zt_bit(ztGuiSliderInternalStates_PosPressed);
 					zt_guiScrollbarStepPos(item);
+					_zt_guiSliderDoCallback(item);
 					item->slider.press_time = 0.25f;
 				}
 			}
@@ -4412,6 +4688,8 @@ ztInternal ztGuiItem *_zt_guiMakeSliderBase(ztGuiItem *parent, ztGuiItemOrient_E
 	item->slider.value = live_value ? zt_clamp(*live_value, 0, 1) : 0;
 	item->slider.orient = orient;
 
+	item->slider.on_scrollbar_scroll = ztInvalidID;
+
 	item->functions.input_mouse = _zt_guiItemSliderInputMouse_FunctionID;
 	item->functions.render      = _zt_guiSliderBaseRender_FunctionID;
 	item->functions.best_size   = _zt_guiItemSliderBestSize_FunctionID;
@@ -4464,6 +4742,7 @@ void zt_guiSliderSetValue(ztGuiItem *slider, r32 value)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 
 ztGuiItem *zt_guiMakeScrollbar(ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value)
 {
@@ -4491,6 +4770,7 @@ void zt_guiScrollbarSetValue(ztGuiItem *scrollbar, r32 value)
 	if (scrollbar->slider.live_value) {
 		*scrollbar->slider.live_value = value;
 	}
+	_zt_guiSliderBaseCalcHandleSizeAndPos(scrollbar);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4501,6 +4781,16 @@ void zt_guiScrollbarSetSteps(ztGuiItem *scrollbar, r32 step_single, r32 step_pag
 
 	scrollbar->slider.step = zt_abs(step_single);
 	scrollbar->slider.step_page = zt_abs(step_page);
+
+	_zt_guiSliderBaseCalcHandleSizeAndPos(scrollbar);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiScrollbarSetStepsAndPercent(ztGuiItem *scrollbar, r32 step_single, r32 step_page, r32 percent)
+{
+	zt_guiScrollbarSetSteps(scrollbar, step_single, step_page);
+	zt_guiScrollbarSetPercent(scrollbar, percent);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4599,6 +4889,19 @@ void zt_guiScrollbarSetPercent(ztGuiItem *scrollbar, r32 percent)
 	_zt_guiSliderBaseCalcHandleSizeAndPos(scrollbar);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiScrollbarSetCallback(ztGuiItem *scrollbar, ztFunctionID callback, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiScrollbarSetCallback");
+	zt_assertReturnOnFail(scrollbar->type == ztGuiItemType_Scrollbar);
+
+	scrollbar->slider.on_scrollbar_scroll = callback;
+	scrollbar->slider.on_scrollbar_scroll_user_data = user_data;
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 ztInternal void _zt_guiScrollContainerCalcViewportSizePos(ztGuiItem *item, ztVec2 *pposition, ztVec2 *psize)
@@ -4782,8 +5085,6 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerBestSize, ztInternal ZT_FUNC_
 }
 
 // ------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
 
 ztGuiItem *zt_guiMakeScrollContainer(ztGuiItem *parent, i32 behavior_flags)
 {
@@ -5117,7 +5418,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditCleanup, ztInternal ZT_FUNC_GUI_ITEM
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditCleanup");
 
-	zt_stringFree(item->textedit.text_buffer, item->gm->arena);
+	zt_stringFree(&item->gm->string_pool, item->textedit.text_buffer);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -5535,7 +5836,7 @@ ztGuiItem *zt_guiMakeTextEdit(ztGuiItem *parent, const char *value, i32 flags, i
 	item->textedit.cursor_pos      = 0;
 	item->textedit.cursor_xy[0]    = item->textedit.cursor_xy[1] = 0;
 	item->textedit.cursor_vis      = false;
-	item->textedit.text_buffer     = zt_stringMake(buffer_size, item->gm->arena);
+	item->textedit.text_buffer     = zt_stringMake(&item->gm->string_pool, buffer_size);
 	item->textedit.text_buffer[0]  = 0;
 	item->textedit.select_beg      = -1;
 	item->textedit.select_end      = -1;
@@ -5559,7 +5860,7 @@ ztGuiItem *zt_guiMakeTextEdit(ztGuiItem *parent, const char *value, i32 flags, i
 	}
 
 	if (value) {
-		zt_stringOverwrite(item->textedit.text_buffer, value, item->gm->arena);
+		zt_stringOverwrite(&item->gm->string_pool, item->textedit.text_buffer, value);
 		_zt_guiTextEditCacheText(item);
 	}
 
@@ -5779,7 +6080,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLE
 	ZT_PROFILE_GUI("_zt_guiMenuCleanup");
 
 	zt_fiz(item->menu.item_count) {
-		zt_stringFree(item->menu.display[i], item->gm->arena);
+		zt_stringFree(&item->gm->string_pool, item->menu.display[i]);
 	}
 
 	zt_freeArena(item->menu.display, item->gm->arena);
@@ -5963,7 +6264,7 @@ void zt_guiMenuAppend(ztGuiItem *menu, const char *label, i32 id, void *user_dat
 	zt_assert(menu->menu.item_count < ztGuiMenuMaxMenuItems);
 
 	int idx = menu->menu.item_count++;
-	menu->menu.display[idx] = zt_stringMakeFrom(label, menu->gm->arena);
+	menu->menu.display[idx] = zt_stringMakeFrom(&menu->gm->string_pool, label);
 	menu->menu.ids[idx] = id;
 	menu->menu.submenus[idx] = nullptr;
 	menu->menu.user_datas[idx] = user_data;
@@ -5990,7 +6291,7 @@ void zt_guiMenuAppendSubmenu(ztGuiItem *menu, const char *label, ztGuiItem *subm
 	zt_assertReturnOnFail(menu->menu.item_count < ztGuiMenuMaxMenuItems);
 
 	int idx = menu->menu.item_count++;
-	menu->menu.display[idx] = zt_stringMakeFrom(label, menu->gm->arena);
+	menu->menu.display[idx] = zt_stringMakeFrom(&menu->gm->string_pool, label);
 	menu->menu.ids[idx] = ztInvalidID;
 	menu->menu.submenus[idx] = submenu;
 	menu->menu.user_datas[idx] = nullptr;
@@ -6019,7 +6320,7 @@ void zt_guiMenuAppendSeparator(ztGuiItem *menu)
 	zt_assert(menu->menu.item_count < ztGuiMenuMaxMenuItems);
 
 	int idx = menu->menu.item_count++;
-	menu->menu.display[idx] = zt_stringMakeFrom("__________", menu->gm->arena);
+	menu->menu.display[idx] = zt_stringMakeFrom(&menu->gm->string_pool, "__________");
 	menu->menu.ids[idx] = ztInvalidID;
 	menu->menu.submenus[idx] = nullptr;
 	menu->menu.user_datas[idx] = nullptr;
@@ -6104,6 +6405,13 @@ void zt_guiMenuClear(ztGuiItem *menu)
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+enum ztTreeEntryFlags_Enum
+{
+	ztTreeEntryFlags_NeedsSized = (1<<0),
+};
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal void _zt_guiTreeCalculateSize(ztGuiItem *item)
 {
 	ZT_PROFILE_GUI("_zt_guiTreeCalculateSize");
@@ -6164,6 +6472,12 @@ ztInternal void _zt_guiTreeCalculateSize(ztGuiItem *item)
 			ztGuiItem *tree_item = tree_entry->item;
 
 			tree_item->state_flags |= zt_bit(ztGuiItemStates_Visible);
+
+			if (zt_bitIsSet(tree_entry->flags, ztTreeEntryFlags_NeedsSized)) {
+				tree_item->size.x = w - indent_size;
+				zt_bitRemove(tree_entry->flags, ztTreeEntryFlags_NeedsSized);
+			}
+
 			tree_item->pos.x = x + indent_size + (tree_item->size.x / 2);
 
 			r32 tree_indent = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_TreeIndent);
@@ -6182,6 +6496,7 @@ ztInternal void _zt_guiTreeCalculateSize(ztGuiItem *item)
 			tree_item->pos.y = *y - size.y / 2;
 
 			*y -= size.y;
+
 
 			if (tree_entry->expanded) {
 				ztGuiItem::ztTreeItem *child = tree_entry->first_child;
@@ -6234,6 +6549,8 @@ ztInternal void _zt_guiTreeRecalc(ztGuiItem *tree)
 
 	ztGuiItem *container = tree->tree.container;
 	container->size = tree->size;
+
+	zt_bitRemove(tree->state_flags, zt_bit(ztGuiItemStates_Dirty));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6373,14 +6690,14 @@ ztGuiItem *zt_guiMakeTree(ztGuiItem *parent, i32 max_items)
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, const char *item_label, void *user_data, ztGuiTreeNodeID parent_id)
+ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, const char *item_label, void *user_data, ztGuiTreeNodeID parent_id, i32 flags)
 {
 	ZT_PROFILE_GUI("zt_guiTreeAppend");
 
 	zt_assertReturnValOnFail(tree->type == ztGuiItemType_Tree, ztInvalidID);
 
 	ztGuiItem *item = zt_guiMakeStaticText(tree->tree.content, item_label);
-	return zt_guiTreeAppend(tree, item, user_data, parent_id);
+	return zt_guiTreeAppend(tree, item, user_data, parent_id, flags);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6442,7 +6759,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeOnToggle, ztInternal ZT_FUNC_GUI_BUTTON_
 
 // ------------------------------------------------------------------------------------------------
 
-ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, ztGuiItem *item, void *user_data, ztGuiTreeNodeID parent_id)
+ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, ztGuiItem *item, void *user_data, ztGuiTreeNodeID parent_id, i32 flags)
 {
 	ZT_PROFILE_GUI("zt_guiTreeAppend");
 
@@ -6450,12 +6767,12 @@ ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, ztGuiItem *item, void *user_da
 	{
 		// ------------------------------------------------------------------------------------------------
 
-		static ztGuiItem::ztTreeItem *appendItem(ztGuiItem *tree, ztGuiItem::ztTreeItem *root, ztGuiTreeNodeID parent_node)
+		static ztGuiItem::ztTreeItem *appendItem(ztGuiItem *tree, ztGuiItem::ztTreeItem *root, ztGuiTreeNodeID parent_node, i32 flags)
 		{
 			if (parent_node != ztInvalidID && parent_node != root->node_id) {
 				ztGuiItem::ztTreeItem *node = root->first_child;
 				while (node) {
-					auto *tree_item = appendItem(tree, node, parent_node);
+					auto *tree_item = appendItem(tree, node, parent_node, flags);
 					if (tree_item) {
 						return tree_item;
 					}
@@ -6470,6 +6787,7 @@ ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, ztGuiItem *item, void *user_da
 			tree_item->node_id = ++tree->tree.last_id;
 			tree_item->expanded = true;
 			tree_item->parent = root;
+			tree_item->flags = zt_bitIsSet(flags, ztGuiTreeItemFlags_StretchToMax) ? ztTreeEntryFlags_NeedsSized : 0;
 			
 			tree_item->control_button = zt_guiMakeButton(tree->tree.content, nullptr, zt_guiThemeGetIValue(zt_guiItemGetTheme(tree), ztGuiThemeValue_i32_TreeCollapseButtonBehaviorFlags));
 	
@@ -6487,7 +6805,7 @@ ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, ztGuiItem *item, void *user_da
 
 	zt_guiItemReparent(item, tree->tree.content);
 
-	ztGuiItem::ztTreeItem *tree_item = local::appendItem(tree, tree->tree.root_item, parent_id);
+	ztGuiItem::ztTreeItem *tree_item = local::appendItem(tree, tree->tree.root_item, parent_id, flags);
 	if (tree_item == nullptr) {
 		return ztInvalidID;
 	}
@@ -6632,11 +6950,11 @@ void zt_guiTreeClear(ztGuiItem *tree)
 		static void clear(ztMemoryArena *arena, ztGuiItem::ztTreeItem *tree_item)
 		{
 			if (tree_item->control_button != nullptr) {
-				zt_guiItemFree(tree_item->control_button);
+				zt_guiItemQueueFree(tree_item->control_button);
 				tree_item->control_button = nullptr;
 			}
 			if (tree_item->item != nullptr) {
-				zt_guiItemFree(tree_item->item);
+				zt_guiItemQueueFree(tree_item->item);
 				tree_item->item = nullptr;
 			}
 
@@ -6675,11 +6993,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM
 	ZT_PROFILE_GUI("_zt_guiComboBoxCleanup");
 
 	if (item->combobox.popup != nullptr) {
-		zt_guiItemFree(item->combobox.popup);
+		zt_guiItemQueueFree(item->combobox.popup);
 	}
 
 	zt_fiz(item->combobox.contents_size) {
-		zt_stringFree(item->combobox.contents[i], item->gm->arena);
+		zt_stringFree(&item->gm->string_pool, item->combobox.contents[i]);
 	}
 	zt_freeArena(item->combobox.contents, item->gm->arena);
 	zt_freeArena(item->combobox.contents_user_data, item->gm->arena);
@@ -6767,7 +7085,7 @@ ztGuiItem *zt_guiMakeComboBox(ztGuiItem *parent, i32 max_items)
 	item->combobox.on_selected_user_data = nullptr;
 
 	zt_fiz(max_items) {
-		item->combobox.contents[i] = zt_stringMake(128, item->gm->arena);
+		item->combobox.contents[i] = zt_stringMake(&item->gm->string_pool, 128);
 		item->combobox.contents[i][0] = 0;
 		item->combobox.contents_user_data[i] = nullptr;
 	}
@@ -6810,14 +7128,14 @@ void zt_guiComboBoxSetContents(ztGuiItem *combobox, const char **contents, int c
 	zt_assertReturnOnFail(combobox->type == ztGuiItemType_ComboBox);
 
 	if (combobox->combobox.popup != nullptr) {
-		zt_guiItemFree(combobox->combobox.popup);
+		zt_guiItemQueueFree(combobox->combobox.popup);
 	}
 	combobox->combobox.popup = zt_guiMakeMenu();
 	zt_guiMenuSetCallback(combobox->combobox.popup, _zt_guiComboBoxMenuSelected_FunctionID);
 
 	combobox->combobox.contents_count = zt_min(contents_count, combobox->combobox.contents_size);
 	zt_fiz(combobox->combobox.contents_count) {
-		zt_stringOverwrite(combobox->combobox.contents[i], contents[i], combobox->gm->arena);
+		zt_stringOverwrite(&combobox->gm->string_pool, combobox->combobox.contents[i], contents[i]);
 
 		zt_guiMenuAppend(combobox->combobox.popup, contents[i], i, combobox);
 	}
@@ -6836,7 +7154,7 @@ void zt_guiComboBoxClear(ztGuiItem *combobox)
 	combobox->combobox.selected = -1;
 
 	if (combobox->combobox.popup != nullptr) {
-		zt_guiItemFree(combobox->combobox.popup);
+		zt_guiItemQueueFree(combobox->combobox.popup);
 		combobox->combobox.popup = nullptr;
 	}
 }
@@ -6862,7 +7180,7 @@ void zt_guiComboBoxAppend(ztGuiItem *combobox, const char *content, void *user_d
 	int idx = combobox->combobox.contents_count;
 	combobox->combobox.contents_count += 1;
 
-	zt_stringOverwrite(combobox->combobox.contents[idx], content, combobox->gm->arena);
+	zt_stringOverwrite(&combobox->gm->string_pool, combobox->combobox.contents[idx], content);
 	combobox->combobox.contents_user_data[idx] = user_data;
 	zt_guiMenuAppend(combobox->combobox.popup, content, idx, combobox);
 }
@@ -6873,6 +7191,14 @@ int zt_guiComboBoxGetSelected(ztGuiItem *combobox)
 {
 	zt_assertReturnValOnFail(combobox->type == ztGuiItemType_ComboBox, -1);
 	return combobox->combobox.selected;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiComboBoxSetSelected(ztGuiItem *combobox, int selected)
+{
+	zt_assertReturnOnFail(combobox->type == ztGuiItemType_ComboBox);
+	combobox->combobox.selected = selected;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6988,6 +7314,8 @@ void zt_guiSpriteDisplaySetSprite(ztGuiItem *item, ztGuiThemeSprite *sprite, con
 	item->sprite_display.scale[1] = scale.y;
 }
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSpinnerUpdate))
@@ -7150,6 +7478,814 @@ void zt_guiSpinnerTickDown(ztGuiItem *spinner)
 	}
 }
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+enum ztGuiListBoxInternalBehaviorFlags_Enum
+{
+	ztGuiListBoxInternalBehaviorFlags_ControlPressed = (1 << (ztGuiListBoxBehaviorFlags_MaxBit + 1)),
+	ztGuiListBoxInternalBehaviorFlags_ShiftPressed   = (1 << (ztGuiListBoxBehaviorFlags_MaxBit + 2)),
+	ztGuiListBoxInternalBehaviorFlags_NeedsAdjusted  = (1 << (ztGuiListBoxBehaviorFlags_MaxBit + 3)),
+};
+
+zt_staticAssert(ztGuiListBoxBehaviorFlags_MaxBit <= 29);
+
+#define ztGuiListBoxHorzFitWidth	(16.f / zt_pixelsPerUnit())
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiListBoxGetFitCount(ztGuiItem *listbox, int *fit_h, int *fit_w, int *steps_w)
+{
+	int shown_item_count = 0;
+	zt_fiz(listbox->listbox.item_count) {
+		if(!listbox->listbox.hidden[i]) {
+			shown_item_count += 1;
+		}
+	}
+
+	r32 header_height = listbox->listbox.header ? listbox->listbox.header->size.y : 0;
+
+	r32 average_height = listbox->listbox.total_height / shown_item_count;
+	int items_fit_count_h = zt_convertToi32Ceil((listbox->listbox.container->size.y - header_height) / average_height);
+	r32 average_width = ztGuiListBoxHorzFitWidth;
+	int steps_count_w = zt_convertToi32Ceil(listbox->listbox.total_width / average_width);
+	int steps_fit_count_w = zt_convertToi32Floor(listbox->listbox.container->size.x / average_width);
+
+	*fit_h = items_fit_count_h;
+	*fit_w = steps_fit_count_w;
+	*steps_w = steps_count_w;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiListBoxAdjustItemsPositions(ztGuiItem *listbox)
+{
+	r32 pct_vert = zt_guiScrollbarGetValue(listbox->listbox.scrollbar_vert);
+	r32 pct_horz = zt_guiScrollbarGetValue(listbox->listbox.scrollbar_horz);
+
+	int shown_item_count = 0;
+	zt_fiz(listbox->listbox.item_count) {
+		if(!listbox->listbox.hidden[i]) {
+			shown_item_count += 1;
+		}
+	}
+
+	r32 average_height = listbox->listbox.total_height / shown_item_count;
+	int items_fit_count_h = zt_convertToi32Floor(listbox->listbox.container->size.y / average_height);
+
+	int start_idx = zt_max(zt_convertToi32Floor((shown_item_count - items_fit_count_h) *  pct_vert), 0);
+
+	r32 height = listbox->listbox.container->size.y - (listbox->listbox.header ? listbox->listbox.header->size.y : 0);
+	r32 start_y = (listbox->listbox.container->size.y / 2.f);
+	r32 start_x = (listbox->listbox.container->size.x / -2.f) - (pct_horz * (listbox->listbox.total_width - listbox->listbox.container->size.x));
+
+	r32 header_height = listbox->listbox.header ? listbox->listbox.header->size.y : 0;
+	start_y -= header_height;
+
+	zt_fiz(start_idx) {
+		zt_guiItemHide(listbox->listbox.items[i]);
+
+		if (listbox->listbox.hidden[i]) {
+			start_idx = zt_min(start_idx + 1, listbox->listbox.item_count - 1);
+		}
+	}
+
+	int last_shown_idx = -1;
+	int first_shown_idx = -1;
+	for (int i = start_idx; i < listbox->listbox.item_count; ++i) {
+		if (height <= 0 || listbox->listbox.hidden[i]) {
+			zt_guiItemHide(listbox->listbox.items[i]);
+		}
+		else {
+			zt_guiItemShow(listbox->listbox.items[i], !listbox->listbox.hidden[i]);
+			listbox->listbox.items[i]->pos.x = start_x + listbox->listbox.items[i]->size.x / 2.f;
+			listbox->listbox.items[i]->pos.y = start_y - listbox->listbox.items[i]->size.y / 2.f;
+
+			//listbox->clip_area = ztVec4::zero;
+
+			height -= listbox->listbox.items[i]->size.y;
+			start_y -= listbox->listbox.items[i]->size.y;
+
+			last_shown_idx = i;
+
+			if (first_shown_idx == -1) {
+				first_shown_idx = i;
+			}
+		}
+	}
+
+	if (listbox->listbox.header) {
+		listbox->listbox.header->pos.x = start_x + listbox->listbox.header->size.x / 2.f;
+		listbox->listbox.header->pos.y = (listbox->listbox.container->size.y - listbox->listbox.header->size.y) / 2.f;
+	}
+
+	if (pct_vert == 1 && last_shown_idx >= 0) {
+		r32 diff = (listbox->listbox.container->pos.y - (listbox->listbox.container->size.y / 2.f)) - (listbox->listbox.items[last_shown_idx]->pos.y - (listbox->listbox.items[last_shown_idx]->size.y / 2.f));
+		if (diff > 0) {
+			zt_fiz(listbox->listbox.item_count) {
+				if (zt_guiItemIsVisible(listbox->listbox.items[i])) {
+					listbox->listbox.items[i]->pos.y += diff;
+				}
+			}
+
+			// todo: this won't work until draw lists support nested clip areas
+			//listbox->clip_area.xy = zt_guiItemPositionScreenToLocal(listbox->listbox.items[first_shown_idx], zt_guiItemPositionLocalToScreen(listbox->listbox.container, ztVec2::zero));
+			//listbox->clip_area.zw = listbox->listbox.container->size;
+
+			if (listbox->listbox.items[first_shown_idx]->pos.y + (listbox->listbox.items[first_shown_idx]->size.y / 2.f) > (listbox->listbox.container->size.y / 2.f) - (listbox->listbox.header ? listbox->listbox.header->size.y : 0)) {
+				zt_guiItemHide(listbox->listbox.items[first_shown_idx]);
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxScrolled, ztInternal ZT_FUNC_GUI_SCROLLBAR_SCROLLED(_zt_guiListBoxScrolled))
+{
+	ztGuiItem *listbox = (ztGuiItem*)user_data;
+	_zt_guiListBoxAdjustItemsPositions(listbox);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiListBoxUpdate))
+{
+	if (!zt_guiItemIsShowing(item)) {
+		return;
+	}
+
+	if (zt_bitIsSet(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_NeedsAdjusted)) {
+		_zt_guiListBoxAdjustItemsPositions(item);
+		zt_bitRemove(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_NeedsAdjusted);
+	}
+
+	if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Dirty))) {
+		item->listbox.total_height = 0;
+		item->listbox.total_width  = 0;
+
+		int shown_item_count = 0;
+		zt_fiz(item->listbox.item_count) {
+			if(item->listbox.hidden[i]) {
+				continue;
+			}
+			shown_item_count += 1;
+			item->listbox.heights[i] = item->listbox.items[i]->size.y;
+			item->listbox.total_height += item->listbox.heights[i];
+			item->listbox.total_width = zt_max(item->listbox.total_width, item->listbox.items[i]->size.x);
+		}
+
+		r32 scrollbar_w = item->listbox.scrollbar_vert->size.x;
+		r32 scrollbar_h = item->listbox.scrollbar_horz->size.y;
+
+		item->listbox.container->size.x = item->size.x - scrollbar_w;
+		item->listbox.container->size.y = item->size.y - scrollbar_h;
+		item->listbox.scrollbar_vert->size.y = item->size.y - scrollbar_h;
+		item->listbox.scrollbar_horz->size.x = item->size.x - scrollbar_w;
+
+		int items_fit_count_h, items_fit_count_w, steps_count_w;
+		_zt_guiListBoxGetFitCount(item, &items_fit_count_h, &items_fit_count_w, &steps_count_w);
+
+		zt_guiScrollbarSetStepsAndPercent(item->listbox.scrollbar_vert, zt_max(0, 1.f / (shown_item_count - items_fit_count_h)), zt_max(0, shown_item_count / (r32)items_fit_count_h), zt_min(1, items_fit_count_h / (r32)shown_item_count));
+		zt_guiScrollbarSetStepsAndPercent(item->listbox.scrollbar_horz, zt_max(0, 1.f / (steps_count_w - items_fit_count_w)), zt_max(0, item->listbox.container->size.x / (items_fit_count_w / 2.f)), items_fit_count_w / (r32)steps_count_w);
+
+		if (shown_item_count == 0 || shown_item_count <= items_fit_count_h) {
+			zt_guiItemShow(item->listbox.scrollbar_vert, false);
+			scrollbar_w = 0;
+		}
+		else {
+			zt_guiItemShow(item->listbox.scrollbar_vert);
+		}
+
+		if (steps_count_w <= items_fit_count_w) {
+			zt_guiItemShow(item->listbox.scrollbar_horz, false);
+			scrollbar_h = 0;
+		}
+		else {
+			zt_guiItemShow(item->listbox.scrollbar_horz);
+		}
+
+		zt_guiItemSetPosition(item->listbox.container, ztAlign_Left|ztAlign_Top, ztAnchor_Left|ztAnchor_Top);
+		zt_guiItemSetPosition(item->listbox.scrollbar_vert, ztAlign_Right|ztAlign_Top, ztAnchor_Right|ztAnchor_Top);
+		zt_guiItemSetPosition(item->listbox.scrollbar_horz, ztAlign_Left|ztAlign_Bottom, ztAnchor_Left|ztAnchor_Bottom);
+
+		_zt_guiListBoxAdjustItemsPositions(item);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiListBoxRender))
+{
+	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiListBoxInputKeyboard))
+{
+	if(input_keys[ztInputKeys_Control].pressed()) {
+		if (input_keys[ztInputKeys_Up].justPressedOrRepeated()) {
+			zt_guiScrollbarStepNeg(item->listbox.scrollbar_vert);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+		if (input_keys[ztInputKeys_Down].justPressedOrRepeated()) {
+			zt_guiScrollbarStepPos(item->listbox.scrollbar_vert);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+		if (input_keys[ztInputKeys_Prior].justPressedOrRepeated()) {
+			zt_guiScrollbarStepPageNeg(item->listbox.scrollbar_vert);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+		if (input_keys[ztInputKeys_Prior].justPressedOrRepeated()) {
+			zt_guiScrollbarStepPagePos(item->listbox.scrollbar_vert);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+		if(input_keys[ztInputKeys_Home].justPressedOrRepeated()) {
+			zt_guiScrollbarSetValue(item->listbox.scrollbar_vert, 0);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+		if(input_keys[ztInputKeys_End].justPressedOrRepeated()) {
+			zt_guiScrollbarSetValue(item->listbox.scrollbar_vert, 1);
+			_zt_guiListBoxAdjustItemsPositions(item);
+			return true;
+		}
+	}
+	else {
+		bool should_append = input_keys[ztInputKeys_Shift].pressed();
+
+		if (input_keys[ztInputKeys_Up].justPressedOrRepeated()) {
+			int sel_idx = zt_guiListBoxGetActiveItem(item);
+			int sel_idx_old = sel_idx;
+			while (sel_idx >= 1) {
+				sel_idx -= 1;
+				if (item->listbox.hidden[sel_idx]) {
+					continue;
+				}
+
+				if (should_append && zt_guiListBoxIsSelected(item, sel_idx)) {
+					item->listbox.selected[sel_idx_old] = false;
+				}
+				zt_guiListBoxSetSelected(item, sel_idx, should_append);
+				return true;
+			}
+			return true;
+		}
+		if (input_keys[ztInputKeys_Down].justPressedOrRepeated()) {
+			int sel_idx = zt_guiListBoxGetActiveItem(item);
+			int sel_idx_old = sel_idx;
+			while (sel_idx >= 0 && sel_idx < item->listbox.item_count - 1) {
+				sel_idx += 1;
+				if (item->listbox.hidden[sel_idx]) {
+					continue;
+				}
+
+				if (should_append && zt_guiListBoxIsSelected(item, sel_idx)) {
+					item->listbox.selected[sel_idx_old] = false;
+				}
+				zt_guiListBoxSetSelected(item, sel_idx, should_append);
+				return true;
+			}
+			return true;
+		}
+		if (input_keys[ztInputKeys_Prior].justPressedOrRepeated()) {
+			int fit_h, fit_w, steps_w;
+			_zt_guiListBoxGetFitCount(item, &fit_h, &fit_w, &steps_w);
+
+			int sel_idx = zt_guiListBoxGetActiveItem(item);
+
+			if (should_append) {
+				while (fit_h > 0 && sel_idx > 0) {
+					sel_idx -= 1;
+					if (item->listbox.hidden[sel_idx]) {
+						continue;
+					}
+					zt_guiListBoxSetSelected(item, sel_idx, true);
+					fit_h -= 1;
+				}
+			}
+			else {
+				while (fit_h > 0 && sel_idx > 0) {
+					sel_idx -= 1;
+					if (item->listbox.hidden[sel_idx]) {
+						continue;
+					}
+					fit_h -= 1;
+					if (fit_h == 0 || sel_idx == 0) {
+						zt_guiListBoxSetSelected(item, sel_idx, false);
+					}
+				}
+			}
+
+			return true;
+		}
+		if (input_keys[ztInputKeys_Next].justPressedOrRepeated()) {
+			int fit_h, fit_w, steps_w;
+			_zt_guiListBoxGetFitCount(item, &fit_h, &fit_w, &steps_w);
+
+			int sel_idx = zt_guiListBoxGetActiveItem(item);
+
+			if (should_append) {
+				while (fit_h > 0 && sel_idx < item->listbox.item_count - 1) {
+					sel_idx += 1;
+					if (item->listbox.hidden[sel_idx]) {
+						continue;
+					}
+					zt_guiListBoxSetSelected(item, sel_idx, true);
+					fit_h -= 1;
+				}
+			}
+			else {
+				while (fit_h > 0 && item->listbox.item_count - 1) {
+					sel_idx += 1;
+					if (item->listbox.hidden[sel_idx]) {
+						continue;
+					}
+					fit_h -= 1;
+					if (fit_h == 0 || sel_idx == item->listbox.item_count - 1) {
+						zt_guiListBoxSetSelected(item, sel_idx, false);
+					}
+				}
+			}
+
+			return true;
+		}
+		if(input_keys[ztInputKeys_Home].justPressedOrRepeated()) {
+			if(should_append) {
+				int sel_idx = zt_guiListBoxGetActiveItem(item);
+				for (int i = sel_idx; i >= 0; --i) {
+					if (!item->listbox.hidden[i]) {
+						zt_guiListBoxSetSelected(item, i, i != sel_idx);
+					}
+				}
+				item->listbox.prev_active_item = sel_idx;
+			}
+			else {
+				int sel_idx = 0;
+				while (item->listbox.hidden[sel_idx] && sel_idx < item->listbox.item_count) {
+					sel_idx += 1;
+				}
+
+				zt_guiListBoxSetSelected(item, sel_idx, false);
+			}
+			return true;
+		}
+		if(input_keys[ztInputKeys_End].justPressedOrRepeated()) {
+			if(should_append) {
+				int sel_idx = zt_guiListBoxGetActiveItem(item);
+				for (int i = sel_idx; i < item->listbox.item_count; ++i) {
+					if (!item->listbox.hidden[i]) {
+						zt_guiListBoxSetSelected(item, i, i != sel_idx);
+					}
+				}
+				item->listbox.prev_active_item = sel_idx;
+			}
+			else {
+				int sel_idx = item->listbox.item_count - 1;
+				while (sel_idx >= 0 && item->listbox.hidden[sel_idx]) {
+					sel_idx -= 1;
+				}
+
+				zt_guiListBoxSetSelected(item, sel_idx, false);
+			}
+			return true;
+		}
+	}
+
+	if(input_keys[ztInputKeys_Control].pressed()) {
+		item->behavior_flags |= ztGuiListBoxInternalBehaviorFlags_ControlPressed;
+	}
+	else {
+		zt_bitRemove(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ControlPressed);
+	}
+
+	if(input_keys[ztInputKeys_Shift].pressed()) {
+		item->behavior_flags |= ztGuiListBoxInternalBehaviorFlags_ShiftPressed;
+	}
+	else {
+		zt_bitRemove(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ShiftPressed);
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiListBoxInputMouse))
+{
+	if (input_mouse->leftJustPressed()) {
+		if (zt_bitIsSet(item->gm->item_cache_flags[item->listbox.container->id], ztGuiManagerItemCacheFlags_MouseOver)) {
+			ztVec2 local_mpos = zt_guiItemPositionScreenToLocal(item->listbox.container, zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y));
+			zt_fiz(item->listbox.item_count) {
+				if (zt_guiItemIsVisible(item->listbox.items[i])) {
+					if (zt_collisionPointInRect(local_mpos, ztVec2(0, item->listbox.items[i]->pos.y), ztVec2(item->listbox.container->size.x, item->listbox.items[i]->size.y))) {
+						if(zt_bitIsSet(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ControlPressed)) {
+							if(item->listbox.selected[i]) {
+								zt_guiListBoxSetSelected(item, i, true, false);
+								item->listbox.selected[i] = false;
+							}
+							else {
+								zt_guiListBoxSetSelected(item, i, true, false);
+							}
+						}
+						else if(zt_bitIsSet(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ShiftPressed)) {
+							int start = zt_guiListBoxGetSelectedCount(item) > 1 ? item->listbox.prev_active_item : item->listbox.active_item;
+							for (int j = start; j != i; (start < i ? ++j : --j)) {
+								zt_guiListBoxSetSelected(item, j, j != start, false);
+							}
+							item->listbox.prev_active_item = start;
+						}
+						else {
+							zt_guiListBoxSetSelected(item, i);
+						}
+
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	if (input_mouse->wheel_delta < 0) {
+		zt_guiScrollbarStepPos(item->listbox.scrollbar_vert);
+		_zt_guiListBoxAdjustItemsPositions(item);
+	}
+	else if (input_mouse->wheel_delta > 0) {
+		zt_guiScrollbarStepNeg(item->listbox.scrollbar_vert);
+		_zt_guiListBoxAdjustItemsPositions(item);
+	}
+
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiListBoxCleanup))
+{
+	zt_freeArena(item->listbox.items,      item->gm->arena);
+	zt_freeArena(item->listbox.user_datas, item->gm->arena);
+	zt_freeArena(item->listbox.selected,   item->gm->arena);
+	zt_freeArena(item->listbox.heights,    item->gm->arena);
+	zt_freeArena(item->listbox.hidden,     item->gm->arena);
+	item->listbox.item_size = 0;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem *zt_guiMakeListBox(ztGuiItem *parent, i32 behavior_flags, i32 max_items)
+{
+	ZT_PROFILE_GUI("zt_guiMakeListBox");
+
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_ListBox, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsKeyboardAlways | ztGuiItemBehaviorFlags_ClipChildren | ztGuiItemBehaviorFlags_ClipContents);
+	zt_returnValOnNull(item, nullptr);
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item);
+
+	item->listbox.items            = zt_mallocStructArrayArena(ztGuiItem*, max_items, item->gm->arena);
+	item->listbox.user_datas       = zt_mallocStructArrayArena(void*, max_items, item->gm->arena);
+	item->listbox.selected         = zt_mallocStructArrayArena(bool, max_items, item->gm->arena);
+	item->listbox.heights          = zt_mallocStructArrayArena(r32, max_items, item->gm->arena);
+	item->listbox.hidden           = zt_mallocStructArrayArena(bool, max_items, item->gm->arena);
+	item->listbox.item_count       = 0;
+	item->listbox.item_size        = max_items;
+	item->listbox.total_height     = 0;
+	item->listbox.total_width      = 0;
+	item->listbox.active_item      = -1;
+	item->listbox.prev_active_item = -1;
+	item->listbox.header           = nullptr;
+
+	item->listbox.container = zt_guiMakePanel(item, ztGuiItemBehaviorFlags_ClipChildren | ztGuiItemBehaviorFlags_ClipContents);
+
+	item->listbox.scrollbar_vert = zt_guiMakeScrollbar(item, ztGuiItemOrient_Vert, &item->listbox.scroll_amt_vert);
+	item->listbox.scrollbar_horz = zt_guiMakeScrollbar(item, ztGuiItemOrient_Horz, &item->listbox.scroll_amt_horz);
+
+	zt_guiScrollbarSetCallback(item->listbox.scrollbar_vert, _zt_guiListBoxScrolled_FunctionID, item);
+	zt_guiScrollbarSetCallback(item->listbox.scrollbar_horz, _zt_guiListBoxScrolled_FunctionID, item);
+
+	zt_guiItemSetPosition(item->listbox.scrollbar_vert, ztAlign_Right|ztAlign_Top, ztAnchor_Right|ztAnchor_Top);
+
+	item->functions.update       = _zt_guiListBoxUpdate_FunctionID;
+	item->functions.render       = _zt_guiListBoxRender_FunctionID;
+	item->functions.input_mouse  = _zt_guiListBoxInputMouse_FunctionID;
+	item->functions.input_key    = _zt_guiListBoxInputKeyboard_FunctionID;
+	item->functions.cleanup      = _zt_guiListBoxCleanup_FunctionID;
+
+	item->listbox.on_selected    = ztInvalidID;
+
+	zt_guiThemeSizeItem(theme, item);
+
+	return item;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxAppend(ztGuiItem *listbox, ztGuiItem *item, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxAppend");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+	zt_assertReturnValOnFail(listbox->listbox.item_count < listbox->listbox.item_size, -1);
+
+	int idx = listbox->listbox.item_count++;
+	listbox->listbox.items     [idx] = item;
+	listbox->listbox.user_datas[idx] = user_data;
+	listbox->listbox.selected  [idx] = false;
+	listbox->listbox.heights   [idx] = 0;
+	listbox->listbox.hidden    [idx] = false;
+	zt_guiItemReparent(item, listbox->listbox.container);
+	//item->behavior_flags |= ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_ClipChildren;
+
+	listbox->state_flags |= zt_bit(ztGuiItemStates_Dirty);
+	listbox->behavior_flags |= ztGuiListBoxInternalBehaviorFlags_NeedsAdjusted;
+
+	if (idx == 0) {
+		listbox->listbox.prev_active_item = -1;
+		listbox->listbox.active_item = idx;
+	}
+
+	return idx;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxAppend(ztGuiItem *listbox, const char *item, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxAppend");
+	return zt_guiListBoxAppend(listbox, zt_guiMakeStaticText(listbox, item), user_data);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiListBoxClear(ztGuiItem *listbox)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxClear");
+	zt_assertReturnOnFail(listbox->type == ztGuiItemType_ListBox);
+
+	zt_fiz(listbox->listbox.item_count) {
+		zt_guiItemQueueFree(listbox->listbox.items[i]);
+	}
+
+	listbox->listbox.item_count = 0;
+	listbox->listbox.active_item = -1;
+	listbox->listbox.prev_active_item = -1;
+
+	listbox->behavior_flags |= ztGuiListBoxInternalBehaviorFlags_NeedsAdjusted;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxGetActiveItem(ztGuiItem *listbox)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetSelectedCount");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+
+	return listbox->listbox.active_item;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxGetSelectedCount(ztGuiItem *listbox)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetSelectedCount");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+
+	int selected = 0;
+	zt_fiz(listbox->listbox.item_count) {
+		if (listbox->listbox.selected[i]) {
+			selected += 1;
+		}
+	}
+
+	return selected;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxGetSelected(ztGuiItem *listbox, int which)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetSelected");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+
+	int selected = which;
+	zt_fiz(listbox->listbox.item_count) {
+		if (listbox->listbox.selected[i]) {
+			if (selected-- == which) {
+				return i;
+			}
+		}
+	}
+
+	return -1;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_guiListBoxIsSelected(ztGuiItem *listbox, int item_idx)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetSelectedCount");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, false);
+
+	if(item_idx < 0 || item_idx >= listbox->listbox.item_count) {
+		return false;
+	}
+
+	return listbox->listbox.selected[item_idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxGetCount(ztGuiItem *listbox)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetCount");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+
+	return listbox->listbox.item_count;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztGuiItem *zt_guiListBoxGetItem(ztGuiItem *listbox, int item_idx)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetItem");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, nullptr);
+	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, nullptr);
+
+	return listbox->listbox.items[item_idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void *zt_guiListBoxGetItemUserData(ztGuiItem *listbox, int item_idx)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxGetItemUserData");
+
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, nullptr);
+	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, nullptr);
+
+	return listbox->listbox.user_datas[item_idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+int zt_guiListBoxSetSelected(ztGuiItem *listbox, int item_idx, bool append_to_selection, bool force_visible)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxSetSelected");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, -1);
+
+	if (append_to_selection && !zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_MultiSelect)) {
+		append_to_selection = false;
+	}
+
+	bool already_selected = false;
+	if (!append_to_selection) {
+		zt_fiz(listbox->listbox.item_count) {
+			if (listbox->listbox.selected[i]) {
+				if (i == item_idx) {
+					already_selected = true;
+				}
+				else {
+					listbox->listbox.selected[i] = false;
+				}
+			}
+		}
+	}
+
+	int selected_count = 0;
+	if (append_to_selection) {
+		zt_fiz(listbox->listbox.item_count) {
+			if (listbox->listbox.selected[i]) {
+				selected_count += 1;
+			}
+		}
+	}
+
+	if (!already_selected) {
+		listbox->listbox.selected[item_idx] = true;
+
+		if (listbox->listbox.on_selected != ztInvalidID) {
+			((zt_guiListBoxItemSelected_Func*)zt_functionPointer(listbox->listbox.on_selected))(listbox, item_idx, listbox->listbox.user_datas[item_idx]);
+		}
+	}
+
+	if (force_visible) {
+		zt_guiListBoxScrollToItem(listbox, item_idx);
+	}
+
+	listbox->listbox.prev_active_item = listbox->listbox.active_item;
+	listbox->listbox.active_item = item_idx;
+
+	return selected_count;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiListBoxShowItem(ztGuiItem *listbox, int item_idx, bool show)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxShowItem");
+	zt_assertReturnOnFail(listbox->type == ztGuiItemType_ListBox);
+	zt_assertReturnOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0);
+
+	listbox->listbox.hidden[item_idx] = !show;
+
+	listbox->state_flags |= zt_bit(ztGuiItemStates_Dirty);
+
+	_zt_guiListBoxAdjustItemsPositions(listbox);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiListBoxHideItem(ztGuiItem *listbox, int item_idx)
+{
+	zt_guiListBoxShowItem(listbox, item_idx, false);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool zt_guiListBoxIsItemShown(ztGuiItem *listbox, int item_idx)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxIsItemShown");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, false);
+	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, false);
+
+	return !listbox->listbox.hidden[item_idx];
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiListBoxScrollToItem(ztGuiItem *listbox, int item_idx)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxScrollToItem");
+	zt_assertReturnOnFail(listbox->type == ztGuiItemType_ListBox);
+	zt_assertReturnOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0);
+
+	bool needs_scroll = true;
+
+	if (zt_guiItemIsVisible(listbox->listbox.items[item_idx])) {
+		needs_scroll = false;
+	}
+	else if (!zt_guiItemIsVisible(listbox->listbox.scrollbar_vert)) {
+		needs_scroll = false;
+	}
+
+	if (needs_scroll) {
+		int first_visible = -1;
+		zt_fiz(listbox->listbox.item_count) {
+			if (zt_guiItemIsVisible(listbox->listbox.items[i])) {
+				first_visible = i;
+				break;
+			}
+		}
+
+		if (item_idx < first_visible) {
+			while (zt_guiScrollbarGetValue(listbox->listbox.scrollbar_vert) > 0) {
+				zt_guiScrollbarStepNeg(listbox->listbox.scrollbar_vert);
+				_zt_guiListBoxAdjustItemsPositions(listbox);
+
+				if (zt_guiItemIsVisible(listbox->listbox.items[item_idx])) {
+					break;
+				}
+			}
+		}
+		else {
+			while (zt_guiScrollbarGetValue(listbox->listbox.scrollbar_vert) < 1) {
+				zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert);
+				_zt_guiListBoxAdjustItemsPositions(listbox);
+
+				if (zt_guiItemIsVisible(listbox->listbox.items[item_idx])) {
+					break;
+				}
+			}
+		}
+	}
+
+	// check for partial visibility at the bottom
+	while (listbox->listbox.items[item_idx]->pos.y - (listbox->listbox.items[item_idx]->size.y / 2.f) < (listbox->listbox.container->pos.y - (listbox->listbox.container->size.y / 2.f)) && listbox->listbox.scrollbar_vert->slider.value < 1) {
+		zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert);
+		_zt_guiListBoxAdjustItemsPositions(listbox);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void zt_guiListBoxSetHeaderItem(ztGuiItem *listbox, ztGuiItem *header)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxSetHeaderItem");
+	zt_assertReturnOnFail(listbox->type == ztGuiItemType_ListBox);
+
+	listbox->listbox.header = header;
+	listbox->state_flags |= zt_bit(ztGuiItemStates_Dirty);
+
+	zt_guiItemReparent(header, listbox->listbox.container);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
 enum ztGuiEditorType_Enum
@@ -7752,7 +8888,7 @@ void zt_guiEditorReassign(ztGuiItem *editor, ztVec3 *value)
 		zt_flinknext(edit, sizer->first_child, sib_next) {
 			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
 				zt_assert(editor_idx < zt_elementsOf(value->values));
-				if(value == nullptr) {
+				if (value == nullptr) {
 					zt_guiEditorReassign(edit, (r32*)nullptr);
 				}
 				else {
@@ -7804,24 +8940,26 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 
 		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
 		while (entry) {
-			ztVec2 size = entry->item->size;
+			if (zt_guiItemIsVisible(entry->item)) {
+				ztVec2 size = entry->item->size;
 
-			if (entry->item->type == ztGuiItemType_Sizer) {
-				size = _zt_guiSizerMinSize(entry->item);
-			}
+				if (entry->item->type == ztGuiItemType_Sizer) {
+					size = _zt_guiSizerMinSize(entry->item);
+				}
 
-			if (entry->item->min_size != ztVec2::zero) {
-				size.x = zt_max(size.x, entry->item->min_size.x);
-				size.y = zt_max(size.y, entry->item->min_size.y);
-			}
+				if (entry->item->min_size != ztVec2::zero) {
+					size.x = zt_max(size.x, entry->item->min_size.x);
+					size.y = zt_max(size.y, entry->item->min_size.y);
+				}
 
-			if (horz) {
-				min_size.x += size.x + entry->padding * 2;
-				min_size.y = zt_max(min_size.y, size.y + entry->padding * 2);
-			}
-			else {
-				min_size.x = zt_max(min_size.x, size.x + entry->padding * 2);
-				min_size.y += size.y + entry->padding * 2;
+				if (horz) {
+					min_size.x += size.x + entry->padding * 2;
+					min_size.y = zt_max(min_size.y, size.y + entry->padding * 2);
+				}
+				else {
+					min_size.x = zt_max(min_size.x, size.x + entry->padding * 2);
+					min_size.y += size.y + entry->padding * 2;
+				}
 			}
 
 			entry = entry->next;
@@ -7839,23 +8977,12 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 			if (item->sizer.columns_type == ztGuiColumnSizerType_FillColumn) {
 				int items_this_col = 0;
 				ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
-				while (entry && items_this_col++ < items_per_column) {
-					ztVec2 size = entry->item->size;
-					if (entry->item->type == ztGuiItemType_Sizer) {
-						size = _zt_guiSizerMinSize(entry->item);
-					}
-
-					column_min.x = zt_max(column_min.x, size.x + entry->padding * 2);
-					column_min.y += size.y + entry->padding * 2;
-
-					entry = entry->next;
-				}
-			}
-			else if (item->sizer.columns_type == ztGuiColumnSizerType_FillRow) {
-				int column_count = 0;
-				ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
 				while (entry) {
-					if (column_count == x) {
+					//if (zt_guiItemIsVisible(entry->item)) { - this needs more work
+						if (items_this_col++ >= items_per_column) {
+							break;
+						}
+
 						ztVec2 size = entry->item->size;
 						if (entry->item->type == ztGuiItemType_Sizer) {
 							size = _zt_guiSizerMinSize(entry->item);
@@ -7863,12 +8990,30 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 
 						column_min.x = zt_max(column_min.x, size.x + entry->padding * 2);
 						column_min.y += size.y + entry->padding * 2;
-					}
+					//}
+					entry = entry->next;
+				}
+			}
+			else if (item->sizer.columns_type == ztGuiColumnSizerType_FillRow) {
+				int column_count = 0;
+				ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
+				while (entry) {
+					//if (zt_guiItemIsVisible(entry->item)) {
+						if (column_count == x) {
+							ztVec2 size = entry->item->size;
+							if (entry->item->type == ztGuiItemType_Sizer) {
+								size = _zt_guiSizerMinSize(entry->item);
+							}
 
-					column_count += 1;
-					if (column_count >= item->sizer.columns) {
-						column_count = 0;
-					}
+							column_min.x = zt_max(column_min.x, size.x + entry->padding * 2);
+							column_min.y += size.y + entry->padding * 2;
+						}
+
+						column_count += 1;
+						if (column_count >= item->sizer.columns) {
+							column_count = 0;
+						}
+					//}
 
 					entry = entry->next;
 				}
@@ -7928,12 +9073,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 					item->size.x = item->parent->size.x;
 				}
 			}
-			else if(item->sizer.size_to_parent) {
+			else if (item->sizer.size_to_parent) {
 				item->size.x = item->parent->min_size.x == 0 ? item->parent->size.x : item->parent->min_size.x;
 				recalc = true;
 			}
 			else {
-				if(item->size.x != min_size.x) {
+				if (item->size.x != min_size.x) {
 					item->size.x = min_size.x;
 					recalc = true;
 				}
@@ -7951,19 +9096,18 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 					item->size.y = item->parent->size.y;
 				}
 			}
-			else if(item->sizer.size_to_parent) {
+			else if (item->sizer.size_to_parent) {
 				item->size.y = item->parent->min_size.y == 0 ? item->parent->size.y : item->parent->min_size.y;
 				recalc = true;
 			}
 			else {
-				if(item->size.y != min_size.y) {
+				if (item->size.y != min_size.y) {
 					item->size.y = min_size.y;
 					recalc = true;
 				}
 			}
 
 			if (recalc) {
-
 				if (item->min_size != ztVec2::zero) {
 					if (item->size.x < item->min_size.x) item->size.x = item->min_size.x;
 					if (item->size.y < item->min_size.y) item->size.y = item->min_size.y;
@@ -7990,24 +9134,26 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 		int entry_count = 0;
 		ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
 		while (entry) {
-			entry_count += 1;
-			if (entry->proportion == 0) {
-				// takes up only as much space as the item inside it
-				int padding_mult = 2;
+			if (zt_guiItemIsVisible(entry->item)) {
+				entry_count += 1;
+				if (entry->proportion == 0) {
+					// takes up only as much space as the item inside it
+					int padding_mult = 2;
 
-				if (entry->item->type == ztGuiItemType_Sizer) {
-					ztVec2 min_size = _zt_guiSizerMinSize(entry->item);
-					r32 space_needed = (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
-					room_orient -= (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+					if (entry->item->type == ztGuiItemType_Sizer) {
+						ztVec2 min_size = _zt_guiSizerMinSize(entry->item);
+						r32 space_needed = (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+						room_orient -= (horz ? min_size.x : min_size.y) + entry->padding * padding_mult;
+					}
+					else {
+						ztVec2 item_size = entry->item->min_size == ztVec2::zero ? entry->item->size : entry->item->min_size;
+						r32 space_needed = (horz ? item_size.x : item_size.y) + entry->padding * padding_mult;
+						room_orient -= (horz ? item_size.x : item_size.y) + entry->padding * padding_mult;
+					}
 				}
-				else {
-					ztVec2 item_size = entry->item->min_size == ztVec2::zero ? entry->item->size : entry->item->min_size;
-					r32 space_needed = (horz ? item_size.x : item_size.y) + entry->padding * padding_mult;
-					room_orient -= (horz ? item_size.x : item_size.y) + entry->padding * padding_mult;
-				}
+
+				total_prop += entry->proportion;
 			}
-
-			total_prop += entry->proportion;
 			entry = entry->next;
 		}
 
@@ -8016,56 +9162,58 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 
 		entry = item->sizer.items;
 		while (entry) {
-			r32 entry_size_orient = 0;
+			if (zt_guiItemIsVisible(entry->item)) {
+				r32 entry_size_orient = 0;
 
-			ztVec2 item_size = (entry->item->type == ztGuiItemType_Sizer ? _zt_guiSizerMinSize(entry->item) : (entry->item->min_size == ztVec2::zero ? entry->item->size : entry->item->min_size));
+				ztVec2 item_size = (entry->item->type == ztGuiItemType_Sizer ? _zt_guiSizerMinSize(entry->item) : (entry->item->min_size == ztVec2::zero ? entry->item->size : entry->item->min_size));
 
-			if (entry->proportion != 0) {
-				entry_size_orient = (entry->proportion / total_prop) * room_orient;
-			}
-			else {
-				entry_size_orient = (horz ? (item_size.x + entry->padding * 2) : (item_size.y + entry->padding * 2));
-			}
-			ztVec2 entry_size = ztVec2(horz ? entry_size_orient : item->sizer.size[0], horz ? item->sizer.size[1] : entry_size_orient);
+				if (entry->proportion != 0) {
+					entry_size_orient = (entry->proportion / total_prop) * room_orient;
+				}
+				else {
+					entry_size_orient = (horz ? (item_size.x + entry->padding * 2) : (item_size.y + entry->padding * 2));
+				}
+				ztVec2 entry_size = ztVec2(horz ? entry_size_orient : item->sizer.size[0], horz ? item->sizer.size[1] : entry_size_orient);
 
-			if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
-				item_size.x = entry_size.x - entry->padding * 2;
-			}
-			if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Vert)) {
-				item_size.y = entry_size.y - entry->padding * 2;
-			}
+				if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Horz)) {
+					item_size.x = entry_size.x - entry->padding * 2;
+				}
+				if (zt_bitIsSet(entry->grow_direction, ztGuiItemOrient_Vert)) {
+					item_size.y = entry_size.y - entry->padding * 2;
+				}
 
-			item_size.x = zt_min(item_size.x, entry_size.x - entry->padding * 2);
-			item_size.y = zt_min(item_size.y, entry_size.y - entry->padding * 2);
+				item_size.x = zt_min(item_size.x, entry_size.x - entry->padding * 2);
+				item_size.y = zt_min(item_size.y, entry_size.y - entry->padding * 2);
 
-			entry->item->size = item_size;
+				entry->item->size = item_size;
 
-			ztVec2 entry_pos = ztVec2(horz ? entry_pos_orient + (entry->padding + item_size.x / 2) : entry_opp_orient + (entry->padding + item_size.x / 2),
-				horz ? entry_opp_orient - (entry->padding + item_size.y / 2) : entry_pos_orient - (entry->padding + item_size.y / 2));
+				ztVec2 entry_pos = ztVec2(horz ? entry_pos_orient + (entry->padding + item_size.x / 2) : entry_opp_orient + (entry->padding + item_size.x / 2),
+					horz ? entry_opp_orient - (entry->padding + item_size.y / 2) : entry_pos_orient - (entry->padding + item_size.y / 2));
 
-			if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
-				// default
-			}
-			else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
-				entry_pos.x += entry_size.x - (item_size.x + entry->padding * 2);
-			}
-			else {
-				entry_pos.x += (entry_size.x - (item_size.x + entry->padding * 2)) / 2;
-			}
+				if (zt_bitIsSet(entry->align_flags, ztAlign_Left)) {
+					// default
+				}
+				else if (zt_bitIsSet(entry->align_flags, ztAlign_Right)) {
+					entry_pos.x += entry_size.x - (item_size.x + entry->padding * 2);
+				}
+				else {
+					entry_pos.x += (entry_size.x - (item_size.x + entry->padding * 2)) / 2;
+				}
 
-			if (zt_bitIsSet(entry->align_flags, ztAlign_Top)) {
-				// default
-			}
-			else if (zt_bitIsSet(entry->align_flags, ztAlign_Bottom)) {
-				entry_pos.y -= entry_size.y - (item_size.y + entry->padding * 2);
-			}
-			else {
-				entry_pos.y -= (entry_size.y - (item_size.y + entry->padding * 2)) / 2;
-			}
+				if (zt_bitIsSet(entry->align_flags, ztAlign_Top)) {
+					// default
+				}
+				else if (zt_bitIsSet(entry->align_flags, ztAlign_Bottom)) {
+					entry_pos.y -= entry_size.y - (item_size.y + entry->padding * 2);
+				}
+				else {
+					entry_pos.y -= (entry_size.y - (item_size.y + entry->padding * 2)) / 2;
+				}
 
-			entry->item->pos = entry_pos;
+				entry->item->pos = entry_pos;
 
-			entry_pos_orient += horz ? (entry_size.x - entry->padding * 0) : -(entry_size.y - entry->padding * 0);
+				entry_pos_orient += horz ? (entry_size.x - entry->padding * 0) : -(entry_size.y - entry->padding * 0);
+			}
 			entry = entry->next;
 		}
 	}
@@ -8468,6 +9616,20 @@ void zt_guiItemFree(ztGuiItem *item)
 
 // ------------------------------------------------------------------------------------------------
 
+void zt_guiItemQueueFree(ztGuiItem *item)
+{
+	ZT_PROFILE_GUI("zt_guiItemFree");
+
+	if (item == nullptr) {
+		return;
+	}
+
+	item->gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_FreeQueued;
+	zt_bitRemove(item->state_flags, zt_bit(ztGuiItemStates_Visible));
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void zt_guiItemSetSize(ztGuiItem *item, const ztVec2& size)
 {
 	zt_returnOnNull(item);
@@ -8530,7 +9692,7 @@ void zt_guiItemSetName(ztGuiItem *item, const char *name)
 	ZT_PROFILE_GUI("zt_guiItemSetName");
 
 	zt_returnOnNull(item);
-	item->name = zt_stringOverwrite(item->name, name, item->gm->arena);
+	item->name = zt_stringOverwrite(&item->gm->string_pool, item->name, name);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8540,7 +9702,7 @@ void zt_guiItemSetLabel(ztGuiItem *item, const char *label)
 	ZT_PROFILE_GUI("zt_guiItemSetLabel");
 
 	zt_returnOnNull(item);
-	item->label = zt_stringOverwrite(item->label, label, item->gm->arena);
+	item->label = zt_stringOverwrite(&item->gm->string_pool, item->label, label);
 	item->state_flags |= zt_bit(ztGuiItemStates_Dirty);
 }
 
@@ -8551,7 +9713,7 @@ void zt_guiItemSetTooltip(ztGuiItem *item, const char *tooltip)
 	ZT_PROFILE_GUI("zt_guiItemSetTooltip");
 
 	zt_returnOnNull(item);
-	item->tooltip = zt_stringOverwrite(item->tooltip, tooltip, item->gm->arena);
+	item->tooltip = zt_stringOverwrite(&item->gm->string_pool, item->tooltip, tooltip);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8561,7 +9723,7 @@ void zt_guiItemSetThemeType(ztGuiItem *item, const char *theme_type)
 	ZT_PROFILE_GUI("zt_guiItemSetThemeType");
 
 	zt_returnOnNull(item);
-	item->theme_type = zt_stringOverwrite(item->theme_type, theme_type, item->gm->arena);
+	item->theme_type = zt_stringOverwrite(&item->gm->string_pool, item->theme_type, theme_type);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -8945,6 +10107,7 @@ void zt_guiItemUnlock(ztGuiItem *item)
 {
 	zt_returnOnNull(item);
 	zt_bitRemove(item->state_flags, zt_bit(ztGuiItemStates_Locked));
+	item->state_flags |= zt_bit(ztGuiItemStates_Dirty);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -9016,7 +10179,7 @@ bool zt_guiItemTopLevelIsOverlapping(ztGuiItem *item)
 	ztVec3 item_size(item->size, 1);
 
 	zt_flinknext(child, item->gm->first_child, sib_next) {
-		if(child == item) {
+		if (child == item) {
 			return false;
 		}
 		if (!zt_guiItemIsShowing(child)) {
@@ -9027,7 +10190,7 @@ bool zt_guiItemTopLevelIsOverlapping(ztGuiItem *item)
 		ztVec3 child_size(child->size, 1);
 
 		// bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
-		if(zt_collisionAABBInAABB(item_center, item_size, child_center, child_size)) {
+		if (zt_collisionAABBInAABB(item_center, item_size, child_center, child_size)) {
 			return true;
 		}
 	}
@@ -9517,11 +10680,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_Exit, ztInternal ZT_FUNC
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_PlayAudio, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_PlayAudio))
 {
 	ztAudioClipID audio_clip_id = zt_strToInt(params[1], ztInvalidID);
-	if(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count) {
+	if (audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count) {
 		zt_audioClipPlayOnce(audio_clip_id);
 	}
 	else {
-		if(zt_game->audio_clips_count == 0) {
+		if (zt_game->audio_clips_count == 0) {
 			zt_debugConsoleLogCommand("There are no loaded audio clips to play");
 		}
 		else {
@@ -10088,7 +11251,7 @@ ztInternal void _zt_guiDebugTextureViewerRefresh()
 	zt_guiComboBoxClear(dropdown);
 
 	zt_fiz(zt_game->textures_count) {
-		if(zt_game->textures[i].renderer == ztRenderer_Invalid) {
+		if (zt_game->textures[i].renderer == ztRenderer_Invalid) {
 			continue;
 		}
 		bool render_tex = false;
@@ -10216,6 +11379,9 @@ struct ztDebugProfiler
 	ztProfilerRenderState render_state;
 	ztVec2                mouse_pos;
 	bool                  mouse_clicked;
+
+	ztGuiItem            *combo_thread;
+
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -10252,6 +11418,827 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayCleanup, ztInternal ZT_F
 
 // ------------------------------------------------------------------------------------------------
 
+struct ztDebugProfilerOverview
+{
+	ztDebugProfiler *profiler;
+	int              display_frame = -1;
+	bool             mouse_clicked = false;
+	ztVec2           mouse_pos;
+
+	char             systems[16][32];
+	i32              systems_hash[16];
+	int              systems_count = 0;
+
+	r32              systems_frame_time[ZT_PROFILER_FRAMES_KEPT][16];
+	r32              frame_time        [ZT_PROFILER_FRAMES_KEPT];
+
+	int              active_system = -1;
+
+	ztGuiItem       *section_panel;
+	ztGuiItem       *list_sections;
+	ztGuiItem       *listbox_call_hier;
+	ztGuiItem       *listbox_call_list;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugProfilerSectionListProcessHidden(ztDebugProfilerOverview *dpo)
+{
+	zt_fiz(dpo->listbox_call_hier->listbox.item_count) {
+		zt_guiListBoxShowItem(dpo->listbox_call_hier, i);
+		int index = (int)zt_guiListBoxGetItemUserData(dpo->listbox_call_hier, i);
+		while (index >= 0) {
+			ztGuiItem *button = zt_guiItemFindByType(ztGuiItemType_Button, zt_guiListBoxGetItem(dpo->listbox_call_hier, index));
+			if (button && zt_strEquals(button->label, "+")) {
+				zt_guiListBoxHideItem(dpo->listbox_call_hier, i);
+
+				ztGuiItem *my_button = zt_guiItemFindByType(ztGuiItemType_Button, zt_guiListBoxGetItem(dpo->listbox_call_hier, i));
+				if(my_button && zt_strEquals(my_button->label, "-")) {
+					zt_guiItemSetLabel(my_button, "+");
+				}
+			}
+			index = (int)zt_guiListBoxGetItemUserData(dpo->listbox_call_hier, index);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerSectionListButton, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerSectionListButton))
+{
+	if(zt_strEquals(button->label, "+")) {
+		zt_guiItemSetLabel(button, "-");
+	}
+	else {
+		zt_guiItemSetLabel(button, "+");
+	}
+
+	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)user_data;
+	_zt_guiDebugProfilerSectionListProcessHidden(dpo);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ztInternal void _zt_guiDebugProfilerOverviewRefreshGrouping(ztDebugProfilerOverview *dpo)
+{
+	zt_guiListBoxClear(dpo->listbox_call_hier);
+
+	if (!zt_profilerIsPaused()) {
+		zt_guiListBoxAppend(dpo->listbox_call_hier, "<Pause profiling and select a frame to see section details>", nullptr);
+	}
+	else {
+		int display_thread = zt_guiComboBoxGetSelected(dpo->profiler->combo_thread);
+
+		int display_frame = zt_game->profiler->current_frame - 1;
+		if (display_frame < 0) {
+			display_frame = ZT_PROFILER_FRAMES_KEPT - 1;
+		}
+		if (dpo->display_frame >= 0) {
+			display_frame = dpo->display_frame;
+		}
+
+		ztProfiledThread *pt = &zt_game->profiler->threads[display_thread];
+		ztProfiledSection *ps = pt->roots[display_frame];
+
+		struct local
+		{
+			static void populateHier(ztDebugProfilerOverview *dpo, ztGuiItem *listbox, ztProfiledSection *section, int level, ztVec2& char_ext, int parent_idx)
+			{
+				r32 column_sizes[] = {
+					char_ext.x * 64,	// section name
+					char_ext.x * 9,		// times called
+					char_ext.x * 12,	// time acc
+					char_ext.x * 12,	// time acc per call
+					char_ext.x * 12,	// time acc percent of parent
+					char_ext.x * 12,	// time iso
+					char_ext.x * 12,	// time iso per call
+				};
+
+				i32 column_align[] = {
+					ztAlign_Left,
+					ztAlign_Right,
+					ztAlign_Right,
+					ztAlign_Right,
+					ztAlign_Right,
+					ztAlign_Right,
+					ztAlign_Right,
+				};
+
+				zt_staticAssert(zt_elementsOf(column_align) == zt_elementsOf(column_sizes));
+
+				r32 padding = 3 / zt_pixelsPerUnit();
+
+				if (listbox->listbox.header == nullptr) {
+					// make the header
+
+					char *column_names[] = {
+						"Section Name",
+						"Called",
+						"Time Acc",
+						"(per call)",
+						"(%)",
+						"Time Iso",
+						"(per call)",
+					};
+
+					zt_staticAssert(zt_elementsOf(column_names) == zt_elementsOf(column_sizes));
+
+					ztGuiItem *panel = zt_guiMakePanel(listbox);
+					ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz);
+					zt_guiSizerSizeParent(sizer);
+
+					zt_guiSizerAddStretcher(sizer, 0, char_ext.y / 2.f + padding);
+
+					zt_fize(column_names) {
+						ztGuiItem *label = zt_guiMakeStaticText(panel, column_names[i], ztGuiStaticTextBehaviorFlags_MonoSpaced);
+						zt_guiItemSetSize(label, ztVec2(column_sizes[i], char_ext.y));
+						zt_guiItemSetAlign(label, column_align[i]);
+						zt_guiSizerAddItem(sizer, label, 0, padding, column_align[i]);
+					}
+
+					zt_guiSizerRecalcImmediately(sizer);
+
+					zt_guiListBoxSetHeaderItem(listbox, panel);
+				}
+
+				ztGuiItem *panel = zt_guiMakePanel(listbox);
+				{
+					char space_buffer[64] = { 0 };
+					for (int i = 0; i < zt_min(zt_elementsOf(space_buffer) - 1, level * 3); ++i) {
+						space_buffer[i] = ' ';
+					}
+
+					zt_strMakePrintf(section_name_str, 256, "%s%s", space_buffer, section->section);
+					zt_strMakePrintf(called_str, 32, "%d", section->called);
+
+					r32 percent_of_parent = section->parent ? (r32)(section->time_accum / section->parent->time_accum) : 1.f;
+
+					r32 time_iso_val = (r32)section->time_accum;
+					zt_flink(child, section->children) {
+						time_iso_val -= (r32)child->time_accum;
+					}
+
+					time_iso_val *= 100000.f;
+
+					r32 time_acc_val = (r32)section->time_accum * 1000000.f;
+
+					zt_strMakePrintf(time_iso_str, 128, "%.2f", time_iso_val);
+					zt_strMakePrintf(time_iso_per_str, 128, "%.4f", time_iso_val / section->called);
+					zt_strMakePrintf(time_acc_str, 128, "%.2f", time_acc_val);
+					zt_strMakePrintf(time_acc_per_str, 128, "%.4f", time_acc_val / section->called);
+					zt_strMakePrintf(time_acc_pct_str, 128, "%.2f%%", percent_of_parent * 100.f);
+
+
+					char *column_vals[] = {
+						section_name_str,
+						called_str,
+						time_acc_str,
+						time_acc_per_str,
+						time_acc_pct_str,
+						time_iso_str,
+						time_iso_per_str,
+					};
+
+					zt_staticAssert(zt_elementsOf(column_vals) == zt_elementsOf(column_sizes));
+
+					ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz);
+					zt_guiSizerSizeParent(sizer);
+
+					if (section->children) {
+						ztGuiItem *button = zt_guiMakeButton(panel, "-", ztGuiButtonBehaviorFlags_NoBackground);
+						button->size.x = button->size.y = char_ext.y;
+						zt_guiSizerAddItem(sizer, button, 0, padding);
+						zt_guiButtonSetCallback(button, _zt_guiDebugProfilerSectionListButton_FunctionID, dpo);
+					}
+					else {
+						zt_guiSizerAddStretcher(sizer, 0, char_ext.y / 2.f + padding);
+					}
+
+					zt_fize(column_vals) {
+						ztGuiItem *label = zt_guiMakeStaticText(panel, column_vals[i], ztGuiStaticTextBehaviorFlags_MonoSpaced);
+						zt_guiItemSetSize(label, ztVec2(column_sizes[i], char_ext.y));
+						zt_guiItemSetAlign(label, column_align[i]);
+						zt_guiSizerAddItem(sizer, label, 0, padding, column_align[i]);
+					}
+
+					zt_guiSizerRecalcImmediately(sizer);
+				}
+
+				int my_idx = zt_guiListBoxAppend(listbox, panel, (void*)parent_idx);
+
+				//zt_guiItemSetSize(panel, ztVec2(char_ext.x * 200 - (level * char_ext.x * 4), char_ext.y));
+
+
+				ztProfiledSection *children[512];
+				int children_count = 0;
+
+				zt_flink(child, section->children) {
+					children[children_count++] = child;
+					zt_assert(children_count < zt_elementsOf(children));
+
+					//populate(dpo, listbox, child, level + 1, char_ext, my_idx);
+				}
+
+				struct sort
+				{
+					static int compare(const void *pone, const void *ptwo)
+					{
+						ztProfiledSection *sone = *(ztProfiledSection**)pone;
+						ztProfiledSection *stwo = *(ztProfiledSection**)ptwo;
+
+						if (sone->time_accum > stwo->time_accum) {
+							return -1;
+						}
+						else {
+							return 1;
+						}
+					}
+				};
+
+				qsort(children, children_count, zt_sizeof(ztProfiledSection*), sort::compare);
+
+				zt_fiz(children_count) {
+					populateHier(dpo, listbox, children[i], level + 1, char_ext, my_idx);
+				}
+			}
+
+			static void populateList(ztDebugProfilerOverview *dpo, ztGuiItem *listbox, ztProfiledSection *sections, int sections_count, ztVec2& char_ext, int parent_idx)
+			{
+				struct ztChildInfo
+				{
+					char name[64];
+					i32 name_hash;
+					int called;
+					r32 time_iso;
+				};
+
+				zt_guiListBoxClear(listbox);
+
+				ztChildInfo children[512];
+				int children_count = 0;
+
+				zt_fiz(sections_count) {
+					r64 time_iso = sections[i].time_accum;
+					zt_flink(child, sections[i].children) {
+						time_iso -= child->time_accum;
+					}
+
+					bool found = false;
+					zt_fjz(children_count) {
+						if (children[j].name_hash == sections[i].section_hash) {
+							children[j].called += sections[i].called;
+							children[j].time_iso += (r32)time_iso;
+							found = true;
+							break;
+						}
+					}
+
+					if (!found) {
+						int idx = children_count++;
+						zt_strCpy(children[idx].name, zt_elementsOf(children[idx].name), sections[i].section);
+						children[idx].name_hash = sections[i].section_hash;
+						children[idx].called = sections[i].called;
+						children[idx].time_iso = (r32)time_iso;
+					}
+				}
+
+				struct sort
+				{
+					static int compare(const void *pone, const void *ptwo)
+					{
+						ztChildInfo *sone = (ztChildInfo*)pone;
+						ztChildInfo *stwo = (ztChildInfo*)ptwo;
+
+						if (sone->time_iso > stwo->time_iso) {
+							return -1;
+						}
+						else {
+							return 1;
+						}
+					}
+				};
+
+				qsort(children, children_count, zt_sizeof(ztChildInfo), sort::compare);
+
+				r32 column_sizes[] = {
+					char_ext.x * 48,	// section name
+					char_ext.x * 9,		// times called
+					char_ext.x * 12,	// time iso
+					char_ext.x * 12,	// time iso per call
+				};
+
+				i32 column_align[] = {
+					ztAlign_Left,
+					ztAlign_Right,
+					ztAlign_Right,
+					ztAlign_Right,
+				};
+
+				zt_staticAssert(zt_elementsOf(column_align) == zt_elementsOf(column_sizes));
+
+				r32 padding = 3 / zt_pixelsPerUnit();
+
+				if (listbox->listbox.header == nullptr) {
+					// make the header
+
+					char *column_names[] = {
+						"Section Name",
+						"Called",
+						"Time Iso",
+						"(per call)",
+					};
+
+					zt_staticAssert(zt_elementsOf(column_names) == zt_elementsOf(column_sizes));
+
+					ztGuiItem *panel = zt_guiMakePanel(listbox);
+					ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz);
+					zt_guiSizerSizeParent(sizer);
+
+					zt_fize(column_names) {
+						ztGuiItem *label = zt_guiMakeStaticText(panel, column_names[i], ztGuiStaticTextBehaviorFlags_MonoSpaced);
+						zt_guiItemSetSize(label, ztVec2(column_sizes[i], char_ext.y));
+						zt_guiItemSetAlign(label, column_align[i]);
+						zt_guiSizerAddItem(sizer, label, 0, padding, column_align[i]);
+					}
+
+					zt_guiSizerRecalcImmediately(sizer);
+
+					zt_guiListBoxSetHeaderItem(listbox, panel);
+				}
+
+				zt_fiz(children_count) {
+					ztGuiItem *panel = zt_guiMakePanel(listbox);
+					{
+						zt_strMakePrintf(section_name_str, 256, "%s", children[i].name);
+						zt_strMakePrintf(called_str, 32, "%d", children[i].called);
+
+						r32 time_iso_val = (r32)children[i].time_iso * 1000000.f;
+
+						zt_strMakePrintf(time_iso_str, 128, "%.2f", time_iso_val);
+						zt_strMakePrintf(time_iso_per_str, 128, "%.4f", time_iso_val / children[i].called);
+
+						char *column_vals[] = {
+							section_name_str,
+							called_str,
+							time_iso_str,
+							time_iso_per_str,
+						};
+
+						zt_staticAssert(zt_elementsOf(column_vals) == zt_elementsOf(column_sizes));
+
+						ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz);
+						zt_guiSizerSizeParent(sizer);
+
+						zt_fize(column_vals) {
+							ztGuiItem *label = zt_guiMakeStaticText(panel, column_vals[i], ztGuiStaticTextBehaviorFlags_MonoSpaced);
+							zt_guiItemSetSize(label, ztVec2(column_sizes[i], char_ext.y));
+							zt_guiItemSetAlign(label, column_align[i]);
+							zt_guiSizerAddItem(sizer, label, 0, padding, column_align[i]);
+						}
+
+						zt_guiSizerRecalcImmediately(sizer);
+					}
+
+					int my_idx = zt_guiListBoxAppend(listbox, panel, (void*)parent_idx);
+
+					//zt_guiItemSetSize(panel, ztVec2(char_ext.x * 200 - (level * char_ext.x * 4), char_ext.y));
+					//zt_guiTreeCollapseNode(tree, node);
+				}
+			}
+		};
+
+		ztFontID font = zt_guiThemeGetIValue(zt_guiItemGetTheme(dpo->listbox_call_hier), ztGuiThemeValue_i32_FontID);
+		ztVec2 char_ext = zt_fontGetExtents(font, "W");
+
+		zt_guiItemLock(dpo->listbox_call_hier);
+		zt_guiItemLock(dpo->listbox_call_list);
+
+		local::populateHier(dpo, dpo->listbox_call_hier, ps, 0, char_ext, -1);
+		local::populateList(dpo, dpo->listbox_call_list, pt->allocations[display_frame], pt->sections[display_frame], char_ext, -1);
+
+		zt_guiItemUnlock(dpo->listbox_call_hier);
+		zt_guiItemUnlock(dpo->listbox_call_list);
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugProfilerOverviewInputMouse))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewInputMouse");
+	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)item->panel.user_data;
+
+	dpo->mouse_pos = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+	dpo->mouse_clicked = input_mouse->leftJustPressed();
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonPause, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonPause))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewButtonCheck");
+	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)user_data;
+
+	if (zt_profilerIsPaused()) {
+		zt_profilerResume();
+		zt_guiItemSetLabel(button, "Pause");
+	}
+	else {
+		zt_profilerPause();
+		zt_guiItemSetLabel(button, "Resume");
+	}
+
+	_zt_guiDebugProfilerOverviewRefreshGrouping(dpo);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonCheck, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonCheck))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewButtonCheck");
+	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)user_data;
+
+	zt_guiItemShow(dpo->section_panel, zt_guiCheckboxGetValue(button));
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(button));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugProfilerOverviewRender))
+{
+	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewRender");
+	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)item->panel.user_data;
+
+	r32 ppu = zt_pixelsPerUnit();
+	r32 alpha = zt_guiManagerHasKeyboardFocus(item->gm) ? 1 : .10f;
+	ztVec4 alpha_vec(1,1,1,alpha);
+
+	zt_drawListAddSolidOutlinedRect2D(draw_list, offset + item->pos, item->size, ztColor(0,0,0,.25f), ztColor(1,1,1,.25f));
+
+	ztVec2 size = item->size;
+	ztVec2 pos = item->pos + offset;
+
+	ztVec2 timeline_size(size.x - 10 / ppu, 30 / ppu);
+	ztVec2 timeline_pos(pos.x, pos.y + ((size.y - timeline_size.y) / 2) - (5 / ppu));
+
+	r32 pixel_size = 2 / ppu;
+	r32 width_per_frame = (timeline_size.x - ((ZT_PROFILER_FRAMES_KEPT + 1) * pixel_size)) / ZT_PROFILER_FRAMES_KEPT;
+
+	int display_frame = zt_game->profiler->current_frame - 1;
+	if (display_frame < 0) {
+		display_frame = ZT_PROFILER_FRAMES_KEPT - 1;
+	}
+
+	int display_thread = zt_guiComboBoxGetSelected(dpo->profiler->combo_thread);
+
+	if (dpo->display_frame >= 0) {
+		display_frame = dpo->display_frame;
+	}
+
+	// draw the active frame and display frame indicators
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	{
+		zt_drawListPushColor(draw_list, ztColor_Black * alpha_vec);
+		zt_drawListAddFilledRect2D(draw_list, timeline_pos, timeline_size, ztVec2::zero, ztVec2::one);
+		zt_drawListPopColor(draw_list);
+
+		zt_drawListPushColor(draw_list, ztColor_Gray * alpha_vec);
+
+		ztVec2 frame_size(width_per_frame, timeline_size.y - (pixel_size * 2));
+		r32 x = (timeline_pos.x - (timeline_size.x / 2)) + (width_per_frame / 2) + pixel_size;
+		zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
+			ztVec2 fpos(x, timeline_pos.y);
+			if (dpo->mouse_clicked && i != zt_game->profiler->current_frame && zt_collisionPointInRect(dpo->mouse_pos, fpos, frame_size)) {
+				if (dpo->display_frame == i) {
+					dpo->display_frame = -1;
+				}
+				else {
+					dpo->display_frame = i;
+				}
+				_zt_guiDebugProfilerOverviewRefreshGrouping(dpo);
+			}
+
+			if (i == zt_game->profiler->current_frame) {
+				zt_drawListPushColor(draw_list, ztColor_Green * alpha_vec);
+			}
+			else if (i == display_frame) {
+				zt_drawListPushColor(draw_list, ztColor_Orange * alpha_vec);
+			}
+
+			zt_drawListAddFilledRect2D(draw_list, fpos, frame_size, ztVec2::zero, ztVec2::one);
+			x += width_per_frame + pixel_size;
+
+			if (i == zt_game->profiler->current_frame || i == display_frame) {
+				zt_drawListPopColor(draw_list);
+			}
+
+			dpo->frame_time[i] = 0;
+			zt_fkz(dpo->systems_count) {
+				dpo->systems_frame_time[i][k] = 0;
+			}
+
+			ztProfiledThread *pt = &zt_game->profiler->threads[display_thread];
+			zt_fjz(pt->sections[i]) {
+				ztProfiledSection *ps = &pt->allocations[i][j];
+				int sec_idx = -1;
+				zt_fkz(dpo->systems_count) {
+					if (dpo->systems_hash[k] == ps->system_hash) {
+						sec_idx = k;
+						break;
+					}
+				}
+				if (sec_idx == -1) {
+					sec_idx = dpo->systems_count;
+					zt_strCpy(dpo->systems[dpo->systems_count], zt_elementsOf(dpo->systems[dpo->systems_count]), ps->system);
+					dpo->systems_hash[dpo->systems_count] = ps->system_hash;
+					dpo->systems_count += 1;
+				}
+
+				r32 this_calls_time = (r32)ps->time_accum;
+
+				zt_flink(child, ps->children) {
+					this_calls_time -= (r32)child->time_accum;
+				}
+
+				dpo->frame_time[i] += this_calls_time;
+				dpo->systems_frame_time[i][sec_idx] += this_calls_time;
+			}
+		}
+
+		zt_drawListPopColor(draw_list);
+	}
+
+	static ztColor system_colors[] = {
+		ztColor_Red, ztColor_Yellow, ztColor_Green, ztColor_Orange, ztColor_LightBlue, ztColor_LightGreen, ztColor_LightRed, ztColor_Blue, ztColor_Purple, ztColor_DarkRed, ztColor_DarkGreen, ztColor_DarkBlue, ztColor_DarkPurple, ztColor_DarkYellow, ztColor_DarkOrange
+	};
+
+	ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_TextEditFontID);
+	ztVec2 legend_text_ext = zt_fontGetExtents(font, "A");
+	ztVec2 legend_entry_size(128 / ppu, legend_text_ext.y);
+
+	int legend_columns = zt_convertToi32Ceil(size.x / legend_entry_size.x);
+	int legend_rows    = zt_convertToi32Ceil(dpo->systems_count / (r32)legend_columns);
+
+	// draw the time graph (showing details of each frame)
+	ztVec2 timegraph_size(size.x - 10 / ppu, ((size.y - timeline_size.y) - (15 / ppu)) - ((legend_entry_size.y + 3 / ppu) * legend_rows));
+	ztVec2 timegraph_pos(pos.x, timeline_pos.y - (timeline_size.y / 2 + timegraph_size.y / 2 + 5 / ppu));
+
+	bool system_details = dpo->active_system != -1;
+
+	if (dpo->mouse_clicked) {
+		dpo->active_system = -1;
+	}
+
+	// adjust for current frame/active system
+	r32 diff = legend_text_ext.y + (8 / ppu);
+	timegraph_size.y -= diff;
+	timegraph_pos.y += diff / 2;
+
+	bool use_bars = true;
+
+	int mouse_over_frame = -1;
+	int mouse_over_system = -1;
+
+	char tooltip[512] = {0};
+
+	if (use_bars) {
+		//zt_drawListPushColor(draw_list, ztColor_Black * alpha_vec);
+		//zt_drawListAddFilledRect2D(draw_list, timegraph_pos, timegraph_size, ztVec2::zero, ztVec2::one);
+		//zt_drawListPopColor(draw_list);
+
+		r64 max = 0;
+		zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
+			if (i == zt_game->profiler->current_frame || zt_game->profiler->threads[display_thread].roots[i] == nullptr) {
+				continue;
+			}
+
+			max = zt_max(max, zt_game->profiler->threads[display_thread].roots[i]->time_accum);
+		}
+
+		max *= 1.1f;
+		//max = 1000 / 60.f;
+
+		if (max) {
+			r32 x = (timegraph_pos.x - (timegraph_size.x / 2)) + (width_per_frame / 2) + pixel_size;
+			//zt_drawListPushColor(draw_list, ztColor_Green);
+			ztVec2 frame_size(width_per_frame, timegraph_size.y - (pixel_size * 2));
+			zt_fiz(ZT_PROFILER_FRAMES_KEPT) {
+				if (i == zt_game->profiler->current_frame || zt_game->profiler->threads[display_thread].roots[i] == nullptr) {
+					x += width_per_frame + pixel_size;
+					continue;
+				}
+
+				r32 pct = (r32)(zt_game->profiler->threads[display_thread].roots[i]->time_accum / max);
+
+				r32 this_height = frame_size.y * pct;
+				r32 start_y = timegraph_pos.y - (timegraph_size.y / 2);
+
+				r32 unclaimed_time = dpo->frame_time[i];
+
+				zt_fjz(dpo->systems_count) {
+					r32 sys_pct = dpo->systems_frame_time[i][j] / dpo->frame_time[i];
+
+					ztVec2 fs_pos(x, start_y + (this_height * sys_pct / 2));
+					ztVec2 fs_size(frame_size.x, this_height * sys_pct);
+
+					if (zt_collisionPointInRect(dpo->mouse_pos, fs_pos - ztVec2(1 / ppu, 0), fs_size + ztVec2(2 / ppu, 0))) {
+						mouse_over_frame = i;
+						mouse_over_system = j;
+					}
+
+					zt_drawListPushColor(draw_list, system_colors[j % zt_elementsOf(system_colors)] * alpha_vec);
+					zt_drawListAddFilledRect2D(draw_list, fs_pos, fs_size, ztVec2::zero, ztVec2::one);
+					zt_drawListPopColor(draw_list);
+
+					start_y += this_height *  sys_pct;
+					unclaimed_time -= dpo->systems_frame_time[i][j];
+				}
+
+				if (unclaimed_time > 0) {
+					r32 sys_pct = unclaimed_time / dpo->frame_time[i];
+
+					zt_drawListPushColor(draw_list, ztColor_DarkGray * alpha_vec);
+					zt_drawListAddFilledRect2D(draw_list, ztVec2(x, start_y + (this_height * sys_pct / 2)), ztVec2(frame_size.x, this_height * sys_pct), ztVec2::zero, ztVec2::one);
+					zt_drawListPopColor(draw_list);
+				}
+
+				//				zt_drawListAddFilledRect2D(draw_list, ztVec2(x, timegraph_pos.y - ((frame_size.y * (1 - pct)) / 2)), ztVec2(frame_size.x, zt_max(pixel_size, frame_size.y * pct)), ztVec2::zero, ztVec2::one);
+				x += width_per_frame + pixel_size;
+			}
+			//zt_drawListPopColor(draw_list);
+		}
+
+		if (mouse_over_frame != -1) {
+			//int frame = mouse_over_frame;
+			zt_strCatf(tooltip, zt_elementsOf(tooltip), "Frame Time: %.2f us (%.2f fps)\n\n", dpo->frame_time[mouse_over_frame] * 1000000.f, 1 / dpo->frame_time[mouse_over_frame]);
+			zt_strCatf(tooltip, zt_elementsOf(tooltip), "System: %s\n   Time: %.2f us (%.2f %%)", dpo->systems[mouse_over_system], dpo->systems_frame_time[mouse_over_frame][mouse_over_system] * 1000000.f, (dpo->systems_frame_time[mouse_over_frame][mouse_over_system] / dpo->frame_time[mouse_over_frame]) * 100.f);
+
+			if (dpo->mouse_clicked) {
+				dpo->active_system = mouse_over_system;
+				_zt_guiDebugProfilerOverviewRefreshGrouping(dpo);
+			}
+		}
+	}
+	else { // todo: line graph
+	}
+
+	// draw legend
+	{
+		int system_idx = 0;
+		ztVec2 legend_pos(timegraph_pos.x - (timegraph_size.x / 2) + (3 / ppu), timegraph_pos.y - (timegraph_size.y / 2) - (5 / ppu));
+		zt_fiz(dpo->systems_count) {
+			zt_drawListPushColor(draw_list, system_colors[i] * alpha_vec);
+			zt_drawListAddFilledRect2D(draw_list, legend_pos + ztVec2(8 / ppu, -8 / ppu), ztVec2(16 / ppu, 16 / ppu), ztVec2::zero, ztVec2::one);
+			zt_drawListPopColor(draw_list);
+			legend_pos.x += 22 / ppu;
+
+			ztVec2 text_ext;
+			zt_drawListAddFancyText2D(draw_list, font, dpo->systems[i], legend_pos, ztAlign_Left|ztAlign_Top, ztAnchor_Left|ztAnchor_Top, &text_ext, ztColor_White * alpha_vec);
+
+			legend_pos.x += text_ext.x + 25 / ppu;
+		}
+	}
+
+	{
+		// draw horizontal frame bar
+		ztVec2 as_pos(timegraph_pos.x - (timegraph_size.x / 2) + (3 / ppu), timegraph_pos.y - (timegraph_size.y / 2) - legend_entry_size.y - (14 / ppu));
+
+		zt_drawListPushColor(draw_list, system_colors[dpo->active_system] * alpha_vec);
+		zt_drawListAddFilledRect2D(draw_list, as_pos + ztVec2(8 / ppu, -8 / ppu), ztVec2(16 / ppu, 16 / ppu), ztVec2::zero, ztVec2::one);
+		zt_drawListPopColor(draw_list);
+		as_pos.x += 22 / ppu;
+
+		char *frame = mouse_over_system == -1 ? "selected frame" : "hovered frame";
+
+		zt_strMakePrintf(system_name, 128, "%s (%s):", (dpo->active_system == -1 ? "Active Frame" : dpo->systems[dpo->active_system]), frame);
+		ztVec2 text_ext;
+		zt_drawListAddFancyText2D(draw_list, font, system_name, as_pos, ztAlign_Left|ztAlign_Top, ztAnchor_Left|ztAnchor_Top, &text_ext, ztColor_White * alpha_vec);
+
+		ztVec2 bar_size(timegraph_size.x - (text_ext.x + 28 / ppu), 16 / ppu);
+		ztVec2 bar_pos(timegraph_pos.x + (timegraph_size.x - bar_size.x) / 2.f, as_pos.y - (8 / ppu));
+
+		int active_frame = mouse_over_system == -1 ? display_frame : mouse_over_frame;
+
+		r32 system_time = dpo->active_system == -1 ? dpo->frame_time[active_frame] : dpo->systems_frame_time[active_frame][dpo->active_system];
+
+		r32 start_x = bar_pos.x - (bar_size.x / 2);
+
+		struct SectionEntry
+		{
+			char *section;
+			i32   section_hash;
+			r32   time_iso;
+			r32   time_acc;
+			int   called;
+
+
+			static int compare(const void *a, const void *b)
+			{
+				SectionEntry *pa = (SectionEntry*)a;
+				SectionEntry *pb = (SectionEntry*)b;
+
+				if (pa->time_iso > pb->time_iso) {
+					return -1;
+				}
+				else if (pa->time_iso < pb->time_iso) {
+					return 1;
+				}
+				return 0;
+			}
+		};
+
+		SectionEntry section_entries[ZT_PROFILER_MAX_SECTIONS_PER_FRAME];
+		int section_entries_count = 0;
+
+		ztProfiledThread *pt = &zt_game->profiler->threads[display_thread];
+		int sec_count = 0;
+		zt_fjz(pt->sections[active_frame]) {
+			ztProfiledSection *ps = &pt->allocations[active_frame][j];
+			if (dpo->active_system != -1 && ps->system_hash != dpo->systems_hash[dpo->active_system]) {
+				continue;
+			}
+
+			int entry_idx = -1;
+			zt_fiz(section_entries_count) {
+				if (section_entries[i].section_hash == ps->section_hash) {
+					entry_idx = i;
+					break;
+				}
+			}
+			if (entry_idx == -1) {
+				section_entries[section_entries_count].section = (char*)ps->section;
+				section_entries[section_entries_count].section_hash = ps->section_hash;
+				section_entries[section_entries_count].time_iso = 0;
+				section_entries[section_entries_count].time_acc = 0;
+				section_entries[section_entries_count].called = 0;
+				entry_idx = section_entries_count++;
+			}
+
+			r32 this_calls_time = (r32)ps->time_accum;
+			zt_flink(child, ps->children) {
+				this_calls_time -= (r32)child->time_accum;
+			}
+
+			section_entries[entry_idx].time_iso += this_calls_time;
+			section_entries[entry_idx].time_acc += (r32)ps->time_accum;
+			section_entries[entry_idx].called += ps->called;
+		}
+
+		qsort(section_entries, section_entries_count, zt_sizeof(SectionEntry), SectionEntry::compare);
+
+		zt_fjz(section_entries_count) {
+
+			r32 sec_pct = section_entries[j].time_iso / system_time;
+
+			ztVec2 ss_pos(start_x + (bar_size.x * sec_pct / 2), bar_pos.y);
+			ztVec2 ss_size(bar_size.x * sec_pct, bar_size.y);
+
+			if (zt_collisionPointInRect(dpo->mouse_pos, ss_pos, ss_size)) {
+				// mouse over this section
+				if (tooltip[0] == 0) {
+					if (dpo->active_system != -1) {
+						zt_strCatf(tooltip, zt_elementsOf(tooltip), "System: %s (%.2f us)\n\n", dpo->systems[dpo->active_system], system_time * 1000000.f);
+					}
+					else {
+						zt_strCatf(tooltip, zt_elementsOf(tooltip), "Frame time: %.2f us (%.2f fps)\n\n", system_time * 1000000.f, 1.f / system_time);
+					}
+				}
+				zt_strCatf(tooltip, zt_elementsOf(tooltip), "Section: %s\n    Called: %d\n    Time Isolated: %.2f us (%.4f us/call) (%.2f%%)\n    Time Accum: %.2f us (%.4f us/call)\n\n", section_entries[j].section, section_entries[j].called, section_entries[j].time_iso * 1000000.f, section_entries[j].time_iso * 1000000.f / section_entries[j].called, section_entries[j].time_iso / system_time * 100, section_entries[j].time_acc * 1000000.f, section_entries[j].time_acc * 1000000.f / section_entries[j].called);
+			}
+
+			zt_drawListPushColor(draw_list, system_colors[sec_count++ % zt_elementsOf(system_colors)] * alpha_vec);
+			zt_drawListAddFilledRect2D(draw_list, ss_pos, ss_size, ztVec2::zero, ztVec2::one);
+			zt_drawListPopColor(draw_list);
+
+			start_x += bar_size.x * sec_pct;
+		}
+
+		//		zt_drawListAddSolidRect2D(draw_list, bar_pos, bar_size, ztColor_White * alpha_vec);
+	}
+
+	if (tooltip[0] != 0 && zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver)) {
+		ztVec2 tt_pad = ztVec2(10 / ppu, 10 / ppu);
+		ztVec2 tt_ext = zt_fontGetExtents(font, tooltip) + tt_pad;
+		ztVec2 tt_pos = dpo->mouse_pos;
+
+		tt_pos.x += (dpo->mouse_pos.x > timegraph_pos.x ? -tt_ext.x : tt_ext.x) / 2;
+		tt_pos.y += (dpo->mouse_pos.y > timegraph_pos.y ? -tt_ext.y : tt_ext.y) / 2;
+
+		zt_drawListAddSolidOutlinedRect2D(draw_list, tt_pos, tt_ext, ztColor_Black * alpha_vec, ztColor_White * alpha_vec);
+		zt_drawListAddFancyText2D(draw_list, font, tooltip, tt_pos + ztVec2(tt_ext.x / -2, 0) + ztVec2(tt_pad.x / 2, tt_pad.y / -2), ztAlign_Left, ztAnchor_Left, nullptr, ztColor_White * alpha_vec);
+
+		if (dpo->mouse_clicked) {
+			dpo->active_system = mouse_over_system;
+		}
+	}
+
+	zt_drawListPopTexture(draw_list);
+}
+
+
+// ------------------------------------------------------------------------------------------------
+
 ztInternal void _zt_guiDebugProfiler()
 {
 	const char *window_name = "Profiler";
@@ -10270,20 +12257,109 @@ ztInternal void _zt_guiDebugProfiler()
 	*prof = {};
 	prof->render_state = {};
 
+	r32 padding = 3 / zt_pixelsPerUnit();
+
 	ztGuiItem *window = zt_guiMakeWindow("Profiler", ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
-	zt_guiItemSetSize(window, ztVec2(19, 10));
+	zt_guiItemSetSize(window, zt_cameraOrthoGetViewportSize(gm->gui_camera) - ztVec2(1, 1.5f));
 
-	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Horz);
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 	zt_guiSizerSizeToParent(sizer);
 
-	ztGuiItem *profiler = zt_guiMakePanel(sizer);
-	zt_guiSizerAddItem(sizer, profiler, 1, 3 / zt_pixelsPerUnit());
+	ztGuiItem *sizer_control_bar = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, sizer_control_bar, 0, padding);
 
-	profiler->functions.user_data = prof;
-	profiler->functions.render = _zt_guiDebugProfilerDisplayRender_FunctionID;
-	profiler->functions.input_mouse = _zt_guiDebugProfilerDisplayInputMouse_FunctionID;
-	profiler->functions.cleanup = _zt_guiDebugProfilerDisplayCleanup_FunctionID;
+	ztGuiItem *combo_thread = zt_guiMakeComboBox(sizer_control_bar, ZT_MAX_THREADS);
+	combo_thread->size.x = 200 / zt_pixelsPerUnit();
+
+	zt_fize(zt_game->profiler->threads) {
+		if (i == 0) {
+			zt_guiComboBoxAppend(combo_thread, "Main Thread");
+		}
+		else {
+			zt_strMakePrintf(thread_name, 128, "Thread %d", i);
+			zt_guiComboBoxAppend(combo_thread, thread_name);
+		}
+	}
+
+	prof->combo_thread = combo_thread;
+
+	zt_guiSizerAddItem(sizer_control_bar, zt_guiMakeStaticText(sizer_control_bar, "Thread:"), 0, padding);
+	zt_guiSizerAddItem(sizer_control_bar, combo_thread, 0, padding);
+
+//	ztGuiItem *combo_display = zt_guiMakeComboBox(sizer_control_bar, 2);
+//	zt_guiComboBoxAppend(combo_display, "Bars");
+//	zt_guiComboBoxAppend(combo_display, "Lines");
+//
+//	zt_guiSizerAddStretcher(sizer_control_bar, 0, padding * 2);
+//	zt_guiSizerAddItem(sizer_control_bar, zt_guiMakeStaticText(sizer_control_bar, "Display:"), 0, padding);
+//	zt_guiSizerAddItem(sizer_control_bar, combo_display, 0, padding);
+
+	zt_guiSizerAddStretcher(sizer_control_bar, 0, padding * 2);
+	ztGuiItem *check_sections = zt_guiMakeCheckbox(sizer_control_bar, "Show Sections Details");
+	zt_guiCheckboxSetValue(check_sections, false);
+	zt_guiSizerAddItem(sizer_control_bar, check_sections, 0, padding);
+
+	ztGuiItem *button = zt_guiMakeButton(sizer_control_bar, "Pause");
+	zt_guiSizerAddStretcher(sizer_control_bar, 1);
+	zt_guiSizerAddItem(sizer_control_bar, button, 0, padding);
+
+	ztDebugProfilerOverview* overview_data = zt_mallocStructArena(ztDebugProfilerOverview, gm->arena);
+	*overview_data = {};
+	overview_data->profiler = prof;
+	ztGuiItem *overview = zt_guiMakePanel(sizer, 0, overview_data, gm->arena);
+	overview->functions.input_mouse = _zt_guiDebugProfilerOverviewInputMouse_FunctionID;
+	overview->functions.render = _zt_guiDebugProfilerOverviewRender_FunctionID;
+	overview->size.y = overview->min_size.y = 192 / zt_pixelsPerUnit();
+
+	zt_guiButtonSetCallback(button, _zt_guiDebugProfilerOverviewButtonPause_FunctionID, overview_data);
+	zt_guiButtonSetCallback(check_sections, _zt_guiDebugProfilerOverviewButtonCheck_FunctionID, overview_data);
+
+	zt_guiSizerAddItem(sizer, overview, 1, padding);
+
+	ztGuiItem *section_panel = zt_guiMakePanel(sizer);
+	{
+		zt_guiSizerAddItem(sizer, section_panel, 3, padding);
+		overview_data->section_panel = section_panel;
+
+		ztGuiItem *section_panel_sizer = zt_guiMakeSizer(section_panel, ztGuiItemOrient_Horz);
+
+		{
+			ztGuiItem *listbox_call_hier = zt_guiMakeListBox(section_panel_sizer, ztGuiListBoxBehaviorFlags_AlternateRowColor, ZT_PROFILER_MAX_SECTIONS_PER_FRAME * 16);
+			zt_guiSizerAddItem(section_panel_sizer, listbox_call_hier, 1, padding);
+			overview_data->listbox_call_hier = listbox_call_hier;
+		}
+
+		{
+			ztGuiItem *listbox_call_list = zt_guiMakeListBox(section_panel_sizer, ztGuiListBoxBehaviorFlags_AlternateRowColor, ZT_PROFILER_MAX_SECTIONS_PER_FRAME * 16);
+			zt_guiSizerAddItem(section_panel_sizer, listbox_call_list, 1, padding);
+			overview_data->listbox_call_list = listbox_call_list;
+		}
+
+		_zt_guiDebugProfilerOverviewRefreshGrouping(overview_data);
+
+		zt_guiItemHide(section_panel);
+	}
+
+//	ztGuiItem *list_sections = zt_guiMakeListBox(sizer, ztGuiListBoxBehaviorFlags_MultiSelect, 128);
+//	{
+//		zt_guiSizerAddItem(sizer, list_sections, 1, padding);
+//
+//		zt_fiz(50) {
+//			zt_strMakePrintf(item, 32, "Item %d", i+1);
+//			zt_guiListBoxAppend(list_sections,  item, nullptr);
+//		}
+//	}
+
+	zt_guiSizerRecalcImmediately(sizer);
+
+//	ztGuiItem *profiler = zt_guiMakePanel(sizer);
+//	zt_guiSizerAddItem(sizer, profiler, 1, padding);
+//
+//	profiler->functions.user_data = prof;
+//	profiler->functions.render = _zt_guiDebugProfilerDisplayRender_FunctionID;
+//	profiler->functions.input_mouse = _zt_guiDebugProfilerDisplayInputMouse_FunctionID;
+//	profiler->functions.cleanup = _zt_guiDebugProfilerDisplayCleanup_FunctionID;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -10349,7 +12425,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayUpdate, ztInternal ZT_FUNC
 	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
 
 	ztMemoryArena *arena = mem->arenas[mem->active_arena];
-	if(arena == nullptr) {
+	if (arena == nullptr) {
 		return;
 	}
 
@@ -10372,7 +12448,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
 
 	ztMemoryArena *arena = mem->arenas[mem->active_arena];
-	if(arena == nullptr) {
+	if (arena == nullptr) {
 		return;
 	}
 
@@ -10424,7 +12500,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 		bool has_drawn = false;
 		bool early_out = false;
 
-		if(z == 1) {
+		if (z == 1) {
 			zt_drawListPushTexture(draw_list, ztTextureDefault);
 			zt_drawListPushColor(draw_list, zt_colorRgb(240, 240, 240));
 		}
@@ -10435,22 +12511,22 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 			ztColor color = colors[color_idx];
 			color_idx = (color_idx + 1) % zt_elementsOf(colors);
 
-			if(mem->color_by_file) {
+			if (mem->color_by_file) {
 				i32 hash = zt_strHash(alloc->file);
 				zt_fjze(arena->file_names_hashes) {
-					if(arena->file_names_hashes[j] == hash) {
+					if (arena->file_names_hashes[j] == hash) {
 						color = colors_by_file[j];
 					}
 				}
 			}
 
-			if(alloc->freed == 1) {
+			if (alloc->freed == 1) {
 				color = ztColor_Black;
 			}
 
 			while(pixels_for_alloc > 0) {
 				r32 x_pixels_left_this_line = size.x - x_pos;
-				if(x_pixels_left_this_line <= 0) {
+				if (x_pixels_left_this_line <= 0) {
 					y_pos += line_height;
 					x_pos = 0;
 					x_pixels_left_this_line = size.x;
@@ -10463,11 +12539,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 				ztVec2 bpos = pos + ztVec2(x_pos_start + x_pos + (x_pixels_this_alloc / 2), y_pos_start - y_pos);
 				ztVec2 bsize = ztVec2(x_pixels_this_alloc, line_height);
 
-				if(zt_collisionAABBInAABB(ztVec3(ppos,0), ztVec3(psize, 0), ztVec3(bpos, 0), ztVec3(bsize, 0))) {
+				if (zt_collisionAABBInAABB(ztVec3(ppos,0), ztVec3(psize, 0), ztVec3(bpos, 0), ztVec3(bsize, 0))) {
 					has_drawn = true;
 
 					bool mouse_colliding = zt_collisionPointInRect(mem->mouse_pos, bpos, bsize);
-					if(z == 0) {
+					if (z == 0) {
 
 						r32 color_pct = .85f;
 						if (mouse_colliding) {
@@ -10512,17 +12588,17 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 											}
 										}
 
-										if(file_name[0] == 0 || !zt_fileExists(file_name)) {
-											if(zt_strStartsWith(alloc->file + 1, "zt_")) {
+										if (file_name[0] == 0 || !zt_fileExists(file_name)) {
+											if (zt_strStartsWith(alloc->file + 1, "zt_")) {
 												char zt_path[ztFileMaxPath];
 												zt_fileConcatFileToPath(zt_path, zt_elementsOf(zt_path), mem->source_path, "../../ZeroTolerance");
-												if(zt_directoryExists(zt_path)) {
+												if (zt_directoryExists(zt_path)) {
 													zt_fileConcatFileToPath(file_name, zt_elementsOf(file_name), zt_path, alloc->file + 1);
 												}
 											}
 										}
 
-										if(zt_fileExists(file_name)) {
+										if (zt_fileExists(file_name)) {
 											i32 data_size = 0;
 											char *data_beg = (char*)zt_readEntireFile(file_name, &data_size, false, item->gm->arena);
 											const char *data = data_beg;
@@ -10530,14 +12606,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 											int lines = alloc->file_line;
 											while (lines-- > 0 && data) {
 												data = zt_strFind(data, data_size - (int)(data - data_beg), "\n");
-												if(data) ++data;
+												if (data) ++data;
 
 												if (lines == 1) {
 													const char *find[] = {"\r", "\n"};
 													while (*data == ' ' || *data == '\t') ++data;
 
 													int end = zt_strFindFirstOfPos(data, find, zt_elementsOf(find));
-													if(end != ztStrPosNotFound) {
+													if (end != ztStrPosNotFound) {
 														zt_strCpy(mem->source_info_buffer, zt_elementsOf(mem->source_info_buffer), data, end);
 													}
 												}
@@ -10558,25 +12634,25 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 					}
 				}
 				else {
-					if(has_drawn) {
+					if (has_drawn) {
 						early_out = true;
 						break;
 					}
 				}
 
 				x_pos += x_pixels_this_alloc;
-				if(early_out) break;
+				if (early_out) break;
 			}
-			if(early_out) break;
+			if (early_out) break;
 		}
 
-		if(z == 1) {
+		if (z == 1) {
 			zt_drawListPopColor(draw_list);
 			zt_drawListPopTexture(draw_list);
 		}
 	}
 
-	if(hover_count == 0 && mem->source_info_buffer[0] != 0) {
+	if (hover_count == 0 && mem->source_info_buffer[0] != 0) {
 		zt_guiItemSetLabel(mem->source_info, nullptr);
 		mem->source_info_buffer[0] = 0;
 		mem->source_info_last_file = nullptr;
