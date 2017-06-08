@@ -1,13 +1,13 @@
-/**************************************************************************************************
- ** file: zt_game.h v 0.00 (active initial development)
- **
- ** This software is dual-licensed to the public domain and under the following
- ** license: you are granted a perpetual, irrevocable license to copy, modify,
- ** publish, and distribute this file as you see fit.
- **
- ** No warranty is offered or implied.  Use this at your own risk.
- **
- **************************************************************************************************
+/***************************************************************************************************************************************************************************************************
+	file: zt_game.h v 0.00 (active initial development)
+	
+	This software is dual-licensed to the public domain and under the following
+	license: you are granted a perpetual, irrevocable license to copy, modify,
+	publish, and distribute this file as you see fit.
+	
+	No warranty is offered or implied.  Use this at your own risk.
+	
+  ***************************************************************************************************************************************************************************************************
    
 	Zero Tolerance Game Library
    
@@ -40,7 +40,7 @@
 			bool game_loop(r32 dt)
 
 
- **************************************************************************************************
+ ***************************************************************************************************************************************************************************************************
 
     Options:
 		ZT_NO_OPENGL
@@ -58,7 +58,7 @@
 			critical sections.  This should only be defined when a problem needs diagnosed.
 
 
- **************************************************************************************************
+ ***************************************************************************************************************************************************************************************************
 
 	Implimentation Options: (only used with ZT_GAME_IMPLEMENTATION #include)
 
@@ -72,7 +72,7 @@
 	ZT_GAME_NO_ALTF4
 		This will disable ALT+F4 closing the window and exiting the game
 
- **************************************************************************************************/
+ ***************************************************************************************************************************************************************************************************/
 
 #ifndef __zt_game_h_included__
 #define __zt_game_h_included__
@@ -80,8 +80,9 @@
 #include "zt_tools.h"
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // renderer defines
+// ================================================================================================================================================================================================
 
 #if !defined(ZT_NO_OPENGL)
 #	include "zt_opengl.h"
@@ -99,8 +100,9 @@
 #define ztInvalidID -1
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // common enumerations
+// ================================================================================================================================================================================================
 
 enum ztAlign_Enum
 {
@@ -114,7 +116,7 @@ enum ztAlign_Enum
 	ztAlign_VertCenter = (1<<5),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztAnchor_Enum
 {
@@ -128,7 +130,7 @@ enum ztAnchor_Enum
 	ztAnchor_VertCenter = ztAlign_VertCenter,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztDirection_Enum
 {
@@ -154,8 +156,9 @@ enum ztDirection_Enum
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // renderer enumerations
+// ================================================================================================================================================================================================
 
 enum ztRenderer_Enum
 {
@@ -167,7 +170,7 @@ enum ztRenderer_Enum
 	ztRenderer_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztRendererFlags_Enum
 {
@@ -180,7 +183,7 @@ enum ztRendererFlags_Enum
 	ztRendererFlags_HideCursor      = (1<<6),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztRendererScreenChangeBehavior_Enum
 {
@@ -191,11 +194,12 @@ enum ztRendererScreenChangeBehavior_Enum
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // game settings
 //
 // these are set by the game in the ZT_GAME_FUNC_SETTINGS function, instructing the engine how to 
 // configure everything
+// ================================================================================================================================================================================================
 
 struct ztGameSettings
 {
@@ -215,7 +219,7 @@ struct ztGameSettings
 	i32                                 threaded_background_jobs;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztRenderer_Enum zt_currentRenderer();
 
@@ -229,11 +233,12 @@ ztInline r32 zt_unitsToFeet  (r32 units ) { return units / .0254f / 12; }
 
 void zt_requestQuit();
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 // game details
 //
 // these are set by the engine, providing useful information to the game
-//
+// ================================================================================================================================================================================================
 
 struct ztGameDetails
 {
@@ -255,8 +260,9 @@ struct ztGameDetails
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // threading
+// ================================================================================================================================================================================================
 
 typedef i32 ztThreadJobID;
 
@@ -277,15 +283,14 @@ void          zt_threadJobQueueDllUnload();
 int           zt_threadGetIndex();
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // profiling
-
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztDrawList;
 struct ztProfiledSection;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfilerRenderState
 {
@@ -293,7 +298,7 @@ struct ztProfilerRenderState
 	int display_thread = 0;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZT_SYSTEM_PLATFORM           "Platform"
 #define ZT_SYSTEM_RENDERING	         "Rendering"
@@ -307,7 +312,7 @@ struct ztProfilerRenderState
 #define ZT_SYSTEM_GAME               "Game"
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void               zt_profilerPause              ();
 void               zt_profilerResume             ();
@@ -320,7 +325,7 @@ ztProfiledSection *zt_profiledSectionEnter       (const char *section, i32 secti
 void               zt_profiledSectionExit        (ztProfiledSection *section);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfileBlock
 {
@@ -339,42 +344,42 @@ struct ztProfileBlock
 	}
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_NO_PROFILE
-#define ZT_PROFILE(section, system)           static i32 __zt_profileBlockHashSection##__LINE__ = zt_strHash((section)); \
-                                              static i32 __zt_profileBlockHashSystem##__LINE__ = zt_strHash((system));   \
-                                              ztProfileBlock __zt_profileBlock_##__LINE((section), __zt_profileBlockHashSection##__LINE__, (system), __zt_profileBlockHashSystem##__LINE__);
+#	define ZT_PROFILE(section, system)           static i32 __zt_profileBlockHashSection##__LINE__ = zt_strHash((section)); \
+                                                 static i32 __zt_profileBlockHashSystem##__LINE__ = zt_strHash((system));   \
+                                                 ztProfileBlock __zt_profileBlock_##__LINE((section), __zt_profileBlockHashSection##__LINE__, (system), __zt_profileBlockHashSystem##__LINE__);
 
-#define ZT_PROFILE_PLATFORM(section)          ZT_PROFILE((section), ZT_SYSTEM_PLATFORM)
-#define ZT_PROFILE_RENDERING(section)         ZT_PROFILE((section), ZT_SYSTEM_RENDERING)
-#define ZT_PROFILE_AUDIO(section)             ZT_PROFILE((section), ZT_SYSTEM_AUDIO)
-#define ZT_PROFILE_INPUT(section)             ZT_PROFILE((section), ZT_SYSTEM_INPUT)
-#define ZT_PROFILE_ASSETS(section)            ZT_PROFILE((section), ZT_SYSTEM_ASSETS)
-#define ZT_PROFILE_PHYSICS(section)           ZT_PROFILE((section), ZT_SYSTEM_PHYSICS)
-#define ZT_PROFILE_ANIMATION(section)         ZT_PROFILE((section), ZT_SYSTEM_ANIMATION)
-#define ZT_PROFILE_PARTICLES(section)         ZT_PROFILE((section), ZT_SYSTEM_PARTICLES)
-#define ZT_PROFILE_PATHFINDING(section)       ZT_PROFILE((section), ZT_SYSTEM_PATHFINDING)
-#define ZT_PROFILE_GAME(section)              ZT_PROFILE((section), ZT_SYSTEM_GAME)
+#	define ZT_PROFILE_PLATFORM(section)          ZT_PROFILE((section), ZT_SYSTEM_PLATFORM)
+#	define ZT_PROFILE_RENDERING(section)         ZT_PROFILE((section), ZT_SYSTEM_RENDERING)
+#	define ZT_PROFILE_AUDIO(section)             ZT_PROFILE((section), ZT_SYSTEM_AUDIO)
+#	define ZT_PROFILE_INPUT(section)             ZT_PROFILE((section), ZT_SYSTEM_INPUT)
+#	define ZT_PROFILE_ASSETS(section)            ZT_PROFILE((section), ZT_SYSTEM_ASSETS)
+#	define ZT_PROFILE_PHYSICS(section)           ZT_PROFILE((section), ZT_SYSTEM_PHYSICS)
+#	define ZT_PROFILE_ANIMATION(section)         ZT_PROFILE((section), ZT_SYSTEM_ANIMATION)
+#	define ZT_PROFILE_PARTICLES(section)         ZT_PROFILE((section), ZT_SYSTEM_PARTICLES)
+#	define ZT_PROFILE_PATHFINDING(section)       ZT_PROFILE((section), ZT_SYSTEM_PATHFINDING)
+#	define ZT_PROFILE_GAME(section)              ZT_PROFILE((section), ZT_SYSTEM_GAME)
 
 #else
-#define ZT_PROFILE(section)
-
-#define ZT_PROFILE_PLATFORM(section)
-#define ZT_PROFILE_RENDERING(section)
-#define ZT_PROFILE_AUDIO(section)
-#define ZT_PROFILE_INPUT(section)
-#define ZT_PROFILE_ASSETS(section)
-#define ZT_PROFILE_PHYSICS(section)
-#define ZT_PROFILE_ANIMATION(section)
-#define ZT_PROFILE_PARTICLES(section)
-#define ZT_PROFILE_PATHFINDING(section)
-#define ZT_PROFILE_GAME(section)
+#	define ZT_PROFILE(section)
+#	define ZT_PROFILE_PLATFORM(section)
+#	define ZT_PROFILE_RENDERING(section)
+#	define ZT_PROFILE_AUDIO(section)
+#	define ZT_PROFILE_INPUT(section)
+#	define ZT_PROFILE_ASSETS(section)
+#	define ZT_PROFILE_PHYSICS(section)
+#	define ZT_PROFILE_ANIMATION(section)
+#	define ZT_PROFILE_PARTICLES(section)
+#	define ZT_PROFILE_PATHFINDING(section)
+#	define ZT_PROFILE_GAME(section)
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // debugging
+// ================================================================================================================================================================================================
 
 typedef i32 ztDebugVarID;
 
@@ -433,11 +438,10 @@ void           zt_debuggingSet               (ztDebugVarID debug_var, bool val);
 
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // loading
 //
-// the idea of the load state is to offer a consistent and easy way to allow for loading various
-// assets.
+// the idea of the load state is to offer a consistent and easy way to allow for loading various assets.
 //
 // Each load function should accept a pointer to a ztLoadInfo, and process the state appropriately:
 //
@@ -445,6 +449,7 @@ void           zt_debuggingSet               (ztDebugVarID debug_var, bool val);
 //      ztLoadState_Query:    Populate the ztLoadInfo with the total number of steps required and change state to ztLoadState_Loading
 //      ztLoadState_Loading:  Process loading, one step at a time, setting state to ztLoadState_Complete when finished
 //      ztLoadState_Complete: Do nothing, exit function without changing state.
+// ================================================================================================================================================================================================
 
 enum ztLoadState_Enum
 {
@@ -454,7 +459,7 @@ enum ztLoadState_Enum
 	ztLoadState_Complete,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztLoadInfo
 {
@@ -465,8 +470,9 @@ struct ztLoadInfo
 
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // keyboard input
+// ================================================================================================================================================================================================
 
 #define _zt_inputKey(inputkey)	__zt_inputKey(inputkey)
 
@@ -521,7 +527,7 @@ struct ztLoadInfo
 
 #define __zt_inputKey(key)	key
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputKeys_Enum
 {
@@ -530,11 +536,11 @@ enum ztInputKeys_Enum
 	ztInputKeys_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #undef _zt_inputKey
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputKeyFlags_Enum
 {
@@ -545,7 +551,7 @@ enum ztInputKeyFlags_Enum
 	ztInputKeyFlags_StateKey     = (1<<4),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztInputKeys
 {
@@ -571,20 +577,20 @@ struct ztInputKeys
 	}
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_INPUT_KEYSTROKES
 #define ZT_MAX_INPUT_KEYSTROKES	16
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool         zt_inputThisFrame();
 ztInputKeys* zt_inputKeysAccessState(); // not thread safe
 void         zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX]); // should only be called in main thread
 void         zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ZT_MAX_INPUT_KEYSTROKES]);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputMouseCursor_Enum
 {
@@ -602,7 +608,7 @@ enum ztInputMouseCursor_Enum
 	ztInputMouseCursor_Help,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputMouseFlags_Enum
 {
@@ -611,7 +617,7 @@ enum ztInputMouseFlags_Enum
 	ztInputMouseFlags_JustReleased = (1<<2),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztInputMouse
 {
@@ -653,7 +659,7 @@ struct ztInputMouse
 	bool middleJustReleased() { return justReleased(2); }
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInputMouse* zt_inputMouseAccessState(); // not thread safe
 void          zt_inputMouseCopyState(ztInputMouse *input_mouse);
@@ -663,7 +669,7 @@ bool          zt_inputMouseIsLook();
 
 void          zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputControllerFlags_Enum
 {
@@ -672,7 +678,7 @@ enum ztInputControllerFlags_Enum
 	ztInputControllerFlags_JustReleased = (1 << 2),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztInputControllerButton_Enum
 {
@@ -698,7 +704,7 @@ enum ztInputControllerButton_Enum
 	ztInputControllerButton_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztInputController
 {
@@ -775,19 +781,20 @@ struct ztInputController
 
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZT_MAX_INPUT_CONTROLLERS	4
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInputController* zt_inputControllerAccessState(int idx); // not thread safe
 void               zt_inputControllerCopyState(ztInputController *input_controller, int idx);
 void               zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Input recording
+// ================================================================================================================================================================================================
 
 struct ztInputReplayData
 {
@@ -802,7 +809,7 @@ struct ztInputReplayData
 	i32               working_memory_size;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_name);
 bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name);
@@ -810,7 +817,7 @@ void zt_inputReplayFree(ztInputReplayData *replay_data);
 bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16]);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Asset Manager
 //
 // Using an asset manager is preferable over straight file access because it gives a lot of
@@ -818,7 +825,7 @@ bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool 
 // files during development and a single packed file for releases.  The system can even be expanded
 // to downloading resources from a network source.  It allows for resources to automatically
 // reload themselves easily when needed or when the source changes (hot reloading of files).
-//
+// ================================================================================================================================================================================================
 
 enum ztAssetManagerSource_Enum
 {
@@ -830,7 +837,7 @@ enum ztAssetManagerSource_Enum
 	ztAssetManagerSource_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztAssetManagerType_Enum
 {
@@ -850,7 +857,7 @@ enum ztAssetManagerType_Enum
 	ztAssetManagerType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztAssetManager;
 
@@ -861,7 +868,7 @@ typedef ZT_FUNC_ASSET_UPDATED(zt_assetManagerAssetUpdated_Func);
 
 #define ztAssetManagerMaxAssets	1024
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztAssetManager
 {
@@ -901,9 +908,9 @@ struct ztAssetManager
 	ztMemoryArena             *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-// takes the given directory and places all files in all directories (recursively) into the given packed file (not yet implemented)
+//        takes the given directory and places all files in all directories (recursively) into the given packed file (not yet implemented)
 bool      zt_assetMakePackedFile         (const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr);
 
 bool      zt_assetManagerLoadDirectory   (ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena = nullptr);
@@ -921,15 +928,16 @@ bool      zt_assetLoadData               (ztAssetManager *asset_mgr, ztAssetID a
 
 bool      zt_assetClearCache             (ztAssetManager *asset_mgr, ztAssetID asset_id);
 
-// if reading from a directory, the passed function will be called whenever the file changes
+//        if reading from a directory, the passed function will be called whenever the file changes
 void      zt_assetAddReloadCallback      (ztAssetManager *asset_mgr, ztAssetID asset_id, ztFunctionID function, void *user_data);
 void      zt_assetRemoveReloadCallback   (ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data);
 
 void      zt_assetManagerCheckForChanges (ztAssetManager *asset_mgr);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // shaders
+// ================================================================================================================================================================================================
 
 typedef i32 ztShaderID;
 
@@ -943,7 +951,7 @@ void       zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projec
 void       zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztShaderVariable_Enum
 {
@@ -962,13 +970,13 @@ enum ztShaderVariable_Enum
 	ztShaderVariable_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_SHADER_MAX_VARIABLES
 #define ZT_SHADER_MAX_VARIABLES		128
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztShaderVariableValues
 {
@@ -995,25 +1003,25 @@ struct ztShaderVariableValues
 	int variables_count;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderBegin(ztShaderID shader_id);
 void zt_shaderEnd(ztShaderID shader_id);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-// populates the ztShaderVariableValues instance with the variables for the shader, along with default values
+//   populates the ztShaderVariableValues instance with the variables for the shader, along with default values
 void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars);
 
-// applys the given variable values to the renderer's implementation of the shader
+//   applys the given variable values to the renderer's implementation of the shader
 void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars);
 
-// applys the changed variables to the shader
+//   applys the changed variables to the shader
 void zt_shaderApplyVariables(ztShaderID shader_id);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-// these functions change the default values of the shader
+//   these functions change the default values of the shader
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value, bool apply_immediately = false);
 void zt_shaderSetVariableInt(ztShaderID shader_id, const char *variable, i32 value, bool apply_immediately = false);
@@ -1036,9 +1044,9 @@ void zt_shaderSetVariableMat3(ztShaderID shader_id, u32 variable_hash, r32 value
 void zt_shaderSetVariableTex(ztShaderID shader_id, u32 variable_hash, i32 texture_id, bool apply_immediately = false);
 void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 texture_id, bool apply_immediately = false);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-// these functions allow for temporary changes of a shader's variables
+//   these functions allow for temporary changes of a shader's variables
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type);
 int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value);
 int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value);
@@ -1061,7 +1069,7 @@ int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_h
 int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
 int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztShaderDefault_Enum
 {
@@ -1081,8 +1089,9 @@ enum ztShaderDefault_Enum
 ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // textures
+// ================================================================================================================================================================================================
 
 typedef i32 ztTextureID;
 
@@ -1130,8 +1139,9 @@ void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 ztVec2i     zt_textureGetSize(ztTextureID texture_id);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // vertex arrays
+// ================================================================================================================================================================================================
 
 enum ztVertexArrayDataType_Enum
 {
@@ -1141,7 +1151,7 @@ enum ztVertexArrayDataType_Enum
 	ztVertexArrayDataType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztVertexArrayDrawType_Enum
 {
@@ -1152,11 +1162,11 @@ enum ztVertexArrayDrawType_Enum
 	ztVertexArrayDrawType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 typedef i32 ztVertexArrayID;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVertexArrayEntry
 {
@@ -1164,7 +1174,7 @@ struct ztVertexArrayEntry
 	i32                        count; // count of type variables (ztVec3 would be 3)
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count);
 void            zt_vertexArrayFree(ztVertexArrayID vertex_array_id);
@@ -1176,15 +1186,16 @@ int             zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id);
 
 int             zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // materials
+// ================================================================================================================================================================================================
 
 enum ztMaterialFlags_Enum
 {
 	ztMaterialFlags_OwnsTexture = (1 << 0),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztMaterial
 {
@@ -1229,7 +1240,7 @@ bool zt_materialIsEmpty(ztMaterial *material);
 void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex = nullptr, u32 *additional_tex_name_hashes = nullptr, int additional_tex_count = 0);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // meshes
 //
 // The standard mesh consists of six parts, in this order:
@@ -1270,10 +1281,11 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 // };
 //
 // zt_meshMake(verts, uvs, normals, vert_count, indices, indices_count, bone_info_array, bone_info_entry, zt_elementsOf(bone_info_entry));
+// ================================================================================================================================================================================================
 
 typedef i32 ztMeshID;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 // NOTE: UV coordinates are 0,0 = top left, 1,1 = bottom right
 
@@ -1302,8 +1314,9 @@ int      zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materia
 void     zt_meshRender(ztMeshID mesh_id);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // transform
+// ================================================================================================================================================================================================
 
 struct ztTransform
 {
@@ -1329,8 +1342,9 @@ void        zt_transformFromMat4(ztTransform *transform, const ztMat4 *mat);
 void        zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // plane
+// ================================================================================================================================================================================================
 
 struct ztPlane
 {
@@ -1343,8 +1357,9 @@ ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2);
 void    zt_planeNormalize(ztPlane *plane);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // camera
+// ================================================================================================================================================================================================
 
 enum ztCameraType_Enum
 {
@@ -1355,7 +1370,7 @@ enum ztCameraType_Enum
 	ztCameraType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztCamera
 {
@@ -1383,7 +1398,7 @@ struct ztCamera
 
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
 void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
@@ -1405,15 +1420,15 @@ void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *poi
 
 void     zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up = ztVec3(0,1,0));
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #ifndef CAMERA_SHAKE_MAX_SAMPLES
 #define CAMERA_SHAKE_MAX_SAMPLES	1000
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztCameraShake
 {
@@ -1433,7 +1448,7 @@ struct ztCameraShake
 	ztVec2   offset;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 // NOTE: Once prerender is applied, camera matrices need recalculated.  Also after postrender.
 
@@ -1448,7 +1463,7 @@ struct ztDrawList;
 void          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
 void          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztFrustum
 {
@@ -1492,12 +1507,12 @@ struct ztFrustum
 	ztFrustum& operator=(const ztFrustum& f);
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
 void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztCameraControllerFPS
 {
@@ -1531,14 +1546,14 @@ struct ztCameraControllerFPS
 	ztVec3 velocity;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
 void                  zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
 void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztCameraControllerArcball
 {
@@ -1561,15 +1576,16 @@ struct ztCameraControllerArcball
 	// used internally:
 };	
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target = ztVec3::zero);
 void                      zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt);
 
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // rendering
+// ================================================================================================================================================================================================
 
 enum ztDrawCommandType_Enum
 {
@@ -1594,7 +1610,7 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztDrawCommandBillboardFlags_Enum
 {
@@ -1605,13 +1621,13 @@ enum ztDrawCommandBillboardFlags_Enum
 	ztDrawCommandBillboardFlags_AxisAll = ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_DRAW_COMMAND_MAX_TEXTURES
 #define ZT_DRAW_COMMAND_MAX_TEXTURES	12
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztDrawCommand
 {
@@ -1682,14 +1698,14 @@ struct ztDrawCommand
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztDrawListFlags_Enum
 {
 	ztDrawListFlags_NoReset = (1 << 0),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztDrawList
 {
@@ -1705,7 +1721,7 @@ struct ztDrawList
 	zt_debugOnly(int active_textures);
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 // NOTE: UV coordinates for draw lists are 0,0 = top left, 1,1 = top right
 
@@ -1791,8 +1807,9 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // lighting
+// ================================================================================================================================================================================================
 
 enum ztLightType_Enum
 {
@@ -1801,7 +1818,7 @@ enum ztLightType_Enum
 	ztLightType_Area,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztLight
 {
@@ -1816,26 +1833,27 @@ struct ztLight
 	r32 ambient;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // bones
+// ================================================================================================================================================================================================
 
 enum ztBoneFlags_Enum
 {
 	ztBoneFlags_DebugDrawHighlight = (1<<31),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztModel;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztBone
 {
@@ -1858,8 +1876,9 @@ struct ztBone
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // models
+// ================================================================================================================================================================================================
 
 enum ztModelFlags_Enum
 {
@@ -1883,7 +1902,7 @@ enum ztModelFlags_Enum
 	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztModel
 {
@@ -1914,7 +1933,7 @@ struct ztModel
 	ztVec3                  obb_center, obb_size;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 void     zt_modelFree(ztModel *model);
@@ -1927,8 +1946,9 @@ void     zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size);
 void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // scenes
+// ================================================================================================================================================================================================
 
 enum ztSceneModelFlags_Enum
 {
@@ -1940,13 +1960,13 @@ enum ztSceneModelFlags_Enum
 	ztSceneModelFlags_Culled          = (1<<31),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_SCENE_MAX_LIGHTS
 #define ZT_SCENE_MAX_LIGHTS	4
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztScene
 {
@@ -1978,14 +1998,14 @@ struct ztScene
 	ztTextureID tex_directional_shadow_map;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztSceneLightingRules
 {
 	r32 shadow_max_distance = 50.f;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models = 1024, int shadow_map_res = 4096);
 void zt_sceneFree(ztScene *scene);
@@ -2015,8 +2035,9 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // renderer functions
+// ================================================================================================================================================================================================
 
 bool zt_rendererSupported(ztRenderer_Enum renderer);
 int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count);
@@ -2063,8 +2084,9 @@ void zt_alignToPixel(ztVec2 *val, r32 ppu);
 void zt_alignToPixel(ztVec3 *val, r32 ppu);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // fonts
+// ================================================================================================================================================================================================
 
 typedef i32 ztFontID;
 
@@ -2107,8 +2129,9 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // sprites
+// ================================================================================================================================================================================================
 
 struct ztSprite
 {
@@ -2129,7 +2152,7 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztSpriteNineSlice
 {
@@ -2146,8 +2169,9 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // physics
+// ================================================================================================================================================================================================
 
 enum ztCollisionGeometryType_Enum
 {
@@ -2158,7 +2182,7 @@ enum ztCollisionGeometryType_Enum
 	ztCollisionGeometryType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztCollisionGeometry
 {
@@ -2183,7 +2207,7 @@ struct ztCollisionGeometry
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents);
 ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents);
@@ -2191,7 +2215,7 @@ ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 rad
 
 bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztRigidBodyFlags_Enum
 {
@@ -2233,7 +2257,7 @@ struct ztRigidBody
 };
 #pragma pack(pop)
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ztRigidBodyDampingDefaults_Low      .99f
 #define ztRigidBodyDampingDefaults_Medium   .50f
@@ -2245,7 +2269,7 @@ struct ztRigidBody
 #define ZT_RIGID_BODY_DEFAULT_GRAVITY ztVec3(0, -9.8f, 0)
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count, r32 damping = ztRigidBodyDampingDefaults_Medium, ztVec3 force_gravity = ZT_RIGID_BODY_DEFAULT_GRAVITY);
 ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry detail, r32 damping = ztRigidBodyDampingDefaults_Medium, ztVec3 force_gravity = ZT_RIGID_BODY_DEFAULT_GRAVITY);
@@ -2257,7 +2281,7 @@ void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& for
 void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztForceAnchorType_Enum
 {
@@ -2269,7 +2293,7 @@ enum ztForceAnchorType_Enum
 	ztForceAnchorType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztForceAnchor
 {
@@ -2287,7 +2311,7 @@ struct ztForceAnchor
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point = ztVec3::zero);
 ztForceAnchor zt_forceAnchor(ztTransform *transform);
@@ -2295,7 +2319,7 @@ ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr);
 ztForceAnchor zt_forceAnchor(ztVec3 vec3);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztForceType_Enum
 {
@@ -2307,7 +2331,7 @@ enum ztForceType_Enum
 	ztForceType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztForce
 {
@@ -2338,7 +2362,7 @@ struct ztForce
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForce zt_forceMakeSpring      (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
 ztForce zt_forceMakeStiffSpring (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping);
@@ -2348,8 +2372,9 @@ ztForce zt_forceMakeBuoyancy    (ztRigidBody *rigid_body, const ztVec3& connecti
 void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // collisions
+// ================================================================================================================================================================================================
 
 struct ztRigidBodyCollision
 {
@@ -2363,8 +2388,9 @@ struct ztRigidBodyCollision
 void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisions_count, r32 dt, int max_iterations);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // connectors
+// ================================================================================================================================================================================================
 
 enum ztConnectorType_Enum
 {
@@ -2374,7 +2400,7 @@ enum ztConnectorType_Enum
 	ztConnectorType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztConnector
 {
@@ -2395,7 +2421,7 @@ struct ztConnector
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztConnector zt_connectorMakeCable(r32 max_length, r32 restitution);
 ztConnector zt_connectorMakeRod(r32 length);
@@ -2403,12 +2429,12 @@ ztConnector zt_connectorMakeRod(r32 length);
 int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_count, ztRigidBodyCollision *collisions, int collisions_size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigidBodyCollision *collisions, int collisions_size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 // rects have a center and a size
 // the LL functions use a rect with the x/y point being the lower left corner
@@ -2441,8 +2467,9 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_cent
 bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows); // check for non-zero elements in the given line
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // physics manager
+// ================================================================================================================================================================================================
 
 struct ztPhysics
 {
@@ -2469,7 +2496,7 @@ struct ztPhysics
 	ztMemoryArena *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors);
 void zt_physicsFree(ztPhysics *physics);
@@ -2482,8 +2509,9 @@ int zt_physicsAddConnector (ztPhysics *physics, ztConnector *connector);
 void zt_physicsUpdate(ztPhysics *physics, r32 dt);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // tweening
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_TWEEN_EASE(name)	r32 name(r32 value, void *user_data)
 typedef ZT_FUNC_TWEEN_EASE(ztTweenEase_Func);
@@ -2509,14 +2537,16 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // animation
+// ================================================================================================================================================================================================
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // ztAnimKey
 // 
 // Represents a single key frame in an animation.  Can point to any ztVariant value.
+// ================================================================================================================================================================================================
 
 struct ztAnimKey
 {
@@ -2528,15 +2558,16 @@ struct ztAnimKey
 	r32                   time;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // ztAnimLayer
 //
 // Represents a collection of key frames for a single variable
+// ================================================================================================================================================================================================
 
 enum ztAnimLayerState_Enum
 {
@@ -2560,17 +2591,18 @@ struct ztAnimLayer
 	r32                   target_time;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count);
 void        zt_animLayerFree(ztAnimLayer *layer);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // ztAnimSequence
 //
 // Represents a group of layers combined together, such as a walking animation that has
 // arms, legs and bodies all keyframed together
+// ================================================================================================================================================================================================
 
 enum ztAnimSequenceType_Enum
 {
@@ -2580,7 +2612,7 @@ enum ztAnimSequenceType_Enum
 	ztAnimSequenceType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztAnimTransition_Enum
 {
@@ -2588,7 +2620,7 @@ enum ztAnimTransition_Enum
 	ztAnimTransition_Interp,    // the target value will move to the beginning value over the transition time
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztAnimSequence
 {
@@ -2603,7 +2635,7 @@ struct ztAnimSequence
 	bool                    loops;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops);
 void            zt_animSequenceFree(ztAnimSequence *sequence);
@@ -2611,12 +2643,11 @@ void            zt_animSequenceFree(ztAnimSequence *sequence);
 r32             zt_animSequencePercentComplete(ztAnimSequence *sequence);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // ztAnimController
 //
 // Represents a collection of animation sequences for a single actor/game object
-
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztAnimController
 {
@@ -2633,7 +2664,7 @@ struct ztAnimController
 	i32               queued;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAnimController *zt_animControllerMake(int max_sequences, int max_async = 4);
 void              zt_animControllerFree(ztAnimController *controller);
@@ -2642,8 +2673,9 @@ int               zt_animControllerStartSequence(ztAnimController *controller, i
 void              zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // sprite animation
+// ================================================================================================================================================================================================
 
 struct ztSpriteAnimController
 {
@@ -2663,7 +2695,7 @@ struct ztSpriteAnimController
 	ztAnimController *controller;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences);
 void zt_spriteAnimControllerFree(ztSpriteAnimController *controller);
@@ -2675,8 +2707,9 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Particles
+// ================================================================================================================================================================================================
 
 struct ztParticleEmitterSettings
 {
@@ -2714,7 +2747,7 @@ struct ztParticleEmitterSettings
 	r32     emitter_lifetime;           // 0 = persistent, otherwise life in seconds
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztParticle
 {
@@ -2725,13 +2758,13 @@ struct ztParticle
 	r32         rotation;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_PARTICLES
 #define ZT_MAX_PARTICLES	500
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztParticleEmitter2D
 {
@@ -2750,14 +2783,15 @@ struct ztParticleEmitter2D
 	ztRandom                  randomizer;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed);
 bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt); // returns false when emitter is exhausted
 void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Pathfinding
+// ================================================================================================================================================================================================
 
 #ifndef ZT_PATH_NODE_MAX_NEIGHBORS
 #define ZT_PATH_NODE_MAX_NEIGHBORS 16
@@ -2767,7 +2801,7 @@ void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, zt
 #define ztPathNodeValue_Impassable  -100
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztPathNodeFlags_Enum
 {
@@ -2776,7 +2810,7 @@ enum ztPathNodeFlags_Enum
 	ztPathNodeFlags_Obstructed  = (1<<2),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztPathNode
 {
@@ -2790,13 +2824,13 @@ struct ztPathNode
 	r32        _my_move_cost;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_PATH_NODE_COST(name)   r32 name(ztPathNode *origin, ztPathNode *destination, void *user_data)
 typedef ZT_FUNC_PATH_NODE_COST(ztPathNodeCost_Func);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztPathGridSquare
 {
@@ -2818,7 +2852,7 @@ struct ztPathProgress;
 void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgress *progress);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztPathProgress
 {
@@ -2841,17 +2875,17 @@ struct ztPathProgress
 	ztMemoryArena *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_PATH_EARLY_EXIT(name)	bool name(ztPathProgress *progress, void *user_data)
 typedef ZT_FUNC_PATH_EARLY_EXIT(ztPathEarlyExit_Func);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena);
 void zt_pathProgressFree(ztPathProgress *progress);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztPathType_Enum
 {
@@ -2862,14 +2896,15 @@ enum ztPathType_Enum
 	ztPathType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_node_cost_func, void *path_cost_user_data, ztPathEarlyExit_Func *early_exit_func, void *early_exit_user_data, ztPathType_Enum path_type);
 
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // audio
+// ================================================================================================================================================================================================
 
 typedef i32 ztAudioClipID;
 
@@ -2889,9 +2924,9 @@ bool zt_audioGetMute();
 
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_DLL_SET_GAME_GLOBALS(name) void name(void *memory, int version)
 typedef ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals_Func);
@@ -2906,29 +2941,30 @@ void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // This is the data for the custom shader language used by zt_game.  Each renderer system should
 // provide a function that turns the syntax tree into a valid shader program for that api.
+// ================================================================================================================================================================================================
 
 enum ztShLangTokenType_Enum
 {
@@ -3031,7 +3067,7 @@ enum ztShLangTokenType_Enum
 	_ztShLangTokenType_MAX
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztShLangTokenFlags_Enum
 {
@@ -3047,7 +3083,7 @@ enum ztShLangTokenFlags_Enum
 	ztShLangTokenFlags_IdentifierWithAccess = (1 << 10),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztShLangToken
 {
@@ -3059,7 +3095,7 @@ struct ztShLangToken
 	i32                    flags;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztShLangSyntaxNodeType_Enum
 {
@@ -3084,7 +3120,7 @@ enum ztShLangSyntaxNodeType_Enum
 	ztShLangSyntaxNodeType_ValueEmpty,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztShLangSyntaxNode;
 
@@ -3099,7 +3135,7 @@ struct ztShLangSyntaxNodeCache
 	int                 string_cache_used;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztShLangSyntaxNode
 {
@@ -3180,7 +3216,7 @@ struct ztShLangSyntaxNode
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name);
 bool                _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node);
@@ -3188,11 +3224,13 @@ bool                _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node
 bool                _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name);
 char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type);
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #endif // include guard
+
+
 
 #if defined(ZT_GAME_IMPLEMENTATION) || defined(ZT_GAME_INTERNAL_DECLARATIONS)
 
@@ -3225,8 +3263,9 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Windows implementation
+// ================================================================================================================================================================================================
 
 #if defined(ZT_WINDOWS)
 
@@ -3259,7 +3298,7 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 #if defined(ZT_WINDOWS)
 
 struct ztWindowDetails
@@ -3279,11 +3318,11 @@ struct ztWindowDetails
 };
 
 #endif // ZT_WINDOWS
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfiledThread;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfiledSection
 {
@@ -3304,7 +3343,7 @@ struct ztProfiledSection
 	ztProfiledThread  *thread;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfiledThread
 {
@@ -3319,7 +3358,7 @@ struct ztProfiledThread
 	int                 allocations_current_section;    // current section in the current frame
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_THREADS // needs to be main thread + additional threads
 #define ZT_MAX_THREADS	7
@@ -3333,7 +3372,7 @@ struct ztProfiledThread
 #define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	1024 * 2
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztProfiler
 {
@@ -3344,13 +3383,13 @@ struct ztProfiler
 };
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #define ZT_THREAD_JOB_QUEUE_SIZE		256
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztThreadJobType_Enum
 {
@@ -3360,7 +3399,7 @@ enum ztThreadJobType_Enum
 	ztThreadJobType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztThreadJob
 {
@@ -3377,7 +3416,7 @@ struct ztThreadJob
 	ztThreadJob          *next;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztThreadJobThreadData
 {
@@ -3394,7 +3433,7 @@ struct ztThreadJobThreadData
 	ztThreadJob         *next_job;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztThreadJobQueue
 {
@@ -3409,9 +3448,9 @@ struct ztThreadJobQueue
 	i32                     total_job_count;
 };
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztDebugVar
 {
@@ -3420,9 +3459,10 @@ struct ztDebugVar
 	ztVariant variable;
 };
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 enum ztRendererRequest_Enum
 {
@@ -3433,7 +3473,7 @@ enum ztRendererRequest_Enum
 	ztRendererRequest_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztRendererRequest
 {
@@ -3446,9 +3486,10 @@ struct ztRendererRequest
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 enum ztShaderLoadType_Enum
 {
@@ -3458,11 +3499,13 @@ enum ztShaderLoadType_Enum
 	ztShaderLoadType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_SHADERS
 #define ZT_MAX_SHADERS		64
 #endif
+
+// ================================================================================================================================================================================================
 
 struct ztShader
 {
@@ -3490,9 +3533,10 @@ struct ztShader
 	int textures_bound;
 };
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 enum ztTextureLoadType_Enum
 {
@@ -3503,7 +3547,7 @@ enum ztTextureLoadType_Enum
 	ztTextureLoadType_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztTexture
 {
@@ -3530,14 +3574,16 @@ struct ztTexture
 	};
 };
 
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_TEXTURES
 #define ZT_MAX_TEXTURES	256
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztVertexArray
 {
@@ -3551,14 +3597,16 @@ struct ztVertexArray
 	i32 vertices;
 };
 
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_VERTEX_ARRAYS
 #define ZT_MAX_VERTEX_ARRAYS	1024 * 16
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztFont
 {
@@ -3596,14 +3644,16 @@ struct ztFont
 	ztMemoryArena *arena;
 };
 
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_FONTS
 #define ZT_MAX_FONTS	64
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztMesh
 {
@@ -3617,13 +3667,15 @@ struct ztMesh
 	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
 };
 
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_MESHES
 #define ZT_MAX_MESHES	256
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 enum ztAudioClipFlags_Enum
 {
@@ -3631,6 +3683,7 @@ enum ztAudioClipFlags_Enum
 	ztAudioClipFlags_Looping = (1<<1),
 };
 
+// ================================================================================================================================================================================================
 
 struct ztAudioClip
 {
@@ -3646,25 +3699,32 @@ struct ztAudioClip
 #define ZT_MAX_AUDIO_CLIPS  128
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_WINDOWS
 #define ZT_MAX_WINDOWS	8
 #endif
 
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_RENDERER_REQUESTS
 #define ZT_MAX_RENDERER_REQUESTS	8
 #endif
+
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_DEBUG_VARIABLES
 #define ZT_MAX_DEBUG_VARIABLES		256
 #endif
 
+// ================================================================================================================================================================================================
+
 struct ztGameGlobals
 {
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	HINSTANCE                 hinstance = NULL;
 	HICON                     exe_icon = NULL;
 	HMODULE                   hmod_xinput = NULL;
@@ -3675,7 +3735,7 @@ struct ztGameGlobals
 	xinput_setState_Func      xinput_setState = nullptr;
 	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 	bool                      app_has_focus = true;
-#endif
+#	endif
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
 
@@ -3764,8 +3824,9 @@ struct ztGameGlobals
 	// ----------------------
 };
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #define ZT_GAME_GLOBALS_VERSION   1 // update this any time ztGameGlobals is changed
 
@@ -3775,27 +3836,29 @@ ztGameGlobals *zt_game = nullptr;
 #endif // internal include guard
 #endif // internal declarations
 
-#if defined(ZT_GAME_IMPLEMENTATION)
-#ifndef __zt_game_implementation__
-#define __zt_game_implementation__
 
-#if !defined(ZT_DLL)
-	// check for valid setup
-#	if !defined(ZT_GAME_FUNC_SETTINGS)
-#		error You must define ZT_GAME_FUNC_SETTINGS
+#if defined(ZT_GAME_IMPLEMENTATION)
+#	ifndef __zt_game_implementation__
+#	define __zt_game_implementation__
+
+#	if !defined(ZT_DLL)
+		// check for valid setup
+#		if !defined(ZT_GAME_FUNC_SETTINGS)
+#			error You must define ZT_GAME_FUNC_SETTINGS
+#		endif
+#		if !defined(ZT_GAME_FUNC_INIT)
+#			error You must define ZT_GAME_FUNC_INIT
+#		endif
+#		if !defined(ZT_GAME_FUNC_CLEANUP)
+#			error You must define ZT_GAME_FUNC_CLEANUP
+#		endif
+#		if !defined(ZT_GAME_FUNC_LOOP)
+#			error You must define ZT_GAME_FUNC_LOOP
+#		endif
 #	endif
-#	if !defined(ZT_GAME_FUNC_INIT)
-#		error You must define ZT_GAME_FUNC_INIT
-#	endif
-#	if !defined(ZT_GAME_FUNC_CLEANUP)
-#		error You must define ZT_GAME_FUNC_CLEANUP
-#	endif
-#	if !defined(ZT_GAME_FUNC_LOOP)
-#		error You must define ZT_GAME_FUNC_LOOP
-#	endif
-#endif
 
 #if defined(ZT_DLL)
+
 ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 {
 	if (version == ZT_GAME_GLOBALS_VERSION) {
@@ -3812,8 +3875,11 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 		}
 	}
 }
+
 #else
-#	if defined(ZT_OPENGL)
+
+#if defined(ZT_OPENGL)
+
 	void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals, zt_dllSetOpenGLGlobals_Func *set_globals_opengl)
 	{
 		if (set_globals) {
@@ -3823,32 +3889,39 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 			zt_game->zt_dllSetOpenGLGlobals = set_globals_opengl;
 		}
 	}
-#	else
-	void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals)
+
+#else
+
+void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals)
 	{
 		if (set_globals) {
 			set_globals(zt_game, ZT_GAME_GLOBALS_VERSION);
 		}
 	}
-#	endif
+
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+#endif // ZT_DLL
 
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// stb images is embedded at the end of the file, but the functions we call need exposed beforehand
 typedef unsigned char stbi_uc;
 
 extern "C" {
 	// stb image
-	static stbi_uc *stbi_load_from_memory(stbi_uc const *buffer, int len, int *x, int *y, int *comp, int req_comp);
-	static void     stbi_image_free(void *retval_from_stbi_load);
-	static const char *stbi_failure_reason  (void);
+	static stbi_uc     *stbi_load_from_memory(stbi_uc const *buffer, int len, int *x, int *y, int *comp, int req_comp);
+	static void         stbi_image_free(void *retval_from_stbi_load);
+	static const char  *stbi_failure_reason  (void);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal ZT_FUNC_THREAD_EXIT(_zt_threadJobJobExit)
 {
@@ -3856,7 +3929,7 @@ ztInternal ZT_FUNC_THREAD_EXIT(_zt_threadJobJobExit)
 	return zt_atomicBoolGet(&job->cancelled);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ZT_FUNC_THREAD(_zt_threadJobThread)
 {
@@ -3893,7 +3966,7 @@ ztInternal ZT_FUNC_THREAD(_zt_threadJobThread)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_threadJobQueueInit(int max_frame_threads, int max_background_threads)
 {
@@ -3926,7 +3999,7 @@ ztInternal void _zt_threadJobQueueInit(int max_frame_threads, int max_background
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_threadJobQueueFree()
 {
@@ -3943,7 +4016,7 @@ ztInternal void _zt_threadJobQueueFree()
 	zt_free(queue);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_threadJobQueueUpdate()
 {
@@ -3955,7 +4028,7 @@ ztInternal void _zt_threadJobQueueUpdate()
 	zt_threadJobQueueWaitForFrameJobs();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueDllLoad()
 {
@@ -3967,7 +4040,7 @@ void zt_threadJobQueueDllLoad()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueDllUnload()
 {
@@ -3988,7 +4061,7 @@ void zt_threadJobQueueDllUnload()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *user_data, r32 anticipated_length, ztThreadJobType_Enum type)
 {
@@ -4068,7 +4141,7 @@ ztInternal ztThreadJobID _zt_threadJobQueueFor(ztThread_Func thread_func, void *
 	return job->id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztThreadJobID zt_threadJobQueueForFrame(ztThread_Func thread_func, void *user_data, r32 anticipated_length)
 {
@@ -4076,7 +4149,7 @@ ztThreadJobID zt_threadJobQueueForFrame(ztThread_Func thread_func, void *user_da
 	return _zt_threadJobQueueFor(thread_func, user_data, anticipated_length, ztThreadJobType_Frame);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *user_data, r32 anticipated_length)
 {
@@ -4090,7 +4163,7 @@ ztThreadJobID zt_threadJobQueueForBackground(ztThread_Func thread_func, void *us
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_threadJobIsComplete(ztThreadJobID job_id)
 {
@@ -4110,7 +4183,7 @@ bool zt_threadJobIsComplete(ztThreadJobID job_id)
 	return true; // if the job isn't found, it's been pushed out of the queue
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobCancel(ztThreadJobID job_id)
 {
@@ -4125,7 +4198,7 @@ void zt_threadJobCancel(ztThreadJobID job_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueStartFrameJobs()
 {
@@ -4142,7 +4215,7 @@ void zt_threadJobQueueStartFrameJobs()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueWaitForFrameJobs()
 {
@@ -4156,7 +4229,7 @@ void zt_threadJobQueueWaitForFrameJobs()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueWaitForBackgroundJobs()
 {
@@ -4170,7 +4243,7 @@ void zt_threadJobQueueWaitForBackgroundJobs()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJobQueueWaitForAllJobs()
 {
@@ -4179,7 +4252,7 @@ void zt_threadJobQueueWaitForAllJobs()
 	zt_threadJobQueueWaitForBackgroundJobs();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_threadGetIndex()
 {
@@ -4198,9 +4271,10 @@ int zt_threadGetIndex()
 	return -1;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_profilerInit()
 {
@@ -4228,7 +4302,7 @@ ztInternal void _zt_profilerInit()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_profilerFree()
 {
@@ -4248,7 +4322,7 @@ ztInternal void _zt_profilerFree()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_profilerPause()
 {
@@ -4257,7 +4331,7 @@ void zt_profilerPause()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_profilerResume()
 {
@@ -4266,7 +4340,7 @@ void zt_profilerResume()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_profilerIsPaused()
 {
@@ -4277,7 +4351,7 @@ bool zt_profilerIsPaused()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 void zt_profilerFrameBegin()
 {
 #	if !defined(ZT_NO_PROFILE)
@@ -4289,7 +4363,7 @@ void zt_profilerFrameBegin()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_profilerFrameEnd()
 {
@@ -4297,7 +4371,7 @@ void zt_profilerFrameEnd()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size, const ztVec2& mouse_pos, bool mouse_clicked, ztProfilerRenderState *render_state)
 {
@@ -4593,7 +4667,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& s
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx)
 {
@@ -4692,7 +4766,7 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_profiledSectionExit(ztProfiledSection *section)
 {
@@ -4714,9 +4788,10 @@ void zt_profiledSectionExit(ztProfiledSection *section)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val)
 {
@@ -4758,7 +4833,7 @@ ztInternal ztDebugVarID _zt_debuggingAddVariable(const char *name, ztVariant val
 	return zt_game->debug_vars_count - 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_debuggingInit(const char *settings_file_name, const char *alt_path)
 {
@@ -4768,7 +4843,7 @@ void zt_debuggingInit(const char *settings_file_name, const char *alt_path)
 	zt_game->debug_vars_file_data = (char*)zt_readEntireFile(zt_game->debug_vars_file, &zt_game->debug_vars_file_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_debuggingCleanup()
 {
@@ -4791,7 +4866,7 @@ ztInternal void _zt_debuggingCleanup()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztDebugVarID _zt_debuggingRegisterVariable(const char *name, ztVariant val)
 {
@@ -4811,7 +4886,7 @@ ztInternal ztDebugVarID _zt_debuggingRegisterVariable(const char *name, ztVarian
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztDebugVarID zt_debuggingRegisterVariable(const char *name, i8     val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i8(val)); }
 ztDebugVarID zt_debuggingRegisterVariable(const char *name, i16    val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_i16(val)); }
@@ -4830,7 +4905,7 @@ ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztMat4 val) { return
 ztDebugVarID zt_debuggingRegisterVariable(const char *name, ztQuat val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_quat(val)); }
 ztDebugVarID zt_debuggingRegisterVariable(const char *name, bool   val) { return _zt_debuggingRegisterVariable(name, zt_variantMake_bool(val)); }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i8     zt_debuggingGet_i8  (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i8  (&zt_game->debug_vars[debug_var].variable); }
 i16    zt_debuggingGet_i16 (ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, 0               ); return zt_variantGetAs_i16 (&zt_game->debug_vars[debug_var].variable); }
@@ -4849,7 +4924,7 @@ ztMat4 zt_debuggingGet_mat4(ztDebugVarID debug_var) { zt_assertReturnValOnFail(d
 ztQuat zt_debuggingGet_quat(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, ztQuat::identity); return zt_variantGetAs_quat(&zt_game->debug_vars[debug_var].variable); }
 bool   zt_debuggingGet_bool(ztDebugVarID debug_var) { zt_assertReturnValOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count, false           ); return zt_variantGetAs_bool(&zt_game->debug_vars[debug_var].variable); }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_debuggingSet(ztDebugVarID debug_var, i8     val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i8   = val; }
 void zt_debuggingSet(ztDebugVarID debug_var, i16    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_i16  = val; }
@@ -4868,16 +4943,17 @@ void zt_debuggingSet(ztDebugVarID debug_var, ztMat4 val) {  zt_assertReturnOnFai
 void zt_debuggingSet(ztDebugVarID debug_var, ztQuat val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_quat[i] = val.values[i]; }
 void zt_debuggingSet(ztDebugVarID debug_var, bool   val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_bool = val; }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena)
 {
 	return false; // not yet implemented
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena)
 {
@@ -4965,14 +5041,14 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena)
 {
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_assetManagerFree(ztAssetManager *asset_mgr)
 {
@@ -4988,14 +5064,14 @@ void zt_assetManagerFree(ztAssetManager *asset_mgr)
 	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetExists(ztAssetManager *asset_mgr, const char *asset)
 {
 	return zt_assetExists(asset_mgr, zt_strHash(asset));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash)
 {
@@ -5011,7 +5087,7 @@ bool zt_assetExists(ztAssetManager *asset_mgr, i32 asset_hash)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name, i32 *asset_hash)
 {
@@ -5050,7 +5126,7 @@ bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name,
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
 {
@@ -5067,7 +5143,7 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
 	return asset_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash)
 {
@@ -5083,7 +5159,7 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, i32 asset_hash)
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID same_location_as)
 {
@@ -5105,7 +5181,7 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID s
 	return zt_assetLoad(asset_mgr, asset_name);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	ZT_PROFILE_ASSETS("zt_assetSize");
@@ -5114,7 +5190,7 @@ i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	return asset_mgr->asset_size[asset_id];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size)
 {
@@ -5154,7 +5230,7 @@ bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data,
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
@@ -5172,7 +5248,7 @@ bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ztFunctionID function, void *user_data)
 {
@@ -5197,7 +5273,7 @@ void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, zt
 	zt_fileModified(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &asset_mgr->asset_modified[asset_id]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
@@ -5233,7 +5309,7 @@ void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id,
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 {
@@ -5286,7 +5362,7 @@ void zt_assetManagerCheckForChanges(ztAssetManager *asset_mgr)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // verifies data type and loads data into allocated buffer.  free with zt_free()
 
 ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetManagerType_Enum *type_verify, int type_verify_count, void **data, i32 *data_size)
@@ -5332,11 +5408,9 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
@@ -5358,28 +5432,28 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput input : input, Uniforms uniforms : uniforms, PixelInput output : output)\n	{\n		output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(input.position, 1.0);\n		output.uv = input.uv;\n		output.color = input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * input.color.a;\n		output.color = vec4(input.color.rgb, alpha);\n	}\n}",
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztRenderer_Enum zt_currentRenderer()
 {
 	return zt_game->win_game_settings[0].renderer;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_pixelsPerUnit()
 {
 	return (r32)zt_game->win_game_settings[0].pixels_per_unit;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_requestQuit()
 {
 	zt_game->quit_requested = true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void (*_zt_rendererSwapBuffers)(ztWindowDetails*);
 ztInternal bool (*_zt_rendererSetViewport)(ztWindowDetails*, ztGameSettings*, bool);
@@ -5389,7 +5463,7 @@ ztInternal bool (*_zt_rendererToggleFullscreen)(ztWindowDetails*, ztGameSettings
 
 ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails *win_details, ztGameSettings *game_settings, bool force);
 ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags);
@@ -5401,7 +5475,7 @@ bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_setKeyDataActl(ztInputKeys *input_keys, ztInputKeys_Enum code, i32 flags, char *name, char display, char shift_display, i32 platform_mapping)
 {
@@ -5414,7 +5488,7 @@ ztInternal void _zt_setKeyDataActl(ztInputKeys *input_keys, ztInputKeys_Enum cod
 	zt_strCpy(input_keys->name, zt_elementsOf(input_keys->name), name);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 
 //#define _zt_setKeyData(code, name, display, shift_display, mapping) zt_game->input_keys[idx++] = {code, (display == 0 ? ztInputKeyFlags_StateKey : 0), name, display, shift_display, mapping, 0}
@@ -5597,21 +5671,21 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, VK_OEM_CLEAR);
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_inputThisFrame()
 {
 	return zt_game->input_this_frame;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInputKeys* zt_inputKeysAccessState()
 {
 	return zt_game->input_keys;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX])
 {
@@ -5620,7 +5694,7 @@ void zt_inputKeysCopyState(ztInputKeys input_keys[ztInputKeys_MAX])
 	zt_memCpy(input_keys, size, zt_game->input_keys, size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ZT_MAX_INPUT_KEYSTROKES])
 {
@@ -5629,14 +5703,14 @@ void zt_inputGetKeyStrokes(ztInputKeys_Enum key_strokes[ZT_MAX_INPUT_KEYSTROKES]
 	zt_memCpy(key_strokes, size, zt_game->input_key_strokes, size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInputMouse* zt_inputMouseAccessState()
 {
 	return &zt_game->input_mouse;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputMouseCopyState(ztInputMouse *input_mouse)
 {
@@ -5644,45 +5718,45 @@ void zt_inputMouseCopyState(ztInputMouse *input_mouse)
 	zt_memCpy(input_mouse, zt_sizeof(ztInputMouse), &zt_game->input_mouse, zt_sizeof(ztInputMouse));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputMouseLook(bool mouse_look)
 {
 	zt_game->input_mouse_look = mouse_look;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_inputMouseIsLook()
 {
 	return zt_game->input_mouse_look;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 {
 	ZT_PROFILE_INPUT("zt_inputMouseSetCursor");
 	switch (cursor)
 	{
-	case ztInputMouseCursor_None:		SetCursor(NULL); break;
-	case ztInputMouseCursor_Arrow:		SetCursor(LoadCursor(NULL, IDC_ARROW)); break;
-	case ztInputMouseCursor_ResizeNS:	SetCursor(LoadCursor(NULL, IDC_SIZENS)); break;
-	case ztInputMouseCursor_ResizeEW:	SetCursor(LoadCursor(NULL, IDC_SIZEWE)); break;
+	case ztInputMouseCursor_None:       SetCursor(NULL); break;
+	case ztInputMouseCursor_Arrow:      SetCursor(LoadCursor(NULL, IDC_ARROW)); break;
+	case ztInputMouseCursor_ResizeNS:   SetCursor(LoadCursor(NULL, IDC_SIZENS)); break;
+	case ztInputMouseCursor_ResizeEW:   SetCursor(LoadCursor(NULL, IDC_SIZEWE)); break;
 	case ztInputMouseCursor_ResizeNWSE:	SetCursor(LoadCursor(NULL, IDC_SIZENWSE)); break;
 	case ztInputMouseCursor_ResizeSWNE:	SetCursor(LoadCursor(NULL, IDC_SIZENESW)); break;
 	case ztInputMouseCursor_IBeam:      SetCursor(LoadCursor(NULL, IDC_IBEAM)); break;
 	case ztInputMouseCursor_Wait:       SetCursor(LoadCursor(NULL, IDC_WAIT)); break;
 	case ztInputMouseCursor_Cross:      SetCursor(LoadCursor(NULL, IDC_CROSS)); break;
-	case ztInputMouseCursor_Stop:      SetCursor(LoadCursor(NULL, IDC_NO)); break;
-	case ztInputMouseCursor_Hand:      SetCursor(LoadCursor(NULL, IDC_HAND)); break;
-	case ztInputMouseCursor_Help:      SetCursor(LoadCursor(NULL, IDC_HELP)); break;
+	case ztInputMouseCursor_Stop:       SetCursor(LoadCursor(NULL, IDC_NO)); break;
+	case ztInputMouseCursor_Hand:       SetCursor(LoadCursor(NULL, IDC_HAND)); break;
+	case ztInputMouseCursor_Help:       SetCursor(LoadCursor(NULL, IDC_HELP)); break;
 	}
 
 	zt_game->input_mouse.cursor = cursor;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInputController* zt_inputControllerAccessState(int idx)
 {
@@ -5690,7 +5764,7 @@ ztInputController* zt_inputControllerAccessState(int idx)
 	return &zt_game->input_controllers[idx];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
 {
@@ -5699,11 +5773,11 @@ void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
 	zt_memCpy(input_controller, zt_sizeof(ztInputController), &zt_game->input_controllers[idx], zt_sizeof(ztInputController));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 zt_winOnly(void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high));
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 strength_high)
 {
@@ -5712,9 +5786,9 @@ void zt_inputControllerTriggerHapticFeedback(int idx, r32 strength_low, r32 stre
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_name)
 {
@@ -5730,7 +5804,7 @@ bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_n
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name)
 {
@@ -5746,7 +5820,7 @@ bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_n
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_inputReplayFree(ztInputReplayData *replay_data)
 {
@@ -5756,7 +5830,7 @@ void zt_inputReplayFree(ztInputReplayData *replay_data)
 	zt_free(replay_data->working_memory);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
 {
@@ -5862,7 +5936,7 @@ bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_inputClearState( bool lost_focus )
 {
@@ -5922,7 +5996,7 @@ void _zt_inputClearState( bool lost_focus )
 	zt_game->input_this_frame = false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_rendererSupported(ztRenderer_Enum renderer)
 {
@@ -5935,7 +6009,7 @@ bool zt_rendererSupported(ztRenderer_Enum renderer)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count)
 {
@@ -5945,7 +6019,7 @@ int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count)
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_rendererVersionSupported(ztRenderer_Enum renderer, int v_major, int v_minor)
 {
@@ -5972,7 +6046,7 @@ bool zt_rendererVersionSupported(ztRenderer_Enum renderer, int v_major, int v_mi
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemoryArena *arena)
 {
@@ -5994,7 +6068,7 @@ bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemor
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListFree(ztDrawList *draw_list)
 {
@@ -6010,14 +6084,14 @@ void zt_drawListFree(ztDrawList *draw_list)
 	zt_memSet(draw_list, sizeof(ztDrawList), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if (draw_list->commands_count >= draw_list->commands_size) { zt_assert(false && "ztDrawList command overflow"); return false; };
 
 #define _zt_drawListVerifyShader(draw_list) zt_debugOnly(zt_assert(draw_list->active_shaders > 0))
 #define _zt_drawListVerifyTexture(draw_list) zt_debugOnly(zt_assert(draw_list->active_textures > 0))
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p)
 {
@@ -6032,7 +6106,7 @@ bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2)
 {
@@ -6048,7 +6122,7 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
 {
@@ -6064,21 +6138,21 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2& p1, const ztVec2& p2)
 {
 	return zt_drawListAddLine(draw_list, ztVec3(p1, 0), ztVec3(p2, 0));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 p[2])
 {
 	return zt_drawListAddLine(draw_list, p[0], p[1]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3)
 {
@@ -6089,7 +6163,7 @@ bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3])
 {
@@ -6102,7 +6176,7 @@ bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3])
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4)
 {
@@ -6114,7 +6188,7 @@ bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVe
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4])
 {
@@ -6127,7 +6201,7 @@ bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4])
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size)
 {
@@ -6135,7 +6209,7 @@ bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztV
 	return zt_drawListAddEmptyRect(draw_list, ztVec3(pos, 0), size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztVec2& size)
 {
@@ -6164,14 +6238,14 @@ bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztV
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec2& pos, r32 radius, int points)
 {
 	return zt_drawListAddEmptyCircle(draw_list, ztVec3(pos, 0), radius, points);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points)
 {
@@ -6197,7 +6271,7 @@ bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3& pos, r32 rad
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3& pos, const ztVec3& size)
 {
@@ -6224,7 +6298,7 @@ bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3& 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min, const ztVec3& max)
 {
@@ -6234,7 +6308,7 @@ bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min,
 	return zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points)
 {
@@ -6260,7 +6334,7 @@ bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
 {
@@ -6295,7 +6369,7 @@ bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& po
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 size, r32 radius, r32 top)
 {
@@ -6320,7 +6394,7 @@ bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 siz
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3])
 {
@@ -6339,7 +6413,7 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4)
 {
@@ -6386,7 +6460,7 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztV
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4])
 {
@@ -6415,14 +6489,14 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const zt
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se)
 {
 	return zt_drawListAddFilledRect2D(draw_list, ztVec3(p.x, p.y, 0), size, uv_nw, uv_se);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se)
 {
@@ -6444,14 +6518,14 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const zt
 		ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color)
 {
 	return zt_drawListAddSolidRect2D(draw_list, ztVec3(pos_ctr, 0), size, color);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color)
 {
@@ -6464,14 +6538,14 @@ bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, con
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color)
 {
 	return zt_drawListAddSolidCircle2D(draw_list, ztVec3(pos_ctr, 0), radius, points, color);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color)
 {
@@ -6514,14 +6588,14 @@ bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
 {
 	return zt_drawListAddSolidOutlinedRect2D(draw_list, ztVec3(pos_ctr, 0), size, color, outline_color);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
 {
@@ -6534,14 +6608,14 @@ bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3& pos_
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
 {
 	return zt_drawListAddSolidOutlinedCircle2D(draw_list, ztVec3(pos_ctr, 0), radius, points, color, outline_color);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
 {
@@ -6554,7 +6628,7 @@ bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3& po
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, i32 flags)
 {
@@ -6574,7 +6648,7 @@ bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVec2 *uvs, const ztVec3 *normals, int count)
 {
@@ -6603,9 +6677,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVe
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
-
-//#include <stdlib.h>
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3& offset)
 {
@@ -6654,7 +6726,7 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 {
@@ -6677,7 +6749,7 @@ bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
 {
@@ -6714,7 +6786,7 @@ bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 wi
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type)
 {
@@ -6731,7 +6803,7 @@ bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_arr
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size, const ztVec3& center, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
 {
@@ -6751,7 +6823,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size, const ztVec3& center, c
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, const ztVec3& center, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
 {
@@ -6773,7 +6845,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, cons
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size, bool color_axis)
 {
@@ -6791,7 +6863,7 @@ bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 siz
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale)
 {
@@ -6812,7 +6884,7 @@ bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, z
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 {
@@ -6829,7 +6901,7 @@ bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopShader(ztDrawList *draw_list)
 {
@@ -6853,7 +6925,7 @@ bool zt_drawListPopShader(ztDrawList *draw_list)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list)
 {
@@ -6869,7 +6941,7 @@ ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list)
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color)
 {
@@ -6885,7 +6957,7 @@ bool zt_drawListPushColor(ztDrawList *draw_list, const ztColor& color)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopColor(ztDrawList *draw_list)
 {
@@ -6921,7 +6993,7 @@ bool zt_drawListPopColor(ztDrawList *draw_list)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 {
@@ -6944,7 +7016,7 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID tex_id)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex_count)
 {
@@ -6969,16 +7041,16 @@ bool zt_drawListPushTexture(ztDrawList *draw_list, ztTextureID *tex_ids, int tex
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopTexture(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopTexture");
-#if 1
+#	if 1
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type = ztDrawCommandType_ChangeTexture;
 	command->texture_pop = true;
-#else
+#	else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeTexture) {
@@ -7007,14 +7079,14 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 	command->texture[0]    = 0;
 	command->texture_count = 1;
 	command->texture_pop   = false;
-#endif
+#	endif
 
 	zt_debugOnly(draw_list->active_textures--);
 
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size)
 {
@@ -7051,7 +7123,7 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 {
@@ -7079,7 +7151,7 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset)
 {
@@ -7095,17 +7167,17 @@ bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopOffset(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopOffset");
 
-#if 1
+#	if 1
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type       = ztDrawCommandType_ChangeOffset;
 	command->offset_pop = true;
-#else
+#	else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeOffset) {
@@ -7129,11 +7201,11 @@ bool zt_drawListPopOffset(ztDrawList *draw_list)
 	command->type       = ztDrawCommandType_ChangeOffset;
 	command->offset     = ztVec3::zero;
 	command->offset_pop = true;
-#endif
+#	endif
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform)
 {
@@ -7149,17 +7221,17 @@ bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_drawListPopTransform(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopTransform");
 
-#if 1
+#	if 1
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type          = ztDrawCommandType_ChangeTransform;
 	command->transform_pop = true;
-#else
+#	else
 	int pops = 1;
 	zt_fizr(draw_list->commands_count - 1) {
 		if (draw_list->commands[i].type == ztDrawCommandType_ChangeTransform) {
@@ -7183,11 +7255,11 @@ bool zt_drawListPopTransform(ztDrawList *draw_list)
 	command->type          = ztDrawCommandType_ChangeTransform;
 	command->transform     = ztMat4::identity;
 	command->transform_pop = true;
-#endif
+#	endif
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListReset(ztDrawList *draw_list)
 {
@@ -7196,11 +7268,11 @@ void zt_drawListReset(ztDrawList *draw_list)
 	zt_debugOnly(draw_list->active_shaders = draw_list->active_textures = 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #undef 	_zt_drawListCheck
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
@@ -7210,12 +7282,12 @@ void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& c
 	zt_renderDrawLists(camera, draw_lists_arr, 1, clear, flags, render_target_id);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ztRenderDrawListVertexArraySize	3 * 1024 * 64
 #define ztRenderDrawListVertexByteSize (ztRenderDrawListVertexArraySize * 48)
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_rendererCheckToResetStats()
 {	
@@ -7226,7 +7298,7 @@ ztInternal void _zt_rendererCheckToResetStats()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
@@ -7243,14 +7315,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear) && render_target_id == ztInvalidID) {
 		zt_rendererClear(clear);
 	}
-
-#if 0
-	zt_fiz(draw_lists_count) {
-		ztDrawList *draw_list = draw_lists[i];
-
-
-	}
-#else
 
 	byte *mem = zt_game->renderer_memory;
 	i32 mem_left = zt_game->renderer_memory_size;
@@ -8671,12 +8735,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 #endif // ZT_DIRECTX
 	}
-#endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
 {
@@ -8765,7 +8829,7 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 {
@@ -8794,7 +8858,7 @@ void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 	zt_game->vertex_arrays[vertex_array_id].renderer = ztRenderer_Invalid;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
 {
@@ -8840,7 +8904,7 @@ bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *e
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type)
 {
@@ -8904,7 +8968,7 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id)
 {
@@ -8914,7 +8978,7 @@ int zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id)
 	return zt_game->vertex_arrays[vertex_array_id].vertices;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type)
 {
@@ -8929,9 +8993,9 @@ int zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity, r32 ambient, bool casts_shadows, const ztColor& color)
 {
@@ -8947,7 +9011,7 @@ ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intens
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity, bool casts_shadows, const ztColor& color)
 {
@@ -8963,7 +9027,7 @@ ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity, bo
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, const ztColor& color)
 {
@@ -8979,11 +9043,10 @@ ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, c
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
@@ -9025,7 +9088,7 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	return model;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_modelFree(ztModel *model)
 {
@@ -9058,7 +9121,7 @@ void zt_modelFree(ztModel *model)
 	zt_freeArena(model, model->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
 {
@@ -9082,7 +9145,7 @@ ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
 	return zt_modelMake(zt_memGetGlobalArena(), mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 {
@@ -9109,7 +9172,7 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 			//bone->mat_offset = bone->mat_inverse_bind_transform * current_transform;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
 		{
@@ -9132,7 +9195,7 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 			}
 		}
 	
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 	};
 
 	while(model->parent) {
@@ -9147,7 +9210,7 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 {
@@ -9222,7 +9285,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	*center = *center - zero;//model->calculated_mat.getInverse().getMultiply(*center);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size)
 {
@@ -9239,9 +9302,9 @@ void zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size)
 
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 {
@@ -9265,7 +9328,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	return scene;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneFree(ztScene *scene)
 {
@@ -9280,7 +9343,7 @@ void zt_sceneFree(ztScene *scene)
 	zt_freeArena(scene, scene->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneFreeAllModels(ztScene *scene)
 {
@@ -9298,7 +9361,7 @@ void zt_sceneFreeAllModels(ztScene *scene)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneAddLight(ztScene *scene, ztLight *light)
 {
@@ -9319,7 +9382,7 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox)
 {
@@ -9330,7 +9393,7 @@ void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox)
 	scene->skybox.model = skybox;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 {
@@ -9365,7 +9428,7 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 {
@@ -9386,7 +9449,7 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 	zt_assert(false); // should not be removing a model that doesn't exist in the scene
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 {
@@ -9403,7 +9466,7 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset)
 {
@@ -9428,14 +9491,14 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneOptimize(ztScene *scene, ztCamera *camera)
 {
 	ZT_PROFILE_RENDERING("zt_sceneOptimize");
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera, ztSceneLightingRules *lighting_rules, bool shadow_pass = false)
 {
@@ -9468,7 +9531,7 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	return mat_proj * mat_view;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
@@ -9535,7 +9598,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
@@ -9705,7 +9768,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
@@ -9843,9 +9906,10 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor)
 {
@@ -9869,7 +9933,7 @@ bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 {
@@ -9886,14 +9950,14 @@ void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererClear(ztVec4 clr)
 {
 	return zt_rendererClear(clr.r, clr.g, clr.b, clr.a);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererClearDepth()
 {
@@ -9910,7 +9974,7 @@ void zt_rendererClearDepth()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_rendererUvsFlipYRenderTarget()
 {
@@ -9929,7 +9993,7 @@ bool zt_rendererUvsFlipYRenderTarget()
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function)
 {
@@ -9977,7 +10041,7 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 {
@@ -10009,7 +10073,7 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererRequestChange(ztRenderer_Enum renderer)
 {
@@ -10022,7 +10086,7 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer)
 	request->change_to = renderer;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererRequestWindowed()
 {
@@ -10037,7 +10101,7 @@ void zt_rendererRequestWindowed()
 	request->type = ztRendererRequest_Windowed;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rendererRequestFullscreen()
 {
@@ -10055,9 +10119,10 @@ void zt_rendererRequestFullscreen()
 	request->type = ztRendererRequest_Fullscreen;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len, int *shader_tokens_size)
 {
@@ -10468,7 +10533,7 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 	return shader_tokens;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 #include <stdio.h> 
 
 ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *global_node, ztShLangToken *token, ztString *error, char *file_data, char *message, ...)
@@ -10513,7 +10578,7 @@ ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *gl
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
 {
@@ -10542,7 +10607,7 @@ char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
 	return "<unknown syntax node type";
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
 {
@@ -10643,7 +10708,7 @@ char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
 	return "<unknown>";
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShLangTokenType_Enum _zt_shaderLangTokenTypeFromDesc(char *desc, int desc_len = -1)
 {
@@ -10739,7 +10804,7 @@ ztShLangTokenType_Enum _zt_shaderLangTokenTypeFromDesc(char *desc, int desc_len 
 	return ztShLangTokenType_Identifier;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangToken *tokens, int tokens_count, ztString *error)
 {
@@ -11802,7 +11867,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 #	undef make_parent
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
 {
@@ -11819,7 +11884,7 @@ void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name)
 {
@@ -11837,7 +11902,7 @@ ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope, char *file_data, ztString *error)
 {
@@ -11854,7 +11919,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return false;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static ztString findDataType(ztShLangSyntaxNode *scope, ztShLangSyntaxNode *var_node, char *ident)
 		{
@@ -11878,7 +11943,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return nullptr;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool variableInScope(char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
 		{
@@ -11958,7 +12023,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return true;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static ztShLangTokenType_Enum getExpressionDataType(ztShLangSyntaxNode *node, ztString *error, char *file_data)
 		{
@@ -11993,7 +12058,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return ztShLangTokenType_Invalid;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static ztShLangSyntaxNode *findFunction(ztShLangSyntaxNode *node, bool *found, ztString *error, char *file_data)
 		{
@@ -12051,7 +12116,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return nullptr;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool isValidFunction(ztShLangSyntaxNode *global_scope, ztShLangSyntaxNode *func_node, char *file_data, ztString *error)
 		{
@@ -12064,7 +12129,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return false;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static ztShLangTokenType_Enum getOperationType(ztShLangSyntaxNode *op_node, ztString *error, char *file_data)
 		{
@@ -12209,7 +12274,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			}
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool isValidOperation(ztShLangSyntaxNode *op_node, ztString *error, char *file_data)
 		{
@@ -12224,7 +12289,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return true;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool isValidDataType(ztShLangSyntaxNode *global_scope, ztShLangSyntaxNode *var_node)
 		{
@@ -12272,7 +12337,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return false;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool validateNodeStage1(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
 		{
@@ -12399,7 +12464,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return true;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool validateNodeStage2(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
 		{
@@ -12418,7 +12483,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			return true;
 		}
 
-		// ------------------------------------------------------------------------------------------------
+		// ================================================================================================================================================================================================
 
 		static bool validateNodeStage3(ztShLangSyntaxNode *global_scope, char *file_data, ztShLangSyntaxNode *var_node, ztString *error)
 		{
@@ -12443,7 +12508,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 	       local::validateNodeStage3(global_scope, file_data, global_scope, error);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_shaderLangDumpSyntaxTree(ztShLangSyntaxNode *node, int indent = 0)
 {
@@ -12529,7 +12594,7 @@ ztInternal void _zt_shaderLangDumpSyntaxTree(ztShLangSyntaxNode *node, int inden
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
 {
@@ -12580,7 +12645,7 @@ ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, ch
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name)
 {
@@ -12595,7 +12660,7 @@ bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name)
 	return _zt_shaderLangIsStructureReferenced(node, name, functions_checked, &functions_checked_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
 {
@@ -12642,7 +12707,7 @@ ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, cha
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name)
 {
@@ -12657,7 +12722,7 @@ bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name)
 	return _zt_shaderLangIsFunctionReferenced(node, name, functions_checked, &functions_checked_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
 {
@@ -12704,7 +12769,7 @@ ztInternal bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztS
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node)
 {
@@ -12719,14 +12784,10 @@ bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntax
 	return _zt_shaderLangIsVariableReferenced(node, var_decl_node, functions_checked, &functions_checked_size);
 }
 
-// ------------------------------------------------------------------------------------------------
 
-//bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error);
-//bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error);
-
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
 
@@ -12777,7 +12838,7 @@ on_error:
 	zt_freeArena(data, asset_manager->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace = ztInvalidID)
 {
@@ -13078,7 +13139,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len)
 {
@@ -13095,7 +13156,7 @@ ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len)
 	return shader_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
@@ -13147,7 +13208,7 @@ on_error:
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderFree(ztShaderID shader_id)
 {
@@ -13177,7 +13238,7 @@ void zt_shaderFree(ztShaderID shader_id)
 	zt_memSet(shader, sizeof(ztShader), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderBegin(ztShaderID shader_id)
 {
@@ -13200,7 +13261,7 @@ void zt_shaderBegin(ztShaderID shader_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderEnd(ztShaderID shader_id)
 {
@@ -13223,7 +13284,7 @@ void zt_shaderEnd(ztShaderID shader_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view)
 {
@@ -13235,7 +13296,7 @@ void zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, 
 	zt_shaderApplyVariables(shader_id);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model)
 {
@@ -13245,7 +13306,7 @@ void zt_shaderSetModelMatrices(ztShaderID shader_id, const ztMat4& model)
 	zt_shaderApplyVariables(shader_id);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
 {
@@ -13260,7 +13321,7 @@ void zt_shaderPopulateVariables(ztShaderID shader_id, ztShaderVariableValues *sh
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shader_vars)
 {
@@ -13270,20 +13331,20 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 
 	ztShaderVariableValues *shader = &zt_game->shaders[shader_id].variables;
 
-#if defined(ZT_DEBUG)
+#	if defined(ZT_DEBUG)
 	// validate that the shader variables match up
 	zt_assertReturnOnFail(shader->variables_count == shader_vars->variables_count);
 	zt_fiz(shader->variables_count) {
 		zt_assertReturnOnFail(shader->variables[i].type == shader_vars->variables[i].type);
 		zt_assertReturnOnFail(zt_strEquals(shader->variables[i].name, shader_vars->variables[i].name));
 	}
-#endif
+#	endif
 
 	zt_memCpy(&shader->variables, zt_sizeof(ztShaderVariableValues), shader_vars, zt_sizeof(ztShaderVariableValues));
 	zt_shaderApplyVariables(shader_id);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 {
@@ -13342,7 +13403,7 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderApplyVariables(ztShaderID shader_id)
 {
@@ -13411,14 +13472,14 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type)
 {
 	return zt_shaderHasVariable(shader_vars, zt_strHash(variable), type);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash, ztShaderVariable_Enum *type)
 {
@@ -13435,29 +13496,29 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define _zt_shaderCheckHash(shader_vars) \
-	int idx = -1; \
-	zt_fiz(shader_vars->variables_count) { \
-		if (shader_vars->variables[i].name_hash == variable_hash) {\
-			idx = i; break; \
-						} \
-	} \
-	if (idx == -1) { return 0; } \
+        int idx = -1; \
+        zt_fiz(shader_vars->variables_count) { \
+            if (shader_vars->variables[i].name_hash == variable_hash) {\
+                idx = i; break; \
+            } \
+        } \
+        if (idx == -1) { return 0; }
 
 #define _zt_shaderCheckType(shared_vars, shader_type) \
-	if (shader_vars->variables[idx].type != shader_type) { \
-		zt_assert(false); \
-		return 0; \
-			}
+        if (shader_vars->variables[idx].type != shader_type) { \
+            zt_assert(false); \
+            return 0; \
+        }
 
 #define _zt_shaderCheckHashAndType(shared_vars, shader_type) \
-	_zt_shaderCheckHash(shader_vars); \
-	_zt_shaderCheckType(shader_vars, shader_type);
+        _zt_shaderCheckHash(shader_vars); \
+        _zt_shaderCheckType(shader_vars, shader_type);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableFloat  (ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { return zt_shaderSetVariableFloat  (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableInt    (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { return zt_shaderSetVariableInt    (shader_vars, zt_strHash(variable), value); }
@@ -13469,7 +13530,7 @@ int zt_shaderSetVariableMat3   (ztShaderVariableValues *shader_vars, const char 
 int zt_shaderSetVariableTex    (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { return zt_shaderSetVariableTex    (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { return zt_shaderSetVariableTexCube(shader_vars, zt_strHash(variable), value); }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value)
 {
@@ -13479,7 +13540,7 @@ int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value)
 {
@@ -13489,7 +13550,7 @@ int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_ha
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value)
 {
@@ -13500,7 +13561,7 @@ int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_h
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value)
 {
@@ -13512,7 +13573,7 @@ int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_h
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value)
 {
@@ -13525,7 +13586,7 @@ int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_h
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value)
 {
@@ -13537,7 +13598,7 @@ int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_h
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12])
 {
@@ -13549,7 +13610,7 @@ int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_h
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
 {
@@ -13561,7 +13622,7 @@ int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_ha
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variable_hash, ztTextureID texture)
 {
@@ -13573,18 +13634,19 @@ int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variabl
 	return idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #undef _zt_shaderCheckHash
 #undef _zt_shaderCheckType
 #undef _zt_shaderCheckHashAndType
 
+// ================================================================================================================================================================================================
 
 #define _zt_shaderCheck(shader_id) \
 	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt_game->shaders_count); \
 	ztShaderVariableValues *shader_vars = &zt_game->shaders[shader_id].variables;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type)
 {
@@ -13593,7 +13655,7 @@ bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVa
 	return zt_shaderHasVariable(&zt_game->shaders[shader_id].variables, variable, type);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVariable_Enum *type)
 {
@@ -13602,7 +13664,7 @@ bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVaria
 	return zt_shaderHasVariable(&zt_game->shaders[shader_id].variables, variable_hash, type);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderSetVariableFloat  (ztShaderID shader_id, const char *variable, r32 value          , bool apply_immediately) { zt_shaderSetVariableFloat  (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableInt    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableInt    (shader_id, zt_strHash(variable), value); }
@@ -13614,7 +13676,7 @@ void zt_shaderSetVariableMat3   (ztShaderID shader_id, const char *variable, r32
 void zt_shaderSetVariableTex    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableTex    (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableTexCube(shader_id, zt_strHash(variable), value); }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableInt    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
@@ -13626,7 +13688,7 @@ void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 va
 void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTex    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 {
@@ -13637,15 +13699,17 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_rendererTextureReload, ztInternal ZT_FUNC_ASSET_UPDATED(_zt_rendererTextureReload))
 {
+	// TODO(josh): Implement
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_textureAdjustScreenTargets()
 {
@@ -13677,7 +13741,7 @@ ztInternal void _zt_textureAdjustScreenTargets()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztTextureID _zt_textureGetNextID()
 {
@@ -13691,7 +13755,7 @@ ztInternal ztTextureID _zt_textureGetNextID()
 	return zt_game->textures_count++;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
 {
@@ -13746,7 +13810,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags)
 {
@@ -13818,7 +13882,7 @@ on_error:
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 {
@@ -13847,7 +13911,7 @@ ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags)
 {
@@ -13871,7 +13935,7 @@ ztTextureID zt_textureMakeFromFile(const char *file, i32 flags)
 	return tex_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 {
@@ -13911,7 +13975,7 @@ on_error:
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 flags)
 {
@@ -13932,7 +13996,7 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 {
@@ -13948,7 +14012,7 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format)
 {
@@ -13971,7 +14035,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_f
 	return zt_textureMakeCubeMap(asset_mgr, asset_ids);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX])
 {
@@ -14026,7 +14090,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMapFiles_MAX], i32 width, i32 height, i32 depth)
 {
@@ -14064,7 +14128,7 @@ ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMap
 	return texture_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth)
 {
@@ -14120,7 +14184,7 @@ on_error:
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_textureFreePixelData(byte *pixel_data)
 {
@@ -14128,7 +14192,7 @@ void zt_textureFreePixelData(byte *pixel_data)
 	stbi_image_free(pixel_data);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_textureFree(ztTextureID texture_id)
 {
@@ -14161,7 +14225,7 @@ void zt_textureFree(ztTextureID texture_id)
 	zt_memSet(&zt_game->textures[texture_id], sizeof(ztTexture), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 {
@@ -14182,7 +14246,7 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 	zt_game->textures_active_render_target = true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_textureRenderTargetCommit(ztTextureID texture_id)
 {
@@ -14201,7 +14265,7 @@ void zt_textureRenderTargetCommit(ztTextureID texture_id)
 	zt_game->textures_active_render_target = false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2i zt_textureGetSize(ztTextureID texture_id)
 {
@@ -14210,12 +14274,12 @@ ztVec2i zt_textureGetSize(ztTextureID texture_id)
 	return ztVec2i(zt_game->textures[texture_id].width, zt_game->textures[texture_id].height);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_alignToPixel(r32 *val, r32 ppu)
 {
 	ZT_PROFILE_RENDERING("zt_alignToPixel");
-#if 1
+#	if 1
 	r32 abval = zt_abs(*val *ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 	//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
@@ -14228,21 +14292,21 @@ ztInline void zt_alignToPixel(r32 *val, r32 ppu)
 			*val = zt_convertToi32Ceil((*val * ppu)) / ppu;
 		}
 	}
-#else
+#	else
 	r32 abval = zt_abs(*val * ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 
 	r32 nval = zt_convertToi32Floor(((*val) * ppu)) / ppu;
 	*val = nval;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 {
 	ZT_PROFILE_RENDERING("zt_alignToPixel");
-#if 1
+#	if 1
 	r32 abval = zt_abs(*val *ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 	//	r32 rem = zt_abs(*val *ppu) - zt_convertToi32Floor(zt_abs(*val *ppu));
@@ -14257,17 +14321,17 @@ ztInline void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset)
 			if (offset) *offset += (1.f - rem) / ppu;
 		}
 	}
-#else
+#	else
 	r32 abval = zt_abs(*val * ppu);
 	r32 rem = abval - zt_convertToi32Floor(abval);
 
 	r32 nval = zt_convertToi32Floor(((*val) * ppu)) / ppu;
 	if (offset) *offset = rem / ppu;
 	*val = nval;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_alignToPixel(ztVec2 *val, r32 ppu)
 {
@@ -14275,7 +14339,7 @@ ztInline void zt_alignToPixel(ztVec2 *val, r32 ppu)
 	zt_alignToPixel(&val->y, ppu);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_alignToPixel(ztVec3 *val, r32 ppu)
 {
@@ -14284,9 +14348,9 @@ ztInline void zt_alignToPixel(ztVec3 *val, r32 ppu)
 	zt_alignToPixel(&val->z, ppu);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position)
 {
@@ -14314,7 +14378,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	camera->mat_view = ztMat4::identity;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position, const ztQuat& rotation)
 {
@@ -14334,7 +14398,7 @@ void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 ne
 	camera->mat_proj = ztMat4::makePerspectiveProjection(fov, (r32)width, (r32)height, near_z, far_z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraRecalcMatrices(ztCamera *camera)
 {
@@ -14356,7 +14420,7 @@ void zt_cameraRecalcMatrices(ztCamera *camera)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat)
 {
@@ -14378,7 +14442,7 @@ void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view)
 {
@@ -14399,7 +14463,7 @@ void zt_cameraSetMatrices(ztCamera *camera, ztMat4& proj, ztMat4& view)
 	camera->rotation = ztQuat::makeFromEuler(rot);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraOrthoGetExtents(ztCamera *camera, ztVec2 *min_ext, ztVec2 *max_ext)
 {
@@ -14414,7 +14478,7 @@ void zt_cameraOrthoGetExtents(ztCamera *camera, ztVec2 *min_ext, ztVec2 *max_ext
 	max_ext->y = size.y / 2;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_cameraOrthoGetMaxExtent(ztCamera *camera)
 {
@@ -14425,7 +14489,7 @@ ztVec2 zt_cameraOrthoGetMaxExtent(ztCamera *camera)
 	return ext;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_cameraOrthoGetMinExtent(ztCamera *camera)
 {
@@ -14436,7 +14500,7 @@ ztVec2 zt_cameraOrthoGetMinExtent(ztCamera *camera)
 	return ext;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera)
 {
@@ -14450,7 +14514,7 @@ ztVec2 zt_cameraOrthoGetViewportSize(ztCamera *camera)
 	return ztVec2(camera->native_w / (r32)zt_game->win_game_settings[0].pixels_per_unit, camera->native_h / (r32)zt_game->win_game_settings[0].pixels_per_unit);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 {
@@ -14469,7 +14533,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 	return ztVec2(x - camera->position.x, y - camera->position.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 {
@@ -14490,7 +14554,7 @@ ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction)
 {
@@ -14517,7 +14581,7 @@ void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, 
 	direction->normalize();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up)
 {
@@ -14530,9 +14594,10 @@ void zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up)
 	zt_cameraRecalcMatrices(camera);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed)
 {
@@ -14557,7 +14622,7 @@ ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 see
 	return camera_shake;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraShakeStart(ztCameraShake *camera_shake)
 {
@@ -14566,7 +14631,7 @@ void zt_cameraShakeStart(ztCameraShake *camera_shake)
 	camera_shake->current_time = camera_shake->duration;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt)
 {
@@ -14595,7 +14660,7 @@ void zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera)
 {
@@ -14614,7 +14679,7 @@ bool zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera)
 {
@@ -14631,7 +14696,7 @@ bool zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 {
@@ -14642,7 +14707,7 @@ void zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 	zt_drawListPushOffset(draw_list, ztVec3(camera_shake->offset, 0));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 {
@@ -14653,11 +14718,10 @@ void zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list
 	zt_drawListPopOffset(draw_list);
 }
 
-// ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation)
 {
@@ -14680,7 +14744,7 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 	return controller;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 {
@@ -14747,7 +14811,7 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraControlUpdateWASD(ztCameraControllerFPS *camera, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
 {
@@ -14768,7 +14832,7 @@ void zt_cameraControlUpdateWASD(ztCameraControllerFPS *camera, ztInputMouse *inp
 	zt_cameraControlUpdateFPS(camera, dt);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target)
 {
@@ -14793,7 +14857,7 @@ ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec
 	return controller;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
 {
@@ -14850,7 +14914,7 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3& world_offset)
 {
@@ -14859,7 +14923,7 @@ ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3& wo
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, const ztVec3& world_offset)
 {
@@ -14927,7 +14991,7 @@ void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, c
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 {
@@ -14939,9 +15003,10 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal byte *_zt_fontLoadFontPng(i32 *size)
 {
@@ -14953,7 +15018,7 @@ ztInternal byte *_zt_fontLoadFontPng(i32 *size)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_fontMakeDefaults()
 {
@@ -14977,7 +15042,7 @@ ztInternal void _zt_fontMakeDefaults()
 	zt_free(tex_data);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_fontGetCharsetStandard(i32 *size)
 {
@@ -14988,11 +15053,11 @@ const char *zt_fontGetCharsetStandard(i32 *size)
 	return charset;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 size_in_pixels, const char *charset, i32 charset_size); // defined after stb_truetype.h below
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
@@ -15018,7 +15083,7 @@ ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset
 	return font_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
@@ -15052,7 +15117,7 @@ ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, 
 	return font_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const char *font_data, ztTextureID texture_override_tex_id, const ztVec2i& override_offset)
 {
@@ -15396,7 +15461,7 @@ on_error:
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id, const ztVec2i& override_offset)
 {
@@ -15404,7 +15469,7 @@ ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_
 	return _zt_fontMakeFromBmpFontBase(asset_mgr, asset_id, texture_override_asset_id, nullptr, ztInvalidID, override_offset);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id, const ztVec2i& override_offset)
 {
@@ -15421,7 +15486,7 @@ ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_o
 	return font_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset)
 {
@@ -15429,7 +15494,7 @@ ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_o
 	return _zt_fontMakeFromBmpFontBase(nullptr, ztInvalidID, ztInvalidID, file_data, texture_override_id, override_offset);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_fontFree(ztFontID font_id)
 {
@@ -15458,7 +15523,7 @@ void zt_fontFree(ztFontID font_id)
 	zt_memSet(font, zt_sizeof(ztFont), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_fontMakeMonoSpaced(ztFontID font_id)
 {
@@ -15482,7 +15547,7 @@ void zt_fontMakeMonoSpaced(ztFontID font_id)
 	font->space_width = max_width;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_fontGetName(ztFontID font_id)
 {
@@ -15490,7 +15555,7 @@ const char *zt_fontGetName(ztFontID font_id)
 	return zt_game->fonts[font_id].name;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fontGetSizeInPixels(ztFontID font_id)
 {
@@ -15498,7 +15563,7 @@ i32 zt_fontGetSizeInPixels(ztFontID font_id)
 	return zt_game->fonts[font_id].size_pixels;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal int _zt_fontGetRowCount(const char *text, int text_len)
 {
@@ -15515,7 +15580,7 @@ ztInternal int _zt_fontGetRowCount(const char *text, int text_len)
 	return rows;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int *start_char, int *length)
 {
@@ -15542,7 +15607,7 @@ ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int 
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, int text_len, i32 *glyphs_idx, int glyphs_size)
 {
@@ -15566,7 +15631,7 @@ ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, in
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
 {
@@ -15638,14 +15703,14 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text)
 {
 	return zt_fontGetExtents(font_id, text, zt_strLen(text));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 {
@@ -15662,28 +15727,28 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
 	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
 	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
 	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
 {
@@ -15836,7 +15901,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	zt_drawListPopTexture(draw_list);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
 {
@@ -15941,14 +16006,14 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text)
 {
 	return zt_fontGetExtentsFancy(font_id, text, zt_strLen(text));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 {
@@ -15965,28 +16030,28 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
 	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
 	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
 	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color, transform);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
 {
@@ -16198,9 +16263,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 	zt_drawListPopTexture(draw_list);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y)
 {
@@ -16227,14 +16293,14 @@ ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
 {
 	return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y, int pixel_border)
 {
@@ -16250,7 +16316,7 @@ ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int 
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor, int pixel_border)
 {
@@ -16266,7 +16332,7 @@ ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
@@ -16313,7 +16379,7 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6
 	_uvs[5] = uvs[3];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
@@ -16372,7 +16438,7 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 	_uvs[5] = uvs[3];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position)
 {
@@ -16413,7 +16479,7 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 	zt_drawListPopTexture(draw_list);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position, const ztVec3& rot, const ztVec3& scale)
 {
@@ -16463,9 +16529,10 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 	zt_drawListPopTexture(draw_list);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, int tex_w, int tex_h, int nw_interior_x, int nw_interior_y, int se_interior_x, int se_interior_y, int offset_l, int offset_t, int offset_r, int offset_b)
 {
@@ -16517,14 +16584,14 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l, int offset_t, int offset_r, int offset_b)
 {
 	return zt_spriteNineSliceMake(tex, tex_pos.x, tex_pos.y, tex_size.x, tex_size.y, nw_interior.x, nw_interior.y, se_interior.x, se_interior.y, offset_l, offset_t, offset_r, offset_b);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& cpos, const ztVec2& csize)
 {
@@ -16641,9 +16708,9 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4& diffuse_color, i32 diffuse_flags,
 						   ztTextureID specular_tex, const ztVec4& specular_color, i32 specular_flags,
@@ -16679,7 +16746,7 @@ ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4& diffuse_color,
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMaterial *materials_arr, int materials_arr_size, ztAssetManager *asset_mgr, ztAssetID asset_id, char *file_name)
 {
@@ -16817,7 +16884,7 @@ ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMat
 	return curr_mtl_idx + 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size)
 {
@@ -16855,7 +16922,7 @@ int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *m
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int materials_arr_size)
 {
@@ -16879,7 +16946,7 @@ int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int mate
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_materialFree(ztMaterial *material)
 {
@@ -16914,7 +16981,7 @@ void zt_materialFree(ztMaterial *material)
 	material->shininess_override = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_materialIsEmpty(ztMaterial *material)
 {
@@ -16927,7 +16994,7 @@ bool zt_materialIsEmpty(ztMaterial *material)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex, u32 *additional_tex_name_hashes, int additional_tex_count)
 {
@@ -17009,9 +17076,10 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 	zt_shaderSetVariableFloat(shader, material->shininess_override ? material->shininess_override : shininess_hash, material->shininess);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count, void *additional_data, ztVertexArrayEntry *add_entries, int entries_count, ztColor color)
 {
@@ -17157,7 +17225,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-#if defined(ZT_OPENGL)
+#			if defined(ZT_OPENGL)
 			
 			ztVertexEntryGL *entries = zt_mallocStructArray(ztVertexEntryGL, 6 + entries_count);
 			entries[0] = { GL_FLOAT, 3 * sizeof(GLfloat) };
@@ -17193,11 +17261,11 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 				return ztInvalidID;
 			}
 
-#endif // ZT_OPENGL
+#			endif // ZT_OPENGL
 		} break;
 
 		case ztRenderer_DirectX: {
-#if defined(ZT_DIRECTX)
+#			if defined(ZT_DIRECTX)
 			ztWindowDetails *win_details = &zt_game->win_details[0];
 
 			ztVertexEntryDX *entries = zt_mallocStructArray(ztVertexEntryDX, 6 + entries_count);
@@ -17219,7 +17287,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 			if (mesh->dx_vertex_array == nullptr) {
 				return ztInvalidID;
 			}
-#endif // ZT_DIRECTX
+#			endif // ZT_DIRECTX
 		} break;
 	}
 
@@ -17235,14 +17303,14 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	return mesh_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count, u32 *indices, i32 indices_count, ztColor color)
 {
 	return zt_meshMake(verts, uvs, normals, vert_count, indices, indices_count, nullptr, nullptr, 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_meshFree(ztMeshID mesh_id)
 {
@@ -17266,7 +17334,7 @@ void zt_meshFree(ztMeshID mesh_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth)
 {
@@ -17312,7 +17380,7 @@ ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth)
 	return zt_meshMake(vertices, uvs, normals, zt_elementsOf(vertices), indices, zt_elementsOf(indices));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w, int grid_d)
 {
@@ -17373,7 +17441,7 @@ ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w, int grid_d)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMakePrimitiveDiamond(r32 width, r32 top, r32 bottom, int sides)
 {
@@ -17408,7 +17476,7 @@ ztMeshID zt_meshMakePrimitiveDiamond(r32 width, r32 top, r32 bottom, int sides)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere_Enum texture)
 {
@@ -17511,7 +17579,7 @@ ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id, char *data, int size, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
@@ -17877,7 +17945,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 	return group_idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
@@ -17922,7 +17990,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
@@ -17934,7 +18002,7 @@ int zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshI
 	return _zt_meshLoadOBJBase(nullptr, ztInvalidID, data, data_len, mtl_search_dir, mesh_ids, materials, mesh_mat_size, scale, offset);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
 {
@@ -17953,7 +18021,7 @@ int zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, i
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_meshGetOBB(ztMeshID mesh_id, ztVec3 *center, ztVec3 *size)
 {
@@ -17966,7 +18034,7 @@ void zt_meshGetOBB(ztMeshID mesh_id, ztVec3 *center, ztVec3 *size)
 	*size   = mesh->obb_size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_meshRender(ztMeshID mesh_id)
 {
@@ -17993,9 +18061,10 @@ void zt_meshRender(ztMeshID mesh_id)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztMat4 zt_transformToMat4(ztTransform *transform)
 {
@@ -18006,7 +18075,7 @@ ztMat4 zt_transformToMat4(ztTransform *transform)
 	return mat;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 zt_transformToMat4SRT(ztTransform *transform)
 {
@@ -18017,7 +18086,7 @@ ztMat4 zt_transformToMat4SRT(ztTransform *transform)
 	return mat;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 zt_transformToMat4RT(ztTransform *transform)
 {
@@ -18028,7 +18097,7 @@ ztMat4 zt_transformToMat4RT(ztTransform *transform)
 	return mat;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 zt_transformToMat4TR(ztTransform *transform)
 {
@@ -18039,7 +18108,7 @@ ztMat4 zt_transformToMat4TR(ztTransform *transform)
 	return mat;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformToMat4(ztTransform *transform, ztMat4 *mat)
 {
@@ -18062,7 +18131,7 @@ void zt_transformToMat4(ztTransform *transform, ztMat4 *mat)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformToMat4SRT(ztTransform *transform, ztMat4 *mat)
 {
@@ -18085,7 +18154,7 @@ void zt_transformToMat4SRT(ztTransform *transform, ztMat4 *mat)
 	(*mat) *= ztMat4::identity.getTranslate(transform->position);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformToMat4RT(ztTransform *transform, ztMat4 *mat)
 {
@@ -18102,7 +18171,7 @@ void zt_transformToMat4RT(ztTransform *transform, ztMat4 *mat)
 	(*mat) *= ztMat4::identity.getTranslate(transform->position);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformToMat4TR(ztTransform *transform, ztMat4 *mat)
 {
@@ -18117,7 +18186,7 @@ void zt_transformToMat4TR(ztTransform *transform, ztMat4 *mat)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTransform zt_transformFromMat4(const ztMat4 *mat)
 {
@@ -18128,7 +18197,7 @@ ztTransform zt_transformFromMat4(const ztMat4 *mat)
 	return transform;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformFromMat4(ztTransform *transform, const ztMat4 *mat)
 {
@@ -18138,7 +18207,7 @@ void zt_transformFromMat4(ztTransform *transform, const ztMat4 *mat)
 	mat->extract(&transform->position, &transform->rotation, &transform->scale);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat)
 {
@@ -18152,11 +18221,10 @@ void zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat)
 	zt_transformFromMat4(transform, &nmat);
 }
 
-// ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2)
 {
@@ -18169,7 +18237,7 @@ ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_planeNormalize(ztPlane *plane)
 {
@@ -18182,9 +18250,10 @@ void zt_planeNormalize(ztPlane *plane)
 	plane->distance /= scale;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_rendererRequestProcess()
 {
@@ -18250,7 +18319,7 @@ ztInternal bool _zt_rendererRequestProcess()
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails* win_details, ztGameSettings *game_settings, bool force)
 {
@@ -18262,7 +18331,7 @@ ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails* win_details, ztGameSe
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags)
 {
@@ -18290,7 +18359,7 @@ ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSe
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details)
 {
@@ -18308,7 +18377,7 @@ ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details)
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline void _ztdx_rendererSwapBuffers(ztWindowDetails* win_details)
 {
@@ -18316,7 +18385,7 @@ ztInternal ztInline void _ztdx_rendererSwapBuffers(ztWindowDetails* win_details)
 	zt_directxSupport(ztdx_contextDisplay(win_details->dx_context));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails* win_details, ztGameSettings *game_settings, bool fullscreen)
 {
@@ -18328,7 +18397,7 @@ ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails* win_details, ztG
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _ztgl_rendererSwapBuffers(ztWindowDetails* wd)
 {
@@ -18336,7 +18405,7 @@ ztInternal void _ztgl_rendererSwapBuffers(ztWindowDetails* wd)
 	ztgl_contextDisplay(wd->gl_context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings*, bool)
 {
@@ -18344,7 +18413,7 @@ ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings*, 
 	return ztgl_setViewport(wd->gl_context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztgl_rendererMakeContext(ztWindowDetails* wd, ztGameSettings* gs, i32 flags)
 {
@@ -18358,7 +18427,7 @@ ztInternal bool _ztgl_rendererMakeContext(ztWindowDetails* wd, ztGameSettings* g
 	return wd->gl_context != nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztgl_rendererFreeContext(ztWindowDetails* wd)
 {
@@ -18368,7 +18437,7 @@ ztInternal bool _ztgl_rendererFreeContext(ztWindowDetails* wd)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztgl_rendererToggleFullscreen(ztWindowDetails* wd, ztGameSettings* gs, bool fullscreen)
 {
@@ -18376,33 +18445,33 @@ ztInternal bool _ztgl_rendererToggleFullscreen(ztWindowDetails* wd, ztGameSettin
 	return ztgl_contextToggleFullscreen(wd->gl_context, fullscreen);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 {
 	if (renderer == ztRenderer_OpenGL) {
-#if defined(ZT_OPENGL)
+#		if defined(ZT_OPENGL)
 		_zt_rendererSwapBuffers      = _ztgl_rendererSwapBuffers;
 		_zt_rendererSetViewport      = _ztgl_rendererSetViewport;
 		_zt_rendererMakeContext      = _ztgl_rendererMakeContext;
 		_zt_rendererFreeContext      = _ztgl_rendererFreeContext;
 		_zt_rendererToggleFullscreen = _ztgl_rendererToggleFullscreen;
-#else
+#		else
 		zt_logFatal("OpenGL is not supported in this configuration");
 		return false;
-#endif
+#		endif
 	}
 	else if (renderer == ztRenderer_DirectX) {
-#if defined(ZT_DIRECTX)
+#		if defined(ZT_DIRECTX)
 		_zt_rendererSwapBuffers      = _ztdx_rendererSwapBuffers;
 		_zt_rendererSetViewport      = _ztdx_rendererSetViewport;
 		_zt_rendererMakeContext      = _ztdx_rendererMakeContext;
 		_zt_rendererFreeContext      = _ztdx_rendererFreeContext;
 		_zt_rendererToggleFullscreen = _ztdx_rendererToggleFullscreen;
-#else
+#		else
 		zt_logFatal("DirectX is not supported in this configuration");
 		return false;
-#endif
+#		endif
 	}
 	else {
 		return false;
@@ -18411,9 +18480,10 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents)
 {
@@ -18423,7 +18493,7 @@ ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents)
 	return cg;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents)
 {
@@ -18434,7 +18504,7 @@ ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVe
 	return cg;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 radius)
 {
@@ -18445,7 +18515,7 @@ ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 rad
 	return cg;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration)
 {
@@ -18507,16 +18577,16 @@ bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform 
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry details, r32 damping, ztVec3 force_gravity)
 {
 	return zt_rigidBodyMake(model, one_over_mass_in_kg, cg_bounding, &details, 1, damping, force_gravity);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count, r32 damping, ztVec3 force_gravity)
 {
@@ -18551,7 +18621,7 @@ ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisio
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt)
 {
@@ -18603,7 +18673,7 @@ void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force)
 {
@@ -18612,7 +18682,7 @@ void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force)
 	rigid_body->force_accum += force;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
 {
@@ -18623,7 +18693,7 @@ void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& for
 	zt_rigidBodyAddForceAtBodyPoint(rigid_body, force, point_world);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
 {
@@ -18634,9 +18704,10 @@ void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& forc
 	rigid_body->torque_accum += point.cross(force);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point)
 {
@@ -18649,7 +18720,7 @@ ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_p
 	return anchor;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForceAnchor zt_forceAnchor(ztTransform *transform)
 {
@@ -18661,7 +18732,7 @@ ztForceAnchor zt_forceAnchor(ztTransform *transform)
 	return anchor;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr)
 {
@@ -18673,7 +18744,7 @@ ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr)
 	return anchor;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForceAnchor zt_forceAnchor(ztVec3 vec3)
 {
@@ -18684,9 +18755,10 @@ ztForceAnchor zt_forceAnchor(ztVec3 vec3)
 	return anchor;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
 {
@@ -18704,7 +18776,7 @@ ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3& connection_poi
 	return force;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping)
 {
@@ -18722,7 +18794,7 @@ ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3& connectio
 	return force;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
 {
@@ -18740,7 +18812,7 @@ ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3& connection_poi
 	return force;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3& connection_point, r32 max_depth, r32 volume, r32 water_height, r32 liquid_density)
 {
@@ -18750,7 +18822,7 @@ ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3& connection_p
 	ztForce force;
 	force.type                    = ztForceType_Buoyancy;
 	force.rigid_body              = rigid_body;
-	force.connection_point       = connection_point;
+	force.connection_point        = connection_point;
 	force.buoyancy.max_depth      = max_depth;
 	force.buoyancy.volume         = volume;
 	force.buoyancy.water_height   = water_height;
@@ -18759,7 +18831,7 @@ ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3& connection_p
 	return force;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt)
 {
@@ -18848,10 +18920,9 @@ void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisions_count, r32 dt, int max_iterations)
 {
@@ -18917,9 +18988,10 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztConnector zt_connectorMakeCable(r32 max_length, r32 restitution)
 {
@@ -18931,7 +19003,7 @@ ztConnector zt_connectorMakeCable(r32 max_length, r32 restitution)
 	return connector;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztConnector zt_connectorMakeRod(r32 length)
 {
@@ -18942,7 +19014,7 @@ ztConnector zt_connectorMakeRod(r32 length)
 	return connector;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_count, ztRigidBodyCollision *collisions, int collisions_size)
 {
@@ -19002,7 +19074,7 @@ int zt_connectorCalculateCollisions(ztConnector *connectors, int connectors_coun
 	return collisions_idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigidBodyCollision *collisions, int collisions_size)
 {
@@ -19041,9 +19113,10 @@ int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigid
 	return col_idx;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors)
 {
@@ -19079,7 +19152,7 @@ ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_fo
 	return physics;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_physicsFree(ztPhysics *physics)
 {
@@ -19096,7 +19169,7 @@ void zt_physicsFree(ztPhysics *physics)
 	zt_freeArena(physics, physics->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_physicsAddRigidBody(ztPhysics *physics, ztRigidBody *rigid_body)
 {
@@ -19110,7 +19183,7 @@ int zt_physicsAddRigidBody(ztPhysics *physics, ztRigidBody *rigid_body)
 	return physics->rigid_bodies_count++;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_physicsAddForce(ztPhysics *physics, ztForce *force)
 {
@@ -19123,7 +19196,7 @@ int zt_physicsAddForce(ztPhysics *physics, ztForce *force)
 	return physics->forces_count++;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_physicsAddConnector(ztPhysics *physics, ztConnector *connector)
 {
@@ -19136,7 +19209,7 @@ int zt_physicsAddConnector(ztPhysics *physics, ztConnector *connector)
 	return physics->connectors_count++;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 {
@@ -19212,33 +19285,31 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
 
-
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
 {
 	return zt_collisionPointInRect(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h)
 {
 	return zt_collisionPointInRectLL(p_x, p_y, rect_x - rect_w / 2.f, rect_y - rect_h / 2.f, rect_w, rect_h);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
 {
 	return zt_collisionPointInRectLL(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h)
 {
@@ -19246,7 +19317,7 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 	return !(p_x < rect_x || p_y < rect_y || p_x > rect_x + rect_w || p_y > rect_y + rect_h);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point)
 {
@@ -19270,7 +19341,7 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point)
 {
@@ -19294,7 +19365,7 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents)
 {
@@ -19304,7 +19375,7 @@ bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, con
 		point.z >= aabb_center.z - aabb_extents.z / 2.f && point.z <= aabb_center.z + aabb_extents.z / 2.f;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point)
 {
@@ -19351,7 +19422,7 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2])
 {
@@ -19406,7 +19477,7 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2)
 {
@@ -19434,7 +19505,7 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face)
 {
@@ -19481,7 +19552,7 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last)
 {
@@ -19525,7 +19596,7 @@ bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aab
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
 {
@@ -19539,7 +19610,7 @@ bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_exten
 	return zt_abs(dist) <= int_rad;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2)
 {
@@ -19559,7 +19630,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	return zt_collisionOBBInOBB(obb_center_1, obb_extents_1, obb_axis_1, obb_center_2, obb_extents_2, obb_axis_2);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3])
 {
@@ -19680,7 +19751,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size)
 {
@@ -19737,7 +19808,7 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec
 	return ct_idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2])
 {
@@ -19752,7 +19823,7 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far)
 {
@@ -19768,7 +19839,7 @@ bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, b
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_pointer)
 {
@@ -19789,7 +19860,7 @@ bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg,
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents)
 {
@@ -19813,7 +19884,7 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_cent
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows)
 {
@@ -19897,9 +19968,10 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear)
 {
@@ -19907,7 +19979,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear)
 	return value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack)
 {
@@ -19915,7 +19987,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack)
 	return (value * value) * (2.70158f * value - 1.70158f);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce)
 {
@@ -19936,7 +20008,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce)
 	return value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc)
 {
@@ -19944,7 +20016,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc)
 	return 1 - zt_sqrt(1 - (value * value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic)
 {
@@ -19952,7 +20024,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic)
 	return value * value * value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
 {
@@ -19961,7 +20033,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
 	return zt_sin(2.f * ztMathPi2 * value) * zt_pow(2, 2.f * (value - 1));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo)
 {
@@ -19970,7 +20042,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo)
 	return zt_pow(2, 10 * (value - 1));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad)
 {
@@ -19978,7 +20050,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad)
 	return value * value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart)
 {
@@ -19986,7 +20058,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart)
 	return value * value * value * value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint)
 {
@@ -19994,7 +20066,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint)
 	return value * value * value * value * value;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine)
 {
@@ -20002,14 +20074,14 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine)
 	return 1 - zt_cos(value * 3.14159f / 2);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_tweenValue(val_beg, val_end, percent, ease_in, nullptr, ease_out, nullptr);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
@@ -20032,7 +20104,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 	return zt_lerp(val_beg, val_end, percent);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
@@ -20040,7 +20112,7 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
@@ -20048,7 +20120,7 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
@@ -20057,7 +20129,7 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
@@ -20066,10 +20138,10 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time)
 {
@@ -20084,9 +20156,9 @@ ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count)
 {
@@ -20107,7 +20179,7 @@ ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count)
 	return layer;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_animLayerFree(ztAnimLayer *layer)
 {
@@ -20119,7 +20191,7 @@ void zt_animLayerFree(ztAnimLayer *layer)
 	zt_free(layer->keys);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline void _zt_animLayerTransitionInto(ztAnimLayer *layer, r32 transition_time)
 {
@@ -20132,7 +20204,7 @@ ztInternal ztInline void _zt_animLayerTransitionInto(ztAnimLayer *layer, r32 tra
 	layer->target_time  = transition_time;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline void _zt_animLayerStart(ztAnimLayer *layer)
 {
@@ -20146,7 +20218,7 @@ ztInternal ztInline void _zt_animLayerStart(ztAnimLayer *layer)
 	layer->target_time  = layer->keys[0].time;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 {
@@ -20187,9 +20259,9 @@ ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops)
 {
@@ -20211,7 +20283,7 @@ ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *l
 	return sequence;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_animSequenceFree(ztAnimSequence *sequence)
 {
@@ -20226,7 +20298,7 @@ void zt_animSequenceFree(ztAnimSequence *sequence)
 	zt_free(sequence);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
 {
@@ -20248,7 +20320,7 @@ r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
 	return longest_layer_curr / longest_layer_time;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence)
 {
@@ -20265,7 +20337,7 @@ ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
 {
@@ -20289,9 +20361,10 @@ ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
 	return layers_processed != 0;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztAnimController *zt_animControllerMake(int max_sequences, int max_async)
 {
@@ -20318,7 +20391,7 @@ ztAnimController *zt_animControllerMake(int max_sequences, int max_async)
 	return controller;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_animControllerFree(ztAnimController *controller)
 {
@@ -20342,7 +20415,7 @@ void zt_animControllerFree(ztAnimController *controller)
 	zt_free(controller);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence)
 {
@@ -20364,7 +20437,7 @@ i32 zt_animControllerAddSequence(ztAnimController *controller, const char *seque
 	return controller->sequences_name_hash[idx];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash)
 {
@@ -20424,7 +20497,7 @@ int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_na
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt)
 {
@@ -20457,9 +20530,9 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences)
 {
@@ -20474,7 +20547,7 @@ ztSpriteAnimController *zt_spriteAnimControllerMake(int max_sequences)
 	return controller;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteAnimControllerFree(ztSpriteAnimController *controller)
 {
@@ -20493,7 +20566,7 @@ void zt_spriteAnimControllerFree(ztSpriteAnimController *controller)
 	zt_free(controller);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, const char *sequence_name, ztSprite *sprites, r32 *times, int sprites_count, bool loops)
 {
@@ -20528,7 +20601,7 @@ void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, cons
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i32 sequence_name_hash)
 {
@@ -20545,7 +20618,7 @@ void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i3
 	return;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int controllers_count, r32 dt)
 {
@@ -20564,7 +20637,7 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller)
 {
@@ -20583,9 +20656,9 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed)
 {
@@ -20608,7 +20681,7 @@ ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings
 	return emitter;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 {
@@ -20702,7 +20775,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list)
 {
@@ -20760,9 +20833,9 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals)
 {
@@ -20828,7 +20901,7 @@ ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals
 	return grid;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_pathGridSquareFree(ztPathGridSquare *grid)
 {
@@ -20843,7 +20916,7 @@ void zt_pathGridSquareFree(ztPathGridSquare *grid)
 	zt_free(grid);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztPathNode *zt_pathGridSquareAccessNode(ztPathGridSquare *grid, int row, int col)
 {
@@ -20857,7 +20930,7 @@ ztPathNode *zt_pathGridSquareAccessNode(ztPathGridSquare *grid, int row, int col
 	return &grid->nodes[idx];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_pathGridSquareGetCoords(ztPathGridSquare *grid, ztPathNode *node, int *row, int *col)
 {
@@ -20878,7 +20951,7 @@ bool zt_pathGridSquareGetCoords(ztPathGridSquare *grid, ztPathNode *node, int *r
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_pathGridSquareGetNodeIndex(ztPathGridSquare *grid, ztPathNode *node, int *index)
 {
@@ -20897,7 +20970,7 @@ bool zt_pathGridSquareGetNodeIndex(ztPathGridSquare *grid, ztPathNode *node, int
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_pathNodeGetDistance(ztPathNode *node_one, ztPathNode *node_two)
 {
@@ -20908,7 +20981,7 @@ r32 zt_pathNodeGetDistance(ztPathNode *node_one, ztPathNode *node_two)
 	return node_one->position.distance(node_two->position);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztPathNode *zt_pathGridSquareGetNode(ztPathGridSquare *grid, int col, int row)
 {
@@ -20917,7 +20990,7 @@ ztPathNode *zt_pathGridSquareGetNode(ztPathGridSquare *grid, int col, int row)
 	return &grid->nodes[col + row * grid->cols];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgress *progress)
 {
@@ -20932,7 +21005,7 @@ void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgre
 	progress->visited_idx = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_pathNodeArrayContains(ztPathNode **arr, int len, ztPathNode *node)
 {
@@ -20945,7 +21018,7 @@ ztInternal ztInline bool _zt_pathNodeArrayContains(ztPathNode **arr, int len, zt
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_pathArrayInsertBefore(ztPathNode **arr, int len, int *index, int before_index, ztPathNode *node)
 {
@@ -20961,7 +21034,7 @@ ztInternal ztInline bool _zt_pathArrayInsertBefore(ztPathNode **arr, int len, in
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_pathArrayAddToBegin(ztPathNode **arr, int len, int *index, ztPathNode *node)
 {
@@ -20969,7 +21042,7 @@ ztInternal ztInline bool _zt_pathArrayAddToBegin(ztPathNode **arr, int len, int 
 	return _zt_pathArrayInsertBefore(arr, len, index, 0, node);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_pathArrayAddToEnd(ztPathNode **arr, int len, int* index, ztPathNode *node)
 {
@@ -20981,7 +21054,7 @@ ztInternal ztInline bool _zt_pathArrayAddToEnd(ztPathNode **arr, int len, int* i
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline void _zt_pathArrayRemoveFromBegin(ztPathNode **arr, int len, int* index)
 {
@@ -20992,7 +21065,7 @@ ztInternal ztInline void _zt_pathArrayRemoveFromBegin(ztPathNode **arr, int len,
 	*index -= 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena)
 {
@@ -21024,7 +21097,7 @@ ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena
 	return progress;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_pathProgressFree(ztPathProgress *progress)
 {
@@ -21039,7 +21112,7 @@ void zt_pathProgressFree(ztPathProgress *progress)
 	zt_freeArena(progress, progress->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal int _zt_pathGridGetSteps(ztPathNode *origin, ztPathNode *destination, ztPathNode **path, int path_max)
 {
@@ -21104,7 +21177,7 @@ ztInternal int _zt_pathGridGetSteps(ztPathNode *origin, ztPathNode *destination,
 	return steps * (no_mem ? -1 : 1);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_node_cost_func, void *path_cost_user_data, ztPathEarlyExit_Func *early_exit_func, void *early_exit_user_data, ztPathType_Enum path_type)
 {
@@ -21195,9 +21268,9 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal bool _zt_audioCheckContext()
 {
@@ -21211,7 +21284,7 @@ ztInternal bool _zt_audioCheckContext()
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
 {
@@ -21243,7 +21316,7 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
@@ -21295,7 +21368,7 @@ on_error:
 	return ztInvalidID;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
 {
@@ -21319,7 +21392,7 @@ ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
 	return audio_clip_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_audioClipFree(ztAudioClipID audio_clip_id)
 {
@@ -21340,7 +21413,7 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 {
@@ -21357,7 +21430,7 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
 {
@@ -21374,7 +21447,7 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id)
 {
@@ -21384,7 +21457,7 @@ bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id)
 	return zt_bitIsSet(audio_clip->flags, ztAudioClipFlags_Playing);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_audioClipStop(ztAudioClipID audio_clip_id)
 {
@@ -21403,7 +21476,7 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_audioSetMute(bool mute)
 {
@@ -21419,15 +21492,14 @@ void zt_audioSetMute(bool mute)
 	zt_game->audio_muted = mute;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_audioGetMute()
 {
 	return 	zt_game->audio_muted;
 }
 
-// ------------------------------------------------------------------------------------------------
-
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_audioUpdateFrame(r32 dt)
 {
@@ -21453,9 +21525,10 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 // the _zt_callFunc<function> calls are used because it's possible for the ZT_GAME_FUNC_<function> defines
 // to have naming conflicts with variables in the main function
@@ -21486,7 +21559,7 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 
 LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l_param);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if !defined(ZT_DLL)
 
@@ -21498,13 +21571,13 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	wndcls.lpfnWndProc = _zt_winCallback;
 	wndcls.hInstance = zt_game->hinstance;
 	wndcls.hIcon = zt_game->exe_icon;
-#if defined(ZT_UNICODE)
+#	if defined(ZT_UNICODE)
 	u16 wc_game_name[1024] = { 0 };
 	zt_strConvertToUTF16(ZT_GAME_NAME, zt_strLen(ZT_GAME_NAME), wc_game_name, zt_elementsOf(wc_game_name));
 	wndcls.lpszClassName = (LPCWSTR)wc_game_name;
-#else
+#	else
 	wndcls.lpszClassName = ZT_GAME_NAME;
-#endif
+#	endif
 
 	static bool first_call = true;
 	if (first_call) {
@@ -21529,11 +21602,11 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
 	int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
 
-#if defined(ZT_UNICODE)
+#	if defined(ZT_UNICODE)
 	window_details->handle = CreateWindow(wndcls.lpszClassName, (LPCWSTR)wc_game_name, style, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, wndcls.hInstance, 0);
-#else
+#	else
 	window_details->handle = CreateWindow(wndcls.lpszClassName, ZT_GAME_NAME, style, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, wndcls.hInstance, 0);
-#endif
+#	endif
 	if (window_details->handle == NULL) {
 		zt_logCritical("win: failed to create window");
 		return false;
@@ -21549,7 +21622,7 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_winCleanupWindow(ztWindowDetails* win_details, ztGameSettings* settings)
 {
@@ -21561,7 +21634,7 @@ bool _zt_winCleanupWindow(ztWindowDetails* win_details, ztGameSettings* settings
 	return context_result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details)
 {
@@ -21579,13 +21652,13 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 	SetWindowTextA(window_details->handle, title);
 }
 
-#endif
+#endif // !ZT_DLL
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winControllerInputUpdate(r32 dt);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winControllerInputInit()
 {
@@ -21623,7 +21696,7 @@ void _zt_winControllerInputInit()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winControllerInputCleanup()
 {
@@ -21631,7 +21704,7 @@ void _zt_winControllerInputCleanup()
 	zt_game->xinput_setState = nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winControllerInputUpdate(r32 dt)
 {
@@ -21723,7 +21796,7 @@ void _zt_winControllerInputUpdate(r32 dt)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high)
 {
@@ -21737,7 +21810,7 @@ void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strengt
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void _zt_win_processMessages()
 {
@@ -21753,7 +21826,7 @@ void _zt_win_processMessages()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if !defined(ZT_DLL)
 
@@ -21845,15 +21918,15 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 	}
 }
 
-#endif
+#endif // !ZT_DLL
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal HINSTANCE _zt_hinstance;
 
 #endif // ZT_WINDOWS
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if !defined(ZT_DLL)
 
@@ -22149,9 +22222,9 @@ int main(int argc, const char **argv)
 	return 0;
 }
 
-#endif
+#endif // !ZT_DLL
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if defined(ZT_WINDOWS) && !defined(ZT_DLL)
 
@@ -22185,7 +22258,7 @@ int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_
 
 #endif // WinMain
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 {
@@ -22218,18 +22291,18 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 		switch(key_code)
 		{
 			case VK_F4: {
-#if !defined(ZT_GAME_NO_ALTF4)
+#				if !defined(ZT_GAME_NO_ALTF4)
 				if ( GetAsyncKeyState(VK_MENU) ) {
 					zt_game->quit_requested = true;	// ALT+F4 needs to close our game
 				}
-#endif
+#				endif
 			} break;
 		}
 
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l_param)
 {
@@ -22472,7 +22545,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_FAILURE_USERMSG
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /* stb_image - v2.12 - public domain image loader - http://nothings.org/stb_image.h
 no warranty implied; use at your own risk
@@ -32643,7 +32716,7 @@ STBTT_DEF int stbtt_FindMatchingFont(const unsigned char *font_collection, const
 
 // end stb_truetype.h
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
@@ -32804,7 +32877,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	return font_id;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #endif // implementation guard
 #endif // implementation

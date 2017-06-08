@@ -1,22 +1,22 @@
-/**************************************************************************************************
- ** file: zt_tools.h v 0.00 (active initial development)
- **
- ** This software is dual-licensed to the public domain and under the following
- ** license: you are granted a perpetual, irrevocable license to copy, modify,
- ** publish, and distribute this file as you see fit.
- **
- ** No warranty is offered or implied.  Use this at your own risk.
- **
- **************************************************************************************************
+/***************************************************************************************************************************************************************************************************
+	file: zt_tools.h v 0.00 (active initial development)
+	
+	This software is dual-licensed to the public domain and under the following
+	license: you are granted a perpetual, irrevocable license to copy, modify,
+	publish, and distribute this file as you see fit.
+	
+	No warranty is offered or implied.  Use this at your own risk.
+	
+ ***************************************************************************************************************************************************************************************************
    
     Zero Tolerance Tools Library
 
-	In exactly one c/cpp source file of your project, you must:
+	In exactly one cpp source file of your project, you must:
 
 		#define ZT_TOOLS_IMPLEMENTATION
 		#include "zt_tools.h"
     
- **************************************************************************************************
+ ***************************************************************************************************************************************************************************************************
 
     Options:
    
@@ -24,31 +24,27 @@
    		- Removes the assert on zt_returnOnNull and zt_returnValOnNull macros.
    
 
- **************************************************************************************************
+ ***************************************************************************************************************************************************************************************************
 
 	Implimentation Options: (only used with ZT_TOOLS_IMPLIMENTATION #include)
 
 	ZT_MAX_LOG_CALLBACKS
-		- Indicates the maximum number of logging callback functions can exist.
+		Indicates the maximum number of logging callback functions can exist.
 
 	ZT_MEM_GLOBAL_ARENA_STACK_SIZE
-		- The size of the global memory arena stack.
+		The size of the global memory arena stack.
 
 	ZT_MEM_ARENA_LOG_DETAILS
-		- Logs details about every single allocation.  Not recommended unless you're trying 
-		  to find memory problems.
+		Logs details about every single allocation.  Not recommended unless you're trying to find memory problems.
 
-	ZT_MEM_ARENA_ZERO_NEW_MEMORY
-		- Zeros out all allocations coming from memory arenas.  This is default in debug builds,
-		  but absent in release for performance reasons.
-
- **************************************************************************************************/
+ ***************************************************************************************************************************************************************************************************/
 
 #ifndef __zt_tools_h_included__
 #define __zt_tools_h_included__
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // compiler defines
+// ================================================================================================================================================================================================
 
 #if defined(_MSC_VER)
 #	define ZT_COMPILER_MSVC
@@ -97,8 +93,10 @@
 #	error "This compiler is currently unsupported."
 #endif
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 // platform defines
+// ================================================================================================================================================================================================
 
 #if defined(ZT_WIN32)
 #	if defined(_CONSOLE)
@@ -110,7 +108,7 @@
 #	endif
 #elif defined(ZT_WIN64)
 #	if defined(_CONSOLE)
-#		define ZT_PLATFORM_STR	"Win64"
+#		define ZT_PLATFORM_STR	"Win64 Console"
 #		define ZT_PLATFORM_WIN64_CONSOLE
 #	else
 #		define ZT_PLATFORM_STR	"Win64"
@@ -141,8 +139,9 @@
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // DLL defines
+// ================================================================================================================================================================================================
 
 // Use ZT_DLLEXPORT before any function inside a DLL that needs called externally
 
@@ -157,105 +156,108 @@
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // useful macros
+// ================================================================================================================================================================================================
 
-#define zt_elementsOf(native_array)	((int)(sizeof(native_array) / sizeof((native_array)[0])))
-#define zt_sizeof(type) ((i32)sizeof(type))
+#define zt_elementsOf(native_array)	              ((int)(sizeof(native_array) / sizeof((native_array)[0])))
+#define zt_sizeof(type)                           ((i32)sizeof(type))
 
 #if defined(ZT_DEBUG)
-#	define zt_assert(cond)	                      if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
-#	define zt_assertReturnOnFail(cond)            if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
-#	define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
+#	define zt_assert(cond)	                      if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#	define zt_assertReturnOnFail(cond)            if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
+#	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
 
-#	define zt_debugOnly(code)	code
+#	define zt_debugOnly(code)	                  code
 #	define zt_releaseOnly(code)
 #else
 #	define zt_assert(cond)
-#	define zt_assertReturnOnFail(cond)            if(!(cond)) { return; }
-#	define zt_assertReturnValOnFail(cond, retval) if(!(cond)) { return (retval); }
+#	define zt_assertReturnOnFail(cond)            if (!(cond)) { return; }
+#	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { return (retval); }
 
 #	define zt_debugOnly(code)
 #	define zt_releaseOnly(code)	code
 #endif
 
-#define zt_assertAlways(cond)                  if(!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
-#define zt_staticAssert(cond)                  typedef char _zt_static_assertion_##__COUNTER__[(cond)?1:-1]
+#define zt_assertAlways(cond)                     if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#define zt_staticAssert(cond)                     typedef char _zt_static_assertion_##__COUNTER__[(cond)?1:-1]
 
-#define ztInline        inline
-#define ztInternal      static
-#define ztPersistent    static
-#define ztGlobal        static
+#define ztInline                                  inline
+#define ztInternal                                static
+#define ztPersistent                              static
+#define ztGlobal                                  static
 
-#define zt_kilobytes(kb)	((kb) * 1024LL)
-#define zt_megabytes(mb)	(zt_kilobytes(mb) * 1024LL)
-#define zt_gigabytes(gb)	(zt_megabytes(gb) * 1024LL)
-#define zt_terabytes(tb)	(zt_gigabytes(tb) * 1024LL)
+#define zt_kilobytes(kb)	                      ((kb) * 1024LL)
+#define zt_megabytes(mb)	                      (zt_kilobytes(mb) * 1024LL)
+#define zt_gigabytes(gb)	                      (zt_megabytes(gb) * 1024LL)
+#define zt_terabytes(tb)	                      (zt_gigabytes(tb) * 1024LL)
 
-#define zt_bit(num)             (1<<(num))
-#define zt_bitAdd(var, flag)    ((var) |= (flag))
-#define zt_bitRemove(var, flag) ((var) &= ~(flag))
-#define zt_bitIsSet(var, flag)  (((var) & (flag)) != 0)
+#define zt_bit(num)                               (1<<(num))
+#define zt_bitAdd(var, flag)                      ((var) |= (flag))
+#define zt_bitRemove(var, flag)                   ((var) &= ~(flag))
+#define zt_bitIsSet(var, flag)                    (((var) & (flag)) != 0)
 
-#define zt_max(val1, val2) ( (val1) > (val2) ? (val1) : (val2) )
-#define zt_min(val1, val2) ( (val1) < (val2) ? (val1) : (val2) )
-#define zt_clamp(val, min, max) ( zt_min(max, (zt_max(min, val))) )
-#define zt_abs(val) ( (val) < 0 ? -(val) : (val) )
-#define zt_swap(val1, val2) {auto temp = val1; val1 = val2; val2 = temp;}
-#define zt_between(val, beg, end) (val >= beg && val <= end)
+#define zt_max(val1, val2)                        ( (val1) > (val2) ? (val1) : (val2) )
+#define zt_min(val1, val2)                        ( (val1) < (val2) ? (val1) : (val2) )
+#define zt_clamp(val, min, max)                   ( zt_min(max, (zt_max(min, val))) )
+#define zt_abs(val)                               ( (val) < 0 ? -(val) : (val) )
+#define zt_swap(val1, val2)                       {auto temp = val1; val1 = val2; val2 = temp;}
+#define zt_between(val, beg, end)                 (val >= beg && val <= end)
 
-#define zt_real32Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal32Epsilon)
-#define zt_real64Eq(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < ztReal64Epsilon)
+#define zt_real32Eq(val1, val2)                   (zt_max(val1, val2) - zt_min(val1, val2) < ztReal32Epsilon)
+#define zt_real64Eq(val1, val2)                   (zt_max(val1, val2) - zt_min(val1, val2) < ztReal64Epsilon)
 
-#define zt_real32Close(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
-#define zt_real64Close(val1, val2) (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
+#define zt_real32Close(val1, val2)                (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
+#define zt_real64Close(val1, val2)                (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
 
 // yes, shamelessly "borrowed" from Shawn McGrath
-#define zt_fiz(end) for(int i = 0; i < (int)(end); ++i)
-#define zt_fjz(end) for(int j = 0; j < (int)(end); ++j)
-#define zt_fkz(end) for(int k = 0; k < (int)(end); ++k)
-#define zt_fxz(end) for(int x = 0; x < (int)(end); ++x)
-#define zt_fyz(end) for(int y = 0; y < (int)(end); ++y)
-#define zt_fzz(end) for(int z = 0; z < (int)(end); ++z)
-#define zt_fize(end) for(int i = 0; i < (int)zt_elementsOf((end)); ++i)
-#define zt_fjze(end) for(int j = 0; j < (int)zt_elementsOf((end)); ++j)
-#define zt_fkze(end) for(int k = 0; k < (int)zt_elementsOf((end)); ++k)
-#define zt_fxze(end) for(int x = 0; x < (int)zt_elementsOf((end)); ++x)
-#define zt_fyze(end) for(int y = 0; y < (int)zt_elementsOf((end)); ++y)
-#define zt_fzze(end) for(int z = 0; z < (int)zt_elementsOf((end)); ++z)
-#define zt_fizr(beg) for(int i = (int)(beg); i >= 0; --i)
-#define zt_fjzr(beg) for(int j = (int)(beg); j >= 0; --j)
-#define zt_fkzr(beg) for(int k = (int)(beg); k >= 0; --k)
-#define zt_fxzr(beg) for(int x = (int)(beg); x >= 0; --x)
-#define zt_fyzr(beg) for(int y = (int)(beg); y >= 0; --y)
-#define zt_fzzr(beg) for(int z = (int)(beg); z >= 0; --z)
-#define zt_fizre(beg) for(int i = (int)zt_elementsOf((beg)); i >= 0; --i)
-#define zt_fjzre(beg) for(int j = (int)zt_elementsOf((beg)); j >= 0; --j)
-#define zt_fkzre(beg) for(int k = (int)zt_elementsOf((beg)); k >= 0; --k)
-#define zt_fxzre(beg) for(int x = (int)zt_elementsOf((beg)); x >= 0; --x)
-#define zt_fyzre(beg) for(int y = (int)zt_elementsOf((beg)); y >= 0; --y)
-#define zt_fzzre(beg) for(int z = (int)zt_elementsOf((beg)); z >= 0; --z)
-#define zt_flink(var,start) for(auto *var = start; var != nullptr; var = var->next)
-#define zt_flinknext(var,start,next_var) for(auto *var = start; var != nullptr; var = var->next_var)
+#define zt_fiz(end)                               for (int i = 0; i < (int)(end); ++i)
+#define zt_fjz(end)                               for (int j = 0; j < (int)(end); ++j)
+#define zt_fkz(end)                               for (int k = 0; k < (int)(end); ++k)
+#define zt_fxz(end)                               for (int x = 0; x < (int)(end); ++x)
+#define zt_fyz(end)                               for (int y = 0; y < (int)(end); ++y)
+#define zt_fzz(end)                               for (int z = 0; z < (int)(end); ++z)
+#define zt_fize(end)                              for (int i = 0; i < (int)zt_elementsOf((end)); ++i)
+#define zt_fjze(end)                              for (int j = 0; j < (int)zt_elementsOf((end)); ++j)
+#define zt_fkze(end)                              for (int k = 0; k < (int)zt_elementsOf((end)); ++k)
+#define zt_fxze(end)                              for (int x = 0; x < (int)zt_elementsOf((end)); ++x)
+#define zt_fyze(end)                              for (int y = 0; y < (int)zt_elementsOf((end)); ++y)
+#define zt_fzze(end)                              for (int z = 0; z < (int)zt_elementsOf((end)); ++z)
+#define zt_fizr(beg)                              for (int i = (int)(beg); i >= 0; --i)
+#define zt_fjzr(beg)                              for (int j = (int)(beg); j >= 0; --j)
+#define zt_fkzr(beg)                              for (int k = (int)(beg); k >= 0; --k)
+#define zt_fxzr(beg)                              for (int x = (int)(beg); x >= 0; --x)
+#define zt_fyzr(beg)                              for (int y = (int)(beg); y >= 0; --y)
+#define zt_fzzr(beg)                              for (int z = (int)(beg); z >= 0; --z)
+#define zt_fizre(beg)                             for (int i = (int)zt_elementsOf((beg)); i >= 0; --i)
+#define zt_fjzre(beg)                             for (int j = (int)zt_elementsOf((beg)); j >= 0; --j)
+#define zt_fkzre(beg)                             for (int k = (int)zt_elementsOf((beg)); k >= 0; --k)
+#define zt_fxzre(beg)                             for (int x = (int)zt_elementsOf((beg)); x >= 0; --x)
+#define zt_fyzre(beg)                             for (int y = (int)zt_elementsOf((beg)); y >= 0; --y)
+#define zt_fzzre(beg)                             for (int z = (int)zt_elementsOf((beg)); z >= 0; --z)
+#define zt_flink(var,start)                       for (auto *var = start; var != nullptr; var = var->next)
+#define zt_flinknext(var,start,next_var)          for (auto *var = start; var != nullptr; var = var->next_var)
 
-#define ztMathPi		 3.14159626f
-#define ztMathPi2		 6.28319252f
-#define ztMathPi180		 0.01745331f
-#define ztMath180Pi		57.29571374f
+#define ztMathPi                                   3.14159626f
+#define ztMathPi2                                  6.28319252f
+#define ztMathPi180                                0.01745331f
+#define ztMath180Pi                               57.29571374f
 
-#define zt_degreesToRadians(degrees) ((degrees) * ztMathPi180)
-#define zt_radiansToDegrees(radians) ((radians) * ztMath180Pi)
+#define zt_degreesToRadians(degrees)              ((degrees) * ztMathPi180)
+#define zt_radiansToDegrees(radians)              ((radians) * ztMath180Pi)
 
 #if !defined(ZT_TOOLS_RETURN_ON_NULLPTR_NO_ASSERT)
-#	define zt_returnOnNull(ptr) if (ptr == nullptr) { zt_assert(false); return; }
-#	define zt_returnValOnNull(ptr, retval) if (ptr == nullptr) { zt_assert(false); return retval; };
+#	define zt_returnOnNull(ptr)                   if (ptr == nullptr) { zt_assert(false); return; }
+#	define zt_returnValOnNull(ptr, retval)        if (ptr == nullptr) { zt_assert(false); return retval; };
 #else
-#	define zt_returnOnNull(ptr) if (ptr == nullptr) { return; }
-#	define zt_returnValOnNull(ptr, retval) if (ptr == nullptr) { return retval; };
+#	define zt_returnOnNull(ptr)                   if (ptr == nullptr) { return; }
+#	define zt_returnValOnNull(ptr, retval)        if (ptr == nullptr) { return retval; };
 #endif
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 // types
+// ================================================================================================================================================================================================
 
 #if defined(ZT_COMPILER_MSVC)
 
@@ -269,31 +271,33 @@ typedef unsigned short     uint16;
 typedef unsigned int       uint32;
 typedef unsigned long long uint64;
 
-typedef float real32;
-typedef double real64;
+typedef float              real32;
+typedef double             real64;
 
 #if defined(ZT_64BIT)
-typedef uint64 pointer;
+typedef uint64             pointer;
 #else
-typedef uint32 pointer;
+typedef uint32             pointer;
 #endif
 
-typedef int8	i8;
-typedef int16	i16;
-typedef int32	i32;
-typedef int64	i64;
-typedef uint8	u8;
-typedef uint16	u16;
-typedef uint32	u32;
-typedef uint64	u64;
-typedef real32	r32;
-typedef real64	r64;
-typedef int32	b32;
+typedef int8	           i8;
+typedef int16	           i16;
+typedef int32	           i32;
+typedef int64	           i64;
+typedef uint8	           u8;
+typedef uint16	           u16;
+typedef uint32	           u32;
+typedef uint64	           u64;
+typedef real32	           r32;
+typedef real64	           r64;
+typedef int32	           b32;
 
 #endif
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 // math
+// ================================================================================================================================================================================================
 
 struct ztVec2i
 {
@@ -313,7 +317,7 @@ struct ztVec2i
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVec3i
 {
@@ -334,7 +338,7 @@ struct ztVec3i
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVec4i
 {
@@ -356,7 +360,7 @@ struct ztVec4i
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVec2
 {
@@ -421,7 +425,8 @@ ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator*(const ztVec2& v1, r32 scale);
 ztInline ztVec2 operator*(r32 scale, const ztVec2& v1);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztVec3
 {
@@ -495,7 +500,8 @@ ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator*(const ztVec3& v1, r32 scale);
 ztInline ztVec3 operator*(r32 scale, const ztVec3& v1);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztVec4
 {
@@ -573,10 +579,10 @@ ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale);
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
 
-typedef ztVec4 ztColor;
-#define ztColour ztColor;	// pick your favorite (favourite?)
+typedef ztVec4                 ztColor;
+#define ztColour               ztColor;       // pick your favorite (favourite?)
 
-ztInline ztColor zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
+ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
 
 #define ztColor_White          ztColor(1.0f, 1.0f, 1.0f, 1.f)
 #define ztColor_Black          ztColor( .0f,  .0f,  .0f, 1.f)
@@ -604,10 +610,10 @@ ztInline ztColor zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r
 #define ztColor_DarkOrange     ztColor(1.0f, .55f,  .0f, 1.f)
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // Matrix multiplication notes:
 //
-// If you want to have the object rotated around it's center, then moved:
+// If you want to have the object rotated around its center, then moved:
 //     matrix = translation_matrix;
 //     matrix = rotation_matrix * matrix (put the rotation into the existing matrix)
 //     (scaling anywhere doesn't seem to make much difference)
@@ -621,7 +627,7 @@ ztInline ztColor zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r
 //
 // So basically, whichever matrix is on the right side of the multiplication is the "container" and that
 // effect applies first, then the effect on the left takes place
-//
+// ================================================================================================================================================================================================
 
 struct ztQuat;
 
@@ -662,7 +668,8 @@ enum ztMat4_Enum
 	ztMat4_Row3Col3 = 15,
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztMat4
 {
@@ -756,12 +763,14 @@ struct ztMat4
 #endif
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
 ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztQuat
 {
@@ -847,7 +856,8 @@ struct ztQuat
 	static const ztQuat identity;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2);
 ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2);
@@ -856,49 +866,52 @@ ztInline ztQuat operator/(const ztQuat& q1, const ztQuat& q2);
 ztInline ztQuat operator*(const ztQuat& q1, r32 scale);
 ztInline ztQuat operator/(const ztQuat& q1, r32 scale);
 
-// ------------------------------------------------------------------------------------------------
 
-bool zt_isPow2(i32 number);
-i32 zt_nextPow2(i32 number);
+// ================================================================================================================================================================================================
 
-i32 zt_convertToi32Ceil(r32 number);
-i32 zt_convertToi32Floor(r32 number);
+bool zt_isPow2              (i32 number);
+i32  zt_nextPow2            (i32 number);
 
-r32 zt_lerp(r32 v1, r32 v2, r32 percent);
-r32 zt_unlerp(r32 v1, r32 v2, r32 value);
+i32  zt_convertToi32Ceil    (r32 number);
+i32  zt_convertToi32Floor   (r32 number);
 
-r32 zt_lerpHermite(r32 v1, r32 v2, r32 percent);
-r32 zt_lerpSinerp(r32 v1, r32 v2, r32 percent);
-r32 zt_lerpCoserp(r32 v1, r32 v2, r32 percent);
-r32 zt_lerpBerp(r32 v1, r32 v2, r32 percent, r32 power = 2.5f);
-r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent);
+r32  zt_lerp                (r32 v1, r32 v2, r32 percent);
+r32  zt_unlerp              (r32 v1, r32 v2, r32 value);
 
-r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
-r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
-r32 zt_normalize(r32 val, r32 min, r32 max);
-r32 zt_approach(r32 var, r32 appr, r32 by);
+r32  zt_lerpHermite         (r32 v1, r32 v2, r32 percent);
+r32  zt_lerpSinerp          (r32 v1, r32 v2, r32 percent);
+r32  zt_lerpCoserp          (r32 v1, r32 v2, r32 percent);
+r32  zt_lerpBerp            (r32 v1, r32 v2, r32 percent, r32 power = 2.5f);
+r32  zt_lerpCircle          (r32 ang1, r32 ang2, r32 percent);
 
-r32 zt_sin(r32 x);
-r32 zt_asin(r32 x);
-r32 zt_cos(r32 y);
-r32 zt_acos(r32 y);
-r32 zt_tan(r32 r);
-r32 zt_atan(r32 v);
-r32 zt_atan2(r32 x, r32 y);
-r32 zt_sqrt(r32 v);
-r32 zt_pow(r32 v, r32 p);
-r32 zt_exp(r32 v);
+r32  zt_linearRemap         (r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
+r32  zt_linearRemapAndClamp (r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
+r32  zt_normalize           (r32 val, r32 min, r32 max);
+r32  zt_approach            (r32 var, r32 appr, r32 by);
 
-i32 zt_lerp(i32 v1, i32 v2, r32 percent);
-i32 zt_unlerp(i32 v1, i32 v2, r32 percent);
+r32  zt_sin                 (r32 x);
+r32  zt_asin                (r32 x);
+r32  zt_cos                 (r32 y);
+r32  zt_acos                (r32 y);
+r32  zt_tan                 (r32 r);
+r32  zt_atan                (r32 v);
+r32  zt_atan2               (r32 x, r32 y);
+r32  zt_sqrt                (r32 v);
+r32  zt_pow                 (r32 v, r32 p);
+r32  zt_exp                 (r32 v);
 
-// ------------------------------------------------------------------------------------------------
-
-void zt_assert_raw(const char *condition_name, const char *file, int file_line);
+i32  zt_lerp                (i32 v1, i32 v2, r32 percent);
+i32  zt_unlerp              (i32 v1, i32 v2, r32 percent);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+
+void zt_assert_raw          (const char *condition_name, const char *file, int file_line);
+
+
+// ================================================================================================================================================================================================
 // GUID
+// ================================================================================================================================================================================================
 
 struct ztGuid
 {
@@ -908,20 +921,21 @@ struct ztGuid
 	};
 };
 
-// ------------------------------------------------------------------------------------------------
 
-ztInline ztGuid zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4);
-ztInline bool   zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2);
+// ================================================================================================================================================================================================
 
-ztInline bool   operator==(const ztGuid& guid1, const ztGuid& guid2);
-ztInline bool   operator!=(const ztGuid& guid1, const ztGuid& guid2);
+ztInline ztGuid  zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4);
+ztInline bool    zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2);
 
-ztInline void   zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size);
+ztInline bool    operator==(const ztGuid& guid1, const ztGuid& guid2);
+ztInline bool    operator!=(const ztGuid& guid1, const ztGuid& guid2);
 
-// ------------------------------------------------------------------------------------------------
+ztInline void    zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 // Variant
+// ================================================================================================================================================================================================
 
 enum ztVariant_Enum
 {
@@ -946,6 +960,8 @@ enum ztVariant_Enum
 	ztVariant_bool,
 };
 
+
+// ================================================================================================================================================================================================
 
 struct ztVariant
 {
@@ -972,6 +988,9 @@ struct ztVariant
 		bool  v_bool;
 	};
 };
+
+
+// ================================================================================================================================================================================================
 
 struct ztVariantPointer
 {
@@ -1000,25 +1019,28 @@ struct ztVariantPointer
 	};
 };
 
-ztInline ztVariant zt_variantMake_i8(i8 val);
-ztInline ztVariant zt_variantMake_i16(i16 val);
-ztInline ztVariant zt_variantMake_i32(i32 val);
-ztInline ztVariant zt_variantMake_i64(i64 val);
-ztInline ztVariant zt_variantMake_u8(u8 val);
-ztInline ztVariant zt_variantMake_u16(u16 val);
-ztInline ztVariant zt_variantMake_u32(u32 val);
-ztInline ztVariant zt_variantMake_u64(u64 val);
-ztInline ztVariant zt_variantMake_r32(r32 val);
-ztInline ztVariant zt_variantMake_r64(r64 val);
-ztInline ztVariant zt_variantMake_voidp(void *val);
-ztInline ztVariant zt_variantMake_vec2(r32 val[2]);
-ztInline ztVariant zt_variantMake_vec3(r32 val[3]);
-ztInline ztVariant zt_variantMake_vec4(r32 val[4]);
-ztInline ztVariant zt_variantMake_mat4(r32 val[16]);
-ztInline ztVariant zt_variantMake_quat(r32 val[4]);
-ztInline ztVariant zt_variantMake_bool(bool val);
 
-ztInline ztVariant zt_variantMake(ztVariantPointer *variant);
+// ================================================================================================================================================================================================
+
+ztInline ztVariant        zt_variantMake_i8(i8 val);
+ztInline ztVariant        zt_variantMake_i16(i16 val);
+ztInline ztVariant        zt_variantMake_i32(i32 val);
+ztInline ztVariant        zt_variantMake_i64(i64 val);
+ztInline ztVariant        zt_variantMake_u8(u8 val);
+ztInline ztVariant        zt_variantMake_u16(u16 val);
+ztInline ztVariant        zt_variantMake_u32(u32 val);
+ztInline ztVariant        zt_variantMake_u64(u64 val);
+ztInline ztVariant        zt_variantMake_r32(r32 val);
+ztInline ztVariant        zt_variantMake_r64(r64 val);
+ztInline ztVariant        zt_variantMake_voidp(void *val);
+ztInline ztVariant        zt_variantMake_vec2(r32 val[2]);
+ztInline ztVariant        zt_variantMake_vec3(r32 val[3]);
+ztInline ztVariant        zt_variantMake_vec4(r32 val[4]);
+ztInline ztVariant        zt_variantMake_mat4(r32 val[16]);
+ztInline ztVariant        zt_variantMake_quat(r32 val[4]);
+ztInline ztVariant        zt_variantMake_bool(bool val);
+
+ztInline ztVariant        zt_variantMake(ztVariantPointer *variant);
 
 ztInline ztVariantPointer zt_variantPointerMake_i8(i8 *val);
 ztInline ztVariantPointer zt_variantPointerMake_i16(i16 *val);
@@ -1038,86 +1060,88 @@ ztInline ztVariantPointer zt_variantPointerMake_mat4(r32 *val);
 ztInline ztVariantPointer zt_variantPointerMake_quat(r32 *val);
 ztInline ztVariantPointer zt_variantPointerMake_bool(bool *val);
 
-ztInline i8     zt_variantGetAs_i8(ztVariant *variant);
-ztInline i16    zt_variantGetAs_i16(ztVariant *variant);
-ztInline i32    zt_variantGetAs_i32(ztVariant *variant);
-ztInline i64    zt_variantGetAs_i64(ztVariant *variant);
-ztInline u8     zt_variantGetAs_u8(ztVariant *variant);
-ztInline u16    zt_variantGetAs_u16(ztVariant *variant);
-ztInline u32    zt_variantGetAs_u32(ztVariant *variant);
-ztInline u64    zt_variantGetAs_u64(ztVariant *variant);
-ztInline r32    zt_variantGetAs_r32(ztVariant *variant);
-ztInline r64    zt_variantGetAs_r64(ztVariant *variant);
-ztInline void  *zt_variantGetAs_voidp(ztVariant *variant);
-ztInline ztVec2 zt_variantGetAs_vec2(ztVariant *variant);
-ztInline ztVec3 zt_variantGetAs_vec3(ztVariant *variant);
-ztInline ztVec4 zt_variantGetAs_vec4(ztVariant *variant);
-ztInline ztMat4 zt_variantGetAs_mat4(ztVariant *variant);
-ztInline ztQuat zt_variantGetAs_quat(ztVariant *variant);
-ztInline bool   zt_variantGetAs_bool(ztVariant *variant);
+ztInline i8               zt_variantGetAs_i8(ztVariant *variant);
+ztInline i16              zt_variantGetAs_i16(ztVariant *variant);
+ztInline i32              zt_variantGetAs_i32(ztVariant *variant);
+ztInline i64              zt_variantGetAs_i64(ztVariant *variant);
+ztInline u8               zt_variantGetAs_u8(ztVariant *variant);
+ztInline u16              zt_variantGetAs_u16(ztVariant *variant);
+ztInline u32              zt_variantGetAs_u32(ztVariant *variant);
+ztInline u64              zt_variantGetAs_u64(ztVariant *variant);
+ztInline r32              zt_variantGetAs_r32(ztVariant *variant);
+ztInline r64              zt_variantGetAs_r64(ztVariant *variant);
+ztInline void            *zt_variantGetAs_voidp(ztVariant *variant);
+ztInline ztVec2           zt_variantGetAs_vec2(ztVariant *variant);
+ztInline ztVec3           zt_variantGetAs_vec3(ztVariant *variant);
+ztInline ztVec4           zt_variantGetAs_vec4(ztVariant *variant);
+ztInline ztMat4           zt_variantGetAs_mat4(ztVariant *variant);
+ztInline ztQuat           zt_variantGetAs_quat(ztVariant *variant);
+ztInline bool             zt_variantGetAs_bool(ztVariant *variant);
 
-ztInline i8     *zt_variantGetAs_i8(ztVariantPointer *variant);
-ztInline i16    *zt_variantGetAs_i16(ztVariantPointer *variant);
-ztInline i32    *zt_variantGetAs_i32(ztVariantPointer *variant);
-ztInline i64    *zt_variantGetAs_i64(ztVariantPointer *variant);
-ztInline u8     *zt_variantGetAs_u8(ztVariantPointer *variant);
-ztInline u16    *zt_variantGetAs_u16(ztVariantPointer *variant);
-ztInline u32    *zt_variantGetAs_u32(ztVariantPointer *variant);
-ztInline u64    *zt_variantGetAs_u64(ztVariantPointer *variant);
-ztInline r32    *zt_variantGetAs_r32(ztVariantPointer *variant);
-ztInline r64    *zt_variantGetAs_r64(ztVariantPointer *variant);
-ztInline void  **zt_variantGetAs_voidp(ztVariantPointer *variant);
-ztInline ztVec2 *zt_variantGetAs_vec2(ztVariantPointer *variant);
-ztInline ztVec3 *zt_variantGetAs_vec3(ztVariantPointer *variant);
-ztInline ztVec4 *zt_variantGetAs_vec4(ztVariantPointer *variant);
-ztInline ztMat4 *zt_variantGetAs_mat4(ztVariantPointer *variant);
-ztInline ztQuat *zt_variantGetAs_quat(ztVariantPointer *variant);
-ztInline bool   *zt_variantGetAs_bool(ztVariantPointer *variant);
+ztInline i8              *zt_variantGetAs_i8(ztVariantPointer *variant);
+ztInline i16             *zt_variantGetAs_i16(ztVariantPointer *variant);
+ztInline i32             *zt_variantGetAs_i32(ztVariantPointer *variant);
+ztInline i64             *zt_variantGetAs_i64(ztVariantPointer *variant);
+ztInline u8              *zt_variantGetAs_u8(ztVariantPointer *variant);
+ztInline u16             *zt_variantGetAs_u16(ztVariantPointer *variant);
+ztInline u32             *zt_variantGetAs_u32(ztVariantPointer *variant);
+ztInline u64             *zt_variantGetAs_u64(ztVariantPointer *variant);
+ztInline r32             *zt_variantGetAs_r32(ztVariantPointer *variant);
+ztInline r64             *zt_variantGetAs_r64(ztVariantPointer *variant);
+ztInline void           **zt_variantGetAs_voidp(ztVariantPointer *variant);
+ztInline ztVec2          *zt_variantGetAs_vec2(ztVariantPointer *variant);
+ztInline ztVec3          *zt_variantGetAs_vec3(ztVariantPointer *variant);
+ztInline ztVec4          *zt_variantGetAs_vec4(ztVariantPointer *variant);
+ztInline ztMat4          *zt_variantGetAs_mat4(ztVariantPointer *variant);
+ztInline ztQuat          *zt_variantGetAs_quat(ztVariantPointer *variant);
+ztInline bool            *zt_variantGetAs_bool(ztVariantPointer *variant);
 
-ztInline void zt_variantAssignValue(ztVariant *variant, ztVariant value);
-ztInline void zt_variantAssignValue(ztVariantPointer *variant, ztVariant value);
+ztInline void             zt_variantAssignValue(ztVariant *variant, ztVariant value);
+ztInline void             zt_variantAssignValue(ztVariantPointer *variant, ztVariant value);
 
-ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct);
+ztInline ztVariant        zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // function pointers
+// ================================================================================================================================================================================================
 
-typedef i32 ztFunctionID;
+typedef i32                 ztFunctionID;
 
-ztFunctionID zt_registerFunctionPointer(const char *function_name, void *function);
-void        *zt_functionPointer(ztFunctionID function_id);
+ztFunctionID                zt_registerFunctionPointer(const char *function_name, void *function);
+void                       *zt_functionPointer(ztFunctionID function_id);
 
-#define ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
-        function_decl; \
-        ztFunctionID function_name##_FunctionID = zt_registerFunctionPointer(#function_decl, function_name); \
-        function_decl
+#define                     ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
+                            function_decl; \
+                            ztFunctionID function_name##_FunctionID = zt_registerFunctionPointer(#function_decl, function_name); \
+                            function_decl
 
-// This must be accompanied by a call to ZT_FUNCTION_POINTER_REGISTER in a source file
-#define ZT_FUNCTION_POINTER_REGISTER_EXTERN(function_name, function_decl)	\
-        function_decl; \
-        extern ztFunctionID function_name##_FunctionID; \
-        function_decl
+//                          This must be accompanied by a call to ZT_FUNCTION_POINTER_REGISTER in a source file
+#define                     ZT_FUNCTION_POINTER_REGISTER_EXTERN(function_name, function_decl)	\
+                            function_decl; \
+                            extern ztFunctionID function_name##_FunctionID; \
+                            function_decl
 
 /*
-	typedef void (myFunction_Func)(int, obj*);
-
-	ZT_FUNCTION_POINTER_REGISTER(myFunction, void myFunction(int x, obj *o))
-	{
-		if(x > 0) {
-			objFunction(x, o, myFunction_FunctionID);
-		}
-	}
-
-	void objFunction(int x, obj *o, ztFunctionID function_id)
-	{
-		((myFunction_Func*)zt_functionPointer(function_id))(x - 1, o);
-	}
+							typedef void (myFunction_Func)(int, obj*);
+						
+							ZT_FUNCTION_POINTER_REGISTER(myFunction, void myFunction(int x, obj *o))
+							{
+								if (x > 0) {
+									objFunction(x, o, myFunction_FunctionID);
+								}
+							}
+						
+							void objFunction(int x, obj *o, ztFunctionID function_id)
+							{
+								((myFunction_Func*)zt_functionPointer(function_id))(x - 1, o);
+							}
 */
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // logging
+// ================================================================================================================================================================================================
 
 enum ztLogMessageLevel_Enum
 {
@@ -1130,31 +1154,33 @@ enum ztLogMessageLevel_Enum
 	ztLogMessageLevel_MAX,
 };
 
-void zt_logMessage(ztLogMessageLevel_Enum level, const char *message, ...);
+void    zt_logMessage       (ztLogMessageLevel_Enum level, const char *message, ...);
 
-void zt_logVerbose(const char *message, ...);
-void zt_logDebug(const char *message, ...);
-void zt_logInfo(const char *message, ...);
-void zt_logCritical(const char *message, ...);
-void zt_logFatal(const char *message, ...);
+void    zt_logVerbose       (const char *message, ...);
+void    zt_logDebug         (const char *message, ...);
+void    zt_logInfo          (const char *message, ...);
+void    zt_logCritical      (const char *message, ...);
+void    zt_logFatal         (const char *message, ...);
 
 // add your own logging callback ... the message does not contain a newline by default
 
 #define ZT_FUNC_LOG_CALLBACK(name) void name(ztLogMessageLevel_Enum level, const char * message)
 typedef ZT_FUNC_LOG_CALLBACK(zt_logCallback_Func);
 
-void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level);
-void zt_logRemoveCallback(zt_logCallback_Func callback);
+void    zt_logAddCallback   (zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level);
+void    zt_logRemoveCallback(zt_logCallback_Func callback);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // memory
+// ================================================================================================================================================================================================
 
-void zt_memSet(void *mem, i32 mem_len, byte value);
-void zt_memCpy(void *dst, i32 dst_len, const void *src, i32 src_len);
-int  zt_memCmp(const void *one, const void *two, i32 size);
+void zt_memSet               (void *mem, i32 mem_len, byte value);
+void zt_memCpy               (void *dst, i32 dst_len, const void *src, i32 src_len);
+int  zt_memCmp               (const void *one, const void *two, i32 size);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 enum ztMemoryArenaFlags_Enum
 {
@@ -1162,7 +1188,8 @@ enum ztMemoryArenaFlags_Enum
 	ztMemoryArenaFlags_Validate = (1 << 1), // validate the contents of the arena after every allocation/free
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztMemoryArena
 {
@@ -1200,155 +1227,157 @@ struct ztMemoryArena
 	i32   file_names_hashes[256];
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from = nullptr, i32 flags = ztMemoryArenaFlags_ClearMem);
-void zt_memFreeArena(ztMemoryArena *arena);
+void           zt_memFreeArena(ztMemoryArena *arena);
 
-// arena can be null and if so, standard malloc/realloc/free will be used
-void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size);
-void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line);
-void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size);
-void zt_memFree(ztMemoryArena *arena, void *data);
+//             arena can be null and if so, standard malloc/realloc/free will be used
+void          *zt_memAllocFromArena(ztMemoryArena *arena, i32 size);
+void          *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line);
+void          *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size);
+void           zt_memFree(ztMemoryArena *arena, void *data);
 
-bool zt_memBelongsTo(ztMemoryArena *arena, void *data);
+bool           zt_memBelongsTo(ztMemoryArena *arena, void *data);
 
-void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory);
+void           zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory);
 
-#define zt_memAlloc(arena, size) zt_memAllocFromArena(arena, size, __FILE__, __LINE__)
+#define        zt_memAlloc(arena, size) zt_memAllocFromArena(arena, size, __FILE__, __LINE__)
 
-void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug); // logs details including unfreed allocations
-void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug);
-bool zt_memArenaValidate(ztMemoryArena *arena);
+void           zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug); // logs details including unfreed allocations
+void           zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level = ztLogMessageLevel_Debug);
+bool           zt_memArenaValidate(ztMemoryArena *arena);
 
-// some systems will use the global arena stack to determine if it should use a memory arena
-// note it's possible to push a null arena onto the stack to cause these systems to use malloc/free (or whatever default you set)
+//             some systems will use the global arena stack to determine if it should use a memory arena
+//             note it's possible to push a null arena onto the stack to cause these systems to use malloc/free (or whatever default you set)
 
-bool zt_memPushGlobalArena(ztMemoryArena *arena); // returns false if the stack is full, so check this
-void zt_memPopGlobalArena();
-ztMemoryArena* zt_memGetGlobalArena();
+bool           zt_memPushGlobalArena(ztMemoryArena *arena); // returns false if the stack is full, so check this
+void           zt_memPopGlobalArena();
+ztMemoryArena *zt_memGetGlobalArena();
 
-// by default, malloc and free are used when there are no overrides set
-void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*));
+//             by default, malloc and free are used when there are no overrides set
+void           zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*));
 
-// be sure that the global arena stack is in the same state between calls to the following
-void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
-void zt_memFreeGlobal(void *data);
+//             be sure that the global arena stack is in the same state between calls to the following
+void          *zt_memAllocGlobalFull(i32 size, const char *file, int file_line);
+void           zt_memFreeGlobal(void *data);
 
-#define zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
+#define        zt_memAllocGlobal(size) zt_memAllocGlobalFull(size, __FILE__, __LINE__)
 
-#define zt_mallocStruct(type)				(type *)zt_memAllocGlobalFull(zt_sizeof(type), __FILE__, __LINE__)
-#define zt_mallocStructArray(type, size)	(type *)zt_memAllocGlobalFull(zt_sizeof(type) * (size), __FILE__, __LINE__)
+#define        zt_mallocStruct(type)				(type *)zt_memAllocGlobalFull(zt_sizeof(type), __FILE__, __LINE__)
+#define        zt_mallocStructArray(type, size)	(type *)zt_memAllocGlobalFull(zt_sizeof(type) * (size), __FILE__, __LINE__)
 
-#define zt_mallocStructArena(type, arena)				(type *)zt_memAllocFromArena(arena, zt_sizeof(type), __FILE__, __LINE__)
-#define zt_mallocStructArrayArena(type, size, arena)	(type *)zt_memAllocFromArena(arena, zt_sizeof(type) * (size), __FILE__, __LINE__)
+#define        zt_mallocStructArena(type, arena)				(type *)zt_memAllocFromArena(arena, zt_sizeof(type), __FILE__, __LINE__)
+#define        zt_mallocStructArrayArena(type, size, arena)	(type *)zt_memAllocFromArena(arena, zt_sizeof(type) * (size), __FILE__, __LINE__)
 
-#define zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), (void*)memory)
-#define zt_freeArena(memory, arena) zt_memFree(arena, (void*)memory)
+#define        zt_free(memory)	zt_memFree(zt_memGetGlobalArena(), (void*)memory)
+#define        zt_freeArena(memory, arena) zt_memFree(arena, (void*)memory)
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // string functions
+// ================================================================================================================================================================================================
 
-#define ztStrPosNotFound	-1
+#define               ztStrPosNotFound     -1
 
-#define zt_strMakePrintf(varname, varsize, format, ...)	char varname[varsize] = {0}; zt_strPrintf(varname, varsize, format, __VA_ARGS__);
+#define               zt_strMakePrintf(varname, varsize, format, ...)  char varname[varsize] = {0}; zt_strPrintf(varname, varsize, format, __VA_ARGS__);
 
-bool                  zt_strValid(const char *s, const char **invalid_ch = nullptr);
+bool                  zt_strValid          (const char *s, const char **invalid_ch = nullptr);
 
-ztInline const char  *zt_strCodepoint(const char *s, i32* code_point);
-ztInline i32          zt_strCodepoint(const char *s, int pos);
+ztInline const char  *zt_strCodepoint      (const char *s, i32* code_point);
+ztInline i32          zt_strCodepoint      (const char *s, int pos);
 
-bool                  zt_strEquals(const char *s1, const char *s2);
-bool                  zt_strEquals(const char *s1, int s1_len, const char *s2);
-bool                  zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len);
-bool                  zt_striEquals(const char *s1, const char *s2);
-bool                  zt_striEquals(const char *s1, int s1_len, const char *s2);
-bool                  zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len);
-int                   zt_strLen(const char *s);
-int                   zt_strSize(const char *s); // size in bytes including null terminator
-const char           *zt_strMoveForward(const char *s, int characters);
+bool                  zt_strEquals         (const char *s1, const char *s2);
+bool                  zt_strEquals         (const char *s1, int s1_len, const char *s2);
+bool                  zt_strEquals         (const char *s1, int s1_len, const char *s2, int s2_len);
+bool                  zt_striEquals        (const char *s1, const char *s2);
+bool                  zt_striEquals        (const char *s1, int s1_len, const char *s2);
+bool                  zt_striEquals        (const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_strLen            (const char *s);
+int                   zt_strSize           (const char *s); // size in bytes including null terminator
+const char           *zt_strMoveForward    (const char *s, int characters);
 
-int                   zt_strCmp(const char *s1, const char *s2);
-int                   zt_striCmp(const char *s1, const char *s2);
+int                   zt_strCmp            (const char *s1, const char *s2);
+int                   zt_striCmp           (const char *s1, const char *s2);
 
-int                   zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len);
-int                   zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_strCmp            (const char *s1, int s1_len, const char *s2, int s2_len);
+int                   zt_striCmp           (const char *s1, int s1_len, const char *s2, int s2_len);
 
-int                   zt_strCpy(char *scopy, int scopy_len, const char *sfrom);
-int                   zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
+int                   zt_strCpy            (char *scopy, int scopy_len, const char *sfrom);
+int                   zt_strCpy            (char *scopy, int scopy_len, const char *sfrom, int sfrom_len);
 
-int                   zt_strCat(char *scat, int scat_len, const char *scopy);
-int                   zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len);
+int                   zt_strCat            (char *scat, int scat_len, const char *scopy);
+int                   zt_strCat            (char *scat, int scat_len, const char *scopy, int scopy_len);
 
-int                   zt_strCatf(char *scopy, int scopy_len, const char *format, ...);
+int                   zt_strCatf           (char *scopy, int scopy_len, const char *format, ...);
 
-bool                  zt_strIsInt(char *s);
-bool                  zt_strIsInt(char *s, int s_len);
-bool                  zt_strIsIntHex(char *s);
-bool                  zt_strIsIntHex(char *s, int s_len);
-bool                  zt_strIsReal32(char *s);
-bool                  zt_strIsReal32(char *s, int s_len);
-bool                  zt_strIsReal64(char *s);
-bool                  zt_strIsReal64(char *s, int s_len);
+bool                  zt_strIsInt          (char *s);
+bool                  zt_strIsInt          (char *s, int s_len);
+bool                  zt_strIsIntHex       (char *s);
+bool                  zt_strIsIntHex       (char *s, int s_len);
+bool                  zt_strIsReal32       (char *s);
+bool                  zt_strIsReal32       (char *s, int s_len);
+bool                  zt_strIsReal64       (char *s);
+bool                  zt_strIsReal64       (char *s, int s_len);
 
-i32                   zt_strToInt(const char *s, i32 def, bool *success = nullptr);
-i32                   zt_strToInt(const char *s, int s_len, i32 def, bool *success = nullptr);
-u32                   zt_strToUint(const char *s, u32 def, bool *success = nullptr);
-u32                   zt_strToUint(const char *s, int s_len, u32 def, bool *success = nullptr);
-u32                   zt_strToIntHex(const char *s, u32 def, bool *success = nullptr);
-u32                   zt_strToIntHex(const char *s, int s_len, u32 def, bool *success = nullptr);
-i64                   zt_strToInt64(const char *s, i64 def, bool *success = nullptr);
-i64                   zt_strToInt64(const char *s, int s_len, i64 def, bool *success = nullptr);
-u64                   zt_strToUint64(const char *s, u64 def, bool *success = nullptr);
-u64                   zt_strToUint64(const char *s, int s_len, u64 def, bool *success = nullptr);
+i32                   zt_strToInt          (const char *s, i32 def, bool *success = nullptr);
+i32                   zt_strToInt          (const char *s, int s_len, i32 def, bool *success = nullptr);
+u32                   zt_strToUint         (const char *s, u32 def, bool *success = nullptr);
+u32                   zt_strToUint         (const char *s, int s_len, u32 def, bool *success = nullptr);
+u32                   zt_strToIntHex       (const char *s, u32 def, bool *success = nullptr);
+u32                   zt_strToIntHex       (const char *s, int s_len, u32 def, bool *success = nullptr);
+i64                   zt_strToInt64        (const char *s, i64 def, bool *success = nullptr);
+i64                   zt_strToInt64        (const char *s, int s_len, i64 def, bool *success = nullptr);
+u64                   zt_strToUint64       (const char *s, u64 def, bool *success = nullptr);
+u64                   zt_strToUint64       (const char *s, int s_len, u64 def, bool *success = nullptr);
 
-r32                   zt_strToReal32(const char *s, r32 def, bool* success = nullptr);
-r32                   zt_strToReal32(const char *s, int s_len, r32 def, bool* success = nullptr);
-r64                   zt_strToReal64(const char *s, r64 def, bool* success = nullptr);
-r64                   zt_strToReal64(const char *s, int s_len, r64 def, bool* success = nullptr);
+r32                   zt_strToReal32       (const char *s, r32 def, bool* success = nullptr);
+r32                   zt_strToReal32       (const char *s, int s_len, r32 def, bool* success = nullptr);
+r64                   zt_strToReal64       (const char *s, r64 def, bool* success = nullptr);
+r64                   zt_strToReal64       (const char *s, int s_len, r64 def, bool* success = nullptr);
 
-u32                   zt_strHash(const char *s);
+u32                   zt_strHash           (const char *s);
 
-const char           *zt_strFind(const char *haystack, const char *needle);
-const char           *zt_strFind(const char *haystack, int haystack_len, const char *needle);
-int                   zt_strFindPos(const char *haystack, const char *needle, int start_pos);
-int                   zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
+const char           *zt_strFind           (const char *haystack, const char *needle);
+const char           *zt_strFind           (const char *haystack, int haystack_len, const char *needle);
+int                   zt_strFindPos        (const char *haystack, const char *needle, int start_pos);
+int                   zt_strFindPos        (const char *haystack, int haystack_len, const char *needle, int start_pos);
 
-const char           *zt_strFindLast(const char *haystack, const char *needle);
-const char           *zt_strFindLast(const char *haystack, int haystack_len, const char *needle);
-int                   zt_strFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
-int                   zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
+const char           *zt_strFindLast       (const char *haystack, const char *needle);
+const char           *zt_strFindLast       (const char *haystack, int haystack_len, const char *needle);
+int                   zt_strFindLastPos    (const char *haystack, const char *needle, int start_pos = -1);
+int                   zt_strFindLastPos    (const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
 
-const char           *zt_striFind(const char *haystack, const char *needle);
-const char           *zt_striFind(const char *haystack, int haystack_len, const char *needle);
-int                   zt_striFindPos(const char *haystack, const char *needle, int start_pos);
-int                   zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos);
+const char           *zt_striFind          (const char *haystack, const char *needle);
+const char           *zt_striFind          (const char *haystack, int haystack_len, const char *needle);
+int                   zt_striFindPos       (const char *haystack, const char *needle, int start_pos);
+int                   zt_striFindPos       (const char *haystack, int haystack_len, const char *needle, int start_pos);
 
-const char           *zt_striFindLast(const char *haystack, const char *needle);
-const char           *zt_striFindLast(const char *haystack, int haystack_len, const char *needle);
-int                   zt_striFindLastPos(const char *haystack, const char *needle, int start_pos = -1);
-int                   zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
+const char           *zt_striFindLast      (const char *haystack, const char *needle);
+const char           *zt_striFindLast      (const char *haystack, int haystack_len, const char *needle);
+int                   zt_striFindLastPos   (const char *haystack, const char *needle, int start_pos = -1);
+int                   zt_striFindLastPos   (const char *haystack, int haystack_len, const char *needle, int start_pos = -1);
 
-const char           *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count);
-const char           *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count);
-int                   zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count);
-int                   zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count);
+const char           *zt_strFindFirstOf    (const char *haystack, const char **needles, int needles_count);
+const char           *zt_strFindFirstOf    (const char *haystack, int haystack_len, const char **needles, int needles_count);
+int                   zt_strFindFirstOfPos (const char *haystack, const char **needles, int needles_count);
+int                   zt_strFindFirstOfPos (const char *haystack, int haystack_len, const char **needles, int needles_count);
 
-int                   zt_strCount(const char *haystack, const char *needle);
-int                   zt_strCount(const char *haystack, int haystack_len, const char *needle);
-int                   zt_striCount(const char *haystack, const char *needle);
-int                   zt_striCount(const char *haystack, int haystack_len, const char *needle);
+int                   zt_strCount          (const char *haystack, const char *needle);
+int                   zt_strCount          (const char *haystack, int haystack_len, const char *needle);
+int                   zt_striCount         (const char *haystack, const char *needle);
+int                   zt_striCount         (const char *haystack, int haystack_len, const char *needle);
 
-bool                  zt_strStartsWith(const char *s, const char *starts_with);
-bool                  zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
-bool                  zt_strEndsWith(const char *s, const char *ends_with);
-bool                  zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
+bool                  zt_strStartsWith     (const char *s, const char *starts_with);
+bool                  zt_strStartsWith     (const char *s, int s_len, const char *starts_with, int sw_len);
+bool                  zt_strEndsWith       (const char *s, const char *ends_with);
+bool                  zt_strEndsWith       (const char *s, int s_len, const char *ends_with, int ew_len);
 
-bool                  zt_striStartsWith(const char *s, const char *starts_with);
-bool                  zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len);
-bool                  zt_striEndsWith(const char *s, const char *ends_with);
-bool                  zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len);
+bool                  zt_striStartsWith    (const char *s, const char *starts_with);
+bool                  zt_striStartsWith    (const char *s, int s_len, const char *starts_with, int sw_len);
+bool                  zt_striEndsWith      (const char *s, const char *ends_with);
+bool                  zt_striEndsWith      (const char *s, int s_len, const char *ends_with, int ew_len);
 
 const char           *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
 const char           *zt_strJumpToNextToken(const char *s, int s_len);
@@ -1356,16 +1385,17 @@ const char           *zt_strJumpToNextToken(const char *s, int s_len);
 int                   zt_strGetNextTokenPos(const char *s);
 int                   zt_strGetNextTokenPos(const char *s, int s_len);
 
-const char           *zt_strJumpToNextLine(const char *s);
-const char           *zt_strJumpToNextLine(const char *s, int s_len);
+const char           *zt_strJumpToNextLine (const char *s);
+const char           *zt_strJumpToNextLine (const char *s, int s_len);
 
-int                   zt_strGetNextLinePos(const char *s);
-int                   zt_strGetNextLinePos(const char *s, int s_len);
+int                   zt_strGetNextLinePos (const char *s);
+int                   zt_strGetNextLinePos (const char *s, int s_len);
 
-int                   zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
-int                   zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetBetween     (char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetBetween     (char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 enum ztStrTokenizeFlags_Enum
 {
@@ -1375,7 +1405,8 @@ enum ztStrTokenizeFlags_Enum
 	ztStrTokenizeFlags_TrimWhitespace = (1<<3),
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztToken
 {
@@ -1383,23 +1414,25 @@ struct ztToken
 	i32 len;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 // populates the given array of ztTokens with the parsed information
 // if the given array isn't large enough, it populates as many as it cans and returns the required buffer size
 // this allows for calling the function once with a null array to get the size, then allocating the required amount of memory before calling a second time
 
-int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
-int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
+int zt_strTokenize       (const char *s, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
+int zt_strTokenize       (const char *s, int s_len, const char *tokens, ztToken* results, int results_count, int32 flags = 0);
 
-int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...);
+int zt_strPrintf         (char *buffer, int buffer_size, const char *format, ...);
 
-int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes);
-int zt_strNumberToString(char *buffer, int buffer_size, i64 number);
+int zt_strBytesToString  (char *buffer, int buffer_size, i32 bytes);
+int zt_strNumberToString (char *buffer, int buffer_size, i64 number);
 
-int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size);
+int zt_strConvertToUTF16 (const char* s, int s_len, u16* buffer, int buffer_size);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 // ztString is used to represent a string where the length of the string is inserted in memory right before the character pointer.
 // ztStrings can be passed into all string functions, using zt_stringSize() to get the length of the string
@@ -1414,7 +1447,8 @@ ztString  zt_stringOverwrite (ztString string, const char *str, ztMemoryArena *a
 void      zt_stringFree      (ztString string, ztMemoryArena *arena = nullptr);
 int       zt_stringSize      (ztString string);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztStringPool
 {
@@ -1424,7 +1458,8 @@ struct ztStringPool
 	ztMemoryArena  *arena   = nullptr;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 // string pools are used to pre-allocate strings for instances where strings will potentially be created/destroyed often.
 // the prealloacted strings can be variable sizes using the sizes and proportions paramters. example:
@@ -1449,9 +1484,9 @@ ztString     zt_stringOverwrite       (ztStringPool *pool, ztString string, cons
 void         zt_stringFreeFrom        (ztStringPool *pool, ztString string);
 
 
-
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // file operations
+// ================================================================================================================================================================================================
 
 enum ztFileOpenMethod_Enum
 {
@@ -1463,119 +1498,122 @@ enum ztFileOpenMethod_Enum
 	ztFileOpenMethod_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztFile
 {
 	ztFileOpenMethod_Enum open_method;
-	i32 size;
+	i32                   size;
 
-	char *full_name; // full file name, path and file with extension
+	char                 *full_name; // full file name, path and file with extension
 
 #if defined(ZT_WINDOWS)
-	i32 win_file_handle; // HFILE
-	i32 win_read_pos;
+	i32                   win_file_handle; // HFILE
+	i32                   win_read_pos;
 #else
 #	error "ztFile needs an implementation for this platform"
 #endif
 
-	ztMemoryArena* arena;
+	ztMemoryArena        *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 #define ztFileMaxPath	1024 * 4	// handy constant for path sizes on the stack
 
 #if defined(ZT_WINDOWS)
-#define ztFilePathSeparator	'\\'
-#define ztFilePathSeparatorStr	"\\"
+#	define ztFilePathSeparator	'\\'
+#	define ztFilePathSeparatorStr	"\\"
 #else
-#define ztFilePathSeparator '/'
-#define ztFilePathSeparatorStr	"/"
+#	define ztFilePathSeparator '/'
+#	define ztFilePathSeparatorStr	"/"
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena = zt_memGetGlobalArena());
-void zt_fileClose(ztFile *file);
+bool          zt_fileOpen                        (ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena = zt_memGetGlobalArena());
+void          zt_fileClose                       (ztFile *file);
 
-i32 zt_fileGetReadPos(ztFile *file);
-bool zt_fileSetReadPos(ztFile *file, i32 pos);
+i32           zt_fileGetReadPos                  (ztFile *file);
+bool          zt_fileSetReadPos                  (ztFile *file, i32 pos);
 
-// returns length of string, or -1 in case of error
-i32 zt_fileGetFullPath(ztFile *file, char *buffer, int buffer_size);	// full path only, file name not included
-i32 zt_fileGetFileName(ztFile *file, char *buffer, int buffer_size);	// file name only, no path details
-i32 zt_fileGetFileExt(ztFile *file, char *buffer, int buffer_size);		// file extension only
+//            returns length of string, or -1 in case of error
+i32           zt_fileGetFullPath                 (ztFile *file, char *buffer, int buffer_size);	// full path only, file name not included
+i32           zt_fileGetFileName                 (ztFile *file, char *buffer, int buffer_size);	// file name only, no path details
+i32           zt_fileGetFileExt                  (ztFile *file, char *buffer, int buffer_size);		// file extension only
 
-i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size);	// full path only, file name not included
-i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size);	// file name only, no path details
-i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size);	// file extension only
+i32           zt_fileGetFullPath                 (const char *file_name, char *buffer, int buffer_size);	// full path only, file name not included
+i32           zt_fileGetFileName                 (const char *file_name, char *buffer, int buffer_size);	// file name only, no path details
+i32           zt_fileGetFileExt                  (const char *file_name, char *buffer, int buffer_size);	// file extension only
 
-i32 zt_fileGetAppBin(char *buffer, int buffer_size);
-i32 zt_fileGetAppPath(char *buffer, int buffer_size);
-i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name);
-i32 zt_fileGetCurrentPath(char *buffer, int buffer_size);
-void zt_fileSetCurrentPath(const char *path);
+i32           zt_fileGetAppBin                   (char *buffer, int buffer_size);
+i32           zt_fileGetAppPath                  (char *buffer, int buffer_size);
+i32           zt_fileGetUserPath                 (char *buffer, int buffer_size, char *app_name);
+i32           zt_fileGetCurrentPath              (char *buffer, int buffer_size);
+void          zt_fileSetCurrentPath              (const char *path);
 
-i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
-i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, const char *file);
-i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int path_len, const char *file, int file_len);
+i32           zt_fileGetFileInOtherFileDirectory (char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
+i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, const char *file);
+i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, int path_len, const char *file, int file_len);
 
-bool zt_fileExists(const char *file_name);
-bool zt_fileDelete(const char *file_name);
-bool zt_fileCopy(const char *orig_file, const char *new_file);
-bool zt_fileRename(const char *orig_file, const char *new_file);
-i32 zt_fileSize(const char *file_name);
-bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32 *hour, i32 *minute, i32 *second, i32 *ms);
-bool zt_fileModified(const char *file_name, i64* date_time);
+bool          zt_fileExists                      (const char *file_name);
+bool          zt_fileDelete                      (const char *file_name);
+bool          zt_fileCopy                        (const char *orig_file, const char *new_file);
+bool          zt_fileRename                      (const char *orig_file, const char *new_file);
+i32           zt_fileSize                        (const char *file_name);
+bool          zt_fileModified                    (const char *file_name, i32 *year, i32 *month, i32 *day, i32 *hour, i32 *minute, i32 *second, i32 *ms);
+bool          zt_fileModified                    (const char *file_name, i64* date_time);
 
-i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size);
-ztInline bool zt_fileRead(ztFile *file, i8 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i16 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, i64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u8 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u16 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, u64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, r32 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
-ztInline bool zt_fileRead(ztFile *file, r64 *value)		{ return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+i32           zt_fileRead                        (ztFile *file, void *buffer, i32 buffer_size);
+ztInline bool zt_fileRead                        (ztFile *file, i8 *value)  { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, i16 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, i32 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, i64 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, u8 *value)  { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, u16 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, u32 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, u64 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, r32 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
+ztInline bool zt_fileRead                        (ztFile *file, r64 *value) { return zt_sizeof(*value) == zt_fileRead(file, value, zt_sizeof(*value)); }
 
-i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size);
-ztInline bool zt_fileWrite(ztFile *file, i8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, i64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, u64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, r64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
-ztInline bool zt_fileWrite(ztFile *file, const char *value){ return zt_strLen(value) == zt_fileWrite(file,  value, zt_strLen(value)); }
+i32           zt_fileWrite                       (ztFile *file, const void *buffer, i32 buffer_size);
+ztInline bool zt_fileWrite                       (ztFile *file, i8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, i16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, i32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, i64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, u8  value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, u16 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, u32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, u64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, r32 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, r64 value)        { return zt_sizeof(value) == zt_fileWrite(file, &value, zt_sizeof(value)); }
+ztInline bool zt_fileWrite                       (ztFile *file, const char *value){ return zt_strLen(value) == zt_fileWrite(file,  value, zt_strLen(value)); }
 
-bool zt_fileWritef(ztFile *file, const char *format, ...);
+bool          zt_fileWritef                      (ztFile *file, const char *format, ...);
 
-void zt_fileFlush(ztFile *file);
+void          zt_fileFlush                       (ztFile *file);
 
-void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_bom = false, ztMemoryArena *arena = zt_memGetGlobalArena());
-i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom = false);
-i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
+void         *zt_readEntireFile                  (const char *file_name, i32 *file_size, bool discard_utf_bom = false, ztMemoryArena *arena = zt_memGetGlobalArena());
+i32           zt_readEntireFile                  (const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom = false);
+i32           zt_writeEntireFile                 (const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
 
-bool zt_directoryExists(const char *dir);
-bool zt_directoryMake(const char *dir);
-bool zt_directoryDelete(const char *dir, bool force);
+bool          zt_directoryExists                 (const char *dir);
+bool          zt_directoryMake                   (const char *dir);
+bool          zt_directoryDelete                 (const char *dir, bool force);
 
-i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
-i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
+i32           zt_getDirectorySubs                (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
+i32           zt_getDirectoryFiles               (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // directory monitoring
 //
 // This allows directories to be monitored for new files and directories and modifications to files
 // The most efficient method for doing so per platform is used
-//
+// ================================================================================================================================================================================================
+
 
 enum ztDirectoryMonitorFlags_Enum
 {
@@ -1586,34 +1624,42 @@ enum ztDirectoryMonitorFlags_Enum
 	ztDirectoryMonitorFlags_All = ztDirectoryMonitorFlags_New | ztDirectoryMonitorFlags_Rename | ztDirectoryMonitorFlags_Modify,
 };
 
+
+// ================================================================================================================================================================================================
+
 struct ztDirectoryMonitor
 {
 #if defined(ZT_WINDOWS)
-	pointer io;
-	pointer file;
-	i32     flags;
-	byte    file_buffer[ztPointerSize + 12 * 256]; // ztPointerSize + 12 == sizeof(FILE_NOTIFY_INFORMATION)
-	byte    overlapped[ztPointerSize * 3 + 8]; // sizeof(OVERLAPPED)
-	bool    recursive;
+	pointer   io;
+	pointer   file;
+	i32       flags;
+	byte      file_buffer [ztPointerSize + 12 * 256]; // ztPointerSize + 12 == sizeof(FILE_NOTIFY_INFORMATION)
+	byte      overlapped  [ztPointerSize * 3 + 8]; // sizeof(OVERLAPPED)
+	bool      recursive;
 #endif
 };
 
 
-bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, bool recursive, i32 flags = ztDirectoryMonitorFlags_All);
-void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon);
-bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon);
+// ================================================================================================================================================================================================
+
+bool zt_directoryMonitor           (ztDirectoryMonitor *dir_mon, const char *directory, bool recursive, i32 flags = ztDirectoryMonitorFlags_All);
+void zt_directoryStopMonitor       (ztDirectoryMonitor *dir_mon);
+bool zt_directoryMonitorHasChanged (ztDirectoryMonitor *dir_mon);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // threading
+// ================================================================================================================================================================================================
 
 typedef i32 ztThreadID;
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztThread;
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_THREAD_EXIT(name) bool (name)(void *user_data)
 typedef ZT_FUNC_THREAD_EXIT(ztThreadExit_Func);
@@ -1621,30 +1667,34 @@ typedef ZT_FUNC_THREAD_EXIT(ztThreadExit_Func);
 #define ZT_FUNC_THREAD(name)	int (name)(ztThreadID thread_id, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data)
 typedef ZT_FUNC_THREAD(ztThread_Func);
 
-// ------------------------------------------------------------------------------------------------
 
-ztThread  *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id);
-void       zt_threadFree(ztThread *thread);
-void       zt_threadJoin(ztThread *thread); // pause execution of the current thread until the given thread is complete
-bool       zt_threadIsRunning(ztThread *thread);
-ztThreadID zt_threadGetCurrentID();        // get the id of the current thread
-void       zt_threadYield();
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+ztThread  *zt_threadMake         (ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id);
+void       zt_threadFree         (ztThread *thread);
+void       zt_threadJoin         (ztThread *thread); // pause execution of the current thread until the given thread is complete
+bool       zt_threadIsRunning    (ztThread *thread);
+ztThreadID zt_threadGetCurrentID ();        // get the id of the current thread
+void       zt_threadYield        ();
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztThreadMutex;
 
-// ------------------------------------------------------------------------------------------------
 
-ztThreadMutex *zt_threadMutexMake();
-void           zt_threadMutexFree(ztThreadMutex *mutex);
+// ================================================================================================================================================================================================
 
-void           zt_threadMutexLock(ztThreadMutex *mutex);
-void           zt_threadMutexUnlock(ztThreadMutex *mutex);
+ztThreadMutex *zt_threadMutexMake   ();
+void           zt_threadMutexFree   (ztThreadMutex *mutex);
 
-// ------------------------------------------------------------------------------------------------
+void           zt_threadMutexLock   (ztThreadMutex *mutex);
+void           zt_threadMutexUnlock (ztThreadMutex *mutex);
+
+
+// ================================================================================================================================================================================================
 
 struct ztThreadMutexLocker
 {
@@ -1660,13 +1710,14 @@ struct ztThreadMutexLocker
 };
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztThreadMonitor;
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 ztThreadMonitor *zt_threadMonitorMake();
 void             zt_threadMonitorFree(ztThreadMonitor *monitor);
@@ -1676,31 +1727,33 @@ void             zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor);
 void             zt_threadMonitorReset(ztThreadMonitor *monitor);
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 typedef long volatile ztAtomicInt;
 
-i32 zt_atomicIntInc(ztAtomicInt *atomic_int);
-i32 zt_atomicIncDec(ztAtomicInt *atomic_int);
-i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value);
-i32 zt_atomicIntGet(ztAtomicInt *atomic_int);
-i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val);
-i32 zt_atomicIntOr (ztAtomicInt *atomic_int, i32 or_val);
-i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val);
+i32                   zt_atomicIntInc     (ztAtomicInt *atomic_int);
+i32                   zt_atomicIncDec     (ztAtomicInt *atomic_int);
+i32                   zt_atomicIntSet     (ztAtomicInt *atomic_int, i32 value);
+i32                   zt_atomicIntGet     (ztAtomicInt *atomic_int);
+i32                   zt_atomicIntAnd     (ztAtomicInt *atomic_int, i32 and_val);
+i32                   zt_atomicIntOr      (ztAtomicInt *atomic_int, i32 or_val);
+i32                   zt_atomicIntXor     (ztAtomicInt *atomic_int, i32 xor_val);
 
 typedef long volatile ztAtomicBool;
 
-bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value);
-bool zt_atomicBoolGet(ztAtomicBool *atomic_bool);
-bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool);
-
-// ------------------------------------------------------------------------------------------------
+bool                  zt_atomicBoolSet    (ztAtomicBool *atomic_bool, bool value);
+bool                  zt_atomicBoolGet    (ztAtomicBool *atomic_bool);
+bool                  zt_atomicBoolToggle (ztAtomicBool *atomic_bool);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+
+
+// ================================================================================================================================================================================================
 // serialization
+// ================================================================================================================================================================================================
 
 // This serializer allows for storage formats to change without completely breaking old versions and to allow for new code
 // to read old formats.  The way this is accomplished is through groups.  Basically, think of your data as heirarchical.  When
@@ -1744,99 +1797,104 @@ enum ztSerialMode_Enum
 	ztSerialMode_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 #define ztSerialIdentifierMaxSize	128
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztSerial
 {
 	ztSerialMode_Enum mode;
-	ztFile file;
-	bool close_file;
+	ztFile            file;
+	bool              close_file;
 
-	void *file_data;
-	i32 file_data_size;
+	void             *file_data;
+	i32               file_data_size;
 
-	char identifier[ztSerialIdentifierMaxSize];
-	i32 version;
+	char              identifier[ztSerialIdentifierMaxSize];
+	i32               version;
 
-	i32 group_level;
-	i8 next_entry;
+	i32               group_level;
+	i8                next_entry;
 
-	i16 _checksum1, _checksum2;
+	i16               _checksum1, _checksum2;
 };
 
-// ------------------------------------------------------------------------------------------------
 
-bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *identifier, i32 version);
-bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier, i32 version);
+// ================================================================================================================================================================================================
+
+bool zt_serialMakeWriter (ztSerial *serial, const char *file_name, const char *identifier, i32 version);
+bool zt_serialMakeWriter (ztSerial *serial, ztFile *file, const char *identifier, i32 version);
 
 // if opening a reader fails, check the mode in the ztSerial instance.  if it's ztSerialMode_Corrupt, then the file's checksum did not match
-bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier);
-bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier);
-bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier);
+bool zt_serialMakeReader (ztSerial *serial, const char *file_name, const char *identifier);
+bool zt_serialMakeReader (ztSerial *serial, void *data, i32 data_size, const char *identifier);
+bool zt_serialMakeReader (ztSerial *serial, ztFile *file, const char *identifier);
 
-void zt_serialClose(ztSerial *serial);
+void zt_serialClose      (ztSerial *serial);
 
-bool zt_serialGroupPush(ztSerial *serial);
-bool zt_serialGroupPop(ztSerial *serial);
+bool zt_serialGroupPush  (ztSerial *serial);
+bool zt_serialGroupPop   (ztSerial *serial);
 
-bool zt_serialWrite(ztSerial *serial, i8 value);
-bool zt_serialWrite(ztSerial *serial, i16 value);
-bool zt_serialWrite(ztSerial *serial, i32 value);
-bool zt_serialWrite(ztSerial *serial, i64 value);
-bool zt_serialWrite(ztSerial *serial, u8 value);
-bool zt_serialWrite(ztSerial *serial, u16 value);
-bool zt_serialWrite(ztSerial *serial, u32 value);
-bool zt_serialWrite(ztSerial *serial, u64 value);
-bool zt_serialWrite(ztSerial *serial, r32 value);
-bool zt_serialWrite(ztSerial *serial, r64 value);
-bool zt_serialWrite(ztSerial *serial, bool value);
-bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len);
-bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len);
-bool zt_serialWrite(ztSerial *serial, ztVariant *variant);
-bool zt_serialWrite(ztSerial *serial, ztGuid guid);
-bool zt_serialWrite(ztSerial *serial, ztVec2 vec);
-bool zt_serialWrite(ztSerial *serial, ztVec3 vec);
-bool zt_serialWrite(ztSerial *serial, ztVec4 vec);
-bool zt_serialWrite(ztSerial *serial, ztVec2i vec);
-bool zt_serialWrite(ztSerial *serial, ztVec3i vec);
+bool zt_serialWrite      (ztSerial *serial, i8 value);
+bool zt_serialWrite      (ztSerial *serial, i16 value);
+bool zt_serialWrite      (ztSerial *serial, i32 value);
+bool zt_serialWrite      (ztSerial *serial, i64 value);
+bool zt_serialWrite      (ztSerial *serial, u8 value);
+bool zt_serialWrite      (ztSerial *serial, u16 value);
+bool zt_serialWrite      (ztSerial *serial, u32 value);
+bool zt_serialWrite      (ztSerial *serial, u64 value);
+bool zt_serialWrite      (ztSerial *serial, r32 value);
+bool zt_serialWrite      (ztSerial *serial, r64 value);
+bool zt_serialWrite      (ztSerial *serial, bool value);
+bool zt_serialWrite      (ztSerial *serial, const char *value, i32 value_len);
+bool zt_serialWrite      (ztSerial *serial, void *value, i32 value_len);
+bool zt_serialWrite      (ztSerial *serial, ztVariant *variant);
+bool zt_serialWrite      (ztSerial *serial, ztGuid guid);
+bool zt_serialWrite      (ztSerial *serial, ztVec2 vec);
+bool zt_serialWrite      (ztSerial *serial, ztVec3 vec);
+bool zt_serialWrite      (ztSerial *serial, ztVec4 vec);
+bool zt_serialWrite      (ztSerial *serial, ztVec2i vec);
+bool zt_serialWrite      (ztSerial *serial, ztVec3i vec);
 
-bool zt_serialRead(ztSerial *serial, i8 *value);
-bool zt_serialRead(ztSerial *serial, i16 *value);
-bool zt_serialRead(ztSerial *serial, i32 *value);
-bool zt_serialRead(ztSerial *serial, i64 *value);
-bool zt_serialRead(ztSerial *serial, u8 *value);
-bool zt_serialRead(ztSerial *serial, u16 *value);
-bool zt_serialRead(ztSerial *serial, u32 *value);
-bool zt_serialRead(ztSerial *serial, u64 *value);
-bool zt_serialRead(ztSerial *serial, r32 *value);
-bool zt_serialRead(ztSerial *serial, r64 *value);
-bool zt_serialRead(ztSerial *serial, bool *value);
-bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len);
-bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len);
-bool zt_serialRead(ztSerial *serial, ztVariant *variant);
-bool zt_serialRead(ztSerial *serial, ztGuid *guid);
-bool zt_serialRead(ztSerial *serial, ztVec2 *vec);
-bool zt_serialRead(ztSerial *serial, ztVec3 *vec);
-bool zt_serialRead(ztSerial *serial, ztVec4 *vec);
-bool zt_serialRead(ztSerial *serial, ztVec2i *vec);
-bool zt_serialRead(ztSerial *serial, ztVec3i *vec);
+bool zt_serialRead       (ztSerial *serial, i8 *value);
+bool zt_serialRead       (ztSerial *serial, i16 *value);
+bool zt_serialRead       (ztSerial *serial, i32 *value);
+bool zt_serialRead       (ztSerial *serial, i64 *value);
+bool zt_serialRead       (ztSerial *serial, u8 *value);
+bool zt_serialRead       (ztSerial *serial, u16 *value);
+bool zt_serialRead       (ztSerial *serial, u32 *value);
+bool zt_serialRead       (ztSerial *serial, u64 *value);
+bool zt_serialRead       (ztSerial *serial, r32 *value);
+bool zt_serialRead       (ztSerial *serial, r64 *value);
+bool zt_serialRead       (ztSerial *serial, bool *value);
+bool zt_serialRead       (ztSerial *serial, char *value, i32 value_len, i32 *read_len);
+bool zt_serialRead       (ztSerial *serial, void *value, i32 value_len, i32 *read_len);
+bool zt_serialRead       (ztSerial *serial, ztVariant *variant);
+bool zt_serialRead       (ztSerial *serial, ztGuid *guid);
+bool zt_serialRead       (ztSerial *serial, ztVec2 *vec);
+bool zt_serialRead       (ztSerial *serial, ztVec3 *vec);
+bool zt_serialRead       (ztSerial *serial, ztVec4 *vec);
+bool zt_serialRead       (ztSerial *serial, ztVec2i *vec);
+bool zt_serialRead       (ztSerial *serial, ztVec3i *vec);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // base64 encoding/decoding
+// ================================================================================================================================================================================================
 
 #define zt_base64GetEncodedSize(bytes_to_encode) ((((bytes_to_encode) / 3) * 4) + 3 + 1) // includes null terminator
 
-int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
-int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
+int     zt_base64Encode        (byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
+int     zt_base64Decode        (char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // random numbers
+// ================================================================================================================================================================================================
 
 #define ztRandom_MTLen	624
 
@@ -1860,15 +1918,16 @@ struct ztRandom
 	};
 };
 
-void zt_randomInit(ztRandom *random, i32 seed);
+void zt_randomInit (ztRandom *random, i32 seed);
 
-i32 zt_randomInt(ztRandom *random, i32 min, i32 max);
-r32 zt_randomVal(ztRandom *random); // between 0 and 1
-r32 zt_randomVal(ztRandom *random, r32 min, r32 max);
+i32  zt_randomInt  (ztRandom *random, i32 min, i32 max);
+r32  zt_randomVal  (ztRandom *random); // between 0 and 1
+r32  zt_randomVal  (ztRandom *random, r32 min, r32 max);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // simplex noise
+// ================================================================================================================================================================================================
 
 struct ztSimplexNoise
 {
@@ -1877,59 +1936,64 @@ struct ztSimplexNoise
 };
 
 
-ztSimplexNoise *zt_simplexNoiseMake(i64 seed);
-void            zt_simplexNoiseFree(ztSimplexNoise *noise);
+ztSimplexNoise *zt_simplexNoiseMake (i64 seed);
+void            zt_simplexNoiseFree (ztSimplexNoise *noise);
 
-r32             zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y);
-r32             zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z);
-r32             zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w);
+r32             zt_simplexNoise2D   (ztSimplexNoise *noise, r32 x, r32 y);
+r32             zt_simplexNoise3D   (ztSimplexNoise *noise, r32 x, r32 y, r32 z);
+r32             zt_simplexNoise4D   (ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // configuration files
+// ================================================================================================================================================================================================
 
 // these are really slow
-i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size);
-i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, i32 dflt);
-r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, r32 dflt);
-bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value);
+i32  zt_iniFileGetValue (const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size);
+i32  zt_iniFileGetValue (const char *ini_file, const char *section, const char *key, i32 dflt);
+r32  zt_iniFileGetValue (const char *ini_file, const char *section, const char *key, r32 dflt);
+bool zt_iniFileSetValue (const char *ini_file, const char *section, const char *key, const char *value);
 
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // command line
+// ================================================================================================================================================================================================
 
-bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long);
-bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size);
+bool zt_cmdHasArg (const char** argv, int argc, const char* arg_short, const char* arg_long);
+bool zt_cmdGetArg (const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // external processes
+// ================================================================================================================================================================================================
 
-int zt_processRun(const char *command);
-int zt_processRun(const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written = nullptr);
+int zt_processRun (const char *command);
+int zt_processRun (const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written = nullptr);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // time
+// ================================================================================================================================================================================================
 
-r64 zt_getTime(); // seconds since app started
-void zt_sleep(r32 seconds);
+r64  zt_getTime (); // seconds since app started
+void zt_sleep   (r32 seconds);
 
 struct ztDate
 {
 	int year, month, day, hour, minute, second;
 };
 
-void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *second);
-ztDate zt_getDate();
+void   zt_getDate (int *year, int *month, int *day, int *hour, int *minute, int *second);
+ztDate zt_getDate ();
 
-bool operator<(ztDate& d1, ztDate& d2);
-bool operator>(ztDate& d1, ztDate& d2);
-bool operator==(ztDate& d1, ztDate& d2);
-bool operator!=(ztDate& d1, ztDate& d2);
+bool   operator<  (ztDate& d1, ztDate& d2);
+bool   operator>  (ztDate& d1, ztDate& d2);
+bool   operator== (ztDate& d1, ztDate& d2);
+bool   operator!= (ztDate& d1, ztDate& d2);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 class ztBlockProfiler
 {
@@ -1942,23 +2006,24 @@ public:
 		zt_logMessage(log_level, "%s took %f ms to execute", block_name, (r32)(zt_getTime() - time_beg) * 1000.f);
 	}
 
-	char *block_name;
+	char                  *block_name;
 	ztLogMessageLevel_Enum log_level;
-	r64 time_beg;
+	r64                    time_beg;
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // linked lists
+// ================================================================================================================================================================================================
 
 #define zt_singleLinkAddToEnd(item_first_ptr, item_add_ptr) \
 	{ \
 		item_add_ptr->next = nullptr; \
 		auto *prev = item_first_ptr; \
-		while(prev != nullptr && prev->next != nullptr) { \
+		while (prev != nullptr && prev->next != nullptr) { \
 			prev = prev->next; \
 		} \
-		if(prev != nullptr) { \
+		if (prev != nullptr) { \
 			prev->next = item_add_ptr; \
 		} \
 		else { \
@@ -1977,10 +2042,10 @@ public:
 	{ \
 		item_add_ptr->var_name = nullptr; \
 		auto *prev = item_first_ptr; \
-		while(prev != nullptr && prev->var_name != nullptr) { \
+		while (prev != nullptr && prev->var_name != nullptr) { \
 			prev = prev->var_name; \
 		} \
-		if(prev != nullptr) { \
+		if (prev != nullptr) { \
 			prev->var_name = item_add_ptr; \
 		} \
 		else { \
@@ -1998,8 +2063,8 @@ public:
 #define zt_linkFind(item_first_ptr, item_find_ptr, condition) \
 	{ \
 		item_find_ptr = item_first_ptr; \
-		while(item_find_ptr != nullptr) { \
-			if(condition) { break; } \
+		while (item_find_ptr != nullptr) { \
+			if (condition) { break; } \
 			item_find_ptr = item_find_ptr->next; \
 		} \
 	}
@@ -2007,8 +2072,8 @@ public:
 #define zt_linkGetLast(item_first_ptr, item_find_ptr) \
 	{ \
 		item_find_ptr = item_first_ptr; \
-		while(item_find_ptr != nullptr) { \
-			if(item_find_ptr->next == nullptr) break; \
+		while (item_find_ptr != nullptr) { \
+			if (item_find_ptr->next == nullptr) break; \
 		} \
 	}
 
@@ -2017,8 +2082,9 @@ public:
 	zt_flink(link, item_first_ptr) count += 1;
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // arrays
+// ================================================================================================================================================================================================
 
 #define zt_arrayResizeArenaCopy(arr, type, old_size, new_size, arena) \
 	{ \
@@ -2029,7 +2095,6 @@ public:
 		zt_freeArena(copy, arena); \
 	}
 
-// ------------------------------------------------------------------------------------------------
 
 #define zt_arrayResizeArenaNoCopy(arr, type, new_size, arena) \
 	{ \
@@ -2038,8 +2103,9 @@ public:
 	}
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // memory reader
+// ================================================================================================================================================================================================
 
 struct ztMemoryReader
 {
@@ -2050,25 +2116,26 @@ struct ztMemoryReader
 
 ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size);
 
-ztInline i8  zt_memoryRead_i8(ztMemoryReader *reader);
-ztInline i16 zt_memoryRead_i16(ztMemoryReader *reader);
-ztInline i32 zt_memoryRead_i32(ztMemoryReader *reader);
-ztInline i64 zt_memoryRead_i64(ztMemoryReader *reader);
-ztInline u8  zt_memoryRead_u8(ztMemoryReader *reader);
-ztInline u16 zt_memoryRead_u16(ztMemoryReader *reader);
-ztInline u32 zt_memoryRead_u32(ztMemoryReader *reader);
-ztInline u64 zt_memoryRead_u64(ztMemoryReader *reader);
-ztInline r32 zt_memoryRead_r32(ztMemoryReader *reader);
-ztInline r64 zt_memoryRead_r64(ztMemoryReader *reader);
+ztInline i8             zt_memoryRead_i8  (ztMemoryReader *reader);
+ztInline i16            zt_memoryRead_i16 (ztMemoryReader *reader);
+ztInline i32            zt_memoryRead_i32 (ztMemoryReader *reader);
+ztInline i64            zt_memoryRead_i64 (ztMemoryReader *reader);
+ztInline u8             zt_memoryRead_u8  (ztMemoryReader *reader);
+ztInline u16            zt_memoryRead_u16 (ztMemoryReader *reader);
+ztInline u32            zt_memoryRead_u32 (ztMemoryReader *reader);
+ztInline u64            zt_memoryRead_u64 (ztMemoryReader *reader);
+ztInline r32            zt_memoryRead_r32 (ztMemoryReader *reader);
+ztInline r64            zt_memoryRead_r64 (ztMemoryReader *reader);
 
-ztInline i32 zt_memoryRead(ztMemoryReader *reader, void *buffer, i32 max_read);
-ztInline void *zt_memoryPointTo(ztMemoryReader *reader, i32 move_forward); // returns a pointer to the current point in memory and moves the cursor forward
+ztInline i32            zt_memoryRead     (ztMemoryReader *reader, void *buffer, i32 max_read);
+ztInline void          *zt_memoryPointTo  (ztMemoryReader *reader, i32 move_forward); // returns a pointer to the current point in memory and moves the cursor forward
 
-ztInline i32 zt_memoryLeft(ztMemoryReader *reader);
+ztInline i32            zt_memoryLeft     (ztMemoryReader *reader);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // fast memory allocations
+// ================================================================================================================================================================================================
 
 struct ztMemoryChunk
 {
@@ -2077,37 +2144,39 @@ struct ztMemoryChunk
 	i32   current;
 };
 
-ztInline ztMemoryChunk zt_memoryChunkMake(void *memory, i32 memory_size);
+ztInline ztMemoryChunk zt_memoryChunkMake                           (void *memory, i32 memory_size);
 
-ztInline void *zt_memoryChunkAlloc(ztMemoryChunk *chunk, i32 bytes);
-ztInline int   zt_memoryChunkRemaining(ztMemoryChunk *chunk);
+ztInline void         *zt_memoryChunkAlloc                          (ztMemoryChunk *chunk, i32 bytes);
+ztInline int           zt_memoryChunkRemaining                      (ztMemoryChunk *chunk);
 
-#define zt_mallocStructChunk(type, chunk)				(type *)zt_memoryChunkAlloc(chunk, zt_sizeof(type))
-#define zt_mallocStructArrayChunk(type, size, chunk)	(type *)zt_memoryChunkAlloc(chunk, zt_sizeof(type) * (size))
+#define                zt_mallocStructChunk(type, chunk)            (type *)zt_memoryChunkAlloc(chunk, zt_sizeof(type))
+#define                zt_mallocStructArrayChunk(type, size, chunk) (type *)zt_memoryChunkAlloc(chunk, zt_sizeof(type) * (size))
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // memory deltas
 //
 // This allows for the comparison of two blocks of memory and storing the deltas.  This can be used
 // to save input deltas for replay features or for sending state over the network.
+// ================================================================================================================================================================================================
 
-i32  zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, int data_size);
-void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size);
+i32  zt_memoryDeltaGet   (void *chunk1, void *chunk2, int chunk_size, void *data, int data_size);
+void zt_memoryDeltaApply (void *chunk, int chunk_size, void *diff, int diff_size);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 // compression
+// ================================================================================================================================================================================================
 
 
 //i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size); // not yet implemented
-i32 zt_compressInflate(void *compressed, i32 compressed_size, void *buffer, i32 buffer_size);
+i32 zt_compressInflate (void *compressed, i32 compressed_size, void *buffer, i32 buffer_size);
 
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 // inlined functions
 
@@ -2116,7 +2185,7 @@ ztInline bool zt_isPow2(i32 number)
 	return ((number != 0) && ((number & (~number + 1)) == number));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_nextPow2(i32 number)
 {
@@ -2125,63 +2194,63 @@ ztInline i32 zt_nextPow2(i32 number)
 	return nval;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_convertToi32Ceil(r32 number)
 {
 	return (int32)(number + (number > 0 ? 0.5f : -0.5f));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_convertToi32Floor(r32 number)
 {
 	return (int32)(number);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerp(r32 v1, r32 v2, r32 percent)
 {
 	return v1 + ((v2 - v1) * percent);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_unlerp(r32 v1, r32 v2, r32 value)
 {
 	return (v2 - v1) == 0 ? 0 : (value - v1) / (v2 - v1);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerpHermite(r32 v1, r32 v2, r32 percent)
 {
 	return zt_lerp(v1, v2, percent * percent * (3.0f - 2.0f * percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerpSinerp(r32 v1, r32 v2, r32 percent)
 {
 	return zt_lerp(v1, v2, zt_sin(percent * ztMathPi * 0.5f));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerpCoserp(r32 v1, r32 v2, r32 percent)
 {
 	return zt_lerp(v1, v2, 1.0f - zt_cos(percent * ztMathPi * 0.5f));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerpBerp(r32 v1, r32 v2, r32 percent, r32 power)
 {
 	return zt_lerp(v1, v2, zt_sin(percent * ztMathPi * (0.2f + power * percent * percent * percent)) * zt_pow(1.0f - percent, 2.2f) + percent) * (1.0f + (1.2f * (1.0f - percent)));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent)
 {
@@ -2205,28 +2274,28 @@ ztInline r32 zt_lerpCircle(r32 ang1, r32 ang2, r32 percent)
 	return retval;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_linearRemap(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
 {
 	return zt_lerp(v2a, v2b, zt_unlerp(v1a, v1b, val));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_linearRemapAndClamp(r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b)
 {
 	return zt_clamp(zt_linearRemap(val, v1a, v1b, v2a, v2b), zt_min(v2a, v2b), zt_max(v2a, v2b));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
 {
 	return (val - min) / (max - min);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 {
@@ -2236,21 +2305,21 @@ ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 	return zt_max(var - by, appr);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_lerp(i32 v1, i32 v2, r32 percent)
 {
 	return v1 + (i32)((v2 - v1) * percent);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_unlerp(i32 v1, i32 v2, r32 value)
 {
 	return (v2 - v1) == 0 ? 0 : (i32)((value - v1) / (r32)(v2 - v1));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_assert_raw(const char *condition_name, const char *file, int file_line)
 {
@@ -2260,93 +2329,93 @@ ztInline void zt_assert_raw(const char *condition_name, const char *file, int fi
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec2::length() const
 {
 	return zt_sqrt(x * x + y * y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec2::dot(const ztVec2& v) const
 {
 	return x * v.x + y * v.y;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec2::cross(const ztVec2& v) const
 {
 	return x * v.x + y * v.y;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec2::angle(const ztVec2& v) const
 {
 	return zt_radiansToDegrees(zt_atan2(v.y - y, v.x - x));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec2::distance(const ztVec2& v) const
 {
 	return zt_sqrt((x - v.x) * (x - v.x) + (y - v.y) * (y - v.y));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::fromAngle(r32 angle)
 {
 	return ztVec2(zt_cos(angle), zt_sin(angle));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
 	return ztVec2(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpHermite(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
 	return ztVec2(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpSinerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
 	return ztVec2(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpCoserp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
 	return ztVec2(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
 	return ztVec2(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b)
 {
 	return ztVec2(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztVec2::normalize()
 {
@@ -2357,7 +2426,7 @@ ztInline void ztVec2::normalize()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 ztVec2::getNormal() const
 {
@@ -2365,7 +2434,7 @@ ztInline ztVec2 ztVec2::getNormal() const
 	return zt_real32Eq(len, 0) ? *this : ztVec2(x / len, y / len);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztVec2::rotate(r32 angle)
 {
@@ -2379,7 +2448,7 @@ ztInline void ztVec2::rotate(r32 angle)
 	y = vsin * tx + vcos * ty;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 ztVec2::getRotated(r32 angle) const
 {
@@ -2394,59 +2463,59 @@ ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2)
 	return ztVec2(v1.x + v2.x, v1.y + v2.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2)
 {
 	return ztVec2(v1.x - v2.x, v1.y - v2.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2)
 {
 	return ztVec2(v1.x * v2.x, v1.y * v2.y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(const ztVec2& v1, r32 scale)
 {
 	return ztVec2(v1.x * scale, v1.y * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(r32 scale, const ztVec2& v1)
 {
 	return ztVec2(v1.x * scale, v1.y * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec3::length() const
 {
 	return zt_sqrt(x * x + y * y + z * z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec3::dot(const ztVec3& v) const
 {
 	return x * v.x + y * v.y + z * v.z;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztVec3::cross(const ztVec3& v) const
 {
 	return ztVec3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec3::angle(const ztVec3& v) const
 {
@@ -2457,7 +2526,7 @@ ztInline r32 ztVec3::angle(const ztVec3& v) const
 	return (zt_real32Eq(v1len, 0) || zt_real32Eq(v2n.length(), 0)) ? v1len : zt_acos(dot(v));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztVec3::distance(const ztVec3& v) const
 {
@@ -2465,49 +2534,49 @@ ztInline r32 ztVec3::distance(const ztVec3& v) const
 	return zt_sqrt(tx * tx + ty * ty + tz * tz);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
 	return ztVec3(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpHermite(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
 	return ztVec3(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpSinerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
 	return ztVec3(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpCoserp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
 	return ztVec3(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
 	return ztVec3(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b)
 {
 	return ztVec3(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztVec3::normalize()
 {
@@ -2519,7 +2588,7 @@ ztInline void ztVec3::normalize()
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztVec3::getNormal() const
 {
@@ -2527,130 +2596,132 @@ ztInline ztVec3 ztVec3::getNormal() const
 	return zt_real32Eq(len, 0) ? *this : ztVec3(x / len, y / len, z / len);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2)
 {
 	return ztVec3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2)
 {
 	return ztVec3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2)
 {
 	return ztVec3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(const ztVec3& v1, r32 scale)
 {
 	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 {
 	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return ztVec4(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent), v1.w + ((v2.w - v1.w) * percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpHermite(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return ztVec4(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent), zt_lerpHermite(v1.w, v2.w, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpSinerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return ztVec4(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent), zt_lerpSinerp(v1.w, v2.w, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpCoserp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return ztVec4(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent), zt_lerpCoserp(v1.w, v2.w, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return ztVec4(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent), zt_lerpBerp(v1.w, v2.w, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::linearRemap(const ztVec4& val, const ztVec4& v1a, const ztVec4& v1b, const ztVec4& v2a, const ztVec4& v2b)
 {
 	return ztVec4(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)), zt_lerp(v2a.w, v2b.w, zt_unlerp(v1a.w, v1b.w, val.w)));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec4 operator+(const ztVec4& v1, const ztVec4& v2)
 {
 	return ztVec4(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2)
 {
 	return ztVec4(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z, v1.w - v2.w);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2)
 {
 	return ztVec4(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z, v1.w * v2.w);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 {
 	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
 	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2)
 {
 	return m1.getMultiply(m2);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v)
 {
@@ -2658,9 +2729,9 @@ ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator+=(const ztQuat& q)
 {
@@ -2668,7 +2739,7 @@ ztInline ztQuat& ztQuat::operator+=(const ztQuat& q)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator-=(const ztQuat& q)
 {
@@ -2676,7 +2747,7 @@ ztInline ztQuat& ztQuat::operator-=(const ztQuat& q)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator*=(const ztQuat& q)
 {
@@ -2695,7 +2766,7 @@ ztInline ztQuat& ztQuat::operator*=(const ztQuat& q)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator/=(const ztQuat& q)
 {
@@ -2704,7 +2775,7 @@ ztInline ztQuat& ztQuat::operator/=(const ztQuat& q)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator*=(r32 s)
 {
@@ -2712,7 +2783,7 @@ ztInline ztQuat& ztQuat::operator*=(r32 s)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat& ztQuat::operator/=(r32 s)
 {
@@ -2720,28 +2791,28 @@ ztInline ztQuat& ztQuat::operator/=(r32 s)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztQuat::dot(const ztQuat& q) const
 {
 	return xyz.dot(q.xyz) + (w * q.w);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztQuat::magnitude() const
 {
 	return zt_sqrt(dot(*this));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::normalize()
 {
 	*this /= magnitude();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat ztQuat::getNormalize() const
 {
@@ -2750,7 +2821,7 @@ ztInline ztQuat ztQuat::getNormalize() const
 	return q;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::conjugate()
 {
@@ -2759,14 +2830,14 @@ ztInline void ztQuat::conjugate()
 	z = -z;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat ztQuat::getConjugate() const
 {
 	return ztQuat(-x, -y, -z, w);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::inverse()
 {
@@ -2778,7 +2849,7 @@ ztInline void ztQuat::inverse()
 	*this = conj;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat ztQuat::getInverse() const
 {
@@ -2787,7 +2858,7 @@ ztInline ztQuat ztQuat::getInverse() const
 	return q;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztQuat::axis() const
 {
@@ -2799,7 +2870,7 @@ ztInline ztVec3 ztQuat::axis() const
 	return n.xyz * (1.f / s);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 ztQuat::angle() const
 {
@@ -2812,7 +2883,7 @@ ztInline r32 ztQuat::angle() const
 	return w * zt_acos(c);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::axisAngle(ztVec3 *_axis, r32 *_angle) const
 {
@@ -2820,7 +2891,7 @@ ztInline void ztQuat::axisAngle(ztVec3 *_axis, r32 *_angle) const
 	*_angle = angle();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztQuat::euler() const
 {
@@ -2844,7 +2915,7 @@ ztInline ztVec3 ztQuat::euler() const
 	return ztVec3(zt_radiansToDegrees(roll), zt_radiansToDegrees(pitch), zt_radiansToDegrees(yaw));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::rotatePosition(ztVec3 *vec) const
 {
@@ -2853,7 +2924,7 @@ ztInline void ztQuat::rotatePosition(ztVec3 *vec) const
 	*vec = (t * w) + *vec + p;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztQuat::rotatePosition(const ztVec3 &vec) const
 {
@@ -2862,7 +2933,7 @@ ztInline ztVec3 ztQuat::rotatePosition(const ztVec3 &vec) const
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztVec3 ztQuat::rotatePosition(r32 x, r32 y, r32 z) const
 {
@@ -2871,7 +2942,7 @@ ztInline ztVec3 ztQuat::rotatePosition(r32 x, r32 y, r32 z) const
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::rotatePosition(r32 *x, r32 *y, r32 *z) const
 {
@@ -2882,7 +2953,7 @@ ztInline void ztQuat::rotatePosition(r32 *x, r32 *y, r32 *z) const
 	*z = r.z;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztMat4 ztQuat::convertToMat4() const
 {
@@ -2891,7 +2962,7 @@ ztInline ztMat4 ztQuat::convertToMat4() const
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 {
@@ -2920,21 +2991,21 @@ ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 	mat->values[ztMat4_Col3Row3] = 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztQuat ztQuat::lerp(const ztQuat& q1, const ztQuat& q2, r32 percent)
 {
 	return ztQuat(ztVec4::lerp(q1.xyzw, q2.xyzw, percent));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztQuat ztQuat::nLerp(const ztQuat& q1, const ztQuat& q2, r32 percent)
 {
 	return lerp(q1, q2, percent).getNormalize();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztQuat ztQuat::sLerp(const ztQuat& q1, const ztQuat&  q2, r32 percent)
 {
@@ -2962,7 +3033,7 @@ ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 	return (x + y) * is;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2)
 {
@@ -2971,7 +3042,7 @@ ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2)
 {
@@ -2980,7 +3051,7 @@ ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator*(const ztQuat& q1, const ztQuat& q2)
 {
@@ -2989,7 +3060,7 @@ ztInline ztQuat operator*(const ztQuat& q1, const ztQuat& q2)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator/(const ztQuat& q1, const ztQuat& q2)
 {
@@ -2998,7 +3069,7 @@ ztInline ztQuat operator/(const ztQuat& q1, const ztQuat& q2)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator*(const ztQuat& q1, r32 scale)
 {
@@ -3007,7 +3078,7 @@ ztInline ztQuat operator*(const ztQuat& q1, r32 scale)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 {
@@ -3016,9 +3087,10 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 	return r;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztGuid zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4)
 {
@@ -3026,28 +3098,28 @@ ztInline ztGuid zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4)
 	return guid;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline bool zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2)
 {
 	return (guid1.guid[0] == guid2.guid[0] && guid1.guid[1] == guid2.guid[1]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline bool operator==(const ztGuid& guid1, const ztGuid& guid2)
 {
 	return (guid1.guid[0] == guid2.guid[0] && guid1.guid[1] == guid2.guid[1]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline bool operator!=(const ztGuid& guid1, const ztGuid& guid2)
 {
 	return (guid1.guid[0] != guid2.guid[0] || guid1.guid[1] != guid2.guid[1]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size)
 {
@@ -3075,9 +3147,10 @@ ztInline void zt_guidToString(const ztGuid& guid, char *buffer, int buffer_size)
 	buffer[19] = '-';
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztVariant        zt_variantMake_i8        (i8            val)          { ztVariant var; var.type = ztVariant_i8   ; var.v_i8    = val; return var; }
 ztInline ztVariant        zt_variantMake_i16       (i16           val)          { ztVariant var; var.type = ztVariant_i16  ; var.v_i16   = val; return var; }
@@ -3231,9 +3304,10 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 	ztVariant v = { ztVariant_Invalid }; return v;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size)
 {
@@ -3244,7 +3318,7 @@ ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size)
 	return reader;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i8 zt_memoryRead_i8(ztMemoryReader *reader)
 {
@@ -3253,7 +3327,7 @@ ztInline i8 zt_memoryRead_i8(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i16 zt_memoryRead_i16(ztMemoryReader *reader)
 {
@@ -3262,7 +3336,7 @@ ztInline i16 zt_memoryRead_i16(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_memoryRead_i32(ztMemoryReader *reader)
 {
@@ -3271,7 +3345,7 @@ ztInline i32 zt_memoryRead_i32(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i64 zt_memoryRead_i64(ztMemoryReader *reader)
 {
@@ -3280,7 +3354,7 @@ ztInline i64 zt_memoryRead_i64(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline u8  zt_memoryRead_u8(ztMemoryReader *reader)
 {
@@ -3289,7 +3363,7 @@ ztInline u8  zt_memoryRead_u8(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline u16 zt_memoryRead_u16(ztMemoryReader *reader)
 {
@@ -3298,7 +3372,7 @@ ztInline u16 zt_memoryRead_u16(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline u32 zt_memoryRead_u32(ztMemoryReader *reader)
 {
@@ -3307,7 +3381,7 @@ ztInline u32 zt_memoryRead_u32(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline u64 zt_memoryRead_u64(ztMemoryReader *reader)
 {
@@ -3316,7 +3390,7 @@ ztInline u64 zt_memoryRead_u64(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r32 zt_memoryRead_r32(ztMemoryReader *reader)
 {
@@ -3325,7 +3399,7 @@ ztInline r32 zt_memoryRead_r32(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline r64 zt_memoryRead_r64(ztMemoryReader *reader)
 {
@@ -3334,7 +3408,7 @@ ztInline r64 zt_memoryRead_r64(ztMemoryReader *reader)
 	return var;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_memoryRead(ztMemoryReader *reader, void *buffer, i32 max_read)
 {
@@ -3344,7 +3418,7 @@ ztInline i32 zt_memoryRead(ztMemoryReader *reader, void *buffer, i32 max_read)
 	return max;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline void *zt_memoryPointTo(ztMemoryReader *reader, i32 move_forward)
 {
@@ -3358,16 +3432,17 @@ ztInline void *zt_memoryPointTo(ztMemoryReader *reader, i32 move_forward)
 	return ((byte*)reader->memory) + current;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_memoryLeft(ztMemoryReader *reader)
 {
 	return reader->memory_size - reader->current;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline ztMemoryChunk zt_memoryChunkMake(void *memory, i32 memory_size)
 {
@@ -3378,7 +3453,7 @@ ztInline ztMemoryChunk zt_memoryChunkMake(void *memory, i32 memory_size)
 	return chunk;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_memoryChunkAlloc(ztMemoryChunk *chunk, i32 bytes)
 {
@@ -3389,16 +3464,17 @@ void *zt_memoryChunkAlloc(ztMemoryChunk *chunk, i32 bytes)
 	return (void*)(((byte*)chunk->memory) + current);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline int zt_memoryChunkRemaining(ztMemoryChunk *chunk)
 {
 	return chunk->memory_size - chunk->current;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInline const char *zt_strCodepoint(const char *s, i32* code_point)
 {
@@ -3428,7 +3504,7 @@ ztInline const char *zt_strCodepoint(const char *s, i32* code_point)
 	return s;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInline i32 zt_strCodepoint(const char *s, int pos)
 {
@@ -3439,9 +3515,9 @@ ztInline i32 zt_strCodepoint(const char *s, int pos)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_DLL_SET_GLOBALS(name) void name(void *memory, int version)
 typedef ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals_Func);
@@ -3453,39 +3529,42 @@ void zt_dllSendGlobals(zt_dllSetGlobals_Func *set_globals);
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #endif // include guard
+
 
 #if defined(ZT_TOOLS_IMPLEMENTATION) || defined(ZT_TOOLS_INTERNAL_DECLARATIONS)
 
 #ifndef __zt_tools_h_internal_included__
 #define __zt_tools_h_internal_included__
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 void *_zt_call_malloc(size_t);
 void  _zt_call_free(void*);
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_LOG_CALLBACKS
 #define ZT_MAX_LOG_CALLBACKS	8
@@ -3495,7 +3574,8 @@ void  _zt_call_free(void*);
 #define ZT_MEM_GLOBAL_ARENA_STACK_SIZE	64
 #endif
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztGlobals
 {
@@ -3522,9 +3602,10 @@ extern ztGlobals *zt;
 #ifndef __zt_tools_implementation__
 #define __zt_tools_implementation__
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #ifdef ZT_PROFILE
 #define ZT_SYSTEM_INTRINSICS          "Intrinsics"
@@ -3554,7 +3635,7 @@ ztGlobals zt_local = {};
 
 	ZT_DLLEXPORT ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals)
 	{
-		if(version == ZT_GLOBALS_VERSION) {
+		if (version == ZT_GLOBALS_VERSION) {
 			zt = (ztGlobals *)memory;
 		}
 	}
@@ -3571,15 +3652,17 @@ ztGlobals zt_local = {};
 	}
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_FUNCTION_POINTER_ENTRIES
 #define ZT_MAX_FUNCTION_POINTER_ENTRIES  256
 #endif
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 #if defined(ZT_WINDOWS)
 
@@ -3594,14 +3677,16 @@ struct ztThread
 	bool                running;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztThreadMutex
 {
 	CRITICAL_SECTION cs;
 };
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztThreadMonitor
 {
@@ -3610,15 +3695,18 @@ struct ztThreadMonitor
 
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 //these aren't in ztGlobals because they must be process-specific:
 ztInternal void *_zt_function_pointers[ZT_MAX_FUNCTION_POINTER_ENTRIES];
 ztInternal i32   _zt_function_hashes  [ZT_MAX_FUNCTION_POINTER_ENTRIES];
 ztInternal int   _zt_function_count = 0;
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 ztFunctionID zt_registerFunctionPointer(const char *function_name, void *function)
 {
@@ -3639,7 +3727,7 @@ ztFunctionID zt_registerFunctionPointer(const char *function_name, void *functio
 	return _zt_function_hashes[idx];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_functionPointer(ztFunctionID function_id)
 {
@@ -3662,9 +3750,9 @@ void *zt_functionPointer(ztFunctionID function_id)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void *_zt_call_malloc(size_t size)
 {
@@ -3676,7 +3764,7 @@ void  _zt_call_free(void* mem)
 	free(mem);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if defined(ZT_COMPILER_MSVC)
 #define _zt_var_args \
@@ -3708,7 +3796,7 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logMessage(ztLogMessageLevel_Enum level, const char *message, ...)
 {
@@ -3716,7 +3804,7 @@ void zt_logMessage(ztLogMessageLevel_Enum level, const char *message, ...)
 	_zt_logMessageRaw(level, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logVerbose(const char *message, ...)
 {
@@ -3724,7 +3812,7 @@ void zt_logVerbose(const char *message, ...)
 	_zt_logMessageRaw(ztLogMessageLevel_Verbose, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logDebug(const char *message, ...)
 {
@@ -3732,7 +3820,7 @@ void zt_logDebug(const char *message, ...)
 	_zt_logMessageRaw(ztLogMessageLevel_Debug, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logInfo(const char *message, ...)
 {
@@ -3740,7 +3828,7 @@ void zt_logInfo(const char *message, ...)
 	_zt_logMessageRaw(ztLogMessageLevel_Info, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logCritical(const char *message, ...)
 {
@@ -3748,7 +3836,7 @@ void zt_logCritical(const char *message, ...)
 	_zt_logMessageRaw(ztLogMessageLevel_Critical, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logFatal(const char *message, ...)
 {
@@ -3756,11 +3844,11 @@ void zt_logFatal(const char *message, ...)
 	_zt_logMessageRaw(ztLogMessageLevel_Fatal, (const char *)buffer);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #undef _zt_var_args
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_level)
 {
@@ -3771,7 +3859,7 @@ void zt_logAddCallback(zt_logCallback_Func callback, ztLogMessageLevel_Enum min_
 	zt->log_callbacks_minlevel[idx] = min_level;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_logRemoveCallback(zt_logCallback_Func callback)
 {
@@ -3787,7 +3875,7 @@ void zt_logRemoveCallback(zt_logCallback_Func callback)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void  zt_memSet(void *mem, int32 mem_len, byte value)
 {
@@ -3817,7 +3905,7 @@ void  zt_memSet(void *mem, int32 mem_len, byte value)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 {
@@ -3829,32 +3917,32 @@ void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 //		((byte*)dst)[i] = ((byte*)src)[i];
 //	}
 
-	if(max_idx % 4 == 0) {
+	if (max_idx % 4 == 0) {
 		max_idx /= 4;
 		u32 *udst = (u32*)dst;
 		u32 *usrc = (u32*)src;
-		while(max_idx--) {
+		while (max_idx--) {
 			*udst++ = *usrc++;
 		}
 	}
-	else if(max_idx % 2 == 0) {
+	else if (max_idx % 2 == 0) {
 		max_idx /= 2;
 		u16 *udst = (u16*)dst;
 		u16 *usrc = (u16*)src;
-		while(max_idx--) {
+		while (max_idx--) {
 			*udst++ = *usrc++;
 		}
 	}
 	else {
 		byte *bdst = (byte*)dst;
 		byte *bsrc = (byte*)src;
-		while(max_idx--) {
+		while (max_idx--) {
 			*bdst++ = *bsrc++;
 		}
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_memCmp(const void *one, const void *two, i32 size)
 {
@@ -3870,15 +3958,18 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #if defined(ZT_MEM_ARENA_LOG_DETAILS)
-#define zt_logMemory(...) zt_logVerbose(__VA_ARGS__)
+#	define zt_logMemory(...) zt_logVerbose(__VA_ARGS__)
 #else
-#define zt_logMemory(...)
+#	define zt_logMemory(...)
 #endif
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 {
@@ -3888,7 +3979,7 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 	if (from == nullptr) {
 #if defined(ZT_COMPILER_MSVC)
 		arena = (ztMemoryArena*)VirtualAlloc((VOID*)zt_gigabytes(1), total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		if(arena == nullptr) {
+		if (arena == nullptr) {
 			zt_strMakePrintf(error, 1024, "VirtualAlloc failed with code: %d\n", GetLastError());
 			OutputDebugStringA(error);
 
@@ -3931,7 +4022,7 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 	return arena;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memFreeArena(ztMemoryArena *arena)
 {
@@ -3953,7 +4044,7 @@ void zt_memFreeArena(ztMemoryArena *arena)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
 {
@@ -3971,11 +4062,11 @@ void zt_memArenaClearAllocations(ztMemoryArena *arena, bool wipe_memory)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memValidateArena(ztMemoryArena *arena)
 {
-#if 1 || defined(ZT_DEBUG)
+#	if 1 || defined(ZT_DEBUG)
 	ZT_PROFILE_TOOLS("zt_memValidateArena");
 
 	{
@@ -4025,11 +4116,10 @@ void zt_memValidateArena(ztMemoryArena *arena)
 			alloc = alloc->next;
 		}
 	}
-	
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
@@ -4041,14 +4131,14 @@ void zt_memDumpArenaDiagnostics(ztMemoryArena *arena, const char *name, ztLogMes
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::allocation *alloc, const char *file_name)
 {
 	ZT_PROFILE_TOOLS("_zt_memAllocSetFileName");
 
 	alloc->file = nullptr;
-	if(file_name == nullptr) {
+	if (file_name == nullptr) {
 		return;
 	}
 
@@ -4057,16 +4147,16 @@ ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::all
 
 	int idx = -1;
 	zt_fize(arena->file_names_hashes) {
-		if(arena->file_names_hashes[i] == 0 || arena->file_names_hashes[i] == file_name_hash) {
+		if (arena->file_names_hashes[i] == 0 || arena->file_names_hashes[i] == file_name_hash) {
 			idx = i;
 			break;
 		}
 	}
 
-	if(arena->file_names_hashes[idx] == 0) {
+	if (arena->file_names_hashes[idx] == 0) {
 		int len = zt_strLen(file_name_only);
 
-		if(arena->file_name_buffer_pos + len + 1 >= zt_elementsOf(arena->file_name_buffer)) {
+		if (arena->file_name_buffer_pos + len + 1 >= zt_elementsOf(arena->file_name_buffer)) {
 			return;
 		}
 
@@ -4080,7 +4170,7 @@ ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::all
 	alloc->file = arena->file_names[idx];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
@@ -4211,7 +4301,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	return (void*)allocation->start;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int file_line)
 {
@@ -4229,7 +4319,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 {
@@ -4274,7 +4364,7 @@ void *zt_memRealloc(ztMemoryArena *arena, void *data, i32 size)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memFree(ztMemoryArena *arena, void *data)
 {
@@ -4347,7 +4437,7 @@ void zt_memFree(ztMemoryArena *arena, void *data)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_memBelongsTo(ztMemoryArena *arena, void *data)
 {
@@ -4357,13 +4447,13 @@ bool zt_memBelongsTo(ztMemoryArena *arena, void *data)
 	return (data >= arena->memory && data <= (arena->memory + arena->total_size));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_Enum log_level)
 {
 	ZT_PROFILE_TOOLS("zt_memDumpArena");
 
-	if(arena == nullptr) {
+	if (arena == nullptr) {
 		zt_logMessage(log_level, "memory: no arena was allocated");
 		return;
 	}
@@ -4389,7 +4479,7 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_memArenaValidate(ztMemoryArena *arena)
 {
@@ -4413,7 +4503,7 @@ bool zt_memArenaValidate(ztMemoryArena *arena)
 	return !failed;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_memPushGlobalArena(ztMemoryArena *arena)
 {
@@ -4428,7 +4518,7 @@ bool zt_memPushGlobalArena(ztMemoryArena *arena)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memPopGlobalArena()
 {
@@ -4438,7 +4528,7 @@ void zt_memPopGlobalArena()
 	zt->mem_global_arena_stack_count -= 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMemoryArena* zt_memGetGlobalArena()
 {
@@ -4448,7 +4538,7 @@ ztMemoryArena* zt_memGetGlobalArena()
 	return zt->mem_global_arena_stack[zt->mem_global_arena_stack_count - 1];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*))
 {
@@ -4456,7 +4546,7 @@ void zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(v
 	zt->mem_free   = free_func;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 {
@@ -4473,7 +4563,7 @@ void *zt_memAllocGlobalFull(i32 size, const char *file, int file_line)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memFreeGlobal(void *data)
 {
@@ -4488,9 +4578,10 @@ void zt_memFreeGlobal(void *data)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 /*static*/ const ztVec2 ztVec2::zero = ztVec2(0, 0);
 /*static*/ const ztVec2 ztVec2::one  = ztVec2(1, 1);
@@ -4512,7 +4603,7 @@ void zt_memFreeGlobal(void *data)
 
 /*static*/ const ztQuat ztQuat::identity = ztQuat(0, 0, 0, 1);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_sin(r32 x)
 {
@@ -4521,7 +4612,7 @@ r32 zt_sin(r32 x)
 	return sinf(x);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_asin(r32 x)
 {
@@ -4530,7 +4621,7 @@ r32 zt_asin(r32 x)
 	return asinf(x);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_cos(r32 y)
 {
@@ -4539,7 +4630,7 @@ r32 zt_cos(r32 y)
 	return cosf(y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_acos(r32 y)
 {
@@ -4548,7 +4639,7 @@ r32 zt_acos(r32 y)
 	return acosf(y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_tan(r32 r)
 {
@@ -4557,7 +4648,7 @@ r32 zt_tan(r32 r)
 	return tan(r);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_atan(r32 v)
 {
@@ -4566,7 +4657,7 @@ r32 zt_atan(r32 v)
 	return atanf(v);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_atan2(r32 x, r32 y)
 {
@@ -4575,7 +4666,7 @@ r32 zt_atan2(r32 x, r32 y)
 	return atan2f(x, y);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_sqrt(r32 v)
 {
@@ -4584,7 +4675,7 @@ r32 zt_sqrt(r32 v)
 	return sqrtf(v);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_pow(r32 v, r32 p)
 {
@@ -4593,7 +4684,7 @@ r32 zt_pow(r32 v, r32 p)
 	return powf(v, p);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_exp(r32 v)
 {
@@ -4602,22 +4693,23 @@ r32 zt_exp(r32 v)
 	return expf(v);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void ztMat4::rotateEuler(const ztVec3& euler)
 {
 	rotateEuler(euler.x, euler.y, euler.z);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 {
 	ZT_PROFILE_TOOLS("ztMat4::rotateEuler");
 
-#if 0
+#	if 0
 	x = zt_degreesToRadians(x);
 	y = zt_degreesToRadians(y);
 	z = zt_degreesToRadians(z);
@@ -4636,8 +4728,8 @@ void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 	m.values[ztMat4_Col0Row3] =  0;                      m.values[ztMat4_Col1Row3] =  0;                      m.values[ztMat4_Col2Row3] =  0;       m.values[ztMat4_Col3Row3] = 1;
 
 	multiply(m);
-#endif
-#if 1
+#	endif
+#	if 1
 	// pitch = y, yaw = x, roll = z
 
 	x = zt_degreesToRadians(x);
@@ -4667,10 +4759,10 @@ void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 
 	ztMat4 mult_xyz = (rot_z * rot_y) * rot_x;
 	multiply(mult_xyz);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getRotateEuler(const ztVec3& euler) const
 {
@@ -4681,7 +4773,7 @@ ztMat4 ztMat4::getRotateEuler(const ztVec3& euler) const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getRotateEuler(r32 x, r32 y, r32 z) const
 {
@@ -4692,7 +4784,7 @@ ztMat4 ztMat4::getRotateEuler(r32 x, r32 y, r32 z) const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::multiply(const ztMat4& m2)
 {
@@ -4721,7 +4813,7 @@ void ztMat4::multiply(const ztMat4& m2)
 	values[ztMat4_Col3Row3] = (m1.values[ztMat4_Col0Row3] * m2.values[ztMat4_Col3Row0]) + (m1.values[ztMat4_Col1Row3] * m2.values[ztMat4_Col3Row1]) + (m1.values[ztMat4_Col2Row3] * m2.values[ztMat4_Col3Row2]) + (m1.values[ztMat4_Col3Row3] * m2.values[ztMat4_Col3Row3]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
 {
@@ -4732,7 +4824,7 @@ ztMat4 ztMat4::getMultiply(const ztMat4& mat) const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 {
@@ -4743,7 +4835,7 @@ ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 	              (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::transpose()
 {
@@ -4756,7 +4848,7 @@ void ztMat4::transpose()
 	values[3] = m.values[12]; values[7] = m.values[13]; values[11] = m.values[14]; values[15] = m.values[15];
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getTranspose() const
 {
@@ -4767,7 +4859,7 @@ ztMat4 ztMat4::getTranspose() const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::inverse()
 {
@@ -4810,7 +4902,7 @@ void ztMat4::inverse()
 		values[i] = values[i] * det;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getInverse() const
 {
@@ -4821,7 +4913,7 @@ ztMat4 ztMat4::getInverse() const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 {
@@ -4847,7 +4939,7 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	*this = p * l;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec) const
 {
@@ -4858,7 +4950,7 @@ ztMat4 ztMat4::getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec) const
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const // does not work well with scaled matrices
 {
@@ -4900,7 +4992,7 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const //
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const
 {
@@ -4923,7 +5015,7 @@ void ztMat4::extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::removeTranslation()
 {
@@ -4933,7 +5025,7 @@ void ztMat4::removeTranslation()
 	//values[ztMat4_Col0Row3] = values[ztMat4_Col1Row3] = values[ztMat4_Col2Row3] = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4 ztMat4::getRemoveTranslation()
 {
@@ -4944,7 +5036,7 @@ ztMat4 ztMat4::getRemoveTranslation()
 	return copy;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 {
@@ -4954,7 +5046,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	return *this;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztMat4 ztMat4::makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z)
 {
@@ -4970,7 +5062,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	return ztMat4(m);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztMat4 ztMat4::makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z)
 {
@@ -4989,7 +5081,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	return ztMat4(m);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztMat4::cleanup(int digits)
 {
@@ -5001,9 +5093,10 @@ void ztMat4::cleanup(int digits)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 /*static*/ ztInline ztQuat ztQuat::makeFromAxisAngle(r32 axis_x, r32 axis_y, r32 axis_z, r32 angle)
 {
@@ -5017,14 +5110,14 @@ void ztMat4::cleanup(int digits)
 	return quat;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 {
 	return makeFromAxisAngle(axis.x, axis.y, axis.z, angle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 /*static*/ztInline  ztQuat ztQuat::makeFromEuler(r32 x, r32 y, r32 z)
 {
 	ZT_PROFILE_TOOLS("ztQuat::makeFromEuler");
@@ -5048,7 +5141,7 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	return ztQuat(qx, qy, qz, qw);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztQuat ztQuat::makeFromMat4(const ztMat4& mat)
 {
@@ -5080,7 +5173,7 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	return ztQuat::identity;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztQuat ztQuat::makeFromDirection(const ztVec3& dir, const ztVec3& up)
 {
@@ -5092,7 +5185,7 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	return ztQuat::makeFromMat4(mat);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 /*static*/ ztQuat ztQuat::makeFromPoints(const ztVec3& p1, const ztVec3 p2)
 {
@@ -5105,9 +5198,10 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	return quat;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_strEquals(const char *s1, const char *s2)
 {
@@ -5116,7 +5210,7 @@ bool zt_strEquals(const char *s1, const char *s2)
 	return zt_strCmp(s1, s2) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strEquals(const char *s1, int s1_len, const char *s2)
 {
@@ -5125,7 +5219,7 @@ bool zt_strEquals(const char *s1, int s1_len, const char *s2)
 	return zt_strCmp(s1, s1_len, s2, zt_strLen(s2)) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 {
@@ -5134,7 +5228,7 @@ bool zt_strEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 	return zt_strCmp(s1, s1_len, s2, s2_len) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striEquals(const char *s1, const char *s2)
 {
@@ -5143,7 +5237,7 @@ bool zt_striEquals(const char *s1, const char *s2)
 	return zt_striCmp(s1, s2) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striEquals(const char *s1, int s1_len, const char *s2)
 {
@@ -5152,7 +5246,7 @@ bool zt_striEquals(const char *s1, int s1_len, const char *s2)
 	return zt_striCmp(s1, s1_len, s2, zt_strLen(s2)) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 {
@@ -5161,7 +5255,7 @@ bool zt_striEquals(const char *s1, int s1_len, const char *s2, int s2_len)
 	return zt_striCmp(s1, s1_len, s2, s2_len) == 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strValid(const char *s, const char **invalid_ch)
 {
@@ -5258,7 +5352,7 @@ bool zt_strValid(const char *s, const char **invalid_ch)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strLen(const char *s)
 {
@@ -5277,7 +5371,7 @@ int zt_strLen(const char *s)
 	return len;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strSize(const char *s)
 {
@@ -5293,7 +5387,7 @@ int zt_strSize(const char *s)
 	return ++size; // add null terminator
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define _zt_strCmpIsEmpty(s) ((s) == nullptr || *(s) == 0)
 
@@ -5313,7 +5407,7 @@ int zt_strCmp(const char *s1, const char *s2)
 	return 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 {
@@ -5334,7 +5428,7 @@ int zt_strCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 	return 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striCmp(const char *s1, const char *s2)
 {
@@ -5361,7 +5455,7 @@ int zt_striCmp(const char *s1, const char *s2)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 {
@@ -5392,7 +5486,7 @@ int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 
 #undef _zt_strCmpIsEmpty
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strMoveForward(const char *s, int characters)
 {
@@ -5409,14 +5503,14 @@ const char *zt_strMoveForward(const char *s, int characters)
 	return s;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCpy(char *scopy, int scopy_len, const char *sfrom)
 {
 	return zt_strCpy(scopy, scopy_len, sfrom, zt_strLen(sfrom));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
 {
@@ -5438,14 +5532,14 @@ int zt_strCpy(char *scopy, int scopy_len, const char *sfrom, int sfrom_len)
 	return max_idx;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCat(char *scat, int scat_len, const char *scopy)
 {
 	return zt_strCat(scat, scat_len, scopy, zt_strLen(scopy));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len)
 {
@@ -5473,7 +5567,7 @@ int zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len)
 	return max_idx + start;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCatf(char *scat, int scat_len, const char *format, ...)
 {
@@ -5500,7 +5594,7 @@ int zt_strCatf(char *scat, int scat_len, const char *format, ...)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsInt(char *s)
 {
@@ -5511,7 +5605,7 @@ bool zt_strIsInt(char *s)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsInt(char *s, int s_len)
 {
@@ -5522,7 +5616,7 @@ bool zt_strIsInt(char *s, int s_len)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsIntHex(char *s)
 {
@@ -5533,7 +5627,7 @@ bool zt_strIsIntHex(char *s)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsIntHex(char *s, int s_len)
 {
@@ -5544,7 +5638,7 @@ bool zt_strIsIntHex(char *s, int s_len)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsReal32(char *s)
 {
@@ -5555,7 +5649,7 @@ bool zt_strIsReal32(char *s)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsReal32(char *s, int s_len)
 {
@@ -5566,7 +5660,7 @@ bool zt_strIsReal32(char *s, int s_len)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsReal64(char *s)
 {
@@ -5577,7 +5671,7 @@ bool zt_strIsReal64(char *s)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strIsReal64(char *s, int s_len)
 {
@@ -5588,7 +5682,7 @@ bool zt_strIsReal64(char *s, int s_len)
 	return success;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define _zt_str_to_prepare_and_check \
 	if (!s || s_len == 0) { \
@@ -5605,14 +5699,14 @@ bool zt_strIsReal64(char *s, int s_len)
 		return def; \
 	}
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_strToInt(const char *s, i32 def, bool* success)
 {
 	return zt_strToInt(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_strToInt(const char *s, int s_len, i32 def, bool* success)
 {
@@ -5637,14 +5731,14 @@ i32 zt_strToInt(const char *s, int s_len, i32 def, bool* success)
 	return strtol(buffer, nullptr, 10);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u32 zt_strToUint(const char *s, u32 def, bool* success)
 {
 	return zt_strToUint(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u32 zt_strToUint(const char *s, int s_len, u32 def, bool* success)
 {
@@ -5667,14 +5761,14 @@ u32 zt_strToUint(const char *s, int s_len, u32 def, bool* success)
 	return strtoul(buffer, nullptr, 10);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u32 zt_strToIntHex(const char *s, u32 def, bool* success)
 {
 	return zt_strToIntHex(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool* success)
 {
@@ -5702,14 +5796,14 @@ u32 zt_strToIntHex(const char *s, int s_len, u32 def, bool* success)
 	return strtoul(buffer, nullptr, 16);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i64 zt_strToInt64(const char *s, i64 def, bool *success)
 {
 	return zt_strToInt64(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success)
 {
@@ -5738,14 +5832,14 @@ i64 zt_strToInt64(const char *s, int s_len, i64 def, bool *success)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u64 zt_strToUint64(const char *s, u64 def, bool *success)
 {
 	return zt_strToUint64(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success)
 {
@@ -5772,14 +5866,14 @@ u64 zt_strToUint64(const char *s, int s_len, u64 def, bool *success)
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_strToReal32(const char *s, r32 def, bool* success)
 {
 	return zt_strToReal32(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success)
 {
@@ -5800,14 +5894,14 @@ r32 zt_strToReal32(const char *s, int s_len, r32 def, bool* success)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r64 zt_strToReal64(const char *s, r64 def, bool* success)
 {
 	return zt_strToReal64(s, zt_strLen(s), def, success);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 {
@@ -5830,13 +5924,17 @@ r64 zt_strToReal64(const char *s, int s_len, r64 def, bool* success)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+
+#undef _zt_str_to_prepare_and_check
+
+// ================================================================================================================================================================================================
 
 u32 zt_strHash(const char *s)
 {
 	//ZT_PROFILE_TOOLS("zt_strHash"); this is called in the profiling code
 
-	if(s == nullptr) {
+	if (s == nullptr) {
 		return 0;
 	}
 
@@ -5904,11 +6002,7 @@ u32 zt_strHash(const char *s)
 	return h;
 }
 
-// ------------------------------------------------------------------------------------------------
-
-#undef _zt_str_to_prepare_and_check
-
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFind(const char *haystack, const char *needle)
 {
@@ -5918,7 +6012,7 @@ const char *zt_strFind(const char *haystack, const char *needle)
 	return zt_strFind(haystack, haystack_len, needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFind(const char *haystack, int haystack_len, const char *needle)
 {
@@ -5952,7 +6046,7 @@ const char *zt_strFind(const char *haystack, int haystack_len, const char *needl
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindPos(const char *haystack, const char *needle, int start_pos)
 {
@@ -5962,7 +6056,7 @@ int zt_strFindPos(const char *haystack, const char *needle, int start_pos)
 	return zt_strFindPos(haystack, haystack_len, needle, start_pos);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
@@ -6000,7 +6094,7 @@ int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, in
 	return ztStrPosNotFound;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFindLast(const char *haystack, const char *needle)
 {
@@ -6010,7 +6104,7 @@ const char *zt_strFindLast(const char *haystack, const char *needle)
 	return zt_strFindLast(haystack, haystack_len, needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFindLast(const char *haystack, int haystack_len, const char *needle)
 {
@@ -6032,7 +6126,7 @@ const char *zt_strFindLast(const char *haystack, int haystack_len, const char *n
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
@@ -6042,7 +6136,7 @@ int zt_strFindLastPos(const char *haystack, const char *needle, int start_pos)
 	return zt_strFindLastPos(haystack, haystack_len, needle, start_pos);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
@@ -6074,9 +6168,11 @@ int zt_strFindLastPos(const char *haystack, int haystack_len, const char *needle
 	return ztStrPosNotFound;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define _zt_to_upper(c)	((c) >= 97 && (c) <= 122 ? (c) - 32 : (c))
+
+// ================================================================================================================================================================================================
 
 const char *zt_striFind(const char *haystack, const char *needle)
 {
@@ -6086,7 +6182,7 @@ const char *zt_striFind(const char *haystack, const char *needle)
 	return zt_striFind(haystack, haystack_len, needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_striFind(const char *haystack, int haystack_len, const char *needle)
 {
@@ -6120,7 +6216,7 @@ const char *zt_striFind(const char *haystack, int haystack_len, const char *need
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striFindPos(const char *haystack, const char *needle, int start_pos)
 {
@@ -6130,7 +6226,7 @@ int zt_striFindPos(const char *haystack, const char *needle, int start_pos)
 	return zt_striFindPos(haystack, haystack_len, needle, start_pos);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
@@ -6168,7 +6264,7 @@ int zt_striFindPos(const char *haystack, int haystack_len, const char *needle, i
 	return -1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_striFindLast(const char *haystack, const char *needle)
 {
@@ -6178,7 +6274,7 @@ const char *zt_striFindLast(const char *haystack, const char *needle)
 	return zt_striFindLast(haystack, haystack_len, needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_striFindLast(const char *haystack, int haystack_len, const char *needle)
 {
@@ -6200,7 +6296,7 @@ const char *zt_striFindLast(const char *haystack, int haystack_len, const char *
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos)
 {
@@ -6210,7 +6306,7 @@ int zt_striFindLastPos(const char *haystack, const char *needle, int start_pos)
 	return zt_striFindLastPos(haystack, haystack_len, needle, start_pos);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needle, int start_pos)
 {
@@ -6242,7 +6338,7 @@ int zt_striFindLastPos(const char *haystack, int haystack_len, const char *needl
 	return -1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFindFirstOf(const char *haystack, const char **needles, int needles_count)
 {
@@ -6251,7 +6347,7 @@ const char *zt_strFindFirstOf(const char *haystack, const char **needles, int ne
 	return zt_strFindFirstOf(haystack, zt_strLen(haystack), needles, needles_count);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char **needles, int needles_count)
 {
@@ -6260,7 +6356,7 @@ const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char
 	const char *result = nullptr;
 	zt_fiz(needles_count) {
 		const char *found = zt_strFind(haystack, haystack_len, needles[i]);
-		if(found && (result == nullptr || found < result)) {
+		if (found && (result == nullptr || found < result)) {
 			result = found;
 		}
 	}
@@ -6268,7 +6364,7 @@ const char *zt_strFindFirstOf(const char *haystack, int haystack_len, const char
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles_count)
 {
@@ -6277,7 +6373,7 @@ int zt_strFindFirstOfPos(const char *haystack, const char **needles, int needles
 	return zt_strFindFirstOfPos(haystack, zt_strLen(haystack), needles, needles_count);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **needles, int needles_count)
 {
@@ -6286,7 +6382,7 @@ int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **ne
 	int result = ztStrPosNotFound;
 	zt_fiz(needles_count) {
 		int found = zt_strFindPos(haystack, haystack_len, needles[i], 0);
-		if(found != ztStrPosNotFound && (result == ztStrPosNotFound || found < result)) {
+		if (found != ztStrPosNotFound && (result == ztStrPosNotFound || found < result)) {
 			result = found;
 		}
 	}
@@ -6295,7 +6391,7 @@ int zt_strFindFirstOfPos(const char *haystack, int haystack_len, const char **ne
 
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCount(const char *haystack, const char *needle)
 {
@@ -6304,7 +6400,7 @@ int zt_strCount(const char *haystack, const char *needle)
 	return zt_strCount(haystack, zt_strLen(haystack), needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strCount(const char *haystack, int haystack_len, const char *needle)
 {
@@ -6312,7 +6408,7 @@ int zt_strCount(const char *haystack, int haystack_len, const char *needle)
 
 	int count = 0;
 	int pos = zt_strFindPos(haystack, haystack_len, needle, 0);
-	while(pos != ztStrPosNotFound) {
+	while (pos != ztStrPosNotFound) {
 		count += 1;
 		pos = zt_strFindPos(haystack, haystack_len, needle, pos + 1);
 	}
@@ -6320,7 +6416,7 @@ int zt_strCount(const char *haystack, int haystack_len, const char *needle)
 	return count;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striCount(const char *haystack, const char *needle)
 {
@@ -6329,7 +6425,7 @@ int zt_striCount(const char *haystack, const char *needle)
 	return zt_striCount(haystack, zt_strLen(haystack), needle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_striCount(const char *haystack, int haystack_len, const char *needle)
 {
@@ -6337,7 +6433,7 @@ int zt_striCount(const char *haystack, int haystack_len, const char *needle)
 
 	int count = 0;
 	int pos = zt_striFindPos(haystack, haystack_len, needle, 0);
-	while(pos != ztStrPosNotFound) {
+	while (pos != ztStrPosNotFound) {
 		count += 1;
 		pos = zt_striFindPos(haystack, haystack_len, needle, pos + 1);
 	}
@@ -6345,7 +6441,7 @@ int zt_striCount(const char *haystack, int haystack_len, const char *needle)
 	return count;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strStartsWith(const char *s, const char *starts_with)
 {
@@ -6354,7 +6450,7 @@ bool zt_strStartsWith(const char *s, const char *starts_with)
 	return zt_strStartsWith(s, zt_strLen(s), starts_with, zt_strLen(starts_with));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
@@ -6370,7 +6466,7 @@ bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strEndsWith(const char *s, const char *ends_with)
 {
@@ -6379,7 +6475,7 @@ bool zt_strEndsWith(const char *s, const char *ends_with)
 	return zt_strEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 {
@@ -6395,7 +6491,7 @@ bool zt_strEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striStartsWith(const char *s, const char *starts_with)
 {
@@ -6404,7 +6500,7 @@ bool zt_striStartsWith(const char *s, const char *starts_with)
 	return zt_striStartsWith(s, zt_strLen(s), starts_with, zt_strLen(starts_with));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
@@ -6420,7 +6516,7 @@ bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striEndsWith(const char *s, const char *ends_with)
 {
@@ -6429,7 +6525,7 @@ bool zt_striEndsWith(const char *s, const char *ends_with)
 	return zt_striEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len)
 {
@@ -6445,7 +6541,7 @@ bool zt_striEndsWith(const char *s, int s_len, const char *ends_with, int ew_len
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strJumpToNextToken(const char *s)
 {
@@ -6454,7 +6550,7 @@ const char *zt_strJumpToNextToken(const char *s)
 	return zt_strJumpToNextToken(s, zt_strLen(s));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strJumpToNextToken(const char *s, int s_len)
 {
@@ -6472,7 +6568,7 @@ const char *zt_strJumpToNextToken(const char *s, int s_len)
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetNextTokenPos(const char *s)
 {
@@ -6481,7 +6577,7 @@ int zt_strGetNextTokenPos(const char *s)
 	return zt_strGetNextTokenPos(s, zt_strLen(s));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetNextTokenPos(const char *s, int s_len)
 {
@@ -6499,7 +6595,7 @@ int zt_strGetNextTokenPos(const char *s, int s_len)
 	return ztStrPosNotFound;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strJumpToNextLine(const char *s)
 {
@@ -6508,7 +6604,7 @@ const char *zt_strJumpToNextLine(const char *s)
 	return zt_strJumpToNextLine(s, zt_strLen(s));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 const char *zt_strJumpToNextLine(const char *s, int s_len)
 {
@@ -6526,7 +6622,7 @@ const char *zt_strJumpToNextLine(const char *s, int s_len)
 	return nullptr;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetNextLinePos(const char *s)
 {
@@ -6535,7 +6631,7 @@ int zt_strGetNextLinePos(const char *s)
 	return zt_strGetNextLinePos(s, zt_strLen(s));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetNextLinePos(const char *s, int s_len)
 {
@@ -6553,7 +6649,7 @@ int zt_strGetNextLinePos(const char *s, int s_len)
 	return ztStrPosNotFound;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset, int end_offset)
 {
@@ -6562,7 +6658,7 @@ int zt_strGetBetween(char *buffer, int buffer_len, const char *s, const char *be
 	return zt_strGetBetween(buffer, buffer_len, s, zt_strLen(s), beg, end, beg_offset, end_offset);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset, int end_offset)
 {
@@ -6595,7 +6691,7 @@ int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, con
 	return zt_strCpy(buffer, buffer_len, str_beg, end_pos - beg_pos);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int results_count, int32 flags)
 {
@@ -6604,7 +6700,7 @@ int zt_strTokenize(const char *s, const char *tokens, ztToken* results, int resu
 	return zt_strTokenize(s, zt_strLen(s), tokens, results, results_count, flags);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* results, int results_count, int32 flags)
 {
@@ -6738,7 +6834,7 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 	return t_idx + 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 {
@@ -6753,7 +6849,7 @@ int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes)
 {
@@ -6772,7 +6868,7 @@ int zt_strBytesToString(char *buffer, int buffer_size, i32 bytes)
 	return zt_strPrintf(buffer, buffer_size, "%.2f gb", bytes / (1024.f * 1024.f * 1024.f));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 {
@@ -6827,7 +6923,7 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 	return (int)((buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03lld", number));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 {
@@ -6848,7 +6944,7 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMake(int size, ztMemoryArena *arena)
 {
@@ -6869,7 +6965,7 @@ ztString zt_stringMake(int size, ztMemoryArena *arena)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
 {
@@ -6885,7 +6981,7 @@ ztString zt_stringMakeFrom(const char *str, ztMemoryArena *arena)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena)
 {
@@ -6902,7 +6998,7 @@ ztString zt_stringMakeFrom(const char *str, int s_len, ztMemoryArena *arena)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *arena)
 {
@@ -6918,7 +7014,7 @@ ztString zt_stringOverwrite(ztString string, const char *str, ztMemoryArena *are
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
 {
@@ -6937,7 +7033,7 @@ ztString zt_stringResize(ztString string, int nsize, ztMemoryArena *arena)
 	return zt_stringMake(nsize, arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_stringFree(ztString string, ztMemoryArena *arena)
 {
@@ -6949,7 +7045,7 @@ void zt_stringFree(ztString string, ztMemoryArena *arena)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_stringSize(ztString string)
 {
@@ -6962,9 +7058,10 @@ int zt_stringSize(ztString string)
 	return *((i32*)(string - zt_sizeof(i32)));
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztStringPool zt_stringPoolMake(int total_strings, int *sizes, int *proportions, int sizes_count, ztMemoryArena *arena)
 {
@@ -7000,7 +7097,7 @@ ztStringPool zt_stringPoolMake(int total_strings, int *sizes, int *proportions, 
 	return pool;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_stringPoolFree(ztStringPool *pool)
 {
@@ -7019,7 +7116,7 @@ void zt_stringPoolFree(ztStringPool *pool)
 	pool->size    = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_stringPoolBytesNeeded(int total_strings, int *sizes, int *proportions, int sizes_count)
 {
@@ -7050,7 +7147,7 @@ i32 zt_stringPoolBytesNeeded(int total_strings, int *sizes, int *proportions, in
 	return bytes_needed;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMake(ztStringPool *pool, int size)
 {
@@ -7071,14 +7168,14 @@ ztString zt_stringMake(ztStringPool *pool, int size)
 	return zt_stringMake(size, pool->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMakeFrom(ztStringPool *pool, const char* str)
 {
 	return zt_stringMakeFrom(pool, str, zt_strLen(str));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringMakeFrom(ztStringPool *pool, const char* str, int s_len)
 {
@@ -7091,13 +7188,13 @@ ztString zt_stringMakeFrom(ztStringPool *pool, const char* str, int s_len)
 	size += 1;
 
 	ztString result = zt_stringMake(pool, size);
-	if(result) {
+	if (result) {
 		zt_strCpy(result, size, str);
 	}
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringResize(ztStringPool *pool, ztString string, int size)
 {
@@ -7110,7 +7207,7 @@ ztString zt_stringResize(ztStringPool *pool, ztString string, int size)
 	}
 
 	zt_fiz(pool->size) {
-		if(pool->strings[i] == string) {
+		if (pool->strings[i] == string) {
 			pool->used[i] = false;
 			break;
 		}
@@ -7119,7 +7216,7 @@ ztString zt_stringResize(ztStringPool *pool, ztString string, int size)
 	return zt_stringMake(pool, size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztString zt_stringOverwrite(ztStringPool *pool, ztString string, const char *str)
 {
@@ -7136,7 +7233,7 @@ ztString zt_stringOverwrite(ztStringPool *pool, ztString string, const char *str
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_stringFree(ztStringPool *pool, ztString string)
 {
@@ -7148,7 +7245,7 @@ void zt_stringFree(ztStringPool *pool, ztString string)
 	}
 
 	zt_fiz(pool->size) {
-		if(pool->strings[i] == string) {
+		if (pool->strings[i] == string) {
 			pool->used[i] = false;
 			return;
 		}
@@ -7162,9 +7259,10 @@ void zt_stringFree(ztStringPool *pool, ztString string)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena)
 {
@@ -7175,7 +7273,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 	zt_memSet(file, zt_sizeof(ztFile), 0);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = 0;
 
@@ -7214,10 +7312,10 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	}
 
 	return true;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_fileClose(ztFile *file)
 {
@@ -7225,7 +7323,7 @@ void zt_fileClose(ztFile *file)
 
 	zt_returnOnNull(file);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	switch (file->open_method)
 	{
 		case ztFileOpenMethod_ReadOnly:
@@ -7237,10 +7335,10 @@ void zt_fileClose(ztFile *file)
 
 	zt_memFree(file->arena, file->full_name);
 	zt_memSet(file, zt_sizeof(ztFile), 0);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetReadPos(ztFile *file)
 {
@@ -7253,7 +7351,7 @@ i32 zt_fileGetReadPos(ztFile *file)
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileSetReadPos(ztFile *file, i32 pos)
 {
@@ -7266,19 +7364,19 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 		return false;
 	}
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (INVALID_SET_FILE_POINTER == SetFilePointer((HANDLE)file->win_file_handle, pos, NULL, FILE_BEGIN)) {
 		zt_logCritical("zt_fileSetReadPos: SetFilePointer call failed (error %d)", GetLastError());
 		return false;
 	}
 
 	file->win_read_pos = pos;
-#endif
+#	endif
 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFullPath(ztFile *file, char *buffer, int buffer_size)
 {
@@ -7286,7 +7384,7 @@ i32 zt_fileGetFullPath(ztFile *file, char *buffer, int buffer_size)
 	return zt_fileGetFullPath(file->full_name, buffer, buffer_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFileName(ztFile *file, char *buffer, int buffer_size)
 {
@@ -7294,7 +7392,7 @@ i32 zt_fileGetFileName(ztFile *file, char *buffer, int buffer_size)
 	return zt_fileGetFileName(file->full_name, buffer, buffer_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFileExt(ztFile *file, char *buffer, int buffer_size)
 {
@@ -7302,7 +7400,7 @@ i32 zt_fileGetFileExt(ztFile *file, char *buffer, int buffer_size)
 	return zt_fileGetFileExt(file->full_name, buffer, buffer_size);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 {
@@ -7314,11 +7412,11 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 
 	i32 pos_last_path = ztStrPosNotFound;
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
 	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
-#endif
+#	endif
 
 	if (pos_last_path == ztStrPosNotFound) {
 		return 0;
@@ -7328,7 +7426,7 @@ i32 zt_fileGetFullPath(const char *file_name, char *buffer, int buffer_size)
 	return pos_last_path;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 {
@@ -7340,11 +7438,11 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 
 	i32 pos_last_path = ztStrPosNotFound;
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 pos_last_path_one = zt_strFindLastPos(file_name, "/");
 	i32 pos_last_path_two = zt_strFindLastPos(file_name, "\\");
 	pos_last_path = zt_max(pos_last_path_one, pos_last_path_two);
-#endif
+#	endif
 
 	if (pos_last_path == ztStrPosNotFound) {
 		return 0;
@@ -7356,7 +7454,7 @@ i32 zt_fileGetFileName(const char *file_name, char *buffer, int buffer_size)
 	return len - (pos_last_path + 1);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 {
@@ -7377,7 +7475,7 @@ i32 zt_fileGetFileExt(const char *file_name, char *buffer, int buffer_size)
 	return len - (pos + 1);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 {
@@ -7385,17 +7483,17 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 len = GetModuleFileNameA(NULL, buffer, buffer_size);
 	if (ERROR_INSUFFICIENT_BUFFER == GetLastError()) {
 		zt_logCritical("zt_fileGetAppBin: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
 	}
 
 	return len;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 {
@@ -7403,7 +7501,7 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 len = GetModuleFileNameA(NULL, buffer, buffer_size);
 	if (ERROR_INSUFFICIENT_BUFFER == GetLastError()) {
 		zt_logCritical("zt_fileGetAppPath: GetModuleFileName returned ERROR_INSUFFICIENT_BUFFER for buffer size of %d", buffer_size);
@@ -7416,10 +7514,10 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 	}
 
 	return len;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 {
@@ -7427,7 +7525,7 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	char temp[ztFileMaxPath] = { 0 };
 	SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, temp);
 
@@ -7440,10 +7538,10 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 	zt_strCpy(temp + len_path + 1, ztFileMaxPath - (len_path + 1), app_name);
 
 	return zt_strCpy(buffer, buffer_size, temp, len_path + len_name + 1);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 {
@@ -7451,23 +7549,23 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 
 	zt_returnValOnNull(buffer, 0);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	return GetCurrentDirectoryA(buffer_size, buffer);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_fileSetCurrentPath(const char *path)
 {
 	ZT_PROFILE_TOOLS("zt_fileSetCurrentPath");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	SetCurrentDirectoryA(path);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path)
 {
@@ -7490,7 +7588,7 @@ i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *fil
 	return zt_strPrintf(buffer, buffer_size, "%s%s", path_only, file_only);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, const char *cfile)
 {
@@ -7526,7 +7624,7 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, con
 	return buffer_size_orig - buffer_size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int path_len, const char *cfile, int cfile_len)
 {
@@ -7562,13 +7660,13 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int
 	return buffer_size_orig - buffer_size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileExists(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileExists");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 
 	HFILE hfile = OpenFile(file_name, &ofs, OF_READ);
@@ -7577,64 +7675,64 @@ bool zt_fileExists(const char *file_name)
 	}
 	CloseHandle((HANDLE)hfile);
 	return true;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileDelete(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileDelete");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (DeleteFileA(file_name) == FALSE) {
 		zt_logCritical("zt_fileDelete: unable to delete file '%s' (error: %d)", file_name, GetLastError());
 		return false;
 	}
 
 	return true;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileCopy(const char *orig_file, const char *new_file)
 {
 	ZT_PROFILE_TOOLS("zt_fileCopy");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (CopyFileA(orig_file, new_file, TRUE) == FALSE) {
 		zt_logCritical("zt_fileCopy: unable to copy file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
 		return false;
 	}
 
 	return true;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileRename(const char *orig_file, const char *new_file)
 {
 	ZT_PROFILE_TOOLS("zt_fileRename");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (MoveFileA(orig_file, new_file) == FALSE) {
 		zt_logCritical("zt_fileRename: unable to rename file '%s' to '%s' (error: %d)", orig_file, new_file, GetLastError());
 		return false;
 	}
 
 	return true;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileSize(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileSize");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
 
@@ -7647,16 +7745,16 @@ i32 zt_fileSize(const char *file_name)
 	CloseHandle((HANDLE)hfile);
 
 	return (i32)size;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32 *hour, i32 *minute, i32 *second, i32 *ms)
 {
 	ZT_PROFILE_TOOLS("zt_fileModified");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
 
@@ -7681,16 +7779,16 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 	}
 
 	return false;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileModified(const char *file_name, i64* date_time)
 {
 	ZT_PROFILE_TOOLS("zt_fileModified");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	OFSTRUCT ofs;
 	u32 style = OF_READ;
 
@@ -7712,10 +7810,10 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 	}
 
 	return false;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 {
@@ -7728,7 +7826,7 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 		return 0;
 	}
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	DWORD bytes_read = 0;
 	if (FALSE == ReadFile((HANDLE)file->win_file_handle, (LPVOID)buffer, buffer_size, &bytes_read, nullptr)) {
 		zt_logCritical("zt_fileRead: failure reading file: '%s'  (error: %d)", file->full_name, GetLastError());
@@ -7737,10 +7835,10 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 
 	file->win_read_pos += bytes_read;
 	return (i32)bytes_read;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 {
@@ -7753,7 +7851,7 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 		return 0;
 	}
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	DWORD bytes_written = 0;
 	if (FALSE == WriteFile((HANDLE)file->win_file_handle, (LPVOID)buffer, buffer_size, &bytes_written, nullptr)) {
 		zt_logCritical("zt_fileWrite: failure reading file: '%s'  (error: %d)", file->full_name, GetLastError());
@@ -7764,26 +7862,26 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 	file->size += bytes_written;
 
 	return (i32)bytes_written;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_fileWritef(ztFile *file, const char *format, ...)
 {
 	ZT_PROFILE_TOOLS("zt_fileWritef");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	char buffer[1024 * 16];
 	vsnprintf_s(buffer, zt_elementsOf(buffer), zt_elementsOf(buffer), format, arg_ptr);
 
 	return zt_fileWrite(file, buffer);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_fileFlush(ztFile *file)
 {
@@ -7791,12 +7889,12 @@ void zt_fileFlush(ztFile *file)
 
 	zt_returnOnNull(file);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	FlushFileBuffers((HANDLE)file->win_file_handle);
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_bom, ztMemoryArena *arena)
 {
@@ -7838,7 +7936,7 @@ void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_
 	return data;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom)
 {
@@ -7873,7 +7971,7 @@ i32 zt_readEntireFile(const char *file_name, void *buffer, i32 buffer_size, bool
 	return bytes_read;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemoryArena *arena)
 {
@@ -7883,7 +7981,7 @@ i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemor
 	zt_returnValOnNull(data, 0);
 
 	ztFile file;
-	if(!zt_fileOpen(&file, file_name, ztFileOpenMethod_WriteOver, arena)) {
+	if (!zt_fileOpen(&file, file_name, ztFileOpenMethod_WriteOver, arena)) {
 		return 0;
 	}
 
@@ -7897,40 +7995,40 @@ i32 zt_writeEntireFile(const char *file_name, void *data, i32 data_size, ztMemor
 	return bytes_written;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_directoryExists(const char *dir)
 {
 	ZT_PROFILE_TOOLS("zt_directoryExists");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	DWORD attribs = GetFileAttributesA(dir);
 	return (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY));
-#else
-#error zt_directoryExists needs an implementation for this platform
-#endif
+#	else
+#	error zt_directoryExists needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_directoryMake(const char *dir)
 {
 	ZT_PROFILE_TOOLS("zt_directoryMake");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	return FALSE != CreateDirectoryA(dir, NULL);
-#else
-#error zt_directoryMake needs an implementation for this platform
-#endif
+#	else
+#	error zt_directoryMake needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_directoryDelete(const char *dir, bool force)
 {
 	ZT_PROFILE_TOOLS("zt_directoryDelete");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (RemoveDirectoryA(dir) == TRUE) {
 		return true;
 	}
@@ -7968,18 +8066,18 @@ bool zt_directoryDelete(const char *dir, bool force)
 	zt_free(dir_list);
 
 	return FALSE != RemoveDirectoryA(dir);
-#else
-#error zt_directoryMake needs an implementation for this platform
-#endif
+#	else
+#	error zt_directoryMake needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bool recursive)
 {
 	ZT_PROFILE_TOOLS("zt_getDirectorySubs");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
 
 	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
@@ -7996,7 +8094,7 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 
 	WIN32_FIND_DATAA file_data;
 	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
-	while(hfile != INVALID_HANDLE_VALUE) {
+	while (hfile != INVALID_HANDLE_VALUE) {
 		if (zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
 			i32 len = zt_strLen(file_data.cFileName);
 			if (dir_len + len + buffer_used >= buffer_size) {
@@ -8033,18 +8131,18 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 
 	buffer[buffer_used] = 0;
 	return buffer_used;
-#else
-#error zt_getDirectorySubs needs an implementation for this platform
-#endif
+#	else
+#	error zt_getDirectorySubs needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, bool recursive)
 {
 	ZT_PROFILE_TOOLS("zt_getDirectoryFiles");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
 
 	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
@@ -8099,12 +8197,12 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 
 	buffer[buffer_used] = 0;
 	return buffer_used;
-#else
-#error zt_getDirectoryFiles needs an implementation for this platform
-#endif
+#	else
+#	error zt_getDirectoryFiles needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, bool recursive, i32 flags)
 {
@@ -8113,7 +8211,7 @@ bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, boo
 	zt_returnValOnNull(dir_mon, false);
 	zt_returnValOnNull(directory, false);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 
 	dir_mon->io = (pointer)CreateIoCompletionPort((HANDLE)INVALID_HANDLE_VALUE, NULL, 0, 1);
@@ -8154,10 +8252,10 @@ on_error:
 	CloseHandle((HANDLE)dir_mon->io);
 	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	return false;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 {
@@ -8165,17 +8263,17 @@ void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 
 	zt_returnOnNull(dir_mon);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (dir_mon->file != NULL) {
 		CancelIo((HANDLE)dir_mon->file);
 		CloseHandle((HANDLE)dir_mon->file);
 		CloseHandle((HANDLE)dir_mon->io);
 		zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	}
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 {
@@ -8183,7 +8281,7 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 
 	zt_returnValOnNull(dir_mon, false);
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	if (dir_mon->io == NULL) {
 		return false;
 	}
@@ -8207,12 +8305,12 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 	}
 
 	return key != NULL;
-#endif
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #if defined(ZT_WINDOWS)
 
@@ -8220,7 +8318,7 @@ unsigned int __stdcall _zt_threadProc(LPVOID param)
 {
 	ztThread *thread = (ztThread*)param;
 
-	if(thread == nullptr || thread->thread == nullptr) {
+	if (thread == nullptr || thread->thread == nullptr) {
 		return 1;
 	}
 
@@ -8229,7 +8327,7 @@ unsigned int __stdcall _zt_threadProc(LPVOID param)
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id)
 {
@@ -8242,9 +8340,9 @@ ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExi
 	thread->exit_test_user_data = exit_test_user_data;
 	thread->running             = true;
 
-	unsigned int thread_id = 0;
-	thread->thread_handle = _beginthreadex(nullptr, 0, &_zt_threadProc, thread, 0, &thread_id);
-	thread->thread_id = (ztThreadID)thread_id;
+	unsigned int thread_id      = 0;
+	thread->thread_handle       = _beginthreadex(nullptr, 0, &_zt_threadProc, thread, 0, &thread_id);
+	thread->thread_id           = (ztThreadID)thread_id;
 
 	if (out_thread_id) {
 		*out_thread_id = thread_id;
@@ -8253,24 +8351,24 @@ ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExi
 	return thread;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadFree(ztThread *thread)
 {
 	ZT_PROFILE_TOOLS("zt_threadFree");
 
-	if(thread == nullptr) {
+	if (thread == nullptr) {
 		return;
 	}
 
-	if(thread->running) {
+	if (thread->running) {
 		zt_threadJoin(thread);
 	}
 
 	zt_free(thread);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadJoin(ztThread *thread)
 {
@@ -8280,7 +8378,7 @@ void zt_threadJoin(ztThread *thread)
 	WaitForSingleObject((HANDLE)thread->thread_handle, INFINITE);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_threadIsRunning(ztThread *thread)
 {
@@ -8290,7 +8388,7 @@ bool zt_threadIsRunning(ztThread *thread)
 	return thread->running;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztThreadID zt_threadGetCurrentID()
 {
@@ -8299,7 +8397,7 @@ ztThreadID zt_threadGetCurrentID()
 	return GetCurrentThreadId();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadYield()
 {
@@ -8308,9 +8406,10 @@ void zt_threadYield()
 	zt_sleep(0);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztThreadMutex *zt_threadMutexMake()
 {
@@ -8321,13 +8420,13 @@ ztThreadMutex *zt_threadMutexMake()
 	return mutex;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMutexFree(ztThreadMutex *mutex)
 {
 	ZT_PROFILE_TOOLS("zt_threadMutexFree");
 
-	if(mutex == nullptr) {
+	if (mutex == nullptr) {
 		return;
 	}
 
@@ -8335,7 +8434,7 @@ void zt_threadMutexFree(ztThreadMutex *mutex)
 	zt_free(mutex);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMutexLock(ztThreadMutex *mutex)
 {
@@ -8345,7 +8444,7 @@ void zt_threadMutexLock(ztThreadMutex *mutex)
 	EnterCriticalSection(&mutex->cs);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMutexUnlock(ztThreadMutex *mutex)
 {
@@ -8355,9 +8454,10 @@ void zt_threadMutexUnlock(ztThreadMutex *mutex)
 	LeaveCriticalSection(&mutex->cs);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztThreadMonitor *zt_threadMonitorMake()
 {
@@ -8368,13 +8468,13 @@ ztThreadMonitor *zt_threadMonitorMake()
 	return monitor;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMonitorFree(ztThreadMonitor *monitor)
 {
 	ZT_PROFILE_TOOLS("zt_threadMonitorFree");
 
-	if(monitor == nullptr) {
+	if (monitor == nullptr) {
 		return;
 	}
 
@@ -8382,7 +8482,7 @@ void zt_threadMonitorFree(ztThreadMonitor *monitor)
 	zt_free(monitor);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
 {
@@ -8392,7 +8492,7 @@ void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
 	WaitForSingleObject((HANDLE)monitor->event_handle, INFINITE);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
 {
@@ -8402,7 +8502,7 @@ void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
 	SetEvent((HANDLE)monitor->event_handle);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_threadMonitorReset(ztThreadMonitor *monitor)
 {
@@ -8412,9 +8512,10 @@ void zt_threadMonitorReset(ztThreadMonitor *monitor)
 	ResetEvent((HANDLE)monitor->event_handle);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
 {
@@ -8423,7 +8524,7 @@ i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
 	return InterlockedIncrement(atomic_int);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
 {
@@ -8432,7 +8533,7 @@ i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
 	return InterlockedDecrement(atomic_int);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
 {
@@ -8441,7 +8542,7 @@ i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
 	return InterlockedExchange(atomic_int, value);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
 {
@@ -8450,7 +8551,7 @@ i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
 	return InterlockedExchange(atomic_int, *atomic_int);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
 {
@@ -8459,7 +8560,7 @@ i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
 	return InterlockedAnd(atomic_int, and_val);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
 {
@@ -8468,7 +8569,7 @@ i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
 	return InterlockedOr(atomic_int, or_val);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
 {
@@ -8477,7 +8578,7 @@ i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
 	return InterlockedXor(atomic_int, xor_val);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
 {
@@ -8486,7 +8587,7 @@ bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
 	return InterlockedExchange(atomic_bool, value ? 1 : 0) != 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
 {
@@ -8495,7 +8596,7 @@ bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
 	return InterlockedExchange(atomic_bool, *atomic_bool) != 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 {
@@ -8504,11 +8605,12 @@ bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 	return zt_atomicBoolSet(atomic_bool, !zt_atomicBoolGet(atomic_bool));
 }
 
-#endif
+#endif // ZT_WINDOWS
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 enum ztSerialEntryType_Enum
 {
@@ -8531,12 +8633,12 @@ enum ztSerialEntryType_Enum
 	ztSerialEntryType_FileEnd,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal i32 _zt_serial_header[5] = { 0x7e751c, 0xba7e20, 0x3d8601, 0x41569b, 0xac4d6d };
 ztInternal const int _zt_mod_adler = 65521;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 // adler checksum... we aren't going for national security here, just general corruption detection
 
@@ -8550,7 +8652,7 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, byte data)
 	serial->_checksum2 = (serial->_checksum2 + serial->_checksum1) % _zt_mod_adler;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i32 data_len)
 {
@@ -8562,7 +8664,7 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 {
@@ -8613,7 +8715,7 @@ ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 	return checksum_calc == checksum_save;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_writeByte(ztSerial *serial, byte b)
 {
@@ -8628,7 +8730,7 @@ ztInternal ztInline bool _zt_writeByte(ztSerial *serial, byte b)
 	return 1 == zt_fileWrite(&serial->file, &b, 1);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_writeData(ztSerial *serial, ztSerialEntryType_Enum entry_type, void *data, int data_size)
 {
@@ -8658,7 +8760,7 @@ ztInternal ztInline bool _zt_writeData(ztSerial *serial, ztSerialEntryType_Enum 
 	return true;
 }	
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size)
 {
@@ -8679,7 +8781,7 @@ ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_readByte(ztSerial *serial, byte *byte)
 {
@@ -8692,7 +8794,7 @@ ztInternal ztInline bool _zt_readByte(ztSerial *serial, byte *byte)
 	return _zt_readData(serial, byte, 1) == 1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum expected_type, void *data, int data_size)
 {
@@ -8711,17 +8813,17 @@ ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum e
 
 	if (serial->file_data != nullptr) {
 
-		if(_zt_readData(serial, data, data_size) != data_size) {
+		if (_zt_readData(serial, data, data_size) != data_size) {
 			return false;
 		}
 
 		byte data_end = ztSerialEntryType_Unknown;
-		if(_zt_readData(serial, &data_end, 1) != 1) {
+		if (_zt_readData(serial, &data_end, 1) != 1) {
 			return false;
 		}
 
 		byte next_entry = 0;
-		if(_zt_readData(serial, &next_entry, 1) != 1) {
+		if (_zt_readData(serial, &next_entry, 1) != 1) {
 			return false;
 		}
 
@@ -8746,7 +8848,7 @@ ztInternal ztInline bool _zt_readData(ztSerial *serial, ztSerialEntryType_Enum e
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 version)
 {
@@ -8777,7 +8879,7 @@ bool _zt_serialMakeWriterDoHeader(ztSerial *serial, const char *identifier, i32 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool _zt_serialMakeReaderDoHeader(ztSerial *serial, const char *identifier)
 {
@@ -8820,7 +8922,7 @@ on_error:
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *identifier, i32 version)
 {
@@ -8840,7 +8942,7 @@ bool zt_serialMakeWriter(ztSerial *serial, const char *file_name, const char *id
 	return _zt_serialMakeWriterDoHeader(serial, identifier, version);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier, i32 version)
 {
@@ -8861,7 +8963,7 @@ bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier,
 	return _zt_serialMakeWriterDoHeader(serial, identifier, version);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier)
 {
@@ -8881,7 +8983,7 @@ bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *id
 	return _zt_serialMakeReaderDoHeader(serial, identifier);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier)
 {
@@ -8900,7 +9002,7 @@ bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char
 	return _zt_serialMakeReaderDoHeader(serial, identifier);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 {
@@ -8921,7 +9023,7 @@ bool zt_serialMakeReader(ztSerial *serial, ztFile *file, const char *identifier)
 	return _zt_serialMakeReaderDoHeader(serial, identifier);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_serialClose(ztSerial *serial)
 {
@@ -8948,7 +9050,7 @@ void zt_serialClose(ztSerial *serial)
 	zt_memSet(&serial, zt_sizeof(serial), 0);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialGroupPush(ztSerial *serial)
 {
@@ -9003,7 +9105,7 @@ bool zt_serialGroupPush(ztSerial *serial)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialGroupPop(ztSerial *serial)
 {
@@ -9028,16 +9130,16 @@ bool zt_serialGroupPop(ztSerial *serial)
 			// a new file format
 
 			switch (serial->next_entry) {
-				case ztSerialEntryType_i8:     { i8  value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_i16:    { i16 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_i32:    { i32 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_i64:    { i64 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_u8:     { u8  value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_u16:    { u16 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_u32:    { u32 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_u64:    { u64 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_r32:    { r32 value; if(!zt_serialRead(serial, &value)) return false; break; }
-				case ztSerialEntryType_r64:    { r64 value; if(!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_i8:     { i8  value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_i16:    { i16 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_i32:    { i32 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_i64:    { i64 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_u8:     { u8  value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_u16:    { u16 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_u32:    { u32 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_u64:    { u64 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_r32:    { r32 value; if (!zt_serialRead(serial, &value)) return false; break; }
+				case ztSerialEntryType_r64:    { r64 value; if (!zt_serialRead(serial, &value)) return false; break; }
 				case ztSerialEntryType_String: { char value[1]; if (!zt_serialRead(serial, value, zt_sizeof(value), nullptr)) return false; break; }
 				case ztSerialEntryType_Binary: { char value[1]; if (!zt_serialRead(serial, (void*)value, zt_sizeof(value), nullptr)) return false; break; }
 
@@ -9070,7 +9172,7 @@ bool zt_serialGroupPop(ztSerial *serial)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialWrite(ztSerial *serial, i8 value) { return _zt_writeData(serial, ztSerialEntryType_i8, &value, zt_sizeof(value)); }
 bool zt_serialWrite(ztSerial *serial, i16 value) { return _zt_writeData(serial, ztSerialEntryType_i16, &value, zt_sizeof(value)); }
@@ -9084,13 +9186,13 @@ bool zt_serialWrite(ztSerial *serial, r32 value) { return _zt_writeData(serial, 
 bool zt_serialWrite(ztSerial *serial, r64 value) { return _zt_writeData(serial, ztSerialEntryType_r64, &value, zt_sizeof(value)); }
 bool zt_serialWrite(ztSerial *serial, bool value) { i8 v = (value ? 1 : 0);  return _zt_writeData(serial, ztSerialEntryType_i8, &v, 1); }
 bool zt_serialWrite(ztSerial *serial, ztGuid guid) { if (!zt_serialWrite(serial, guid.guid[0])) return false; if (!zt_serialWrite(serial, guid.guid[1])) return false; return true; }
-bool zt_serialWrite(ztSerial *serial, ztVec2  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
-bool zt_serialWrite(ztSerial *serial, ztVec3  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
-bool zt_serialWrite(ztSerial *serial, ztVec4  vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
-bool zt_serialWrite(ztSerial *serial, ztVec2i vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
-bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if(!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec2  vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec3  vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec4  vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec2i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
 {
@@ -9102,30 +9204,30 @@ bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
 	
 	switch (variant->type)
 	{
-		case ztVariant_i8    : if(!zt_serialWrite(serial, variant->v_i8 )) { return false; } break;
-		case ztVariant_i16   : if(!zt_serialWrite(serial, variant->v_i16)) { return false; } break;
-		case ztVariant_i32   : if(!zt_serialWrite(serial, variant->v_i32)) { return false; } break;
-		case ztVariant_i64   : if(!zt_serialWrite(serial, variant->v_i64)) { return false; } break;
-		case ztVariant_u8    : if(!zt_serialWrite(serial, variant->v_u8 )) { return false; } break;
-		case ztVariant_u16   : if(!zt_serialWrite(serial, variant->v_u16)) { return false; } break;
-		case ztVariant_u32   : if(!zt_serialWrite(serial, variant->v_u32)) { return false; } break;
-		case ztVariant_u64   : if(!zt_serialWrite(serial, variant->v_u64)) { return false; } break;
-		case ztVariant_r32   : if(!zt_serialWrite(serial, variant->v_r32)) { return false; } break;
-		case ztVariant_r64   : if(!zt_serialWrite(serial, variant->v_r64)) { return false; } break;
+		case ztVariant_i8    : if (!zt_serialWrite(serial, variant->v_i8 )) { return false; } break;
+		case ztVariant_i16   : if (!zt_serialWrite(serial, variant->v_i16)) { return false; } break;
+		case ztVariant_i32   : if (!zt_serialWrite(serial, variant->v_i32)) { return false; } break;
+		case ztVariant_i64   : if (!zt_serialWrite(serial, variant->v_i64)) { return false; } break;
+		case ztVariant_u8    : if (!zt_serialWrite(serial, variant->v_u8 )) { return false; } break;
+		case ztVariant_u16   : if (!zt_serialWrite(serial, variant->v_u16)) { return false; } break;
+		case ztVariant_u32   : if (!zt_serialWrite(serial, variant->v_u32)) { return false; } break;
+		case ztVariant_u64   : if (!zt_serialWrite(serial, variant->v_u64)) { return false; } break;
+		case ztVariant_r32   : if (!zt_serialWrite(serial, variant->v_r32)) { return false; } break;
+		case ztVariant_r64   : if (!zt_serialWrite(serial, variant->v_r64)) { return false; } break;
 		case ztVariant_voidp : zt_assert(false); break;
-		case ztVariant_vec2  : zt_fize(variant->v_vec2) if(!zt_serialWrite(serial, variant->v_vec2[i])) { return false; } break;
-		case ztVariant_vec3  : zt_fize(variant->v_vec3) if(!zt_serialWrite(serial, variant->v_vec3[i])) { return false; } break;
-		case ztVariant_vec4  : zt_fize(variant->v_vec4) if(!zt_serialWrite(serial, variant->v_vec4[i])) { return false; } break;
-		case ztVariant_mat4  : zt_fize(variant->v_mat4) if(!zt_serialWrite(serial, variant->v_mat4[i])) { return false; } break;
-		case ztVariant_quat  : zt_fize(variant->v_quat) if(!zt_serialWrite(serial, variant->v_quat[i])) { return false; } break;
-		case ztVariant_bool  : if(!zt_serialWrite(serial, variant->v_bool)) { return false; } break;
+		case ztVariant_vec2  : zt_fize(variant->v_vec2) if (!zt_serialWrite(serial, variant->v_vec2[i])) { return false; } break;
+		case ztVariant_vec3  : zt_fize(variant->v_vec3) if (!zt_serialWrite(serial, variant->v_vec3[i])) { return false; } break;
+		case ztVariant_vec4  : zt_fize(variant->v_vec4) if (!zt_serialWrite(serial, variant->v_vec4[i])) { return false; } break;
+		case ztVariant_mat4  : zt_fize(variant->v_mat4) if (!zt_serialWrite(serial, variant->v_mat4[i])) { return false; } break;
+		case ztVariant_quat  : zt_fize(variant->v_quat) if (!zt_serialWrite(serial, variant->v_quat[i])) { return false; } break;
+		case ztVariant_bool  : if (!zt_serialWrite(serial, variant->v_bool)) { return false; } break;
 		default: zt_assert(false);
 	}
 
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 {
@@ -9150,7 +9252,7 @@ bool zt_serialWrite(ztSerial *serial, const char *value, i32 value_len)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 {
@@ -9176,7 +9278,7 @@ bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialRead(ztSerial *serial, i8 *value) { return _zt_readData(serial, ztSerialEntryType_i8, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, i16 *value) { return _zt_readData(serial, ztSerialEntryType_i16, value, zt_sizeof(*value)); }
@@ -9190,13 +9292,13 @@ bool zt_serialRead(ztSerial *serial, r32 *value) { return _zt_readData(serial, z
 bool zt_serialRead(ztSerial *serial, r64 *value) { return _zt_readData(serial, ztSerialEntryType_r64, value, zt_sizeof(*value)); }
 bool zt_serialRead(ztSerial *serial, bool *value) { i8 ival = 0; if (_zt_readData(serial, ztSerialEntryType_i8, &ival, zt_sizeof(ival))) { *value = ival == 1; return true; } return false; }
 bool zt_serialRead(ztSerial *serial, ztGuid *guid) { if (!zt_serialRead(serial, &guid->guid[0])) return false; if (!zt_serialRead(serial, &guid->guid[1])) return false; return true; }
-bool zt_serialRead(ztSerial *serial, ztVec2  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
-bool zt_serialRead(ztSerial *serial, ztVec3  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
-bool zt_serialRead(ztSerial *serial, ztVec4  *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
-bool zt_serialRead(ztSerial *serial, ztVec2i *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
-bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if(!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec2  *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec3  *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec4  *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec2i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialRead(ztSerial *serial, ztVariant *variant)
 {
@@ -9233,7 +9335,7 @@ bool zt_serialRead(ztSerial *serial, ztVariant *variant)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 {
@@ -9281,7 +9383,7 @@ bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 {
@@ -9327,9 +9429,10 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size)
 {
@@ -9364,14 +9467,14 @@ int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffe
 #	undef b64_encode
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size)
 {
 #	define b64_decode(C) (C >= 'A' && C <= 'Z') ? (C - 'A') : ((C >= 'a' && C <= 'z') ? (C - 'a' + 26) : ((C >= '0' && C <= '9') ? (C - '0' + 52) : ((C == '+' ? 62 : 63))))
 #	define b64_find_next_char(VAR) \
-		while(true) { \
-			if(i >= data_len) { \
+		while (true) { \
+			if (i >= data_len) { \
 				VAR = 'A'; break; \
 			} else if (data_to_decode[i] == '\n' || data_to_decode[i] == '\r' || data_to_decode[i] == '\t' || data_to_decode[i] == ' ') { \
 				++i; \
@@ -9419,9 +9522,9 @@ int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffe
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 // this was adapted from: http://en.literateprograms.org/Mersenne_twister_(C)
 
@@ -9433,7 +9536,7 @@ int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffe
 #define ztRandom_Twist(b,i,j)    ((b)[i] & ztRandom_UpperMask) | ((b)[j] & ztRandom_LowerMask)
 #define ztRandom_Magic(s)        (((s)&1) * ztRandom_MatrixA)
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_randomInit(ztRandom *random, i32 seed)
 {
@@ -9447,7 +9550,7 @@ void zt_randomInit(ztRandom *random, i32 seed)
 	random->seed = seed;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 {
@@ -9480,7 +9583,7 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 	return (zt_abs(rv) % (min - max)) + min;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_randomVal(ztRandom *random)
 {
@@ -9489,7 +9592,7 @@ r32 zt_randomVal(ztRandom *random)
 	return zt_randomInt(random, 0, 10001) / 10000.f;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 {
@@ -9498,9 +9601,10 @@ r32 zt_randomVal(ztRandom *random, r32 min, r32 max)
 	return zt_randomVal(random) * (max - min) + min;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 // OpenSimplex noise implementation from public domain source found here :
 // https ://github.com/smcameron/open-simplex-noise-in-c/blob/master/open-simplex-noise.c
@@ -9567,7 +9671,7 @@ ztInternal const signed char _zt_gradients_4d[] = {
 	-3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3, -1, -1, -1, -1, -3,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztSimplexNoise *zt_simplexNoiseMake(i64 seed)
 {
@@ -9602,7 +9706,7 @@ ztSimplexNoise *zt_simplexNoiseMake(i64 seed)
 	return noise;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_simplexNoiseFree(ztSimplexNoise *noise)
 {
@@ -9617,7 +9721,7 @@ void zt_simplexNoiseFree(ztSimplexNoise *noise)
 	zt_free(noise);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline int zt_fastFloor(r64 x)
 {
@@ -9631,16 +9735,6 @@ r32 zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y)
 
 #	define extrapolate2(noise, xsb, ysb, dx, dy) \
 		(_zt_gradients_2d[noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E] * dx + _zt_gradients_2d[(noise->perm[(noise->perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E) + 1] * dy)
-
-//	struct local
-//	{
-//		static r64 extrapolate2(ztSimplexNoise* noise, int xsb, int ysb, r64 dx, r64 dy)
-//		{
-//			i16 *perm = noise->perm;
-//			int index = perm[(perm[xsb & 0xFF] + ysb) & 0xFF] & 0x0E;
-//			return _zt_gradients_2d[index] * dx + _zt_gradients_2d[index + 1] * dy;
-//		}
-//	};
 
 	zt_returnValOnNull(noise, 0);
 
@@ -9761,7 +9855,7 @@ r32 zt_simplexNoise2D(ztSimplexNoise *noise, r32 x, r32 y)
 	return (r32)(value / ZTSN_NORM_CONSTANT_2D);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z)
 {
@@ -9770,7 +9864,7 @@ r32 zt_simplexNoise3D(ztSimplexNoise *noise, r32 x, r32 y, r32 z)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w)
 {
@@ -9779,9 +9873,10 @@ r32 zt_simplexNoise4D(ztSimplexNoise *noise, r32 x, r32 y, r32 z, r32 w)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, const char* dflt, char* buffer, i32 buffer_size)
 {
@@ -9794,7 +9889,7 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, i32 dflt)
 {
@@ -9816,7 +9911,7 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *key, r32 dflt)
 {
@@ -9833,7 +9928,7 @@ r32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 	return zt_strToReal32(value_buffer, dflt);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *key, const char *value)
 {
@@ -9846,9 +9941,10 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 #endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char* arg_long)
 {
@@ -9865,7 +9961,7 @@ bool zt_cmdHasArg(const char** argv, int argc, const char* arg_short, const char
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char* arg_long, char* buffer, int buffer_size)
 {
@@ -9887,14 +9983,14 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 					data_pos += 1;
 				}
 				if (data_pos + 1 < argv_len) {
-					if(*(argv[i] + data_pos) == '\"') {
+					if (*(argv[i] + data_pos) == '\"') {
 						data_pos += 1;
 					}
 					zt_strCpy(buffer, buffer_size, argv[i] + data_pos, argv_len - data_pos);
 
 					int str_len = zt_strLen(buffer);
 					if (str_len > 0) {
-						if(buffer[str_len - 1] == '\"') {
+						if (buffer[str_len - 1] == '\"') {
 							buffer[str_len - 1] = 0;
 						}
 					}
@@ -9907,16 +10003,17 @@ bool zt_cmdGetArg(const char** argv, int argc, const char* arg_short, const char
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 int zt_processRun(const char *command)
 {
 	return zt_processRun(command, nullptr, 0, nullptr);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int zt_processRun(const char *command, char *output_buffer, int output_buffer_size, int *output_buffer_written)
 {
@@ -9956,7 +10053,7 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 	}
 
 	bool process_ended = false;
-	while(!process_ended) {
+	while (!process_ended) {
 		// Give some timeslice (50ms), so we won't waste 100% cpu.
 		process_ended = WaitForSingleObject(pi.hProcess, 50) == WAIT_OBJECT_0;
 
@@ -10000,9 +10097,10 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 #	endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 r64 zt_getTime()
 {
@@ -10030,20 +10128,20 @@ r64 zt_getTime()
 	return (((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_sleep(r32 seconds)
 {
 	ZT_PROFILE_TOOLS("zt_sleep");
 
-#if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS)
 	Sleep(zt_convertToi32Floor(seconds * 1000.f));
-#else
-#error zt_sleep needs an implementation for this platform
-#endif
+#	else
+#	error zt_sleep needs an implementation for this platform
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *second)
 {
@@ -10061,7 +10159,7 @@ void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *se
 	if (second) *second = t.tm_sec;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztDate zt_getDate()
 {
@@ -10070,7 +10168,7 @@ ztDate zt_getDate()
 	return dt;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool operator<(ztDate& d1, ztDate& d2)
 {
@@ -10097,7 +10195,7 @@ bool operator<(ztDate& d1, ztDate& d2)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool operator>(ztDate& d1, ztDate& d2)
 {
@@ -10106,7 +10204,7 @@ bool operator>(ztDate& d1, ztDate& d2)
 	return !(d1 < d2) && !(d1 == d2);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool operator==(ztDate& d1, ztDate& d2)
 {
@@ -10115,7 +10213,7 @@ bool operator==(ztDate& d1, ztDate& d2)
 	return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day && d1.hour == d2.hour && d1.minute == d2.minute && d1.second == d2.second;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool operator!=(ztDate& d1, ztDate& d2)
 {
@@ -10125,9 +10223,9 @@ bool operator!=(ztDate& d1, ztDate& d2)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, int data_size)
 {
@@ -10182,7 +10280,7 @@ i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, in
 	return memChunk.current;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
 {
@@ -10207,9 +10305,9 @@ void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 // embedded miniz.c
 /* miniz.c v1.15 - public domain deflate/inflate, zlib-subset, ZIP reading/writing/appending, PNG writing
@@ -15135,9 +15233,9 @@ For more information, please refer to <http://unlicense.org/>
 
 // end miniz.c
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size)
 {
@@ -15145,7 +15243,7 @@ i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size)
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 i32 zt_compressInflate(void *compressed, i32 compressed_size, void *buffer, i32 buffer_size)
 {
@@ -15173,7 +15271,7 @@ i32 zt_compressInflate(void *compressed, i32 compressed_size, void *buffer, i32 
 	return total_out;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 
 #endif // ZT_TOOLS_IMPLEMENTATION
