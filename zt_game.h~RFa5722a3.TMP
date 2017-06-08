@@ -15025,6 +15025,8 @@ ztInternal void _zt_fontMakeDefaults()
 {
 	i32 tex_data_size = 0;
 	byte *tex_data = _zt_fontLoadFontPng(&tex_data_size);
+
+	zt_writeEntireFile("E:\\Development\\Projects\\zt_sln\\test.png", tex_data, tex_data_size);
 	ztTextureID tex = zt_textureMakeFromFileData(tex_data, tex_data_size, ztTextureFlags_PixelPerfect);
 
 	{
