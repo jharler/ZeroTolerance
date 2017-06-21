@@ -2321,10 +2321,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				zt_drawListPushColor(draw_list, local::face(false, false));
 				zt_drawListAddFilledRect2D(draw_list, pos, item->size, ztVec2::zero, ztVec2::one);
 				zt_drawListPopColor(draw_list);
-				zt_drawListPopTexture(draw_list);
 				zt_drawListPushColor(draw_list, local::outline(false, false));
 				zt_drawListAddLine(draw_list, ztVec3(pos, 0) - ztVec3(item->size.x / 2, item->size.y / 2, 0), ztVec3(pos, 0) + ztVec3(item->size.x / 2, item->size.y / -2, 0));
 				zt_drawListPopColor(draw_list);
+				zt_drawListPopTexture(draw_list);
 			}
 
 			r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, ztGuiThemeValue_r32_Padding, &padding);
@@ -6199,7 +6199,7 @@ ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, bool bar)
 {
 	ZT_PROFILE_GUI("_zt_guiMakeMenuBase");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, bar ? ztGuiItemType_MenuBar : ztGuiItemType_Menu, /*ztGuiItemBehaviorFlags_ClipContents |*/ ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, bar ? ztGuiItemType_MenuBar : ztGuiItemType_Menu, /*ztGuiItemBehaviorFlags_ClipContents |*/ ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront);
 	zt_returnValOnNull(item, nullptr);
 
 	if (!bar) {
