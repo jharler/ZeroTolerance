@@ -1607,6 +1607,8 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_Billboard,
 	ztDrawCommandType_VertexArray,
 
+	ztDrawCommandType_DebugItem,
+
 	ztDrawCommandType_MAX,
 };
 
@@ -1634,6 +1636,10 @@ struct ztDrawCommand
 	ztDrawCommandType_Enum type;
 
 	union {
+		struct {
+			char debug[64];
+		};
+
 		struct {
 			ztVec3 point;
 		};
@@ -1696,6 +1702,8 @@ struct ztDrawCommand
 			ztVertexArrayDrawType_Enum vertex_array_draw_type;
 		};
 	};
+
+	zt_debugOnly(i32 debug_id);
 };
 
 // ================================================================================================================================================================================================
@@ -1788,6 +1796,8 @@ bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset);
 bool zt_drawListPopOffset(ztDrawList *draw_list);
 bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform);
 bool zt_drawListPopTransform(ztDrawList *draw_list);
+
+bool zt_drawListAddDebugItem(ztDrawList *draw_list, const char *debug); // useful when inspecting array of drawlist in debugger
 
 ztShaderID zt_drawListGetCurrentShader(ztDrawList *draw_list);
 
@@ -2448,8 +2458,8 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
 bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents);
-bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point = nullptr);
-bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2] = nullptr);
+bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr, ztVec3 intersection_points[2] = nullptr);
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
 bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face);
 bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last);
@@ -2466,6 +2476,16 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_cent
 
 bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows); // check for non-zero elements in the given line
 
+bool zt_collisionMovingSphereInPlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztPlane& plane, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere1_velocity, const ztVec3& sphere2_pos, r32 sphere2_radius, const ztVec3& sphere2_velocity, r32 *intersection_time = nullptr);
+bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr);
+
+r32  zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_beg, const ztVec3& seg_end);
+
+bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& capsule_beg, ztVec3& capsule_end, r32 capsule_radius);
+bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& capsule_beg, const ztVec3& capsule_end, r32 capsule_radius, r32 *intersection_time = nullptr);
 
 // ================================================================================================================================================================================================
 // physics manager
@@ -6086,7 +6106,16 @@ void zt_drawListFree(ztDrawList *draw_list)
 
 // ================================================================================================================================================================================================
 
-#define _zt_drawListCheck(draw_list) zt_returnValOnNull(draw_list, false); if (draw_list->commands_count >= draw_list->commands_size) { zt_assert(false && "ztDrawList command overflow"); return false; };
+ztInternal i32 _zt_drawListDebugCount = 0;
+
+#define _zt_drawListCheck(draw_list) \
+            zt_returnValOnNull(draw_list, false);\
+            if (draw_list->commands_count >= draw_list->commands_size) { \
+                zt_assert(false && "ztDrawList command overflow"); \
+                return false; \
+            } \
+            zt_debugOnly(draw_list->commands[draw_list->commands_count].debug_id = _zt_drawListDebugCount++);
+
 
 #define _zt_drawListVerifyShader(draw_list) zt_debugOnly(zt_assert(draw_list->active_shaders > 0))
 #define _zt_drawListVerifyTexture(draw_list) zt_debugOnly(zt_assert(draw_list->active_textures > 0))
@@ -7261,6 +7290,21 @@ bool zt_drawListPopTransform(ztDrawList *draw_list)
 
 // ================================================================================================================================================================================================
 
+bool zt_drawListAddDebugItem(ztDrawList *draw_list, const char *debug)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddDebugItem");
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_DebugItem;
+	zt_strCpy(command->debug, zt_elementsOf(command->debug), debug);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 void zt_drawListReset(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListReset");
@@ -7740,56 +7784,58 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					} break;
 
 					case ztDrawCommandType_ChangeTexture: {
-						{
-							// make sure the last texture used actually has items, otherwise, remove it from the list
-							ztCompileTexture *cmp_tex = cmp_shader->texture;
-							ztCompileTexture *cmp_prev = nullptr;
+						if (command->texture_count > 0) {
+							{
+								// make sure the last texture used actually has items, otherwise, remove it from the list
+								ztCompileTexture *cmp_tex = cmp_shader->texture;
+								ztCompileTexture *cmp_prev = nullptr;
 
-							while (cmp_tex) {
-								if (cmp_tex->next) {
-									cmp_prev = cmp_tex;
-									cmp_tex = cmp_tex->next;
+								while (cmp_tex) {
+									if (cmp_tex->next) {
+										cmp_prev = cmp_tex;
+										cmp_tex = cmp_tex->next;
+									}
+									else break;
 								}
-								else break;
-							}
 
-							if (cmp_tex) {
-								if (cmp_tex->cnt_display_items == 0) {
-									if (cmp_prev) {
-										cmp_prev->next = nullptr;
-										current_textures_count = cmp_prev->command ? cmp_prev->command->texture_count : 0;
-										zt_fiz(current_textures_count) {
-											current_textures[i] = cmp_prev->command->texture[i];
+								if (cmp_tex) {
+									if (cmp_tex->cnt_display_items == 0) {
+										if (cmp_prev) {
+											cmp_prev->next = nullptr;
+											current_textures_count = cmp_prev->command ? cmp_prev->command->texture_count : 0;
+											zt_fiz(current_textures_count) {
+												current_textures[i] = cmp_prev->command->texture[i];
+											}
+											cmp_item_last = cmp_prev->last_item;
+											cmp_texture = cmp_prev;
 										}
-										cmp_item_last = cmp_prev->last_item;
-										cmp_texture = cmp_prev;
 									}
 								}
 							}
-						}
 
-						bool is_same = command->texture_count == current_textures_count;
-						if (is_same) {
-							zt_fiz(command->texture_count) {
-								if (current_textures[i] != command->texture[i]) {
-									is_same = false;
-									break;
+							bool is_same = command->texture_count == current_textures_count;
+							if (is_same) {
+								zt_fiz(command->texture_count) {
+									if (current_textures[i] != command->texture[i]) {
+										is_same = false;
+										break;
+									}
 								}
 							}
-						}
-						if (!is_same) {
-							cmp_texture = _zt_castMem(ztCompileTexture);
-							cmp_texture->command = command;
-							cmp_texture->item = nullptr;
-							cmp_texture->last_item = nullptr;
-							cmp_texture->cnt_display_items = 0;
-							cmp_texture->next = nullptr;
-							cmp_item_last = nullptr;
-							zt_singleLinkAddToEnd(cmp_shader->texture, cmp_texture);
+							if (!is_same) {
+								cmp_texture = _zt_castMem(ztCompileTexture);
+								cmp_texture->command = command;
+								cmp_texture->item = nullptr;
+								cmp_texture->last_item = nullptr;
+								cmp_texture->cnt_display_items = 0;
+								cmp_texture->next = nullptr;
+								cmp_item_last = nullptr;
+								zt_singleLinkAddToEnd(cmp_shader->texture, cmp_texture);
 
-							current_textures_count = command->texture_count;
-							zt_fiz(current_textures_count) {
-								current_textures[i] = command->texture[i];
+								current_textures_count = command->texture_count;
+								zt_fiz(current_textures_count) {
+									current_textures[i] = command->texture[i];
+								}
 							}
 						}
 					} break;
@@ -8044,7 +8090,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 //							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, zt_strHash("diffuse_tex"), zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
 //						}
 					}
-					zt_shaderApplyVariables(shader_id);
+					if (cmp_tex->command->texture_count > 0) {
+						zt_shaderApplyVariables(shader_id);
+					}
 				}
 
 				if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -8299,6 +8347,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_Line: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
+							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
 							if (transform) {
 								ztVec3 line0 = (*transform) * cmp_item->command->line[0];
 								ztVec3 line1 = (*transform) * cmp_item->command->line[1];
@@ -8313,6 +8362,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 						case ztDrawCommandType_Point: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
+							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
 							if (transform) {
 								ztVec3 p = (*transform) * cmp_item->command->point;
 								glVertex3f(cmp_item->command->point.x+ offset.x, p.y + offset.y, p.z + offset.z);
@@ -16246,6 +16296,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
 			start_pos_x += glyph->x_adv * scale_x;
+			//start_pos_x = position.x + (glyph->x_adv * scale_x);
+			//start_pos_x = position.x + units_size.x;
 
 			prev_glyph = glyph;
 		}
@@ -19378,7 +19430,7 @@ bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, con
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 *intersection_point)
+bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionRayInAABB");
 	r32 tmin = 0;
@@ -19416,6 +19468,8 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 		}
 	}
 
+	if (intersection_time) *intersection_time = tmin;
+
 	if (intersection_point) {
 		*intersection_point = point + direction * tmin;
 	}
@@ -19425,7 +19479,7 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, ztVec3 intersection_points[2])
+bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time, ztVec3 intersection_points[2])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInAABB");
 	r32 tmin = 0;
@@ -19465,6 +19519,8 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 			}
 		}
 	}
+
+	if (intersection_time) *intersection_time = tmin;
 
 	if (tmin < 0 || tmin > 1) {
 		return false;
@@ -19815,7 +19871,7 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInOBB");
 	ztQuat to_local = obb_rot.getInverse();
-	if (zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, intersections)) {
+	if (zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, nullptr, intersections)) {
 		intersections[0] = obb_rot.rotatePosition(intersections[0]) + obb_center;
 		intersections[1] = obb_rot.rotatePosition(intersections[1]) + obb_center;
 		return true;
@@ -19866,6 +19922,7 @@ bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg,
 bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInFrustum");
+
 	ztVec3 aabb[] = {
 		ztVec3(aabb_center.x - aabb_extents.x / 2, aabb_center.y - aabb_extents.y / 2, aabb_center.z - aabb_extents.z / 2),
 		ztVec3(aabb_center.x + aabb_extents.x / 2, aabb_center.y + aabb_extents.y / 2, aabb_center.z + aabb_extents.z / 2),
@@ -19889,6 +19946,8 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_cent
 
 bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows)
 {
+	ZT_PROFILE_PHYSICS("zt_collisionLineInGrid");
+
 	x1 = zt_clamp(x1, 0, cols - 1);
 	y1 = zt_clamp(y1, 0, rows - 1);
 	x2 = zt_clamp(x2, 0, cols - 1);
@@ -19969,6 +20028,269 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 	return false;
 }
 
+// ================================================================================================================================================================================================
+
+bool zt_collisionMovingSphereInPlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztPlane& plane, r32 *intersection_time, ztVec3 *intersection_point)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInPlane");
+
+	r32 dist = plane.normal.dot(sphere_pos) - plane.distance;
+	if (zt_abs(dist) <= sphere_radius && !zt_real32Close(sphere_radius - zt_abs(dist), 0.0f)) {
+		// sphere already intersecting before movement
+		if (intersection_time) *intersection_time = 0.0f;
+		if (intersection_point) *intersection_point = sphere_pos;
+		return true;
+	}
+	else {
+		r32 denom = plane.normal.dot(sphere_velocity);
+		if (denom * dist >= 0.0f) {
+			// sphere moving parallel to or away
+			return false;
+		}
+		else {
+			// sphere moving towards the plane
+			r32 r = dist > 0.0f ? sphere_radius : -sphere_radius;
+			r32 t = (r - dist) / denom;
+			if (intersection_time) *intersection_time = t;
+			if (intersection_point) *intersection_point = (sphere_pos + (sphere_velocity * t)) + ((plane.normal * r) * -1);
+			return t > 0.0001f && t < 1.0001f;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere1_velocity, const ztVec3& sphere2_pos, r32 sphere2_radius, const ztVec3& sphere2_velocity, r32 *intersection_time)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInMovingSphere");
+
+	ztVec3 diff = sphere2_pos - sphere1_pos;
+	ztVec3 rel = sphere2_velocity - sphere1_velocity;
+	r32 rad = sphere2_radius + sphere1_radius;
+	r32 c = diff.dot(diff) - (rad * rad);
+	if (c < 0.0f) {
+		if (intersection_time) *intersection_time = 0.0f; // already intersecting before movement
+		return true;
+	}
+	r32 a = rel.dot(rel);
+	if (zt_real32Eq(a, 0)) return false; // not moving relative each other
+	r32 b = rel.dot(diff);
+	if (b >= 0.0f) return false; // not moving towards each other
+	r32 d = (b * b) - (a * c);
+	if (d < 0.0f) return false; //spheres do not intersect
+
+	if (intersection_time) *intersection_time = (-b - zt_sqrt(d)) / a;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInAABB");
+
+	ztVec3 intersection_points[2];
+	if (zt_collisionLineSegmentInAABB(sphere_pos, sphere_pos + sphere_velocity, aabb_center, aabb_extents + ztVec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2), intersection_time, intersection_points)) {
+		if (intersection_time) *intersection_time = sphere_pos.distance(intersection_points[0]) / sphere_pos.distance(sphere_pos + sphere_velocity);
+		return true;
+	}
+
+	// we now need to check for corners (voronoi regions)
+
+	struct local
+	{
+		static ztVec3 corner(const ztVec3& aabb_center, const ztVec3 &aabb_extents, int n)
+		{
+			ztVec3 result;
+			result.x = aabb_center.x + aabb_extents.x / (2 * ((n & 1) ? 1 : -1));
+			result.y = aabb_center.y + aabb_extents.y / (2 * ((n & 1) ? 1 : -1));
+			result.z = aabb_center.z + aabb_extents.z / (2 * ((n & 1) ? 1 : -1));
+			return result;
+		}
+	};
+
+	int u = 0, v = 0;
+	if (intersection_points[0].x > (aabb_center.x + aabb_extents.x / 2)) v |= (1<<0);
+	if (intersection_points[0].x < (aabb_center.x - aabb_extents.x / 2)) u |= (1<<0);
+	if (intersection_points[0].y < (aabb_center.y - aabb_extents.y / 2)) u |= (1<<1);
+	if (intersection_points[0].y > (aabb_center.y + aabb_extents.y / 2)) v |= (1<<1);
+	if (intersection_points[0].z < (aabb_center.z - aabb_extents.z / 2)) u |= (1<<2);
+	if (intersection_points[0].z > (aabb_center.z + aabb_extents.z / 2)) v |= (1<<2);
+
+	int m = u + v;
+	if (m == 7) { // in a vertex region
+		r32 min = ztReal32Max;
+		r32 intersection_time_lcl;
+		if (zt_collisionLineSegmentCapsule(sphere_pos, sphere_pos + sphere_velocity, local::corner(aabb_center, aabb_extents, v), local::corner(aabb_center, aabb_extents, v ^ 1), sphere_radius, &intersection_time_lcl)) min = zt_min(intersection_time_lcl, min);
+		if (zt_collisionLineSegmentCapsule(sphere_pos, sphere_pos + sphere_velocity, local::corner(aabb_center, aabb_extents, v), local::corner(aabb_center, aabb_extents, v ^ 2), sphere_radius, &intersection_time_lcl)) min = zt_min(intersection_time_lcl, min);
+		if (zt_collisionLineSegmentCapsule(sphere_pos, sphere_pos + sphere_velocity, local::corner(aabb_center, aabb_extents, v), local::corner(aabb_center, aabb_extents, v ^ 4), sphere_radius, &intersection_time_lcl)) min = zt_min(intersection_time_lcl, min);
+
+		if (min == ztReal32Max) {
+			return false; // No intersection
+		}
+
+		if (intersection_time) *intersection_time  = min;
+
+		return min > 0 && min < 1.0001f;
+	}
+
+	if ((m & (m - 1)) == 0) { // in face region
+		return true; // zt_collisionLineSegmentInAABB already populated  intersection_time
+	}
+
+	// in an edge region. intersect against the capsule at the edge
+	return zt_collisionLineSegmentCapsule(sphere_pos, sphere_pos + sphere_velocity, local::corner(aabb_center, aabb_extents, u ^ 7), local::corner(aabb_center, aabb_extents, v), sphere_radius, intersection_time);
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_beg, const ztVec3& seg_end)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionSquareDistPointToSegment");
+
+	ztVec3 seg_dif = seg_end - seg_beg;
+	ztVec3 pnt_beg = point - seg_beg;
+	ztVec3 pnt_end = point - seg_end;
+
+	r32 e = pnt_beg.dot(seg_dif);
+
+	if (e <= 0.0f) return pnt_beg.dot(pnt_beg);
+	r32 f = seg_dif.dot(seg_dif);
+	if (e >= f) return pnt_end.dot(pnt_end);
+
+	return pnt_beg.dot(pnt_beg) - e * e / f;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& capsule_beg, ztVec3& capsule_end, r32 capsule_radius)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionSphereCapsule");
+
+	r32 dist_sq = zt_collisionSquareDistPointToSegment(sphere_pos, capsule_beg, capsule_end);
+	r32 radius = sphere_radius + capsule_radius;
+	return dist_sq < radius * radius;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionRaySphere");
+
+	ztVec3 m = ray_pos - sphere_pos;
+	r32 b = m.dot(ray_dir);
+	r32 c = m.dot(m) - sphere_radius * sphere_radius;
+
+	if (c > 0.0f && b > 0.0f) {
+		return false;
+	}
+
+	r32 discr = b * b - c;
+	if (discr < 0.0f) {
+		return false;
+	}
+
+	r32 intersection_time_lcl = -b - zt_sqrt(discr);
+
+	if (intersection_time_lcl < 0.0f) {
+		intersection_time_lcl = 0.0f;
+	}
+
+	if (intersection_time) *intersection_time = intersection_time_lcl;
+	if (intersection_point) *intersection_point = ray_pos + ray_dir * intersection_time_lcl;
+
+	return true;
+}
+
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentSphere");
+
+	ztVec3 dist = line_end - line_beg;
+	ztVec3 dir = dist.getNormal();
+
+	r32 intersection_time_lcl;
+	ztVec3 intersection_point_lcl;
+
+	if (zt_collisionRaySphere(line_beg, dir, sphere_pos, sphere_radius, &intersection_time_lcl, &intersection_point_lcl)) {
+		intersection_time_lcl = intersection_time_lcl / dist.length();
+
+		if (intersection_time) *intersection_time = intersection_time_lcl;
+		if (intersection_point) *intersection_point = intersection_point_lcl;
+
+		return (intersection_time_lcl <= 1);
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& capsule_beg, const ztVec3& capsule_end, r32 capsule_radius, r32 *intersection_time)
+{
+	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentCapsule");
+
+	ztVec3 d = capsule_end - capsule_beg;
+	ztVec3 m = line_beg - capsule_beg;
+	ztVec3 n = line_end - line_beg;
+	r32 md = m.dot(d);
+	r32 nd = n.dot(d);
+	r32 dd = d.dot(d);
+
+	if (md < 0.0f && md + nd < 0.0f) {
+		return zt_collisionLineSegmentSphere(line_beg, line_end, capsule_beg, capsule_radius, intersection_time);
+	}
+	if (md > dd && md + nd > dd) {
+		return zt_collisionLineSegmentSphere(line_beg, line_end, capsule_end, capsule_radius, intersection_time);
+	}
+
+	r32 nn = n.dot(n);
+	r32 mn = m.dot(n);
+	r32 a = dd * nn - nd * nd;
+	r32 k = m.dot(m) - capsule_radius * capsule_radius;
+	r32 c = dd * k - md * md;
+	if (zt_abs(a) < ztReal32Epsilon) {
+		if (c > 0.0f) {
+			return false;
+		}
+
+		if (md < 0.0f){
+			if (intersection_time) zt_collisionLineSegmentSphere(line_beg, line_end, capsule_beg, capsule_radius, intersection_time);
+		}
+		else if (md > dd){
+			if (intersection_time) zt_collisionLineSegmentSphere(line_beg, line_end, capsule_end, capsule_radius, intersection_time);
+		}
+		else {
+			if (intersection_time) *intersection_time = 0.0f;
+		}
+		return true;
+	}
+
+	r32 b = dd * mn - nd * md;
+	r32 discr = b * b - a * c;
+	if (discr < 0.0f) {
+		return false;
+	}
+
+	r32 t = (-b - zt_sqrt(discr)) / a;
+	if (t < 0.0f || t > 1.0f) {
+		return false;
+	}
+
+	if (md + t * nd < 0.0f) {
+		return zt_collisionLineSegmentSphere(line_beg, line_end, capsule_beg, capsule_radius, intersection_time);
+	}
+	else if (md + t * nd > dd) {
+		return zt_collisionLineSegmentSphere(line_beg, line_end, capsule_end, capsule_radius, intersection_time);
+	}
+	if (intersection_time) *intersection_time = t;
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
