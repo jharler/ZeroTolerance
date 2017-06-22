@@ -20079,8 +20079,12 @@ bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 spher
 	r32 d = (b * b) - (a * c);
 	if (d < 0.0f) return false; //spheres do not intersect
 
-	if (intersection_time) *intersection_time = (-b - zt_sqrt(d)) / a;
-	return true;
+	r32 t = (-b - zt_sqrt(d)) / a;
+	if (t >= 0 && t <= 1) {
+		if (intersection_time) *intersection_time = t;
+		return true;
+	}
+	return false;
 }
 
 // ================================================================================================================================================================================================
