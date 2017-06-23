@@ -2975,7 +2975,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 	ZT_PROFILE_GUI("zt_guiManagerHandleInput");
 
 	if (zt_inputMouseIsLook()) {
-		return false;
+		return true;
 	}
 
 	zt_returnValOnNull(gm, false);
