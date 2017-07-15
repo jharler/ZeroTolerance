@@ -85,6 +85,8 @@ void ztds_bufferPlay(ztDirectSoundBuffer *buffer);
 void ztds_bufferPlayLooping(ztDirectSoundBuffer *buffer);
 void ztds_bufferStop(ztDirectSoundBuffer *buffer);
 
+void ztds_bufferSetVolume(ztDirectSoundBuffer *buffer, r32 volume);
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -403,9 +405,9 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 	audio_data += zt_sizeof(wch);
 	audio_data_len -= zt_sizeof(wch);
 
-	while(!local::checkDataChunk(wch.chunk_id, "data", nullptr)) {
-		audio_data += wfh.chunk_size;
-		audio_data_len -= wfh.chunk_size;
+	while(!local::checkDataChunk(wch.chunk_id, "data", nullptr)) { //&& !local::checkDataChunk(wch.chunk_id, "bext", nullptr)) {
+		audio_data += wch.chunk_size;
+		audio_data_len -= wch.chunk_size;
 
 		zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
 		audio_data += zt_sizeof(wch);
@@ -554,6 +556,20 @@ void ztds_bufferStop(ztDirectSoundBuffer *buffer)
 		if (buffer->buffer[i] != nullptr) {
 			buffer->buffer[i]->Stop();
 			buffer->buffer[i]->SetCurrentPosition(0);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztds_bufferSetVolume(ztDirectSoundBuffer *buffer, r32 volume)
+{
+	zt_returnOnNull(buffer);
+
+	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
+		if (buffer->buffer[i] != nullptr) {
+			LONG lvol = DSBVOLUME_MAX + zt_convertToi32Floor(DSBVOLUME_MIN * (1 - volume));
+			buffer->buffer[i]->SetVolume(lvol);
 		}
 	}
 }
