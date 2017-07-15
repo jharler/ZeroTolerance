@@ -385,7 +385,7 @@ typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(zt_guiComboBoxItemSelected_Func);
 #define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(name) void name(ztGuiItem *spinner, int value, void *user_data)
 typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(zt_guiSpinnerValueChanged_Func);
 
-#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) void name(ztGuiItem *listbox, int selected, void *user_data);
+#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) void name(ztGuiItem *listbox, int selected, void *user_data)
 typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(zt_guiListBoxItemSelected_Func);
 
 // ================================================================================================================================================================================================
@@ -498,11 +498,12 @@ enum ztGuiTreeItemFlags_Enum
 
 enum ztGuiListBoxBehaviorFlags_Enum
 {
-	ztGuiListBoxBehaviorFlags_MultiSelect       = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
-	ztGuiListBoxBehaviorFlags_AlternateRowColor = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+	ztGuiListBoxBehaviorFlags_MultiSelect        = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiListBoxBehaviorFlags_AlternateRowColor  = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+	ztGuiListBoxBehaviorFlags_AlwaysCallCallback = (1 << (ztGuiItemBehaviorFlags_MaxBit + 3)), // will call callback even when set using function (not just on user input)
 };
 
-#define ztGuiListBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 2)
+#define ztGuiListBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 3)
 
 
 // ================================================================================================================================================================================================
@@ -601,6 +602,7 @@ void             zt_guiItemFree                        (ztGuiItem *item_id);
 void             zt_guiItemQueueFree                   (ztGuiItem *item_id);
 
 void             zt_guiItemSetSize                     (ztGuiItem *item, const ztVec2& size);
+void             zt_guiItemSetMinSize                  (ztGuiItem *item, const ztVec2& size);
 void             zt_guiItemAutoSize                    (ztGuiItem *item);
 void             zt_guiItemSetPosition                 (ztGuiItem *item, const ztVec2& pos);
 void             zt_guiItemSetPosition                 (ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset = ztVec2::zero);
@@ -764,6 +766,7 @@ void             zt_guiTreeClear                       (ztGuiItem *tree);
 void             zt_guiComboBoxSetContents             (ztGuiItem *combobox, const char **contents, int contents_count, int active);
 void             zt_guiComboBoxClear                   (ztGuiItem *combobox);
 void             zt_guiComboBoxAppend                  (ztGuiItem *combobox, const char *content, void *user_data = nullptr);
+void             zt_guiComboBoxAppendWithIcon          (ztGuiItem *combobox, const char *content, ztSprite *sprite, void *user_data = nullptr);
 int              zt_guiComboBoxGetSelected             (ztGuiItem *combobox);
 void             zt_guiComboBoxSetSelected             (ztGuiItem *combobox);
 int              zt_guiComboBoxGetItemCount            (ztGuiItem *combobox);
@@ -806,6 +809,8 @@ bool             zt_guiListBoxIsItemShown              (ztGuiItem *listbox, int 
 void             zt_guiListBoxScrollToItem             (ztGuiItem *listbox, int item_idx);
 
 void             zt_guiListBoxSetHeaderItem            (ztGuiItem *listbox, ztGuiItem *header);
+
+void             zt_guiListBoxSetCallback              (ztGuiItem *listbox, ztFunctionID function_id, void *user_data = nullptr);
 
 // ================================================================================================================================================================================================
 
@@ -1262,6 +1267,7 @@ struct ztGuiItem
 			r32          scroll_amt_horz;
 
 			ztFunctionID on_selected;
+			void        *on_selected_user_data;
 		} listbox;
 
 		// -------------------------------------------------
@@ -1553,7 +1559,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		case ztGuiThemeValue_r32_TextEditPaddingX:            *result =  2 / ppu; break;
 		case ztGuiThemeValue_r32_TextEditPaddingY:            *result =  1 / ppu; break;
 		case ztGuiThemeValue_r32_TextEditDefaultW:            *result = 90 / ppu; break;
-		case ztGuiThemeValue_r32_TextEditDefaultH:            *result = 20 / ppu; break;
+		case ztGuiThemeValue_r32_TextEditDefaultH:            *result = 22 / ppu; break;
 		
 		case ztGuiThemeValue_r32_MenuSubmenuIconX:            *result =  1 / ppu; break;
 		case ztGuiThemeValue_r32_MenuSubmenuIconY:            *result =  1 / ppu; break;
@@ -1842,7 +1848,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 			r32 base_width = 22 / ppu;
 
 			item->size.x = 80 / ppu;
-			item->size.y = 18 / ppu;
+			item->size.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_TextEditDefaultH);
 
 			r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding);
 			ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_FontID);
@@ -1940,7 +1946,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				}
 			}
 
-			if (item->label != nullptr) {
+			if (item->label != nullptr && zt_bitIsSet(item->behavior_flags, ztGuiWindowBehaviorFlags_ShowTitle)) {
 				ztVec2 title_pos(pos.x, pos.y + (item->size.y / 2) - (4 / ppu));
 				ztVec2 title_size;
 				zt_drawListAddText2D(draw_list, 0, item->label, title_pos, ztAlign_Top, ztAnchor_Top, &title_size);
@@ -2266,7 +2272,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			zt_alignToPixel(&size, zt_pixelsPerUnit());
 			zt_drawListAddSolidOutlinedRect2D(draw_list, pos, size, local::face(false, false), local::outline(false, false));
 
-			ztVec2 text_pos(item->textedit.text_pos[0], item->textedit.text_pos[1]);
+			ztVec2 text_pos(item->textedit.text_pos[0], item->textedit.text_pos[1] + (-2 / zt_pixelsPerUnit()));
 
 			if (item->textedit.select_beg != item->textedit.select_end) {
 				int sel_beg = zt_min(item->textedit.select_beg, item->textedit.select_end);
@@ -2426,10 +2432,23 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			//pos.y += padding;
 
 			r32 button_w = 0; _zt_guiDefaultThemeGetRValue(theme, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
-			zt_drawListAddText2D(draw_list, ztFontDefault, "v", ztVec2(pos.x + (item->size.x - button_w) / 2, pos.y));
+			//zt_drawListAddText2D(draw_list, ztFontDefault, "v", ztVec2(pos.x + (item->size.x - button_w) / 2, pos.y));
+			zt_drawListAddSprite(draw_list, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, ztVec2i(992, 14), ztVec2i(12, 12)), ztVec3(pos.x + (item->size.x - button_w) / 2, pos.y, 0));
 
 			if (item->combobox.selected >= 0 && item->combobox.selected < item->combobox.contents_count) {
-				pos.x = (pos.x) + (item->size.x / -2.f + padding);
+				r32 width = item->size.x;
+
+				pos.x = (pos.x) + (width / -2.f + padding);
+
+				if (item->combobox.popup != nullptr) {
+					if (item->combobox.popup->menu.icons[item->combobox.selected]) {
+						ztSprite *sprite = item->combobox.popup->menu.icons[item->combobox.selected];
+
+						zt_drawListAddSprite(draw_list, sprite, ztVec3(pos.x + sprite->half_size.x, pos.y, 0));
+
+						pos.x += sprite->half_size.x * 2 + padding;
+					}
+				}
 				zt_drawListAddFancyText2D(draw_list, ztFontDefault, item->combobox.contents[item->combobox.selected], pos, ztAlign_Left, ztAnchor_Left);
 			}
 
@@ -3357,9 +3376,11 @@ void zt_guiManagerRender(ztGuiManager *gm, ztDrawList *draw_list, r32 dt)
 
 #			if defined(ZT_DEBUG)
 				if (item->debug_highlight != ztVec4::zero) {
+					zt_drawListPushTexture(draw_list, ztTextureDefault);
 					zt_drawListPushColor(draw_list, item->debug_highlight);
 					zt_drawListAddEmptyRect(draw_list, pos, item->size);
 					zt_drawListPopColor(draw_list);
+					zt_drawListPopTexture(draw_list);
 				}
 #			endif
 			if (!clip && zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_ClipChildren) ) {
@@ -7174,6 +7195,15 @@ void zt_guiComboBoxAppend(ztGuiItem *combobox, const char *content, void *user_d
 {
 	ZT_PROFILE_GUI("zt_guiComboBoxAppend");
 
+	zt_guiComboBoxAppendWithIcon(combobox, content, nullptr, user_data);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiComboBoxAppendWithIcon(ztGuiItem *combobox, const char *content, ztSprite *sprite, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiComboBoxAppendWithIcon");
+
 	zt_assertReturnOnFail(combobox->type == ztGuiItemType_ComboBox);
 	zt_assertReturnOnFail(combobox->combobox.contents_count < combobox->combobox.contents_size);
 
@@ -7185,13 +7215,13 @@ void zt_guiComboBoxAppend(ztGuiItem *combobox, const char *content, void *user_d
 		zt_guiMenuSetCallback(combobox->combobox.popup, _zt_guiComboBoxMenuSelected_FunctionID);
 		combobox->combobox.selected = 0;
 	}
-	
+
 	int idx = combobox->combobox.contents_count;
 	combobox->combobox.contents_count += 1;
 
 	zt_stringOverwrite(&combobox->gm->string_pool, combobox->combobox.contents[idx], content);
 	combobox->combobox.contents_user_data[idx] = user_data;
-	zt_guiMenuAppend(combobox->combobox.popup, content, idx, combobox);
+	zt_guiMenuAppend(combobox->combobox.popup, content, idx, combobox, sprite);
 }
 
 // ================================================================================================================================================================================================
@@ -7692,6 +7722,59 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxRender, ztInternal ZT_FUNC_GUI_ITEM_R
 
 // ================================================================================================================================================================================================
 
+ztInternal int _zt_guiListBoxSetSelected(ztGuiItem *listbox, int item_idx, bool append_to_selection, bool force_visible, bool from_user_input)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxSetSelected");
+	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
+	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, -1);
+
+	if (append_to_selection && !zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_MultiSelect)) {
+		append_to_selection = false;
+	}
+
+	bool already_selected = false;
+	if (!append_to_selection) {
+		zt_fiz(listbox->listbox.item_count) {
+			if (listbox->listbox.selected[i]) {
+				if (i == item_idx) {
+					already_selected = true;
+				}
+				else {
+					listbox->listbox.selected[i] = false;
+				}
+			}
+		}
+	}
+
+	int selected_count = 0;
+	if (append_to_selection) {
+		zt_fiz(listbox->listbox.item_count) {
+			if (listbox->listbox.selected[i]) {
+				selected_count += 1;
+			}
+		}
+	}
+
+	if (!already_selected) {
+		listbox->listbox.selected[item_idx] = true;
+
+		if (listbox->listbox.on_selected != ztInvalidID && (from_user_input || zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_AlwaysCallCallback))) {
+			((zt_guiListBoxItemSelected_Func*)zt_functionPointer(listbox->listbox.on_selected))(listbox, item_idx, listbox->listbox.user_datas[item_idx]);
+		}
+	}
+
+	if (force_visible) {
+		zt_guiListBoxScrollToItem(listbox, item_idx);
+	}
+
+	listbox->listbox.prev_active_item = listbox->listbox.active_item;
+	listbox->listbox.active_item = item_idx;
+
+	return selected_count;
+}
+
+// ================================================================================================================================================================================================
+
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiListBoxInputKeyboard))
 {
 	if(input_keys[ztInputKeys_Control].pressed()) {
@@ -7741,7 +7824,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 				if (should_append && zt_guiListBoxIsSelected(item, sel_idx)) {
 					item->listbox.selected[sel_idx_old] = false;
 				}
-				zt_guiListBoxSetSelected(item, sel_idx, should_append);
+				_zt_guiListBoxSetSelected(item, sel_idx, should_append, true, true);
 				return true;
 			}
 			return true;
@@ -7758,7 +7841,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 				if (should_append && zt_guiListBoxIsSelected(item, sel_idx)) {
 					item->listbox.selected[sel_idx_old] = false;
 				}
-				zt_guiListBoxSetSelected(item, sel_idx, should_append);
+				_zt_guiListBoxSetSelected(item, sel_idx, should_append, true, true);
 				return true;
 			}
 			return true;
@@ -7775,7 +7858,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					if (item->listbox.hidden[sel_idx]) {
 						continue;
 					}
-					zt_guiListBoxSetSelected(item, sel_idx, true);
+					_zt_guiListBoxSetSelected(item, sel_idx, true, true, true);
 					fit_h -= 1;
 				}
 			}
@@ -7787,7 +7870,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					}
 					fit_h -= 1;
 					if (fit_h == 0 || sel_idx == 0) {
-						zt_guiListBoxSetSelected(item, sel_idx, false);
+						_zt_guiListBoxSetSelected(item, sel_idx, false, true, true);
 					}
 				}
 			}
@@ -7806,7 +7889,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					if (item->listbox.hidden[sel_idx]) {
 						continue;
 					}
-					zt_guiListBoxSetSelected(item, sel_idx, true);
+					_zt_guiListBoxSetSelected(item, sel_idx, true, true, true);
 					fit_h -= 1;
 				}
 			}
@@ -7818,7 +7901,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					}
 					fit_h -= 1;
 					if (fit_h == 0 || sel_idx == item->listbox.item_count - 1) {
-						zt_guiListBoxSetSelected(item, sel_idx, false);
+						_zt_guiListBoxSetSelected(item, sel_idx, false, true, true);
 					}
 				}
 			}
@@ -7830,7 +7913,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 				int sel_idx = zt_guiListBoxGetActiveItem(item);
 				for (int i = sel_idx; i >= 0; --i) {
 					if (!item->listbox.hidden[i]) {
-						zt_guiListBoxSetSelected(item, i, i != sel_idx);
+						_zt_guiListBoxSetSelected(item, i, i != sel_idx, true, true);
 					}
 				}
 				item->listbox.prev_active_item = sel_idx;
@@ -7841,7 +7924,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					sel_idx += 1;
 				}
 
-				zt_guiListBoxSetSelected(item, sel_idx, false);
+				_zt_guiListBoxSetSelected(item, sel_idx, false, true, true);
 			}
 			return true;
 		}
@@ -7850,7 +7933,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 				int sel_idx = zt_guiListBoxGetActiveItem(item);
 				for (int i = sel_idx; i < item->listbox.item_count; ++i) {
 					if (!item->listbox.hidden[i]) {
-						zt_guiListBoxSetSelected(item, i, i != sel_idx);
+						_zt_guiListBoxSetSelected(item, i, i != sel_idx, true, true);
 					}
 				}
 				item->listbox.prev_active_item = sel_idx;
@@ -7861,7 +7944,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 					sel_idx -= 1;
 				}
 
-				zt_guiListBoxSetSelected(item, sel_idx, false);
+				_zt_guiListBoxSetSelected(item, sel_idx, false, true, true);
 			}
 			return true;
 		}
@@ -7896,22 +7979,22 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputMouse, ztInternal ZT_FUNC_GUI_IT
 					if (zt_collisionPointInRect(local_mpos, ztVec2(0, item->listbox.items[i]->pos.y), ztVec2(item->listbox.container->size.x, item->listbox.items[i]->size.y))) {
 						if(zt_bitIsSet(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ControlPressed)) {
 							if(item->listbox.selected[i]) {
-								zt_guiListBoxSetSelected(item, i, true, false);
+								_zt_guiListBoxSetSelected(item, i, true, false, true);
 								item->listbox.selected[i] = false;
 							}
 							else {
-								zt_guiListBoxSetSelected(item, i, true, false);
+								_zt_guiListBoxSetSelected(item, i, true, false, true);
 							}
 						}
 						else if(zt_bitIsSet(item->behavior_flags, ztGuiListBoxInternalBehaviorFlags_ShiftPressed)) {
 							int start = zt_guiListBoxGetSelectedCount(item) > 1 ? item->listbox.prev_active_item : item->listbox.active_item;
 							for (int j = start; j != i; (start < i ? ++j : --j)) {
-								zt_guiListBoxSetSelected(item, j, j != start, false);
+								_zt_guiListBoxSetSelected(item, j, j != start, false, true);
 							}
 							item->listbox.prev_active_item = start;
 						}
 						else {
-							zt_guiListBoxSetSelected(item, i);
+							_zt_guiListBoxSetSelected(item, i, false, true, true);
 						}
 
 						break;
@@ -8143,53 +8226,7 @@ void *zt_guiListBoxGetItemUserData(ztGuiItem *listbox, int item_idx)
 
 int zt_guiListBoxSetSelected(ztGuiItem *listbox, int item_idx, bool append_to_selection, bool force_visible)
 {
-	ZT_PROFILE_GUI("zt_guiListBoxSetSelected");
-	zt_assertReturnValOnFail(listbox->type == ztGuiItemType_ListBox, -1);
-	zt_assertReturnValOnFail(listbox->listbox.item_count > item_idx && item_idx >= 0, -1);
-
-	if (append_to_selection && !zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_MultiSelect)) {
-		append_to_selection = false;
-	}
-
-	bool already_selected = false;
-	if (!append_to_selection) {
-		zt_fiz(listbox->listbox.item_count) {
-			if (listbox->listbox.selected[i]) {
-				if (i == item_idx) {
-					already_selected = true;
-				}
-				else {
-					listbox->listbox.selected[i] = false;
-				}
-			}
-		}
-	}
-
-	int selected_count = 0;
-	if (append_to_selection) {
-		zt_fiz(listbox->listbox.item_count) {
-			if (listbox->listbox.selected[i]) {
-				selected_count += 1;
-			}
-		}
-	}
-
-	if (!already_selected) {
-		listbox->listbox.selected[item_idx] = true;
-
-		if (listbox->listbox.on_selected != ztInvalidID) {
-			((zt_guiListBoxItemSelected_Func*)zt_functionPointer(listbox->listbox.on_selected))(listbox, item_idx, listbox->listbox.user_datas[item_idx]);
-		}
-	}
-
-	if (force_visible) {
-		zt_guiListBoxScrollToItem(listbox, item_idx);
-	}
-
-	listbox->listbox.prev_active_item = listbox->listbox.active_item;
-	listbox->listbox.active_item = item_idx;
-
-	return selected_count;
+	return _zt_guiListBoxSetSelected(listbox, item_idx, append_to_selection, force_visible, false);
 }
 
 // ================================================================================================================================================================================================
@@ -8292,6 +8329,18 @@ void zt_guiListBoxSetHeaderItem(ztGuiItem *listbox, ztGuiItem *header)
 
 	zt_guiItemReparent(header, listbox->listbox.container);
 }
+
+// ================================================================================================================================================================================================
+
+void zt_guiListBoxSetCallback(ztGuiItem *listbox, ztFunctionID function_id, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiListBoxSetCallback");
+	zt_assertReturnOnFail(listbox->type == ztGuiItemType_ListBox);
+
+	listbox->listbox.on_selected = function_id;
+	listbox->listbox.on_selected_user_data = user_data;
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -9044,6 +9093,9 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 	min_size.x = zt_max(0.01f, min_size.x);
 	min_size.y = zt_max(0.01f, min_size.y);
 
+	if(item->min_size.x > min_size.x) min_size.x = item->min_size.x;
+	if(item->min_size.y > min_size.y) min_size.y = item->min_size.y;
+
 	return min_size;
 }
 
@@ -9130,8 +9182,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 			}
 		}
 
-		item->sizer.size[0] = item->size.x;
-		item->sizer.size[1] = item->size.y;
+		item->sizer.size[0] = zt_max(item->min_size.x, item->size.x);
+		item->sizer.size[1] = zt_max(item->min_size.y, item->size.y);
 	}
 
 	if (item->sizer.type == ztGuiSizerType_Normal) {
@@ -9645,6 +9697,16 @@ void zt_guiItemSetSize(ztGuiItem *item, const ztVec2& size)
 
 	if (size.x != -1) item->size.x = size.x;
 	if (size.y != -1) item->size.y = size.y;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiItemSetMinSize(ztGuiItem *item, const ztVec2& size)
+{
+	zt_returnOnNull(item);
+
+	if (size.x != -1) item->min_size.x = size.x;
+	if (size.y != -1) item->min_size.y = size.y;
 }
 
 // ================================================================================================================================================================================================
