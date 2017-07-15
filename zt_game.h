@@ -2483,9 +2483,12 @@ bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius,
 r32  zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_beg, const ztVec3& seg_end);
 
 bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& capsule_beg, ztVec3& capsule_end, r32 capsule_radius);
-bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionSpherePlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztPlane& plane); bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionSphereSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere2_pos, r32 sphere2_radius);
+bool zt_collisionSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& aabb_center, const ztVec3& aabb_extents);
 bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
 bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& capsule_beg, const ztVec3& capsule_end, r32 capsule_radius, r32 *intersection_time = nullptr);
+
 
 // ================================================================================================================================================================================================
 // physics manager
@@ -2731,40 +2734,86 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 // Particles
 // ================================================================================================================================================================================================
 
+struct ztColorGradient
+{
+	struct Entry
+	{
+		ztColor color;
+		i32     proportion; // the proportion of time spent between this color and the next color (ignored for final color)
+	};
+
+	Entry colors[32];
+	int   colors_count = 0;
+};
+
+// ================================================================================================================================================================================================
+
+ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent);
+
+
+// ================================================================================================================================================================================================
+
+struct ztValueGradient
+{
+	struct Entry
+	{
+		r32 value;
+		i32 proportion; // the proportion of time spent between this value and the next value (ignored for final value)
+	};
+
+	Entry values[32];
+	int   values_count = 0;
+};
+
+// ================================================================================================================================================================================================
+
+r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent);
+
+
+// ================================================================================================================================================================================================
+
 struct ztParticleEmitterSettings
 {
-	ztVec3  origin;
-	ztVec3  size;
+	ztVec3          origin                       = ztVec3::zero;
+	ztVec3          size                         = ztVec3::one;
 
-	r32     emission_rate;               // particles per second
+	r32             emission_rate                = 10;               // particles per second
 
-	r32     lifetime;                    // particle lifetime
-	r32     lifetime_random;             // 0 = no randomness, 1 = complete randomness (lifetime is max, so .5 would be from half lifetime to lifetime)
+	r32             lifetime                     = 1;                // particle lifetime
+	r32             lifetime_random              = 0;                // 0 = no randomness, 1 = complete randomness (lifetime is max, so .5 would be from half lifetime to lifetime)
 
-	r32     velocity_speed;              // units per second
-	r32     velocity_speed_random;       // 0 = no randomness, 1 = complete randomness (0 - velocity_speed)
+	r32             velocity_speed               = 1;                // units per second
+	r32             velocity_speed_random        = 0;                // 0 = no randomness, 1 = complete randomness (0 - velocity_speed)
 
-	r32     velocity_angle;              // 0 up, 90, right, 180 down, 270 left
-	r32     velocity_angle_random;       // 0 = no randomness, 1 = complete randomness (0-360, percentage is based off angle (.125 on a 90 angle would be 45-135)
+	r32             velocity_angle               = 360;              // 0 up, 90, right, 180 down, 270 left
+	r32             velocity_angle_random        = 1;                // 0 = no randomness, 1 = complete randomness (0-360, percentage is based off angle (.125 on a 90 angle would be 45-135)
 
-	r32     rotation;                    // rotation amount for each particle per second
-	r32     rotation_random;             // 0 = no randomness, 1 = complete randomness (0-360)
+	r32             rotation                     = 0;                // rotation amount for each particle per second
+	r32             rotation_random              = 0;                // 0 = no randomness, 1 = complete randomness (0-360)
+	i32             rotation_direction           = 0;                // 0 = both direction, -1 = counter clockwise, 1 = clockwise
 
-	r32     scale;                       // scale amount for each particle
-	r32     scale_random;                // 0 = no randomness, 1 = complete randomness (0-scale)
+	r32             scale                        = 1;                // scale amount for each particle
+	r32             scale_random                 = 0;                // 0 = no randomness, 1 = complete randomness (0-scale)
+	ztValueGradient scale_life                   = {};
 
-	ztVec3  gravity_velocity;
+	ztVec3          gravity_velocity             = ztVec3::zero;
 
-	ztVec4  color_life_begin;
-	ztVec4  color_life_end;
+	ztVec4          color_life_begin             = ztColor_White;
+	ztVec4          color_life_end               = ztColor_White;
 
-	bool    random_rotation;            // particles are randomly rotated
-	bool    local_space;                // particles position relative to emitter origin
-	bool    burst_emit;                 // emit all particles at once
+	ztColorGradient color_life                   = {};               // if colors_count > 0, this is used instead of the above colors
 
-	bool    enabled;
+	r32             z_life_begin                 = 0;
+	r32             z_life_end                   = 0;
 
-	r32     emitter_lifetime;           // 0 = persistent, otherwise life in seconds
+	bool            random_rotation              = false;            // particles are randomly rotated
+	bool            local_space                  = false;            // particles position relative to emitter origin
+	bool            burst_emit                   = false;            // emit all particles at once
+	bool            z_sort                       = false;
+
+	bool            enabled                      = true;
+
+	r32             emitter_lifetime             = 0;                // 0 = persistent, otherwise life in seconds
 };
 
 // ================================================================================================================================================================================================
@@ -2773,6 +2822,7 @@ struct ztParticle
 {
 	ztTransform transform;
 	r32         life;
+	r32         life_span;
 	r32         speed;
 	r32         angle;
 	r32         rotation;
@@ -2801,13 +2851,19 @@ struct ztParticleEmitter2D
 	r32                       time_last_particle;
 
 	ztRandom                  randomizer;
+
+	r32                       lifetime;
+	bool                      enabled;
 };
 
 // ================================================================================================================================================================================================
 
-ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed);
+ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed, r32 prewarm_time = 0);
 bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt); // returns false when emitter is exhausted
 void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list);
+
+void                 zt_particleEmitter2DEnable(ztParticleEmitter2D *emitter, bool enabled = true);
+void                 zt_particleEmitter2DReset(ztParticleEmitter2D *emitter, r32 prewarm_time = 0);
 
 // ================================================================================================================================================================================================
 // Pathfinding
@@ -2928,8 +2984,8 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 
 typedef i32 ztAudioClipID;
 
-ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
-ztAudioClipID zt_audioClipMakeFromFile(const char *file_name);
+ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 audio_system = 0);
+ztAudioClipID zt_audioClipMakeFromFile(const char *file_name, i32 audio_system);
 
 void zt_audioClipFree(ztAudioClipID audio_clip_id);
 
@@ -2941,6 +2997,8 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id);
 
 void zt_audioSetMute(bool mute);
 bool zt_audioGetMute();
+
+void zt_audioSystemSetVolume(i32 audio_system, r32 volume);
 
 
 
@@ -3713,12 +3771,28 @@ struct ztAudioClip
 
 	r32 length;
 	r32 play_time;
+
+	i32 system;
 };
+
+// ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_AUDIO_CLIPS
 #define ZT_MAX_AUDIO_CLIPS  128
 #endif
 
+// ================================================================================================================================================================================================
+
+struct ztAudioSystem
+{
+	r32 volume;
+};
+
+// ================================================================================================================================================================================================
+
+#ifndef ZT_MAX_AUDIO_SYSTEMS
+#define ZT_MAX_AUDIO_SYSTEMS  16
+#endif
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -3823,7 +3897,7 @@ struct ztGameGlobals
 	ztAudioClip               audio_clips[ZT_MAX_AUDIO_CLIPS];
 	i32                       audio_clips_count = 0;
 	bool                      audio_muted = false;
-
+	ztAudioSystem             audio_systems[ZT_MAX_AUDIO_SYSTEMS];
 
 	// ----------------------
 
@@ -19644,13 +19718,17 @@ bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aab
 			if (aabb_max_2.values[i] < aabb_min_1.values[i]) *time_first = zt_max((aabb_min_1.values[i] - aabb_max_2.values[i]) / velocity.values[i], *time_first);
 			if (aabb_max_1.values[i] > aabb_min_2.values[i]) *time_last = zt_min((aabb_max_1.values[i] - aabb_min_2.values[i]) / velocity.values[i], *time_last);
 		}
+		else {
+			if (aabb_max_2.values[i] < aabb_min_1.values[i]) return false;
+			if (aabb_min_2.values[i] > aabb_max_1.values[i]) return false;
+		}
 
 		if (*time_first > *time_last) {
 			return false;
 		}
 	}
 
-	return true;
+	return zt_between(*time_first, 0, 1) && zt_between(*time_last, 0, 1);
 }
 
 // ================================================================================================================================================================================================
@@ -20093,7 +20171,7 @@ bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius,
 {
 	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInAABB");
 
-	ztVec3 intersection_points[2];
+	ztVec3 intersection_points[2] = { ztVec3::min, ztVec3::min };
 	if (zt_collisionLineSegmentInAABB(sphere_pos, sphere_pos + sphere_velocity, aabb_center, aabb_extents + ztVec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2), intersection_time, intersection_points)) {
 		if (intersection_time) *intersection_time = sphere_pos.distance(intersection_points[0]) / sphere_pos.distance(sphere_pos + sphere_velocity);
 		return true;
@@ -20174,6 +20252,31 @@ bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, cons
 	r32 dist_sq = zt_collisionSquareDistPointToSegment(sphere_pos, capsule_beg, capsule_end);
 	r32 radius = sphere_radius + capsule_radius;
 	return dist_sq < radius * radius;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionSpherePlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztPlane& plane)
+{
+	r32 dist = sphere_pos.dot(plane.normal) - plane.distance;
+	return zt_abs(dist) <= sphere_radius;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionSphereSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere2_pos, r32 sphere2_radius)
+{
+	ztVec3 diff = sphere2_pos - sphere1_pos;
+	r32 rad = sphere2_radius + sphere1_radius;
+	r32 c = diff.dot(diff) - (rad * rad);
+	return (c < 0.0f);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+{
+	return zt_collisionPointInAABB(sphere_pos, aabb_center, aabb_extents + ztVec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2));
 }
 
 // ================================================================================================================================================================================================
@@ -20987,12 +21090,78 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed)
+ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent)
+{
+	zt_returnValOnNull(color_gradient, ztColor_White);
+
+	i32 total_prop = 0;
+	zt_fiz(color_gradient->colors_count) {
+		total_prop += color_gradient->colors[i].proportion;
+	}
+
+	r32 this_prop = zt_clamp(percent, 0, 1) * total_prop;
+	r32 curr_prop = 0;
+	for (int j = 1; j < color_gradient->colors_count; ++j) {
+		r32 next_prop = curr_prop + (r32)color_gradient->colors[j - 1].proportion;
+		if (this_prop < next_prop) {
+			r32 pct = (this_prop - curr_prop) / (next_prop - curr_prop);
+			return ztVec4::lerp(color_gradient->colors[j - 1].color, color_gradient->colors[j].color, pct);
+		}
+		curr_prop = next_prop;
+	}
+
+	if (color_gradient->colors_count == 0) {
+		return ztColor_White;
+	}
+	else {
+		return color_gradient->colors[0].color;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
+{
+	zt_returnValOnNull(value_gradient, 0);
+
+	i32 total_prop = 0;
+	zt_fiz(value_gradient->values_count) {
+		total_prop += value_gradient->values[i].proportion;
+	}
+
+	r32 this_prop = zt_clamp(percent, 0, 1) * total_prop;
+	r32 curr_prop = 0;
+	for (int j = 1; j < value_gradient->values_count; ++j) {
+		r32 next_prop = curr_prop + (r32)value_gradient->values[j - 1].proportion;
+		if (this_prop < next_prop) {
+			r32 pct = (this_prop - curr_prop) / (next_prop - curr_prop);
+			return zt_lerp(value_gradient->values[j - 1].value, value_gradient->values[j].value, pct);
+		}
+		curr_prop = next_prop;
+	}
+
+	if (value_gradient->values_count == 0) {
+		return 0;
+	}
+	else {
+		return value_gradient->values[0].value;
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
+ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed, r32 prewarm_time)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DMake");
 	ztParticleEmitter2D emitter = {};
-	emitter.settings = *settings;
-	emitter.sprite   = *sprite;
+
+	zt_memCpy(&emitter.settings, zt_sizeof(ztParticleEmitterSettings), settings, zt_sizeof(ztParticleEmitterSettings));
+
+	emitter.sprite = *sprite;
 
 	emitter.particles_count = zt_min(ZT_MAX_PARTICLES, zt_convertToi32Ceil(settings->emission_rate * (settings->burst_emit ? 1 : settings->lifetime)));
 	zt_fiz(emitter.particles_count) {
@@ -21002,8 +21171,18 @@ ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings
 	emitter.live_particles         = 0;
 	emitter.time_between_particles = settings->burst_emit ? 0 : 1.0f / (zt_min(settings->emission_rate, ZT_MAX_PARTICLES) / settings->lifetime);
 	emitter.time_last_particle     = 0;
+	emitter.lifetime               = settings->lifetime;
+	emitter.enabled                = true;
 
 	zt_randomInit(&emitter.randomizer, seed);
+
+	if(prewarm_time > 0) {
+		r32 dt = 1.f / 60.f;
+		while (prewarm_time > 0) {
+			prewarm_time -= dt;
+			zt_particleEmitter2DUpdate(&emitter, dt);
+		}
+	}
 
 	return emitter;
 }
@@ -21013,6 +21192,12 @@ ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings
 bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DUpdate");
+	zt_returnValOnNull(emitter, false);
+
+	if (emitter->enabled == false) {
+		return false;
+	}
+
 	// update existing particles before creating new ones
 	zt_fiz(emitter->particles_count) {
 		if (emitter->particles[i].life) {
@@ -21024,6 +21209,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 				// move particle
 				emitter->particles[i].transform.position.x += (emitter->settings.gravity_velocity.x * dt) + zt_cos(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
 				emitter->particles[i].transform.position.y += (emitter->settings.gravity_velocity.y * dt) + zt_sin(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
+				emitter->particles[i].transform.position.z = zt_lerp(emitter->settings.z_life_begin, emitter->settings.z_life_end, emitter->particles[i].life / emitter->settings.lifetime);
 
 				if (emitter->settings.rotation != 0) {
 					emitter->particles[i].transform.rotation *= ztQuat::makeFromEuler(0, 0, emitter->particles[i].rotation * dt);
@@ -21034,6 +21220,31 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 				emitter->live_particles -= 1;
 			}
 		}
+	}
+
+	if (emitter->settings.z_sort) {
+		struct local
+		{
+			static int compare(const void *one, const void *two)
+			{
+				ztParticle *pone = (ztParticle*)one;
+				ztParticle *ptwo = (ztParticle*)two;
+
+				if (pone->life <= 0 && ptwo->life <= 0) return pone < ptwo ? -1 : 1;
+				if (pone->life <= 0) return 1;
+				if (ptwo->life <= 0) return -1;
+
+				if (pone->transform.position.z < ptwo->transform.position.z) {
+					return 1;
+				}
+				else if (ptwo->transform.position.z < pone->transform.position.z) {
+					return -1;
+				}
+				else return pone < ptwo ? -1 : 1;
+			}
+		};
+
+		qsort(emitter->particles, emitter->particles_count, zt_sizeof(ztParticle), local::compare);
 	}
 
 	// emit new particles if needed
@@ -21060,6 +21271,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 
 
 					emitter->particles[i].life                = emitter->settings.lifetime - (emitter->settings.lifetime * (emitter->settings.lifetime_random * zt_randomVal(&emitter->randomizer)));
+					emitter->particles[i].life_span           = emitter->particles[i].life;
 					emitter->particles[i].angle               = angle;
 					emitter->particles[i].transform.position  = ztVec3((zt_randomVal(&emitter->randomizer) * emitter->settings.size.x) - emitter->settings.size.x / 2,
 					                                                   (zt_randomVal(&emitter->randomizer) * emitter->settings.size.y) - emitter->settings.size.y / 2,
@@ -21067,8 +21279,17 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 					emitter->particles[i].speed               = emitter->settings.velocity_speed - (emitter->settings.velocity_speed * (emitter->settings.velocity_speed_random * zt_randomVal(&emitter->randomizer)));
 					emitter->particles[i].rotation            = (emitter->settings.rotation * 360) * (1 - (zt_randomVal(&emitter->randomizer) * emitter->settings.rotation_random));
 
+					if(emitter->settings.rotation_direction == 0) {
+						if(zt_randomVal(&emitter->randomizer) < .5f) {
+							emitter->particles[i].rotation *= -1;
+						}
+					}
+					if(emitter->settings.rotation_direction == -1) {
+						emitter->particles[i].rotation *= -1;
+					}
+
 					if (emitter->settings.random_rotation) {
-						emitter->particles[i].transform.rotation = ztQuat::makeFromEuler(0, 0, zt_randomVal(&emitter->randomizer) * 360);
+						emitter->particles[i].transform.rotation = ztQuat::makeFromEuler(0, 0, (zt_randomVal(&emitter->randomizer) * 360) - 180.f);
 					}
 
 					ztVec3 scale(emitter->settings.scale, emitter->settings.scale, emitter->settings.scale);
@@ -21107,9 +21328,17 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DRender");
+
+	zt_returnOnNull(emitter);
+	zt_returnOnNull(draw_list);
+
+	if (emitter->enabled == false) {
+		return;
+	}
+
 	zt_drawListPushTexture(draw_list, emitter->sprite.tex);
 	
-	bool change_color = emitter->settings.color_life_begin != emitter->settings.color_life_end;
+	bool change_color = emitter->settings.color_life_begin != emitter->settings.color_life_end || emitter->settings.color_life.colors_count > 1;
 
 	ztVec2 uv[4] = {
 		ztVec2(emitter->sprite.tex_uv.x, emitter->sprite.tex_uv.y),
@@ -21123,7 +21352,13 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 	zt_fiz(emitter->live_particles) {
 
 		if (change_color) {
-			ztVec4 color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->settings.lifetime)));
+			ztVec4 color;
+			if (emitter->settings.color_life.colors_count > 1) {
+				color = zt_colorGradientGetValue(&emitter->settings.color_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span));
+			}
+			else {
+				color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->particles[i].life_span)));
+			}
 			zt_drawListPushColor(draw_list, color);
 		}
 
@@ -21132,12 +21367,19 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 			pos += emitter->settings.origin;
 		}
 
+		ztVec3 scale = emitter->particles[i].transform.scale;
+
+		if (emitter->settings.scale_life.values_count > 0) {
+			scale *= zt_valueGradientGetValue(&emitter->settings.scale_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span));
+		}
+
+
 		if (emitter->particles[i].rotation) {
 			ztVec3 p[4] = {
-				emitter->particles[i].transform.scale * ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
-				emitter->particles[i].transform.scale * ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				emitter->particles[i].transform.scale * ztVec3( emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				emitter->particles[i].transform.scale * ztVec3( emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
+				scale * ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
+				scale * ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
+				scale * ztVec3( emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
+				scale * ztVec3( emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
 			};
 
 			zt_fjze(p) {
@@ -21150,7 +21392,7 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 		}
 		else {
 			//zt_drawListAddBillboard(draw_list, emitt6er->settings.origin + emitter->particles[i].transform.position, emitter->sprite.half_size * 2, emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
-			zt_drawListAddFilledRect2D(draw_list, pos, emitter->particles[i].transform.scale.xy * (emitter->sprite.half_size * 2), emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
+			zt_drawListAddFilledRect2D(draw_list, pos, scale.xy * (emitter->sprite.half_size * 2), emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
 		}
 		if (change_color) {
 			zt_drawListPopColor(draw_list);
@@ -21159,6 +21401,37 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 	zt_drawListPopTexture(draw_list);
 }
 
+// ================================================================================================================================================================================================
+
+void zt_particleEmitter2DEnable(ztParticleEmitter2D *emitter, bool enabled)
+{
+	zt_returnOnNull(emitter);
+
+	emitter->enabled = enabled;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitter2DReset(ztParticleEmitter2D *emitter, r32 prewarm_time)
+{
+	zt_returnOnNull(emitter);
+
+	emitter->live_particles = 0;
+	emitter->time_last_particle = 0;
+	emitter->lifetime = emitter->settings.emitter_lifetime;
+
+	zt_fiz(emitter->particles_count) {
+		emitter->particles[i].life = 0;
+	}
+
+	if (prewarm_time > 0) {
+		r32 dt = 1.f / 60.f;
+		while (prewarm_time > 0) {
+			prewarm_time -= dt;
+			zt_particleEmitter2DUpdate(emitter, dt);
+		}
+	}
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -21605,6 +21878,10 @@ ztInternal bool _zt_audioCheckContext()
 #	if defined(ZT_DSOUND)
 	if (zt_game->ds_context == nullptr) {
 		zt_game->ds_context = ztds_contextMake(zt_game->win_details[0].handle);
+
+		zt_fize(zt_game->audio_systems) {
+			zt_game->audio_systems[i].volume = 1;
+		}
 	}
 
 	return zt_game->ds_context != nullptr;
@@ -21613,7 +21890,20 @@ ztInternal bool _zt_audioCheckContext()
 
 // ================================================================================================================================================================================================
 
-ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
+ztInternal void _zt_audioApplySystemSettings(ztAudioClip *clip)
+{
+#	if defined(ZT_DSOUND)
+	if (clip == nullptr || clip->ds_buffer == nullptr) {
+		return;
+	}
+
+	ztds_bufferSetVolume(clip->ds_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+#	endif
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size, i32 audio_system)
 {
 	ZT_PROFILE_AUDIO("_zt_audioCheckContext");
 	if (!_zt_audioCheckContext()) {
@@ -21638,6 +21928,10 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
 	audio_clip->length    = length;
 	audio_clip->play_time = 0;
 	audio_clip->flags     = 0;
+	audio_clip->system    = audio_system;
+
+
+	_zt_audioApplySystemSettings(audio_clip);
 
 	return audio_clip_id;
 #	endif
@@ -21645,7 +21939,7 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size)
 
 // ================================================================================================================================================================================================
 
-ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
+ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 audio_system)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipMake");
 	ztBlockProfiler bp_tex("zt_audioClipMake (from asset)");
@@ -21678,7 +21972,7 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 		goto on_error;
 	}
 
-	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size);
+	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size, audio_system);
 	if (audio_clip_id == ztInvalidID) {
 		error = "Unable to process audio data";
 		goto on_error;
@@ -21697,7 +21991,7 @@ on_error:
 
 // ================================================================================================================================================================================================
 
-ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
+ztAudioClipID zt_audioClipMakeFromFile(const char *file_name, i32 audio_system)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipMakeFromFile");
 	ztBlockProfiler bp_tex("zt_audioClipMakeFromFile");
@@ -21708,7 +22002,7 @@ ztAudioClipID zt_audioClipMakeFromFile(const char *file_name)
 		return ztInvalidID;
 	}
 
-	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size);
+	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size, audio_system);
 
 	zt_free(data);
 
@@ -21824,6 +22118,23 @@ void zt_audioSetMute(bool mute)
 bool zt_audioGetMute()
 {
 	return 	zt_game->audio_muted;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_audioSystemSetVolume(i32 audio_system, r32 volume)
+{
+	if (zt_between(audio_system, 0, zt_elementsOf(zt_game->audio_systems))) {
+		zt_game->audio_systems[audio_system].volume = volume;
+	}
+
+	zt_fiz(zt_game->audio_clips_count) {
+		if(zt_game->audio_clips[i].system != audio_system) {
+			continue;
+		}
+
+		_zt_audioApplySystemSettings(&zt_game->audio_clips[i]);
+	}
 }
 
 // ================================================================================================================================================================================================
