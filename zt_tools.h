@@ -899,6 +899,7 @@ r32  zt_atan2               (r32 x, r32 y);
 r32  zt_sqrt                (r32 v);
 r32  zt_pow                 (r32 v, r32 p);
 r32  zt_exp                 (r32 v);
+r32  zt_fmod                (r32 v, r32 d);
 
 i32  zt_lerp                (i32 v1, i32 v2, r32 percent);
 i32  zt_unlerp              (i32 v1, i32 v2, r32 percent);
@@ -1538,6 +1539,7 @@ void          zt_fileClose                       (ztFile *file);
 
 i32           zt_fileGetReadPos                  (ztFile *file);
 bool          zt_fileSetReadPos                  (ztFile *file, i32 pos);
+bool          zt_fileEof                         (ztFile *file);
 
 //            returns length of string, or -1 in case of error
 i32           zt_fileGetFullPath                 (ztFile *file, char *buffer, int buffer_size);	// full path only, file name not included
@@ -4693,6 +4695,14 @@ r32 zt_exp(r32 v)
 	return expf(v);
 }
 
+// ================================================================================================================================================================================================
+
+r32 zt_fmod(r32 v, r32 d)
+{
+	ZT_PROFILE_TOOLS("zt_fmod");
+
+	return fmodf(v, d);
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -7374,6 +7384,19 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 #	endif
 
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_fileEof(ztFile *file)
+{
+	ZT_PROFILE_TOOLS("zt_fileEof");
+
+	zt_returnValOnNull(file, true);
+
+#	if defined(ZT_WINDOWS)
+	return (file->win_read_pos >= file->size);
+#	endif
 }
 
 // ================================================================================================================================================================================================
