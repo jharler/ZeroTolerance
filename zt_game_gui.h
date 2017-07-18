@@ -776,7 +776,7 @@ void             zt_guiComboBoxSetCallback             (ztGuiItem *combobox, ztF
 
 // ================================================================================================================================================================================================
 
-void             zt_guiSpriteDisplaySetSprite          (ztGuiItem *item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one);
+void             zt_guiSpriteDisplaySetSprite          (ztGuiItem *item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one, const ztVec4& bgcolor = ztVec4::zero);
 
 // ================================================================================================================================================================================================
 
@@ -1228,6 +1228,7 @@ struct ztGuiItem
 		struct {
 			ztGuiThemeSprite* sprite;
 			r32               scale[2];
+			r32               bgcolor[4];
 		} sprite_display;
 
 		// -------------------------------------------------
@@ -7292,6 +7293,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayRender, ztInternal ZT_FUNC_GUI_
 
 	ztVec2 pos = offset + item->pos;
 
+	if (*(ztVec4*)item->sprite_display.bgcolor != ztVec4::zero) {
+		zt_drawListAddSolidRect2D(draw_list, ztVec3(pos, 0), item->size, ztVec4(item->sprite_display.bgcolor));
+	}
+
 	zt_drawListAddGuiThemeSprite(draw_list, item->sprite_display.sprite, pos, item->size);
 }
 
@@ -7345,12 +7350,15 @@ ztGuiItem *zt_guiMakeSpriteDisplay(ztGuiItem *parent, ztGuiThemeSprite *sprite)
 
 // ================================================================================================================================================================================================
 
-void zt_guiSpriteDisplaySetSprite(ztGuiItem *item, ztGuiThemeSprite *sprite, const ztVec2& scale)
+void zt_guiSpriteDisplaySetSprite(ztGuiItem *item, ztGuiThemeSprite *sprite, const ztVec2& scale, const ztVec4& bgcolor)
 {
 	zt_assertReturnOnFail(item->type == ztGuiItemType_SpriteDisplay);
 	*item->sprite_display.sprite = *sprite;
 	item->sprite_display.scale[0] = scale.x;
 	item->sprite_display.scale[1] = scale.y;
+	zt_fize(item->sprite_display.bgcolor) {
+		item->sprite_display.bgcolor[i] = bgcolor.values[i];
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -11339,7 +11347,7 @@ ztInternal void _zt_guiDebugTextureViewerRefresh()
 				zt_directxSupport(cubemap_tex = zt_bitIsSet(zt_game->textures[i].dx_texture->flags, ztTextureDXFlags_CubeMap));
 			} break;
 		}
-		zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s", i, zt_game->textures[i].width, zt_game->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")));
+		zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s %s", i, zt_game->textures[i].width, zt_game->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")), (zt_game->textures[i].name[0] == 0 ? "" : zt_game->textures[i].name));
 		zt_guiComboBoxAppend(dropdown, buffer, (void*)i);
 	}
 }
@@ -11366,7 +11374,7 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 		scale.x = scale.y = 1.f / (max / 1024.f);
 	}
 
-	zt_guiSpriteDisplaySetSprite(display, &sprite, scale);
+	zt_guiSpriteDisplaySetSprite(display, &sprite, scale, ztColor(0, .1f, 0, 1));
 	zt_guiItemAutoSize(display);
 }
 
