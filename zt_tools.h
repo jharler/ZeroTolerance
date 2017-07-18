@@ -587,8 +587,8 @@ ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { r
 #define ztColor_White          ztColor(1.0f, 1.0f, 1.0f, 1.f)
 #define ztColor_Black          ztColor( .0f,  .0f,  .0f, 1.f)
 #define ztColor_Gray           ztColor(.50f, .50f, .50f, 1.f)
-#define ztColor_LightGray      ztColor(.83f, .83f, .83f, 1.f)
-#define ztColor_DarkGray       ztColor(.66f, .66f, .66f, 1.f)
+#define ztColor_LightGray      ztColor(.73f, .73f, .73f, 1.f)
+#define ztColor_DarkGray       ztColor(.26f, .26f, .26f, 1.f)
 #define ztColor_Red            ztColor(1.0f,  .0f,  .0f, 1.f)
 #define ztColor_LightRed       ztColor(1.0f, .75f, .80f, 1.f)
 #define ztColor_DarkRed        ztColor(.55f,  .0f,  .0f, 1.f)
@@ -604,7 +604,7 @@ ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { r
 #define ztColor_Cyan           ztColor( .0f, 1.0f, 1.0f, 1.f)
 #define ztColor_Yellow         ztColor(1.0f, 1.0f,  .0f, 1.f)
 #define ztColor_LightYellow    ztColor(1.0f, 1.0f, .88f, 1.f)
-#define ztColor_DarkYellow     ztColor(.61f, .53f, .50f, 1.f)
+#define ztColor_DarkYellow     ztColor(.61f, .53f,  .0f, 1.f)
 #define ztColor_Orange         ztColor(1.0f, .50f,  .0f, 1.f)
 #define ztColor_LightOrange    ztColor(1.0f, .60f, .40f, 1.f)
 #define ztColor_DarkOrange     ztColor(1.0f, .55f,  .0f, 1.f)
@@ -4471,8 +4471,8 @@ void zt_memDumpArena(ztMemoryArena *arena, const char *name, ztLogMessageLevel_E
 	ztMemoryArena::allocation* alloc = arena->latest;
 	while (alloc != nullptr) {
 		if (alloc->freed == 0) {
-			zt_logMessage(log_level, "memory (%s): unfreed memory at location 0x%llx (%d) (%d bytes)", name, (uint64)alloc->start, alloc->alloc_idx, alloc->length);
-			zt_debugOnly(zt_logMessage(log_level, "   file: %s (%d)", alloc->file, alloc->file_line));
+			zt_releaseOnly(zt_logMessage(log_level, "memory (%s): unfreed memory at location 0x%llx (%d) (%d bytes)", name, (uint64)alloc->start, alloc->alloc_idx, alloc->length));
+			zt_debugOnly(zt_logMessage(log_level, "memory (%s): unfreed memory at location 0x%llx (%d) (%d bytes) file: %s (%d)", name, (uint64)alloc->start, alloc->alloc_idx, alloc->length, alloc->file, alloc->file_line));
 		}
 		alloc = alloc->next;
 	}
