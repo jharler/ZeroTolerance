@@ -162,6 +162,26 @@ void ztgl_depthTestAlways();
 
 // ------------------------------------------------------------------------------------------------
 
+enum ztGLBlendMode_Enum
+{
+	ztGLBlendMode_Zero,
+	ztGLBlendMode_One,
+	ztGLBlendMode_SourceColor,
+	ztGLBlendMode_OneMinusSourceColor,
+	ztGLBlendMode_DestColor,
+	ztGLBlendMode_OneMinusDestColor,
+	ztGLBlendMode_SourceAlpha,
+	ztGLBlendMode_OneMinusSourceAlpha,
+	ztGLBlendMode_DestAlpha,
+	ztGLBlendMode_OneMinusDestAlpha,
+
+	ztGLBlendMode_MAX,
+};
+
+void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest);
+
+// ------------------------------------------------------------------------------------------------
+
 bool    ztgl_checkAndReportError(const char *function);
 int     ztgl_clearErrors();
 
@@ -639,6 +659,7 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 	_ztgl_win_loadFunctions();
 
 	glEnable(GL_CULL_FACE); // NOTE(josh): should this be here?
+	//glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
 	// this turns off wait for vsync:
 	if (!zt_bitIsSet(flags, ztRendererFlagsGL_Vsync)) {
@@ -1037,6 +1058,31 @@ void ztgl_depthTestAlways()
 	glDepthFunc(GL_ALWAYS);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest)
+{
+	GLenum factors[2] = { GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA };
+	ztGLBlendMode_Enum params[2] = { source, dest };
+
+	zt_fize(params) {
+		switch(params[i])
+		{
+			case ztGLBlendMode_Zero                : factors[i] = GL_ZERO; break;
+			case ztGLBlendMode_One                 : factors[i] = GL_ONE; break;
+			case ztGLBlendMode_SourceColor         : factors[i] = GL_SRC_COLOR; break;
+			case ztGLBlendMode_OneMinusSourceColor : factors[i] = GL_ONE_MINUS_SRC_COLOR; break;
+			case ztGLBlendMode_DestColor           : factors[i] = GL_DST_COLOR; break;
+			case ztGLBlendMode_OneMinusDestColor   : factors[i] = GL_ONE_MINUS_DST_COLOR; break;
+			case ztGLBlendMode_SourceAlpha         : factors[i] = GL_SRC_ALPHA; break;
+			case ztGLBlendMode_OneMinusSourceAlpha : factors[i] = GL_ONE_MINUS_SRC_ALPHA; break;
+			case ztGLBlendMode_DestAlpha           : factors[i] = GL_DST_ALPHA; break;
+			case ztGLBlendMode_OneMinusDestAlpha   : factors[i] = GL_ONE_MINUS_DST_ALPHA; break;
+		}
+	}
+
+	glBlendFunc(factors[0], factors[1]);
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------

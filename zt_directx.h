@@ -95,6 +95,24 @@ void ztdx_clear(ztContextDX *context, ztVec4& color);
 void ztdx_clear(ztContextDX *context, r32 color[4]);
 void ztdx_clear(ztContextDX *context, r32 r, r32 g, r32 b, r32 a = 1);
 
+enum ztBlendModeDX_Enum
+{
+	ztBlendModeDX_Zero,
+	ztBlendModeDX_One,
+	ztBlendModeDX_SourceColor,
+	ztBlendModeDX_OneMinusSourceColor,
+	ztBlendModeDX_DestColor,
+	ztBlendModeDX_OneMinusDestColor,
+	ztBlendModeDX_SourceAlpha,
+	ztBlendModeDX_OneMinusSourceAlpha,
+	ztBlendModeDX_DestAlpha,
+	ztBlendModeDX_OneMinusDestAlpha,
+
+	ztBlendModeDX_MAX,
+};
+
+void ztdx_blendMode(ztContextDX *context, ztBlendModeDX_Enum source, ztBlendModeDX_Enum dest);
+
 
 // ------------------------------------------------------------------------------------------------
 
@@ -322,6 +340,7 @@ struct ztContextDX
 	ID3D11DeviceContext     *context;
 	ID3D11RenderTargetView  *backbuffer;
 	ID3D11BlendState        *transparency;
+	ID3D11BlendState        *blend_states[16];
 	ID3D11RasterizerState   *cull_mode_ccw;
 	ID3D11RasterizerState   *cull_mode_cw;
 	ID3D11RasterizerState   *cull_mode_none;
@@ -510,6 +529,10 @@ ztContextDX *ztdx_contextMake(ztMemoryArena *arena, void *window, i32 client_w, 
 
 	context->device->CreateBlendState(&blend_desc, &context->transparency);
 
+	zt_fize(context->blend_states) {
+		context->blend_states[i] = nullptr;
+	}
+
 	//Create the Counter Clockwise and Clockwise Culling States
 	D3D11_RASTERIZER_DESC cmdesc;
 	ZeroMemory(&cmdesc, sizeof(D3D11_RASTERIZER_DESC));
@@ -544,6 +567,11 @@ void ztdx_contextFree(ztContextDX *context)
 		context->cull_mode_cw->Release();
 		context->cull_mode_none->Release();
 		context->transparency->Release();
+		zt_fize(context->blend_states) {
+			if(context->blend_states[i]) {
+				context->blend_states[i]->Release();
+			}
+		}
 		context->depth_stencil_view->Release();
 		context->depth_stencil_buffer->Release();
 		context->stencil_state_enabled->Release();
@@ -808,6 +836,73 @@ void ztdx_clear(ztContextDX *context, r32 r, r32 g, r32 b, r32 a)
 {
 	r32 color[] = { r, g, b, a };
 	ztdx_clear(context, color);
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztdx_blendMode(ztContextDX *context, ztBlendModeDX_Enum source, ztBlendModeDX_Enum dest)
+{
+	D3D11_BLEND factors[2] = { D3D11_BLEND_SRC_ALPHA, D3D11_BLEND_INV_SRC_ALPHA };
+	ztBlendModeDX_Enum params[2] = { source, dest };
+
+	zt_fize(params) {
+		switch(params[i])
+		{
+			case ztBlendModeDX_Zero                : factors[i] = D3D11_BLEND_ZERO; break;
+			case ztBlendModeDX_One                 : factors[i] = D3D11_BLEND_ONE; break;
+			case ztBlendModeDX_SourceColor         : factors[i] = D3D11_BLEND_SRC_COLOR; break;
+			case ztBlendModeDX_OneMinusSourceColor : factors[i] = D3D11_BLEND_INV_SRC_COLOR; break;
+			case ztBlendModeDX_DestColor           : factors[i] = D3D11_BLEND_DEST_COLOR; break;
+			case ztBlendModeDX_OneMinusDestColor   : factors[i] = D3D11_BLEND_INV_DEST_COLOR; break;
+			case ztBlendModeDX_SourceAlpha         : factors[i] = D3D11_BLEND_SRC_ALPHA; break;
+			case ztBlendModeDX_OneMinusSourceAlpha : factors[i] = D3D11_BLEND_INV_SRC_ALPHA; break;
+			case ztBlendModeDX_DestAlpha           : factors[i] = D3D11_BLEND_DEST_ALPHA; break;
+			case ztBlendModeDX_OneMinusDestAlpha   : factors[i] = D3D11_BLEND_INV_DEST_ALPHA; break;
+		}
+	}
+
+	D3D11_BLEND_DESC desc;
+
+	context->transparency->GetDesc(&desc);
+
+	if (desc.RenderTarget[0].SrcBlend == factors[0] && desc.RenderTarget[0].DestBlend == factors[1]) {
+		float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+		context->context->OMSetBlendState(context->transparency, blend_factor, 0xffffffff);
+		return;
+	}
+
+	int last_idx = 0;
+	zt_fize(context->blend_states) {
+		if(context->blend_states[i]) {
+			context->transparency->GetDesc(&desc);
+			if (desc.RenderTarget[0].SrcBlend == factors[0] && desc.RenderTarget[0].DestBlend == factors[1]) {
+				float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+				context->context->OMSetBlendState(context->blend_states[i], blend_factor, 0xffffffff);
+				return;
+			}
+		}
+		else break;
+		last_idx += 1;
+	}
+
+	zt_assert(last_idx < zt_elementsOf(context->blend_states));
+
+	ZeroMemory(&desc, sizeof(desc));
+
+	desc.AlphaToCoverageEnable = false;
+	desc.RenderTarget[0].BlendEnable           = true;
+	desc.RenderTarget[0].SrcBlend              = factors[0];
+	desc.RenderTarget[0].DestBlend             = factors[1];
+	desc.RenderTarget[0].BlendOp               = D3D11_BLEND_OP_ADD;
+	desc.RenderTarget[0].SrcBlendAlpha         = factors[0];
+	desc.RenderTarget[0].DestBlendAlpha        = factors[1];
+	desc.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
+	desc.RenderTarget[0].RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
+
+	context->device->CreateBlendState(&desc, &context->blend_states[last_idx]);
+
+	float blend_factor[] = { 1.f, 1.f, 1.f, 1.f };
+	context->context->OMSetBlendState(context->blend_states[last_idx], blend_factor, 0xffffffff);
 }
 
 

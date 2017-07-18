@@ -1133,6 +1133,8 @@ void        zt_textureFreePixelData(byte *pixels);
 
 void        zt_textureFree(ztTextureID texture_id);
 
+void        zt_textureSetName(ztTextureID texture_id, char *name);
+
 void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
 void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 
@@ -1584,6 +1586,81 @@ void                      zt_cameraControlUpdateArcball(ztCameraControllerArcbal
 
 
 // ================================================================================================================================================================================================
+// renderer functions
+// ================================================================================================================================================================================================
+
+bool zt_rendererSupported(ztRenderer_Enum renderer);
+int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count);
+
+bool zt_rendererVersionSupported(ztRenderer_Enum renderer, i32 v_major, i32 v_minor);
+bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor);
+
+void zt_rendererClear(r32 r, r32 g, r32 b, r32 a);
+void zt_rendererClear(ztVec4 clr);
+void zt_rendererClearDepth();
+
+bool zt_rendererUvsFlipYRenderTarget();
+
+// ================================================================================================================================================================================================
+
+enum ztRendererDepthTestFunction_Enum
+{
+	ztRendererDepthTestFunction_Never,
+	ztRendererDepthTestFunction_Less,
+	ztRendererDepthTestFunction_LessEqual,
+	ztRendererDepthTestFunction_Equal,
+	ztRendererDepthTestFunction_Greater,
+	ztRendererDepthTestFunction_NotEqual,
+	ztRendererDepthTestFunction_GreaterEqual,
+	ztRendererDepthTestFunction_Always,
+};
+
+void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function);
+
+// ================================================================================================================================================================================================
+
+enum ztRendererFaceCulling_Enum
+{
+	ztRendererFaceCulling_CullBack,
+	ztRendererFaceCulling_CullFront,
+	ztRendererFaceCulling_CullNone,
+};
+
+void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling);
+
+// ================================================================================================================================================================================================
+
+enum ztRendererBlendMode_Enum
+{
+	ztRendererBlendMode_Zero,
+	ztRendererBlendMode_One,
+	ztRendererBlendMode_SourceColor,
+	ztRendererBlendMode_OneMinusSourceColor,
+	ztRendererBlendMode_DestColor,
+	ztRendererBlendMode_OneMinusDestColor,
+	ztRendererBlendMode_SourceAlpha,
+	ztRendererBlendMode_OneMinusSourceAlpha,
+	ztRendererBlendMode_DestAlpha,
+	ztRendererBlendMode_OneMinusDestAlpha,
+
+	ztRendererBlendMode_MAX,
+};
+
+void zt_rendererSetBlendMode(ztRendererBlendMode_Enum source = ztRendererBlendMode_SourceAlpha, ztRendererBlendMode_Enum dest = ztRendererBlendMode_OneMinusSourceAlpha);
+
+// ================================================================================================================================================================================================
+
+void zt_rendererRequestChange(ztRenderer_Enum renderer);
+void zt_rendererRequestWindowed();
+void zt_rendererRequestFullscreen();
+
+void zt_alignToPixel(r32 *val, r32 ppu);
+void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset);
+void zt_alignToPixel(ztVec2 *val, r32 ppu);
+void zt_alignToPixel(ztVec3 *val, r32 ppu);
+
+
+// ================================================================================================================================================================================================
 // rendering
 // ================================================================================================================================================================================================
 
@@ -1595,17 +1672,18 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_Line,
 	ztDrawCommandType_Triangle,
 
+	ztDrawCommandType_Skybox,
+	ztDrawCommandType_Billboard,
+	ztDrawCommandType_VertexArray,
+
 	ztDrawCommandType_ChangeShader,
-	ztDrawCommandType_ChangeColor,
 	ztDrawCommandType_ChangeTexture,
+	ztDrawCommandType_ChangeColor,
 	ztDrawCommandType_ChangeClipping,
 	ztDrawCommandType_ChangeFlags,
 	ztDrawCommandType_ChangeOffset,
 	ztDrawCommandType_ChangeTransform,
-
-	ztDrawCommandType_Skybox,
-	ztDrawCommandType_Billboard,
-	ztDrawCommandType_VertexArray,
+	ztDrawCommandType_ChangeBlendMode,
 
 	ztDrawCommandType_DebugItem,
 
@@ -1701,6 +1779,12 @@ struct ztDrawCommand
 			ztVertexArrayID            vertex_array;
 			ztVertexArrayDrawType_Enum vertex_array_draw_type;
 		};
+
+		struct {
+			ztRendererBlendMode_Enum blend_src;
+			ztRendererBlendMode_Enum blend_dest;
+			bool                     blend_pop;
+		};
 	};
 
 	zt_debugOnly(i32 debug_id);
@@ -1779,7 +1863,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size = 1, const ztVec3& cente
 bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size = 1, const ztVec3& center = ztVec3::zero, const ztVec4& color_x = ztVec4(1, 0, 0, 1), const ztVec4& color_y = ztVec4(0, 1, 0, 1), const ztVec4& color_z = ztVec4(0, 0, 1, 1));
 bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size = 1, bool color_axis = false);
 
-bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale = 1);
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale = 1, ztShaderID shader = ztInvalidID);
 
 bool zt_drawListPushShader(ztDrawList *draw_list, ztShaderID shader);
 bool zt_drawListPopShader(ztDrawList *draw_list);
@@ -1796,6 +1880,8 @@ bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset);
 bool zt_drawListPopOffset(ztDrawList *draw_list);
 bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform);
 bool zt_drawListPopTransform(ztDrawList *draw_list);
+bool zt_drawListPushBlendMode(ztDrawList *draw_list, ztRendererBlendMode_Enum src, ztRendererBlendMode_Enum dest);
+bool zt_drawListPopBlendMode(ztDrawList *draw_list);
 
 bool zt_drawListAddDebugItem(ztDrawList *draw_list, const char *debug); // useful when inspecting array of drawlist in debugger
 
@@ -2046,55 +2132,6 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 
 
 // ================================================================================================================================================================================================
-// renderer functions
-// ================================================================================================================================================================================================
-
-bool zt_rendererSupported(ztRenderer_Enum renderer);
-int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count);
-
-bool zt_rendererVersionSupported(ztRenderer_Enum renderer, i32 v_major, i32 v_minor);
-bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor);
-
-void zt_rendererClear(r32 r, r32 g, r32 b, r32 a);
-void zt_rendererClear(ztVec4 clr);
-void zt_rendererClearDepth();
-
-bool zt_rendererUvsFlipYRenderTarget();
-
-enum ztRendererDepthTestFunction_Enum
-{
-	ztRendererDepthTestFunction_Never,
-	ztRendererDepthTestFunction_Less,
-	ztRendererDepthTestFunction_LessEqual,
-	ztRendererDepthTestFunction_Equal,
-	ztRendererDepthTestFunction_Greater,
-	ztRendererDepthTestFunction_NotEqual,
-	ztRendererDepthTestFunction_GreaterEqual,
-	ztRendererDepthTestFunction_Always,
-};
-
-void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function);
-
-enum ztRendererFaceCulling_Enum
-{
-	ztRendererFaceCulling_CullBack,
-	ztRendererFaceCulling_CullFront,
-	ztRendererFaceCulling_CullNone,
-};
-
-void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling);
-
-void zt_rendererRequestChange(ztRenderer_Enum renderer);
-void zt_rendererRequestWindowed();
-void zt_rendererRequestFullscreen();
-
-void zt_alignToPixel(r32 *val, r32 ppu);
-void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset);
-void zt_alignToPixel(ztVec2 *val, r32 ppu);
-void zt_alignToPixel(ztVec3 *val, r32 ppu);
-
-
-// ================================================================================================================================================================================================
 // fonts
 // ================================================================================================================================================================================================
 
@@ -2160,6 +2197,10 @@ void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztV
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
+
+// the fast versions do not align to pixel (useful if the positions are already pixel aligned)
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 
 
 // ================================================================================================================================================================================================
@@ -2749,6 +2790,7 @@ struct ztColorGradient
 // ================================================================================================================================================================================================
 
 ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent);
+void    zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent, ztColor *color);
 
 
 // ================================================================================================================================================================================================
@@ -2858,8 +2900,13 @@ struct ztParticleEmitter2D
 
 // ================================================================================================================================================================================================
 
+#define ZT_FUNC_PARTICLE_EMIT(name) void name(ztParticleEmitter2D* emitter, int particle, void *user_data)
+typedef ZT_FUNC_PARTICLE_EMIT(ztParticleEmitParticle_Func);
+
+// ================================================================================================================================================================================================
+
 ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed, r32 prewarm_time = 0);
-bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt); // returns false when emitter is exhausted
+bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticleEmitParticle_Func emit_particle = nullptr, void *user_data = nullptr); // returns false when emitter is exhausted
 void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list);
 
 void                 zt_particleEmitter2DEnable(ztParticleEmitter2D *emitter, bool enabled = true);
@@ -3637,6 +3684,8 @@ struct ztTexture
 
 	ztRenderer_Enum renderer;
 	ztTextureLoadType_Enum load_type;
+
+	char name[32];
 
 	union {
 		struct {
@@ -6968,9 +7017,9 @@ bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 siz
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale)
+bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale, ztShaderID shader)
 {
-	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+	zt_drawListPushShader(draw_list, shader == ztInvalidID ? zt_shaderGetDefault(ztShaderDefault_Unlit) : shader);
 	zt_drawListPushTexture(draw_list, tex);
 	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(camera);
 	if (scale != 1) {
@@ -7150,6 +7199,7 @@ bool zt_drawListPopTexture(ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPopTexture");
 #	if 1
+	_zt_drawListCheck(draw_list);
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type = ztDrawCommandType_ChangeTexture;
 	command->texture_pop = true;
@@ -7277,6 +7327,7 @@ bool zt_drawListPopOffset(ztDrawList *draw_list)
 	ZT_PROFILE_RENDERING("zt_drawListPopOffset");
 
 #	if 1
+	_zt_drawListCheck(draw_list);
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type       = ztDrawCommandType_ChangeOffset;
 	command->offset_pop = true;
@@ -7331,6 +7382,7 @@ bool zt_drawListPopTransform(ztDrawList *draw_list)
 	ZT_PROFILE_RENDERING("zt_drawListPopTransform");
 
 #	if 1
+	_zt_drawListCheck(draw_list);
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 	command->type          = ztDrawCommandType_ChangeTransform;
 	command->transform_pop = true;
@@ -7359,7 +7411,37 @@ bool zt_drawListPopTransform(ztDrawList *draw_list)
 	command->transform     = ztMat4::identity;
 	command->transform_pop = true;
 #	endif
-	return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListPushBlendMode(ztDrawList *draw_list, ztRendererBlendMode_Enum src, ztRendererBlendMode_Enum dest)
+{
+	ZT_PROFILE_RENDERING("zt_drawListPushBlendMode");
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+
+	command->type = ztDrawCommandType_ChangeBlendMode;
+	command->blend_src = src;
+	command->blend_dest = dest;
+	command->blend_pop = false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListPopBlendMode(ztDrawList *draw_list)
+{
+	ZT_PROFILE_RENDERING("zt_drawListPopBlendMode");
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type = ztDrawCommandType_ChangeBlendMode;
+	command->blend_pop = true;
+	return true;
 }
 
 // ================================================================================================================================================================================================
@@ -7514,10 +7596,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 	{
 		// calculate various push/pop pairs
-		ztDrawCommand *stack_textures  [512]; int stack_textures_idx   = -1;
-		ztDrawCommand *stack_colors    [512]; int stack_colors_idx     = -1;
-		ztDrawCommand *stack_offsets   [512]; int stack_offsets_idx    = -1;
-		ztDrawCommand *stack_transforms[512]; int stack_transforms_idx = -1;
+		ztDrawCommand *stack_textures   [512]; int stack_textures_idx    = -1;
+		ztDrawCommand *stack_colors     [512]; int stack_colors_idx      = -1;
+		ztDrawCommand *stack_offsets    [512]; int stack_offsets_idx     = -1;
+		ztDrawCommand *stack_transforms [512]; int stack_transforms_idx  = -1;
+		ztDrawCommand *stack_blend_modes[512]; int stack_blend_modes_idx = -1;
 
 		zt_fiz(draw_lists_count) {
 			ztDrawList *draw_list = draw_lists[i];
@@ -7561,8 +7644,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						stack_offsets[++stack_offsets_idx] = &draw_list->commands[j];
 					}
 				}
-				if(draw_list->commands[j].type == ztDrawCommandType_ChangeTransform) {
-					if(draw_list->commands[j].transform_pop) {
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeTransform) {
+					if (draw_list->commands[j].transform_pop) {
 						if (--stack_transforms_idx >= 0) {
 							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_transforms[stack_transforms_idx], zt_sizeof(ztDrawCommand));
 						}
@@ -7572,6 +7655,20 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					}
 					else {
 						stack_transforms[++stack_transforms_idx] = &draw_list->commands[j];
+					}
+				}
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeBlendMode) {
+					if (draw_list->commands[j].blend_pop) {
+						if (--stack_blend_modes_idx >= 0) {
+							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_blend_modes[stack_blend_modes_idx], zt_sizeof(ztDrawCommand));
+						}
+						else {
+							draw_list->commands[j].blend_src = ztRendererBlendMode_SourceAlpha;
+							draw_list->commands[j].blend_dest = ztRendererBlendMode_OneMinusSourceAlpha;
+						}
+					}
+					else {
+						stack_blend_modes[++stack_blend_modes_idx] = &draw_list->commands[j];
 					}
 				}
 			}
@@ -7643,7 +7740,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					if (points > 0) {
 						zt_fjz(draw_list->commands_count) {
 							ztDrawCommand *command = &draw_list->commands[j];
-							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Point) {
+							//if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Point) {
+							if (command->type >= ztDrawCommandType_ChangeShader || command->type == ztDrawCommandType_Point) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
 								cmp_item->clip_region = nullptr;
@@ -7657,12 +7755,13 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					if (lines > 0) {
 						zt_fjz(draw_list->commands_count) {
 							ztDrawCommand *command = &draw_list->commands[j];
-							if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Line) {
+							//if (command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset || command->type == ztDrawCommandType_Line) {
+							if (command->type >= ztDrawCommandType_ChangeShader || command->type == ztDrawCommandType_Line) {
 								ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 								cmp_item->command = command;
 								cmp_item->clip_region = nullptr;
-								//							zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
-								//							cmp_texture->cnt_display_items += 1;
+	//							zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
+	//							cmp_texture->cnt_display_items += 1;
 								if (cmp_item_last == nullptr) {
 									cmp_texture->last_item = cmp_item_last = cmp_item;
 									zt_singleLinkAddToEnd(cmp_texture->item, cmp_item);
@@ -7742,7 +7841,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 									cmp_item_last = cmp_texture->last_item;
 
 								}
-								if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset) {
+								//if (command->type == extract[k] || command->type == ztDrawCommandType_ChangeColor || command->type == ztDrawCommandType_ChangeTransform || command->type == ztDrawCommandType_ChangeOffset) {
+								if (command->type == extract[k] || command->type >= ztDrawCommandType_ChangeColor) {
 									ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 									cmp_item->command = command;
 									cmp_item->clip_region = cmp_clip_region;
@@ -7873,8 +7973,38 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 
 								if (cmp_tex) {
-									if (cmp_tex->cnt_display_items == 0) {
-										if (cmp_prev) {
+									int cnt_display_items = cmp_tex->cnt_display_items;
+									int cnt_visual = 0;
+									zt_flink(di, cmp_tex->item) {
+										if (di->command->type >= ztDrawCommandType_ChangeShader) {
+											cnt_display_items -= 1;
+											cnt_visual += 1;
+										}
+									}
+
+									if (cnt_display_items == 0) {
+										if (cmp_prev) { 
+											if (cnt_visual > 0) {
+												if (cmp_prev->last_item) {
+													cmp_prev->last_item->next = cmp_tex->item;
+													cmp_prev->last_item = cmp_tex->last_item;
+												}
+												else {
+													cmp_prev->item = cmp_tex->item;
+													cmp_prev->last_item = cmp_tex->last_item;
+												}
+												cmp_prev->cnt_display_items += cmp_tex->cnt_display_items;
+												//zt_flink(di, cmp_tex->item) {
+												//	if (di->command->type >= ztDrawCommandType_ChangeShader) {
+												//		//if (!(di->command->type == ztDrawCommandType_ChangeColor && di == cmp_tex->item && di->command->color == ztColor_White)) {
+												//			zt_singleLinkAddToEnd(cmp_prev->item, di);
+												//			cmp_prev->last_item->next = di;
+												//			cmp_prev->last_item = di;
+												//			cmp_prev->cnt_display_items += 1;
+												//		//}
+												//	}
+												//}
+											}
 											cmp_prev->next = nullptr;
 											current_textures_count = cmp_prev->command ? cmp_prev->command->texture_count : 0;
 											zt_fiz(current_textures_count) {
@@ -7882,6 +8012,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 											}
 											cmp_item_last = cmp_prev->last_item;
 											cmp_texture = cmp_prev;
+
 										}
 									}
 								}
@@ -8056,6 +8187,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								case ztDrawCommandType_Skybox:         zt_strPrintf(info, zt_elementsOf(info), "Skybox"); break;
 								case ztDrawCommandType_Billboard:      zt_strPrintf(info, zt_elementsOf(info), "Billboard: center: %.2f, %.2f, %.2f; size: %.2f, %.2f; uv: %.2f, %.2f, %.2f, %.2f; flags: %d", item->command->billboard_center.x, item->command->billboard_center.y, item->command->billboard_center.z, item->command->billboard_size.x, item->command->billboard_size.x, item->command->billboard_uv.x, item->command->billboard_uv.y, item->command->billboard_uv.z, item->command->billboard_uv.w, item->command->billboard_flags); break;
 								case ztDrawCommandType_VertexArray:    zt_strPrintf(info, zt_elementsOf(info), "Vertex Array: ID: %d; draw type: %d", item->command->vertex_array, item->command->vertex_array_draw_type); break;
+								case ztDrawCommandType_DebugItem:      zt_strPrintf(info, zt_elementsOf(info), "Debug: %s", item->command->debug); break;
 							}
 
 							char tabs[128] = { 0 };
@@ -8308,6 +8440,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							case ztDrawCommandType_ChangeColor:
 							case ztDrawCommandType_ChangeOffset:
 							case ztDrawCommandType_ChangeTransform:
+							case ztDrawCommandType_DebugItem:
 								skipProcess = true;
 								break;
 						}
@@ -8469,6 +8602,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							else {
 								transform = &cmp_item->command->transform;
 							}
+						} break;
+
+						case ztDrawCommandType_ChangeBlendMode: {
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::change blend mode");
+							zt_rendererSetBlendMode(cmp_item->command->blend_src, cmp_item->command->blend_dest);
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -8681,6 +8819,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						{
 							case ztDrawCommandType_ChangeColor:
 							case ztDrawCommandType_ChangeOffset:
+							case ztDrawCommandType_ChangeTransform:
+							case ztDrawCommandType_DebugItem:
 								skipProcess = true;
 								break;
 						}
@@ -10191,6 +10331,27 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 				case ztRendererFaceCulling_CullFront: ztdx_cullFront(zt_game->win_details[0].dx_context); break;
 				case ztRendererFaceCulling_CullNone : ztdx_cullNone(zt_game->win_details[0].dx_context); break;
 			}
+#			endif
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_rendererSetBlendMode(ztRendererBlendMode_Enum source, ztRendererBlendMode_Enum dest)
+{
+	ZT_PROFILE_RENDERING("zt_rendererSetBlendMode");
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			ztgl_blendMode((ztGLBlendMode_Enum)source, (ztGLBlendMode_Enum)dest);
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+#			if defined(ZT_DIRECTX)
+			ztdx_blendMode(zt_game->win_details[0].dx_context, (ztBlendModeDX_Enum)source, (ztBlendModeDX_Enum)dest);
 #			endif
 		} break;
 	}
@@ -13888,10 +14049,16 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
+	if (zt_bitIsSet(flags, ztTextureFlags_RenderTargetScreen)) {
+		width = zt_game->win_game_settings[0].native_w;
+		height = zt_game->win_game_settings[0].native_h;
+	}
+
 	texture->renderer = zt_currentRenderer();
 	texture->width = width;
 	texture->height = height;
 	texture->flags = flags;
+	texture->name[0] = 0;
 
 	switch (texture->renderer)
 	{
@@ -13901,11 +14068,6 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 				texture->gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
 			}
 			else {
-				if (zt_bitIsSet(flags, ztTextureFlags_RenderTargetScreen)) {
-					width = zt_game->win_game_settings[0].native_w;
-					height = zt_game->win_game_settings[0].native_h;
-				}
-
 				texture->gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
 			}
 			if (texture->gl_texture == nullptr) {
@@ -14351,6 +14513,22 @@ void zt_textureFree(ztTextureID texture_id)
 
 // ================================================================================================================================================================================================
 
+void zt_textureSetName(ztTextureID texture_id, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_textureFree");
+	if (texture_id == ztInvalidID) {
+		return;
+	}
+	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
+
+	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
+		return;
+	}
+
+	zt_strCpy(zt_game->textures[texture_id].name, zt_elementsOf(zt_game->textures[texture_id].name), name);
+}
+
+// ================================================================================================================================================================================================
 void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetPrepare");
@@ -16614,8 +16792,8 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 	ztVec3 pos[4] = {
 		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
 		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		ztVec3(-sprite->anchor.x + sprite->half_size.x,  -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		ztVec3(-sprite->anchor.x + sprite->half_size.x,  -sprite->anchor.y + sprite->half_size.y, 0), // top right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
 	};
 
 	ztVec2 uvs[4] = {
@@ -16646,6 +16824,90 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 	zt_alignToPixel(&pos_x, ppu);
 	zt_alignToPixel(&pos_y, ppu);
 
+	zt_fiz(4) {
+		pos[i].x += pos_x;
+		pos[i].y += pos_y;
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
+
+	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
+		return;
+	}
+
+	ztVec3 pos[4] = {
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		ztVec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		ztVec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	zt_fiz(4) {
+		pos[i].x += position.x;
+		pos[i].y += position.y;
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position, const ztVec3& rot, const ztVec3& scale)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
+	ztVec3 pos[4] = {
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		ztVec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		ztVec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		ztVec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		ztVec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		ztVec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	if (rot.x != 0 || rot.y != 0 || rot.z != 0) {
+		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rot);
+
+		zt_fiz(4) {
+			pos[i] = rotation_mat * pos[i];
+		}
+	}
+
+	if (scale.x != 1 || scale.y != 1) {
+		zt_fiz(4) {
+			pos[i].x *= scale.x;
+			pos[i].y *= scale.y;
+		}
+	}
+
+	r32 pos_x = position.x, pos_y = position.y;
 	zt_fiz(4) {
 		pos[i].x += pos_x;
 		pos[i].y += pos_y;
@@ -21092,7 +21354,18 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 
 ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent)
 {
-	zt_returnValOnNull(color_gradient, ztColor_White);
+	ztColor result(1,1,1,1);
+	zt_colorGradientGetValue(color_gradient, percent, &result);
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent, ztColor *color)
+{
+	ZT_PROFILE_PARTICLES("zt_colorGradientGetValue");
+	zt_returnOnNull(color_gradient);
+	zt_returnOnNull(color);
 
 	i32 total_prop = 0;
 	zt_fiz(color_gradient->colors_count) {
@@ -21105,16 +21378,17 @@ ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent)
 		r32 next_prop = curr_prop + (r32)color_gradient->colors[j - 1].proportion;
 		if (this_prop < next_prop) {
 			r32 pct = (this_prop - curr_prop) / (next_prop - curr_prop);
-			return ztVec4::lerp(color_gradient->colors[j - 1].color, color_gradient->colors[j].color, pct);
+			*color = ztVec4::lerp(color_gradient->colors[j - 1].color, color_gradient->colors[j].color, pct);
+			return;
 		}
 		curr_prop = next_prop;
 	}
 
 	if (color_gradient->colors_count == 0) {
-		return ztColor_White;
+		*color = ztColor_White;
 	}
 	else {
-		return color_gradient->colors[0].color;
+		*color = color_gradient->colors[0].color;
 	}
 }
 
@@ -21122,6 +21396,7 @@ ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent)
 
 r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
 {
+	ZT_PROFILE_PARTICLES("zt_valueGradientGetValue	");
 	zt_returnValOnNull(value_gradient, 0);
 
 	i32 total_prop = 0;
@@ -21189,7 +21464,7 @@ ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings
 
 // ================================================================================================================================================================================================
 
-bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
+bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticleEmitParticle_Func emit_particle, void *user_data)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DUpdate");
 	zt_returnValOnNull(emitter, false);
@@ -21248,8 +21523,9 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 	}
 
 	// emit new particles if needed
-	if (emitter->settings.emitter_lifetime != 0 && emitter->settings.emitter_lifetime < 0) {
+	if (emitter->settings.emitter_lifetime != 0 && emitter->lifetime < 0) {
 		if (emitter->live_particles <= 0) {
+			emitter->enabled = false;
 			return false;
 		}
 	}
@@ -21300,6 +21576,11 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 					emitter->particles[i].transform.rotation = ztQuat::identity;
 
 					emitter->live_particles += 1;
+
+					if (emit_particle != nullptr) {
+						emit_particle(emitter, i, user_data);
+					}
+
 					if (!emitter->settings.burst_emit) {
 						break;
 					}
@@ -21312,10 +21593,10 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt)
 		}
 	}
 
-	if (emitter->settings.emitter_lifetime > 0) {
-		emitter->settings.emitter_lifetime -= dt;
-		if (emitter->settings.emitter_lifetime <= 0) {
-			emitter->settings.emitter_lifetime = -1;
+	if (emitter->lifetime > 0) {
+		emitter->lifetime -= dt;
+		if (emitter->lifetime <= 0) {
+			emitter->lifetime = -1;
 			return true;
 		}
 	}
@@ -21348,13 +21629,18 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 	};
 
 	ztVec3 normals[4] = { ztVec3::one, ztVec3::one, ztVec3::one, ztVec3::one };
+	ztVec4 color;
+
+	if (!change_color) {
+		color = ztColor_White;
+	}
 
 	zt_fiz(emitter->live_particles) {
 
 		if (change_color) {
-			ztVec4 color;
+			ZT_PROFILE_PARTICLES("change_color");
 			if (emitter->settings.color_life.colors_count > 1) {
-				color = zt_colorGradientGetValue(&emitter->settings.color_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span));
+				zt_colorGradientGetValue(&emitter->settings.color_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span), &color);
 			}
 			else {
 				color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->particles[i].life_span)));
@@ -21364,6 +21650,7 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 
 		ztVec3 pos = emitter->particles[i].transform.position;
 		if (emitter->settings.local_space) {
+			ZT_PROFILE_PARTICLES("adjust_to_local_space");
 			pos += emitter->settings.origin;
 		}
 
@@ -21375,6 +21662,7 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 
 
 		if (emitter->particles[i].rotation) {
+			ZT_PROFILE_PARTICLES("rotate");
 			ztVec3 p[4] = {
 				scale * ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
 				scale * ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
