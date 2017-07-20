@@ -2868,6 +2868,7 @@ struct ztParticle
 	r32         speed;
 	r32         angle;
 	r32         rotation;
+	i32         sprite_idx;
 };
 
 // ================================================================================================================================================================================================
@@ -2882,7 +2883,9 @@ struct ztParticleEmitter2D
 {
 	ztParticleEmitterSettings settings;
 
-	ztSprite                  sprite;
+	ztSprite                  sprites[8];
+	int                       sprites_props[8];
+	int                       sprites_count;
 
 	ztParticle                particles[ZT_MAX_PARTICLES];
 	int                       particles_count;
@@ -2906,6 +2909,7 @@ typedef ZT_FUNC_PARTICLE_EMIT(ztParticleEmitParticle_Func);
 // ================================================================================================================================================================================================
 
 ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed, r32 prewarm_time = 0);
+ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprites, int *sprites_props, int sprites_count, i32 seed, r32 prewarm_time = 0);
 bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticleEmitParticle_Func emit_particle = nullptr, void *user_data = nullptr); // returns false when emitter is exhausted
 void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list);
 
@@ -21388,7 +21392,7 @@ void zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent, ztCo
 		*color = ztColor_White;
 	}
 	else {
-		*color = color_gradient->colors[0].color;
+		*color = color_gradient->colors[color_gradient->colors_count - 1].color;
 	}
 }
 
@@ -21408,7 +21412,7 @@ r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
 	r32 curr_prop = 0;
 	for (int j = 1; j < value_gradient->values_count; ++j) {
 		r32 next_prop = curr_prop + (r32)value_gradient->values[j - 1].proportion;
-		if (this_prop < next_prop) {
+		if (this_prop <= next_prop) {
 			r32 pct = (this_prop - curr_prop) / (next_prop - curr_prop);
 			return zt_lerp(value_gradient->values[j - 1].value, value_gradient->values[j].value, pct);
 		}
@@ -21419,7 +21423,7 @@ r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
 		return 0;
 	}
 	else {
-		return value_gradient->values[0].value;
+		return value_gradient->values[value_gradient->values_count - 1].value;
 	}
 }
 
@@ -21431,27 +21435,39 @@ r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
 
 ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprite, i32 seed, r32 prewarm_time)
 {
+	int props = 1;
+	return zt_particleEmitter2DMake(settings, sprite, &props, 1, seed, prewarm_time);
+}
+
+// ================================================================================================================================================================================================
+
+ztParticleEmitter2D zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprites, int *sprites_props, int sprites_count, i32 seed, r32 prewarm_time)
+{
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DMake");
 	ztParticleEmitter2D emitter = {};
 
 	zt_memCpy(&emitter.settings, zt_sizeof(ztParticleEmitterSettings), settings, zt_sizeof(ztParticleEmitterSettings));
 
-	emitter.sprite = *sprite;
+	zt_fiz(sprites_count) {
+		emitter.sprites[i] = sprites[i];
+		emitter.sprites_props[i] = sprites_props[i];
+	}
+	emitter.sprites_count = sprites_count;
 
-	emitter.particles_count = zt_min(ZT_MAX_PARTICLES, zt_convertToi32Ceil(settings->emission_rate * (settings->burst_emit ? 1 : settings->lifetime)));
+	emitter.particles_count = zt_min(ZT_MAX_PARTICLES, zt_convertToi32Ceil(settings->emission_rate * (settings->burst_emit || settings->emitter_lifetime  == 0 ? 1 : settings->lifetime)));
 	zt_fiz(emitter.particles_count) {
 		emitter.particles[i].life = 0;
 	}
 
-	emitter.live_particles         = 0;
-	emitter.time_between_particles = settings->burst_emit ? 0 : 1.0f / (zt_min(settings->emission_rate, ZT_MAX_PARTICLES) / settings->lifetime);
-	emitter.time_last_particle     = 0;
-	emitter.lifetime               = settings->lifetime;
-	emitter.enabled                = true;
+	emitter.live_particles = 0;
+	emitter.time_between_particles = settings->burst_emit ? 0 : 1.0f / (zt_min(settings->emission_rate, ZT_MAX_PARTICLES) / (settings->emitter_lifetime == 0 ? 1 : settings->emitter_lifetime));
+	emitter.time_last_particle = 0;
+	emitter.lifetime = settings->lifetime;
+	emitter.enabled = true;
 
 	zt_randomInit(&emitter.randomizer, seed);
 
-	if(prewarm_time > 0) {
+	if (prewarm_time > 0) {
 		r32 dt = 1.f / 60.f;
 		while (prewarm_time > 0) {
 			prewarm_time -= dt;
@@ -21545,13 +21561,14 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 					r32 angle = emitter->settings.velocity_angle - (360 * emitter->settings.velocity_angle_random * .5f) + diff;
 					if (angle < 0) angle += 360;
 
+					ztVec3 offset = emitter->settings.local_space ? ztVec3::zero : emitter->settings.origin;
 
 					emitter->particles[i].life                = emitter->settings.lifetime - (emitter->settings.lifetime * (emitter->settings.lifetime_random * zt_randomVal(&emitter->randomizer)));
 					emitter->particles[i].life_span           = emitter->particles[i].life;
 					emitter->particles[i].angle               = angle;
-					emitter->particles[i].transform.position  = ztVec3((zt_randomVal(&emitter->randomizer) * emitter->settings.size.x) - emitter->settings.size.x / 2,
-					                                                   (zt_randomVal(&emitter->randomizer) * emitter->settings.size.y) - emitter->settings.size.y / 2,
-					                                                   (zt_randomVal(&emitter->randomizer) * emitter->settings.size.z) - emitter->settings.size.z / 2);
+					emitter->particles[i].transform.position  = ztVec3(offset.x + (zt_randomVal(&emitter->randomizer) * emitter->settings.size.x) - emitter->settings.size.x / 2,
+					                                                   offset.y + (zt_randomVal(&emitter->randomizer) * emitter->settings.size.y) - emitter->settings.size.y / 2,
+					                                                   offset.z + (zt_randomVal(&emitter->randomizer) * emitter->settings.size.z) - emitter->settings.size.z / 2);
 					emitter->particles[i].speed               = emitter->settings.velocity_speed - (emitter->settings.velocity_speed * (emitter->settings.velocity_speed_random * zt_randomVal(&emitter->randomizer)));
 					emitter->particles[i].rotation            = (emitter->settings.rotation * 360) * (1 - (zt_randomVal(&emitter->randomizer) * emitter->settings.rotation_random));
 
@@ -21574,6 +21591,25 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 					}
 					emitter->particles[i].transform.scale = scale;
 					emitter->particles[i].transform.rotation = ztQuat::identity;
+
+					emitter->particles[i].sprite_idx = 0;
+
+					if (emitter->sprites_count > 0) {
+						int total_prop = 0;
+						zt_fiz(emitter->sprites_count) {
+							total_prop += emitter->sprites_props[i];
+						}
+
+						int sprite_prop = zt_randomInt(&emitter->randomizer, 0, total_prop);
+						total_prop = 0;
+						zt_fiz(emitter->sprites_count) {
+							total_prop += emitter->sprites_props[i];
+							if(sprite_prop < total_prop) {
+								emitter->particles[i].sprite_idx = i;
+								break;
+							}
+						}
+					}
 
 					emitter->live_particles += 1;
 
@@ -21617,16 +21653,8 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 		return;
 	}
 
-	zt_drawListPushTexture(draw_list, emitter->sprite.tex);
-	
-	bool change_color = emitter->settings.color_life_begin != emitter->settings.color_life_end || emitter->settings.color_life.colors_count > 1;
 
-	ztVec2 uv[4] = {
-		ztVec2(emitter->sprite.tex_uv.x, emitter->sprite.tex_uv.y),
-		ztVec2(emitter->sprite.tex_uv.x, emitter->sprite.tex_uv.w),
-		ztVec2(emitter->sprite.tex_uv.z, emitter->sprite.tex_uv.w),
-		ztVec2(emitter->sprite.tex_uv.z, emitter->sprite.tex_uv.y)
-	};
+	bool change_color = emitter->settings.color_life_begin != emitter->settings.color_life_end || emitter->settings.color_life.colors_count > 1;
 
 	ztVec3 normals[4] = { ztVec3::one, ztVec3::one, ztVec3::one, ztVec3::one };
 	ztVec4 color;
@@ -21635,58 +21663,74 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 		color = ztColor_White;
 	}
 
-	zt_fiz(emitter->live_particles) {
+	zt_fxz(emitter->sprites_count) {
+		ztSprite* sprite = &emitter->sprites[x];
+		zt_drawListPushTexture(draw_list, sprite->tex);
 
-		if (change_color) {
-			ZT_PROFILE_PARTICLES("change_color");
-			if (emitter->settings.color_life.colors_count > 1) {
-				zt_colorGradientGetValue(&emitter->settings.color_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span), &color);
+		ztVec2 uv[4] = {
+			ztVec2(sprite->tex_uv.x, sprite->tex_uv.y),
+			ztVec2(sprite->tex_uv.x, sprite->tex_uv.w),
+			ztVec2(sprite->tex_uv.z, sprite->tex_uv.w),
+			ztVec2(sprite->tex_uv.z, sprite->tex_uv.y)
+		};
+
+		zt_fiz(emitter->live_particles) {
+			if(emitter->particles[i].sprite_idx != x) {
+				continue;
+			}
+
+			if (change_color) {
+				ZT_PROFILE_PARTICLES("change_color");
+				if (emitter->settings.color_life.colors_count > 1) {
+					zt_colorGradientGetValue(&emitter->settings.color_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span), &color);
+				}
+				else {
+					color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->particles[i].life_span)));
+				}
+				zt_drawListPushColor(draw_list, color);
+			}
+
+			ztVec3 pos = emitter->particles[i].transform.position;
+			if (emitter->settings.local_space) {
+				ZT_PROFILE_PARTICLES("adjust_to_local_space");
+				pos += emitter->settings.origin;
+			}
+
+			ztVec3 scale = emitter->particles[i].transform.scale;
+
+			if (emitter->settings.scale_life.values_count > 0) {
+				scale *= zt_valueGradientGetValue(&emitter->settings.scale_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span));
+			}
+
+
+			if (emitter->particles[i].rotation) {
+				ZT_PROFILE_PARTICLES("rotate");
+				ztVec3 p[4] = {
+					scale * ztVec3(-sprite->half_size.x,  sprite->half_size.y, 0),
+					scale * ztVec3(-sprite->half_size.x, -sprite->half_size.y, 0),
+					scale * ztVec3( sprite->half_size.x, -sprite->half_size.y, 0),
+					scale * ztVec3( sprite->half_size.x,  sprite->half_size.y, 0),
+				};
+
+				zt_fjze(p) {
+					emitter->particles[i].transform.rotation.rotatePosition(&p[j]);
+					p[j] += pos;
+				}
+
+				zt_drawListAddFilledQuad(draw_list, p, uv, normals	);
+
 			}
 			else {
-				color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->particles[i].life_span)));
+				//zt_drawListAddBillboard(draw_list, emitt6er->settings.origin + emitter->particles[i].transform.position, emitter->sprite.half_size * 2, emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
+				zt_drawListAddFilledRect2D(draw_list, pos, scale.xy * (sprite->half_size * 2), sprite->tex_uv.xy, sprite->tex_uv.zw);
 			}
-			zt_drawListPushColor(draw_list, color);
-		}
-
-		ztVec3 pos = emitter->particles[i].transform.position;
-		if (emitter->settings.local_space) {
-			ZT_PROFILE_PARTICLES("adjust_to_local_space");
-			pos += emitter->settings.origin;
-		}
-
-		ztVec3 scale = emitter->particles[i].transform.scale;
-
-		if (emitter->settings.scale_life.values_count > 0) {
-			scale *= zt_valueGradientGetValue(&emitter->settings.scale_life, 1 - (emitter->particles[i].life / emitter->particles[i].life_span));
-		}
-
-
-		if (emitter->particles[i].rotation) {
-			ZT_PROFILE_PARTICLES("rotate");
-			ztVec3 p[4] = {
-				scale * ztVec3(-emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
-				scale * ztVec3(-emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				scale * ztVec3( emitter->sprite.half_size.x, -emitter->sprite.half_size.y, 0),
-				scale * ztVec3( emitter->sprite.half_size.x, emitter->sprite.half_size.y, 0),
-			};
-
-			zt_fjze(p) {
-				emitter->particles[i].transform.rotation.rotatePosition(&p[j]);
-				p[j] += pos;
+			if (change_color) {
+				zt_drawListPopColor(draw_list);
 			}
+		}
 
-			zt_drawListAddFilledQuad(draw_list, p, uv, normals	);
-
-		}
-		else {
-			//zt_drawListAddBillboard(draw_list, emitt6er->settings.origin + emitter->particles[i].transform.position, emitter->sprite.half_size * 2, emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
-			zt_drawListAddFilledRect2D(draw_list, pos, scale.xy * (emitter->sprite.half_size * 2), emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
-		}
-		if (change_color) {
-			zt_drawListPopColor(draw_list);
-		}
+		zt_drawListPopTexture(draw_list);
 	}
-	zt_drawListPopTexture(draw_list);
 }
 
 // ================================================================================================================================================================================================
