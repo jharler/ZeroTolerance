@@ -382,6 +382,46 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 	audio_data += zt_sizeof(wch);
 	audio_data_len -= zt_sizeof(wch);
 
+	bool found_fmt = false;
+	while (true) {
+		if (local::checkDataChunk(wch.chunk_id, "fmt ", nullptr)) {
+			found_fmt = true;
+
+			ztWavChunkFormat wcf;
+			int size = zt_min(wch.chunk_size, zt_sizeof(wcf));
+			zt_memCpy(&wcf, size, audio_data, audio_data_len);
+			audio_data += size;
+			audio_data_len -= size;
+
+			if (wcf.audio_format != WAVE_FORMAT_PCM) {
+				zt_logDebug("DirectSound: Unsupported audio format encountered (only PCM supported)");
+				return false;
+			}
+
+			buffer.channels = wcf.num_channels;
+			buffer.bits_per_sample = wcf.bits_per_sample;
+			buffer.samples_per_second = wcf.sample_rate;
+
+			zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
+			audio_data += zt_sizeof(wch);
+			audio_data_len -= zt_sizeof(wch);
+		}
+		else if (!local::checkDataChunk(wch.chunk_id, "data", nullptr)) { //&& !local::checkDataChunk(wch.chunk_id, "bext", nullptr)) {
+			audio_data += wch.chunk_size;
+			audio_data_len -= wch.chunk_size;
+
+			zt_memCpy(&wch, zt_sizeof(wch), audio_data, audio_data_len);
+			audio_data += zt_sizeof(wch);
+			audio_data_len -= zt_sizeof(wch);
+
+			if(audio_data_len <= 0) {
+				break;
+			}
+		}
+		else break;
+	}
+
+#if 0
 	if(!local::checkDataChunk(wch.chunk_id, "fmt ", "DirectSound: Unsupported sub chunk id encountered")) {
 		return false;
 	}
@@ -417,7 +457,7 @@ ztDirectSoundBuffer *ztds_bufferMake(ztDirectSoundContext *context, byte* audio_
 			break;
 		}
 	}
-
+#endif
 	byte* data = audio_data;
 
 	buffer.wave_fmt = {};
