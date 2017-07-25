@@ -2140,7 +2140,10 @@ typedef i32 ztFontID;
 #define ztFontDefault		0
 #define ztFontDefaultMono	1
 
-const char *zt_fontGetCharsetStandard( i32 *size );
+#define ZT_FUNC_TEXT_ANIM(name) void name(ztDrawList *draw_list, int ch, int ch_idx, int ch_max, int row, ztVec3 *pos, ztVec2 *uvs, r32 *x_adv, r32 *y_adv, bool *should_skip, bool *pop_color, void *user_data)
+typedef ZT_FUNC_TEXT_ANIM(ztTextAnim_Func);
+
+const char *zt_fontGetCharsetStandard(i32 *size);
 
 ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
 ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
@@ -2154,27 +2157,27 @@ void zt_fontMakeMonoSpaced(ztFontID font);
 const char *zt_fontGetName(ztFontID font_id);
 i32 zt_fontGetSizeInPixels(ztFontID font_id);
 
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text);
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len);
+ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
 // fancy fonts allows colors to be added in the middle of text using the format:
 // "This text is <color=ff0000ff>red</color> text.
 // be sure to avoid spaces in the color specifier
 
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text);
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len);
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
 // ================================================================================================================================================================================================
 // sprites
@@ -2769,6 +2772,7 @@ void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i3
 void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int controllers_count, r32 dt);
 
 ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller);
+r32       zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimController *controller);
 
 
 // ================================================================================================================================================================================================
@@ -8235,10 +8239,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (zt_game->textures_active_render_target) {
-			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 		}
 		else {
-			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 		}
 
 		ztMat4 mat2d;
@@ -15940,14 +15944,14 @@ ztInternal void _zt_fontGetGlyphsFromText(ztFontID font_id, const char *text, in
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
+ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("_zt_fontGetExtents");
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 
 	if (text_len == 0) {
 		// we should return a valid height for empty lines
-		_zt_fontGetExtents(font_id, "A", 1, row, glyphs_idx, glyphs_size, width, height);
+		_zt_fontGetExtents(font_id, "A", 1, row, glyphs_idx, glyphs_size, width, height, text_anim, text_anim_user_data);
 		*width = 0;
 		return;
 	}
@@ -15990,12 +15994,29 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 		}
 
 		r32 x = font->glyphs[glyph_idx].x_adv;
-		r32 y = font->glyphs[glyph_idx].size.y;
+		//r32 y = font->glyphs[glyph_idx].size.y;
+		r32 y = font->line_height;
 
+		if (text_anim) {
+			ztVec2 units_size = font->glyphs[glyph_idx].size;
+			ztFont::Glyph *glyph = &font->glyphs[glyph_idx];
 
+			ztVec3 dl_pos[4];
+			ztVec2 dl_uvs[4];
+
+			// points in ccw order
+			dl_pos[0].x = 0; dl_pos[1].x = 0;                dl_pos[2].x = 0 + units_size.x; dl_pos[3].x = 0 + units_size.x;
+			dl_pos[0].y = 0; dl_pos[1].y = 0 - units_size.y; dl_pos[2].y = 0 - units_size.y; dl_pos[3].y = 0;
+
+			dl_uvs[0].x = glyph->tex_uv.x; dl_uvs[1].x = glyph->tex_uv.x; dl_uvs[2].x = glyph->tex_uv.z; dl_uvs[3].x = glyph->tex_uv.z;
+			dl_uvs[0].y = glyph->tex_uv.y; dl_uvs[1].y = glyph->tex_uv.w; dl_uvs[2].y = glyph->tex_uv.w; dl_uvs[3].y = glyph->tex_uv.y;
+
+			bool should_skip, pop_color;
+			text_anim(nullptr, font->glyph_code_point[glyph_idx], i, text_len, current_row, dl_pos, dl_uvs, &x, &y, &should_skip, &pop_color, text_anim_user_data);
+		}
 
 		row_width += x;
-		row_height = font->line_height;// zt_max(zt_max(row_height, font->line_height), y);
+		row_height = y;// zt_max(zt_max(row_height, font->line_height), y);
 	}
 	total_height +=  row_height;
 	total_width = zt_max(total_width, row_width);
@@ -16012,14 +16033,14 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text)
+ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	return zt_fontGetExtents(font_id, text, zt_strLen(text));
+	return zt_fontGetExtents(font_id, text, zt_strLen(text), text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
+ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("zt_fontGetExtents");
 	if (text == nullptr || text_len <= 0) {
@@ -16030,34 +16051,34 @@ ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len)
 	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
 
 	ztVec2 result;
-	_zt_fontGetExtents(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y);
+	_zt_fontGetExtents(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y, text_anim, text_anim_user_data);
 	return result;
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, transform);
+	zt_drawListAddText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, transform);
+	zt_drawListAddText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform)
+void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddText2D");
 	zt_returnOnNull(draw_list);
@@ -16073,7 +16094,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 	r32 total_height = 0;
 
 	int rows = _zt_fontGetRowCount(text, text_len);
-	_zt_fontGetExtents(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height);
+	_zt_fontGetExtents(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height, text_anim, text_anim_user_data);
 
 	total_width *= scale.x;
 	total_height *= scale.y;
@@ -16117,7 +16138,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			row_height = total_height;
 		}
 		else {
-			_zt_fontGetExtents(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height);
+			_zt_fontGetExtents(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height, text_anim, text_anim_user_data);
 			row_width *= scale.x;
 			row_height *= scale.y;
 		}
@@ -16150,6 +16171,8 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 		ztVec3 dl_nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
 		ztFont::Glyph *prev_glyph = nullptr;
+
+		r32 y_adv = font->line_spacing * scale_y;
 
 		for (int i = start_char; i < start_char + length; ++i) {
 			int glyph_idx = glyphs_idx[i];
@@ -16191,9 +16214,25 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			dl_uvs[0].x = glyph->tex_uv.x; dl_uvs[1].x = glyph->tex_uv.x; dl_uvs[2].x = glyph->tex_uv.z; dl_uvs[3].x = glyph->tex_uv.z;
 			dl_uvs[0].y = glyph->tex_uv.y; dl_uvs[1].y = glyph->tex_uv.w; dl_uvs[2].y = glyph->tex_uv.w; dl_uvs[3].y = glyph->tex_uv.y;
 
-			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+			r32 x_adv = glyph->x_adv * scale_x;
+			if (text_anim) {
+				bool should_skip = false, pop_color = false;
+				i32 codepoint = font->glyph_code_point[glyph_idx];
+				text_anim(draw_list, codepoint, i, text_len, r, dl_pos, dl_uvs, &x_adv, &y_adv, &should_skip, &pop_color, text_anim_user_data);
+				if (!should_skip) {
+					zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+				}
 
-			start_pos_x += glyph->x_adv * scale_x;
+				if (pop_color) {
+					zt_drawListPopColor(draw_list);
+
+				}
+			}
+			else {
+				zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+			}
+
+			start_pos_x += x_adv;
 
 			prev_glyph = glyph;
 		}
@@ -16210,14 +16249,14 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height)
+ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, int row, i32 *glyphs_idx, int glyphs_size, r32 *width, r32 *height, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("_zt_fontGetExtentsFancy");
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 
 	if (text_len == 0) {
 		// we should return a valid height for empty lines
-		_zt_fontGetExtentsFancy(font_id, "A", 1, row, glyphs_idx, glyphs_size, width, height);
+		_zt_fontGetExtentsFancy(font_id, "A", 1, row, glyphs_idx, glyphs_size, width, height, text_anim, text_anim_user_data);
 		*width = 0;
 		return;
 	}
@@ -16295,7 +16334,24 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 		}
 
 		r32 x = font->glyphs[glyph_idx].x_adv;
-		r32 y = font->glyphs[glyph_idx].size.y;
+		r32 y = zt_max(row_height, font->line_height);
+
+		if (text_anim) {
+			ztFont::Glyph *glyph = &font->glyphs[glyph_idx];
+			ztVec2 units_size = glyph->size;
+			ztVec3 dl_pos[4];
+			ztVec2 dl_uvs[4];
+
+			// points in ccw order
+			dl_pos[0].x = 0; dl_pos[1].x = 0;                dl_pos[2].x = 0 + units_size.x; dl_pos[3].x = 0 + units_size.x;
+			dl_pos[0].y = 0; dl_pos[1].y = 0 - units_size.y; dl_pos[2].y = 0 - units_size.y; dl_pos[3].y = 0;
+
+			dl_uvs[0].x = glyph->tex_uv.x; dl_uvs[1].x = glyph->tex_uv.x; dl_uvs[2].x = glyph->tex_uv.z; dl_uvs[3].x = glyph->tex_uv.z;
+			dl_uvs[0].y = glyph->tex_uv.y; dl_uvs[1].y = glyph->tex_uv.w; dl_uvs[2].y = glyph->tex_uv.w; dl_uvs[3].y = glyph->tex_uv.y;
+
+			bool should_skip, pop_color;
+			text_anim(nullptr, font->glyph_code_point[glyph_idx], i, text_len, current_row, dl_pos, dl_uvs, &x, &y, &should_skip, &pop_color, text_anim_user_data);
+		}
 
 		row_width += x;
 		row_height = zt_max(zt_max(row_height, font->line_height), y);
@@ -16315,14 +16371,14 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text)
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	return zt_fontGetExtentsFancy(font_id, text, zt_strLen(text));
 }
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
+ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("zt_fontGetExtentsFancy");
 	if (text == nullptr || text_len <= 0) {
@@ -16333,34 +16389,34 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len)
 	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
 
 	ztVec2 result;
-	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y);
+	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y, text_anim, text_anim_user_data);
 	return result;
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, text_len, pos, ztVec2::one, align_flags, anchor_flags, extents, default_color, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
-	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color, transform);
+	zt_drawListAddFancyText2D(draw_list, font_id, text, zt_strLen(text), pos, scale, align_flags, anchor_flags, extents, default_color, transform, text_anim, text_anim_user_data);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform)
+void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags, i32 anchor_flags, ztVec2 *extents, ztColor default_color, ztMat4 *transform, ztTextAnim_Func *text_anim, void *text_anim_user_data)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFancyText2D");
 	zt_returnOnNull(draw_list);
@@ -16376,7 +16432,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 	r32 total_height = 0;
 
 	int rows = _zt_fontGetRowCount(text, text_len);
-	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height);
+	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &total_width, &total_height, text_anim, text_anim_user_data);
 
 	total_width *= scale.x;
 	total_height *= scale.y;
@@ -16427,7 +16483,7 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			row_height = total_height;
 		}
 		else {
-			_zt_fontGetExtentsFancy(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height);
+			_zt_fontGetExtentsFancy(font_id, text, text_len, r, glyphs_idx, zt_elementsOf(glyphs_idx), &row_width, &row_height, text_anim, text_anim_user_data);
 			row_width *= scale.x;
 			row_height *= scale.y;
 		}
@@ -16460,6 +16516,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		ztVec3 dl_nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
 
 		ztFont::Glyph *prev_glyph = nullptr;
+
+		r32 y_adv = font->line_spacing * scale_y;
 
 		for (int i = start_char; i < start_char + length; ++i) {
 			int glyph_idx = glyphs_idx[i];
@@ -16542,6 +16600,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			zt_alignToPixel(&position.x, ppu);
 			zt_alignToPixel(&position.y, ppu);
 
+			r32 x_adv = glyph->x_adv * scale_x;
+
 			// points in ccw order
 			dl_pos[0].x = position.x; dl_pos[1].x = position.x;                dl_pos[2].x = position.x + units_size.x; dl_pos[3].x = position.x + units_size.x;
 			dl_pos[0].y = position.y; dl_pos[1].y = position.y - units_size.y; dl_pos[2].y = position.y - units_size.y; dl_pos[3].y = position.y;
@@ -16549,16 +16609,32 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			dl_uvs[0].x = glyph->tex_uv.x; dl_uvs[1].x = glyph->tex_uv.x; dl_uvs[2].x = glyph->tex_uv.z; dl_uvs[3].x = glyph->tex_uv.z;
 			dl_uvs[0].y = glyph->tex_uv.y; dl_uvs[1].y = glyph->tex_uv.w; dl_uvs[2].y = glyph->tex_uv.w; dl_uvs[3].y = glyph->tex_uv.y;
 
-			zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
 
-			start_pos_x += glyph->x_adv * scale_x;
+			if (text_anim) {
+				bool should_skip = false, pop_color = false;
+				text_anim(draw_list, font->glyph_code_point[glyph_idx], i, text_len, r, dl_pos, dl_uvs, &x_adv, &y_adv, &should_skip, &pop_color, text_anim_user_data);
+				if (!should_skip) {
+					zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+				}
+
+				if (pop_color) {
+					zt_drawListPopColor(draw_list);
+
+				}
+			}
+			else {
+				zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+			}
+
+			start_pos_x += x_adv;
+
 			//start_pos_x = position.x + (glyph->x_adv * scale_x);
 			//start_pos_x = position.x + units_size.x;
 
 			prev_glyph = glyph;
 		}
 
-		start_pos_y -= font->line_spacing * scale_y;
+		start_pos_y -= y_adv;
 	}
 	zt_fiz(colors_pushed) {
 		zt_drawListPopColor(draw_list);
@@ -21225,7 +21301,6 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 	}
 }
 
-
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -21320,7 +21395,7 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 {
 	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerUpdate");
 	zt_fiz(controllers_count) {
-		zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
+		//zt_animControllerUpdate(&controllers[i]->controller, 1, dt);
 
 		if (controllers[i]->active_sequence >= 0 && controllers[i]->active_sequence < controllers[i]->sequences_count) {
 
@@ -21351,6 +21426,31 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 	return &sequence->sprites[sequence->current_sprite];
 }
 
+// ================================================================================================================================================================================================
+
+r32 zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimController *controller)
+{
+	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerActiveSequencePercentComplete");
+	if (controller->active_sequence < 0 || controller->active_sequence >= controller->sequences_count) {
+		return 1;
+	}
+
+	ztAnimLayer *layer = &controller->controller->sequences[controller->active_sequence]->layers[0];
+	r32 total_time = 0;
+	r32 current_time = 0;
+	zt_fiz(layer->keys_count) {
+		total_time += layer->keys[i].time;
+
+		if(layer->current_key == i) {
+			current_time += layer->current_time;
+		}
+		else if(i < layer->current_key) {
+			current_time += layer->keys[i].time;
+		}
+	}
+
+	return current_time / total_time;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -21498,9 +21598,18 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 				// <- here
 
 				// move particle
-				emitter->particles[i].transform.position.x += (emitter->settings.gravity_velocity.x * dt) + zt_cos(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
-				emitter->particles[i].transform.position.y += (emitter->settings.gravity_velocity.y * dt) + zt_sin(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
-				emitter->particles[i].transform.position.z = zt_lerp(emitter->settings.z_life_begin, emitter->settings.z_life_end, emitter->particles[i].life / emitter->settings.lifetime);
+				if (emitter->settings.burst_emit && emitter->settings.emitter_lifetime > 0) {
+					r32 pct = zt_clamp(emitter->lifetime / emitter->settings.emitter_lifetime, 0, 1);
+					r32 speed = emitter->particles[i].speed * pct;
+					emitter->particles[i].transform.position.x += (emitter->settings.gravity_velocity.x * dt) + zt_cos(zt_degreesToRadians(emitter->particles[i].angle)) * speed * dt;
+					emitter->particles[i].transform.position.y += (emitter->settings.gravity_velocity.y * dt) + zt_sin(zt_degreesToRadians(emitter->particles[i].angle)) * speed * dt;
+					emitter->particles[i].transform.position.z = zt_lerp(emitter->settings.z_life_begin, emitter->settings.z_life_end, emitter->particles[i].life / emitter->settings.lifetime);
+				}
+				else {
+					emitter->particles[i].transform.position.x += (emitter->settings.gravity_velocity.x * dt) + zt_cos(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
+					emitter->particles[i].transform.position.y += (emitter->settings.gravity_velocity.y * dt) + zt_sin(zt_degreesToRadians(emitter->particles[i].angle)) * emitter->particles[i].speed * dt;
+					emitter->particles[i].transform.position.z = zt_lerp(emitter->settings.z_life_begin, emitter->settings.z_life_end, emitter->particles[i].life / emitter->settings.lifetime);
+				}
 
 				if (emitter->settings.rotation != 0) {
 					emitter->particles[i].transform.rotation *= ztQuat::makeFromEuler(0, 0, emitter->particles[i].rotation * dt);
@@ -21627,6 +21736,10 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 				}
 			}
 		}
+	}
+
+	if (emitter->live_particles <= 0 && emitter->settings.burst_emit) {
+		emitter->enabled = false;
 	}
 
 	if (emitter->lifetime > 0) {
@@ -23201,7 +23314,7 @@ int main(int argc, const char **argv)
 #if !defined(ZT_PLATFORM_WIN32_CONSOLE) && !defined(ZT_PLATFORM_WIN64_CONSOLE)
 
 int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_line, int cmd_show)
- {
+{
 	_zt_hinstance = h_instance;
 
 	const char* argv[128];
