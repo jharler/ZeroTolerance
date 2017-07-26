@@ -114,6 +114,8 @@ enum ztAlign_Enum
 	ztAlign_Top        = (1<<3),
 	ztAlign_Bottom     = (1<<4),
 	ztAlign_VertCenter = (1<<5),
+
+	ztAlign_ToPixel = (1<<31),
 };
 
 // ================================================================================================================================================================================================
@@ -2145,39 +2147,40 @@ typedef ZT_FUNC_TEXT_ANIM(ztTextAnim_Func);
 
 const char *zt_fontGetCharsetStandard(i32 *size);
 
-ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
-ztFontID zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
-ztFontID zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0,0));
-ztFontID zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0, 0));
-ztFontID zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = ztVec2i(0, 0));
-void zt_fontFree(ztFontID font_id);
+ztFontID    zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
+ztFontID    zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
+ztFontID    zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0,0));
+ztFontID    zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2i& override_offset = ztVec2i(0, 0));
+ztFontID    zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = ztVec2i(0, 0));
+void        zt_fontFree(ztFontID font_id);
 
-void zt_fontMakeMonoSpaced(ztFontID font);
+void        zt_fontMakeMonoSpaced(ztFontID font);
 
 const char *zt_fontGetName(ztFontID font_id);
-i32 zt_fontGetSizeInPixels(ztFontID font_id);
+i32         zt_fontGetSizeInPixels(ztFontID font_id);
+ztTextureID zt_fontGetTexture(ztFontID font_id);
 
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-ztVec2 zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
 // fancy fonts allows colors to be added in the middle of text using the format:
 // "This text is <color=ff0000ff>red</color> text.
 // be sure to avoid spaces in the color specifier
 
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
 // ================================================================================================================================================================================================
 // sprites
@@ -15873,6 +15876,13 @@ i32 zt_fontGetSizeInPixels(ztFontID font_id)
 	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
 	return zt_game->fonts[font_id].size_pixels;
 }
+// ================================================================================================================================================================================================
+
+ztTextureID zt_fontGetTexture(ztFontID font_id)
+{
+	zt_assert(font_id >= 0 && font_id < zt_game->fonts_count);
+	return zt_game->fonts[font_id].texture;
+}
 
 // ================================================================================================================================================================================================
 
@@ -16204,8 +16214,10 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 				}
 			}
 
-			zt_alignToPixel(&position.x, ppu);
-			zt_alignToPixel(&position.y, ppu);
+			if (zt_bitIsSet(align_flags, ztAlign_ToPixel)) {
+				zt_alignToPixel(&position.x, ppu);
+				zt_alignToPixel(&position.y, ppu);
+			}
 
 			// points in ccw order
 			dl_pos[0].x = position.x; dl_pos[1].x = position.x;                dl_pos[2].x = position.x + units_size.x; dl_pos[3].x = position.x + units_size.x;
@@ -16597,8 +16609,10 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 				}
 			}
 
-			zt_alignToPixel(&position.x, ppu);
-			zt_alignToPixel(&position.y, ppu);
+			if (zt_bitIsSet(align_flags, ztAlign_ToPixel)) {
+				zt_alignToPixel(&position.x, ppu);
+				zt_alignToPixel(&position.y, ppu);
+			}
 
 			r32 x_adv = glyph->x_adv * scale_x;
 
