@@ -15751,6 +15751,16 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		}
 	}
 
+	// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
+	zt_fiz(font->glyph_count) {
+		switch(font->glyph_code_point[i])
+		{
+			case '\r': case '\n': case '\t': case ' ': {
+				font->glyph_code_point[i] = -1;
+			} break;
+		}
+	}
+
 	if (asset_mgr) {
 		zt_freeArena(data, asset_mgr->arena);
 	}
@@ -17059,10 +17069,10 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 	result.sz_cw = (se_interior_x - nw_interior_x) / ppu;
 	result.sz_ch = (se_interior_y - nw_interior_y) / ppu;
 
-	result.offset.x = offset_l / tex_atl_w;
-	result.offset.y = offset_t / tex_atl_h;
-	result.offset.z = offset_r / tex_atl_w;
-	result.offset.w = offset_b / tex_atl_h;
+	result.offset.x = offset_l / ppu; //tex_atl_w;
+	result.offset.y = offset_t / ppu; //tex_atl_h;
+	result.offset.z = offset_r / ppu; //tex_atl_w;
+	result.offset.w = offset_b / ppu; //tex_atl_h;
 
 	return result;
 }
@@ -17085,6 +17095,15 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 //	zt_alignToPixel(&pos, ppu);
 	ztVec2 size = csize;
 //	zt_alignToPixel(&size, ppu);
+
+	r32 x_diff = sns->offset.z - sns->offset.x;
+	r32 y_diff = sns->offset.y - sns->offset.w;
+
+	pos.x += x_diff / 2.f;
+	pos.y += y_diff / 2.f;
+
+	size.x += sns->offset.x + sns->offset.z;
+	size.y += sns->offset.y + sns->offset.w;
 
 	ztVec2 upper_left (pos.x - size.x / 2.f, pos.y + size.y / 2.f);
 	ztVec2 upper_right(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
