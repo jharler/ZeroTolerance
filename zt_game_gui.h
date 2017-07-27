@@ -613,6 +613,8 @@ void             zt_guiItemSetTooltip                  (ztGuiItem *item, const c
 void             zt_guiItemSetThemeType                (ztGuiItem *item, const char *theme_type);
 void             zt_guiItemSetTheme                    (ztGuiItem *item, ztGuiTheme *theme);
 
+void             zt_guiItemSetCustomFlags              (ztGuiItem *item, i32 flags);
+
 //               this is never used internally, so it can be set for any item without worry
 void             zt_guiItemSetUserData                 (ztGuiItem *item, void *user_data);
 
@@ -621,6 +623,9 @@ ztString         zt_guiItemGetLabel                    (ztGuiItem *item);
 ztString         zt_guiItemGetTooltip                  (ztGuiItem *item);
 ztString         zt_guiItemGetThemeType                (ztGuiItem *item);
 void            *zt_guiItemGetUserData                 (ztGuiItem *item);
+ztVec2           zt_guiItemGetSize                     (ztGuiItem *item);
+ztVec2           zt_guiItemGetPosition                 (ztGuiItem *item);
+i32              zt_guiItemGetCustomFlags               (ztGuiItem *item);
 
 void             zt_guiItemSetAlign                    (ztGuiItem *item, i32 align_flags);
 i32              zt_guiItemGetAlign                    (ztGuiItem *item);
@@ -9823,6 +9828,22 @@ void zt_guiItemSetUserData(ztGuiItem *item, void *user_data)
 
 // ================================================================================================================================================================================================
 
+void zt_guiItemSetCustomFlags(ztGuiItem *item, i32 flags)
+{
+	zt_returnOnNull(item);
+	item->custom_flags = flags;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_guiItemGetCustomFlags(ztGuiItem *item)
+{
+	zt_returnValOnNull(item, 0);
+	return item->custom_flags;
+}
+
+// ================================================================================================================================================================================================
+
 ztString zt_guiItemGetName(ztGuiItem *item)
 {
 	zt_returnValOnNull(item, nullptr);
@@ -9868,6 +9889,22 @@ void *zt_guiItemGetUserData(ztGuiItem *item)
 {
 	zt_returnValOnNull(item, nullptr);
 	return item->user_data;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec2 zt_guiItemGetSize(ztGuiItem *item)
+{
+	zt_returnValOnNull(item, ztVec2::zero);
+	return item->size;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec2 zt_guiItemGetPosition(ztGuiItem *item)
+{
+	zt_returnValOnNull(item, ztVec2::min);
+	return item->pos;
 }
 
 // ================================================================================================================================================================================================
