@@ -2914,6 +2914,8 @@ ztInternal void _zt_guiManagerUpdatePre(ztGuiManager *gm, r32 dt)
 				gm->item_cache[i].state_length[k] += dt;
 			}
 
+			gm->item_cache[i].prev_state_flags = gm->item_cache[i].state_flags;
+
 			if (gm->item_cache[i].prev_size.x != gm->item_cache[i].size.x || gm->item_cache[i].prev_size.y != gm->item_cache[i].size.y) {
 				gm->item_cache[i].state_flags |= zt_bit(ztGuiItemStates_Dirty);
 				gm->item_cache[i].state_flags |= zt_bit(ztGuiItemStates_Resized);
@@ -2986,6 +2988,7 @@ ztInternal void _zt_guiManagerUpdatePost(ztGuiManager *gm, r32 dt)
 	zt_fiz(zt_elementsOf(gm->item_cache_flags)) {
 		if (gm->item_cache_flags[i] != 0) {
 			zt_bitRemove(gm->item_cache_flags[i], ztGuiManagerItemCacheFlags_MouseOver);
+			zt_bitRemove(gm->item_cache[i].state_flags, zt_bit(ztGuiItemStates_MouseOver));
 			if (--item_count == 0) {
 				break;
 			}
@@ -3138,6 +3141,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					if (mouse_intersecting || gm->item_has_mouse == item) {
 						if (mouse_intersecting) {
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
+							item->state_flags |= zt_bit(ztGuiItemStates_MouseOver);
 						}
 						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, item->functions.user_data)) {
 							recv_focus = true;
@@ -3188,6 +3192,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					if (mouse_intersecting || gm->item_has_mouse == item) {
 						if (mouse_intersecting) {
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
+							item->state_flags |= zt_bit(ztGuiItemStates_MouseOver);
 						}
 						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, item->functions.user_data)) {
 							return true;
@@ -4684,28 +4689,35 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiItemSliderBestSize, ztInternal ZT_FUNC_GUI_I
 {
 	ZT_PROFILE_GUI("_zt_guiItemSliderBestSize");
 
-	if (item->type == ztGuiItemType_Slider) {
-		if (item->slider.orient == ztGuiItemOrient_Horz) {
-			min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleSize) * 2;
-			min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleMinHeight);
+	zt_guiThemeSizeItem(theme, item);
+
+	if (item->size == ztVec2::zero) {
+		if (item->type == ztGuiItemType_Slider) {
+			if (item->slider.orient == ztGuiItemOrient_Horz) {
+				min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleSize) * 2;
+				min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleMinHeight);
+			}
+			else {
+				min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleSize) * 2;
+				min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleMinHeight);
+			}
 		}
 		else {
-			min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleSize) * 2;
-			min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_SliderHandleMinHeight);
+			if (item->slider.orient == ztGuiItemOrient_Horz) {
+				min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarButtonW) * 2;
+				min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarMinWidth);
+			}
+			else {
+				min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarButtonW) * 2;
+				min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarMinWidth);
+			}
 		}
+
+		*size = *min_size;
 	}
 	else {
-		if (item->slider.orient == ztGuiItemOrient_Horz) {
-			min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarButtonW) * 2;
-			min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarMinWidth);
-		}
-		else {
-			min_size->y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarButtonW) * 2;
-			min_size->x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_ScrollbarMinWidth);
-		}
+		*size = item->size;
 	}
-
-	*size = *min_size;
 }
 
 // ------------------------------------------------------------------------------------
