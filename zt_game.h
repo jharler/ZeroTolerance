@@ -2586,17 +2586,17 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt);
 #define ZT_FUNC_TWEEN_EASE(name)	r32 name(r32 value, void *user_data)
 typedef ZT_FUNC_TWEEN_EASE(ztTweenEase_Func);
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear  );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack    );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce  );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc    );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic   );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo    );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad    );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart   );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint   );
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine    );
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseLinear,  ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear  ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseBack,    ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack    ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseBounce,  ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce  ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseCirc,    ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc    ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseCubic,   ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic   ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseElastic, ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseExpo,    ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo    ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseQuad,    ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad    ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseQuart,   ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart   ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseQuint,   ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint   ));
+ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseSine,    ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine    ));
 
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
@@ -2607,6 +2607,159 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
+ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
+ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztTweenItemType_Enum
+{
+	ztTweenItemType_Invalid,
+
+	ztTweenItemType_Real,
+	ztTweenItemType_Vec2,
+	ztTweenItemType_Vec3,
+	ztTweenItemType_Vec4,
+	ztTweenItemType_Quat,
+
+	ztTweenItemType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+enum ztTweenItemFlags_Enum
+{
+	ztTweenItemFlags_Loops         = (1 << 0),
+	ztTweenItemFlags_PingPongs     = (1 << 1),
+	ztTweenItemFlags_Paused        = (1 << 2),
+	ztTweenItemFlags_Stopped       = (1 << 3),
+	ztTweenItemFlags_DirectionBack = (1 << 4),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztTweenItem
+{
+	ztTweenItemType_Enum type;
+
+	union {
+		struct {
+			r32  value_beg;
+			r32  value_end;
+			r32 *value;
+		} real;
+
+		struct {
+			ztVec2  value_beg;
+			ztVec2  value_end;
+			ztVec2 *value;
+		} vec2;
+
+		struct {
+			ztVec3  value_beg;
+			ztVec3  value_end;
+			ztVec3 *value;
+		} vec3;
+
+		struct {
+			ztVec4  value_beg;
+			ztVec4  value_end;
+			ztVec4 *value;
+		} vec4;
+
+		struct {
+			ztQuat  value_beg;
+			ztQuat  value_end;
+			ztQuat *value;
+		} quat;
+	};
+
+	i32 flags;
+	r32 length;
+	r32 time;
+	r32 delay;
+
+	ztFunctionID ease_in;
+	ztFunctionID ease_out;
+};
+
+
+void zt_tweenItemMake            (ztTweenItem *tween_item, r32    beg_val, r32    end_val, r32    *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+
+r32  zt_tweenItemPercentComplete (ztTweenItem *tween_item);
+bool zt_tweenItemIsComplete      (ztTweenItem *tween_item);
+
+void zt_tweenItemStart           (ztTweenItem *tween_item);
+void zt_tweenItemPause           (ztTweenItem *tween_item);
+void zt_tweenItemStop            (ztTweenItem *tween_item);
+
+void zt_tweenItemUpdate          (ztTweenItem *tween_item, int tween_item_count, r32 dt);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifndef ZT_TWEEN_MAX_ITEMS_PER_GROUP
+#define ZT_TWEEN_MAX_ITEMS_PER_GROUP 8
+#endif
+
+struct ztTweenGroup
+{
+	ztTweenItem  items[ZT_TWEEN_MAX_ITEMS_PER_GROUP];
+	int          items_count;
+};
+
+void zt_tweenGroupMake            (ztTweenGroup *tween_group, ztTweenItem *tween_items, int tween_items_count);
+
+r32  zt_tweenGroupPercentComplete (ztTweenGroup *tween_group);
+bool zt_tweenGroupIsComplete      (ztTweenGroup *tween_group);
+
+void zt_tweenGroupUpdate          (ztTweenGroup *tween_group, int tween_group_count, r32 dt);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifndef ZT_TWEEN_MAX_GROUPS_PER_MANAGER
+#define ZT_TWEEN_MAX_GROUPS_PER_MANAGER      32
+#endif
+
+#ifndef ZT_TWEEN_MAX_TWEENS_PER_MANAGER
+#define ZT_TWEEN_MAX_TWEENS_PER_MANAGER     128
+#endif
+
+enum ztTweenManagerFlags_Enum
+{
+	ztTweenManagerFlags_Claimed             = (1<<0),
+	ztTweenManagerFlags_ReclaimOnceComplete = (1<<1),
+};
+
+struct ztTweenManager
+{
+	ztTweenGroup groups      [ZT_TWEEN_MAX_GROUPS_PER_MANAGER];
+	i32          groups_flags[ZT_TWEEN_MAX_GROUPS_PER_MANAGER];
+	ztTweenItem  items       [ZT_TWEEN_MAX_TWEENS_PER_MANAGER];
+	i32          items_flags [ZT_TWEEN_MAX_TWEENS_PER_MANAGER];
+
+};
+
+void           zt_tweenManagerMake              (ztTweenManager *tween_manager);
+void           zt_tweenManagerReset             (ztTweenManager *tween_manager);
+
+ztTweenGroup  *zt_tweenManagerGetTemporaryGroup (ztTweenManager *tween_manager);
+ztTweenGroup  *zt_tweenManagerGetPermanentGroup (ztTweenManager *tween_manager);
+void           zt_tweenManagerReclaimGroup      (ztTweenManager *tween_manager, ztTweenGroup *tween_group);
+
+ztTweenItem   *zt_tweenManagerGetTemporaryItem  (ztTweenManager *tween_manager);
+ztTweenItem   *zt_tweenManagerGetPermanentItem  (ztTweenManager *tween_manager);
+void           zt_tweenManagerReclaimItem(ztTweenManager *tween_manager, ztTweenItem *tween_item);
+
+void           zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt);
 
 // ================================================================================================================================================================================================
 // animation
@@ -20780,7 +20933,7 @@ bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_e
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseLinear, ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseLinear");
 	return value;
@@ -20788,7 +20941,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseLinear)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseBack, ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseBack");
 	return (value * value) * (2.70158f * value - 1.70158f);
@@ -20796,7 +20949,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseBack)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseBounce, ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseBounce");
 	if (1 - value < 1 / 2.75f) {
@@ -20817,7 +20970,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseBounce)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseCirc, ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseCirc");
 	return 1 - zt_sqrt(1 - (value * value));
@@ -20825,7 +20978,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseCirc)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseCubic, ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseCubic");
 	return value * value * value;
@@ -20833,7 +20986,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseCubic)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseElastic, ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseElastic");
 	if ( value == 0 || value == 1 ) return value;
@@ -20842,7 +20995,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseElastic)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseExpo, ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseExpo");
 	if ( value == 0 ) return 0;
@@ -20851,7 +21004,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseExpo)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseQuad, ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseQuad");
 	return value * value;
@@ -20859,7 +21012,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuad)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseQuart, ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseQuart");
 	return value * value * value * value;
@@ -20867,7 +21020,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuart)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseQuint, ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseQuint");
 	return value * value * value * value * value;
@@ -20875,7 +21028,7 @@ ZT_FUNC_TWEEN_EASE(zt_tweenEaseQuint)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine)
+ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseSine, ZT_FUNC_TWEEN_EASE(zt_tweenEaseSine))
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseSine");
 	return 1 - zt_cos(value * 3.14159f / 2);
@@ -20916,7 +21069,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
-		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
 }
 
 // ================================================================================================================================================================================================
@@ -20924,7 +21077,7 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
-		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
 }
 
 // ================================================================================================================================================================================================
@@ -20932,8 +21085,8 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
-		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
-		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
+	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
 }
 
 // ================================================================================================================================================================================================
@@ -20941,8 +21094,445 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
-		zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
-		zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+}
+
+// ================================================================================================================================================================================================
+
+ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
+{
+	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
+	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out),
+	               zt_tweenValue(val_beg.w, val_end.w, percent, ease_in, ease_out));
+}
+
+// ================================================================================================================================================================================================
+
+ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
+{
+	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
+	               zt_tweenValue(val_beg.w, val_end.w, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	zt_returnOnNull(tween_item);
+	zt_returnOnNull(value);
+
+	tween_item->type           = ztTweenItemType_Real;
+	tween_item->real.value_beg = beg_val;
+	tween_item->real.value_end = end_val;
+	tween_item->real.value     = value;
+	tween_item->flags          = flags;
+	tween_item->length         = length;
+	tween_item->time           = 0;
+	tween_item->delay          = delay;
+	tween_item->ease_in        = ease_in;
+	tween_item->ease_out       = ease_out;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	zt_returnOnNull(tween_item);
+	zt_returnOnNull(value);
+
+	tween_item->type           = ztTweenItemType_Vec2;
+	tween_item->vec2.value_beg = beg_val;
+	tween_item->vec2.value_end = end_val;
+	tween_item->vec2.value     = value;
+	tween_item->flags          = flags;
+	tween_item->length         = length;
+	tween_item->time           = 0;
+	tween_item->delay          = delay;
+	tween_item->ease_in        = ease_in;
+	tween_item->ease_out       = ease_out;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	zt_returnOnNull(tween_item);
+	zt_returnOnNull(value);
+
+	tween_item->type           = ztTweenItemType_Vec3;
+	tween_item->vec3.value_beg = beg_val;
+	tween_item->vec3.value_end = end_val;
+	tween_item->vec3.value     = value;
+	tween_item->flags          = flags;
+	tween_item->length         = length;
+	tween_item->time           = 0;
+	tween_item->delay          = delay;
+	tween_item->ease_in        = ease_in;
+	tween_item->ease_out       = ease_out;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	zt_returnOnNull(tween_item);
+	zt_returnOnNull(value);
+
+	tween_item->type           = ztTweenItemType_Vec4;
+	tween_item->vec4.value_beg = beg_val;
+	tween_item->vec4.value_end = end_val;
+	tween_item->vec4.value     = value;
+	tween_item->flags          = flags;
+	tween_item->length         = length;
+	tween_item->time           = 0;
+	tween_item->delay          = delay;
+	tween_item->ease_in        = ease_in;
+	tween_item->ease_out       = ease_out;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	zt_returnOnNull(tween_item);
+	zt_returnOnNull(value);
+
+	tween_item->type           = ztTweenItemType_Real;
+	tween_item->quat.value_beg = beg_val;
+	tween_item->quat.value_end = end_val;
+	tween_item->quat.value     = value;
+	tween_item->flags          = flags;
+	tween_item->length         = length;
+	tween_item->time           = 0;
+	tween_item->delay          = delay;
+	tween_item->ease_in        = ease_in;
+	tween_item->ease_out       = ease_out;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_tweenItemPercentComplete(ztTweenItem *tween_item)
+{
+	zt_returnValOnNull(tween_item, 0);
+
+	if (zt_bitIsSet(tween_item->flags, ztTweenItemFlags_Stopped)) {
+		return 1;
+	}
+
+	if (tween_item->time < tween_item->delay) {
+		return 0;
+	}
+
+	return (tween_item->time - tween_item->delay) / tween_item->length;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_tweenItemIsComplete(ztTweenItem *tween_item)
+{
+	zt_returnValOnNull(tween_item, false);
+
+	if (zt_bitIsSet(tween_item->flags, ztTweenItemFlags_Stopped)) {
+		return true;
+	}
+
+	if (tween_item->time - tween_item->delay >= tween_item->length) {
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemStart(ztTweenItem *tween_item)
+{
+	zt_returnOnNull(tween_item);
+
+	tween_item->time = 0;
+	zt_bitRemove(tween_item->flags, ztTweenItemFlags_Stopped);
+	zt_bitRemove(tween_item->flags, ztTweenItemFlags_Paused);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemPause(ztTweenItem *tween_item)
+{
+	zt_returnOnNull(tween_item);
+
+	tween_item->flags |= ztTweenItemFlags_Paused;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemStop(ztTweenItem *tween_item)
+{
+	zt_returnOnNull(tween_item);
+
+	zt_bitRemove(tween_item->flags, ztTweenItemFlags_Paused);
+	tween_item->flags |= ztTweenItemFlags_Stopped;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
+{
+	zt_returnOnNull(tween_item);
+
+	zt_fiz(tween_item_count) {
+
+		if (zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Paused) || zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Stopped)) {
+			continue;
+		}
+
+		if (zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs) && zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_DirectionBack)) {
+			tween_item[i].time -= dt;
+
+			if (tween_item[i].time < 0) {
+				zt_bitRemove(tween_item[i].flags, ztTweenItemFlags_DirectionBack);
+				tween_item[i].time *= -1;
+			}
+		}
+		else {
+			tween_item[i].time += dt;
+
+			if (tween_item[i].time > tween_item[i].length) {
+				if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Loops)) {
+					tween_item[i].time -= tween_item[i].length;
+				}
+				else if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs)) {
+					tween_item[i].time = tween_item[i].length - (tween_item[i].time - tween_item[i].length);
+					tween_item[i].flags |= ztTweenItemFlags_DirectionBack;
+				}
+				else {
+					tween_item[i].time = tween_item[i].length;
+					tween_item[i].flags |= ztTweenItemFlags_Stopped;
+				}
+			}
+		}
+
+		r32 percent = tween_item[i].time < tween_item[i].delay ? 0 : (tween_item[i].time - tween_item[i].delay) / tween_item[i].length;
+
+		switch (tween_item[i].type)
+		{
+			case ztTweenItemType_Real: {
+				*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+			} break;
+
+			case ztTweenItemType_Vec2: {
+				*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+			} break;
+
+			case ztTweenItemType_Vec3: {
+				*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+			} break;
+
+			case ztTweenItemType_Vec4: {
+				*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+			} break;
+
+			case ztTweenItemType_Quat: {
+				tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+			} break;
+		}
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_tweenGroupMake(ztTweenGroup *tween_group, ztTweenItem *tween_items, int tween_items_count)
+{
+	zt_returnOnNull(tween_group);
+	zt_returnOnNull(tween_items);
+	zt_assert(tween_items_count > 0 && tween_items_count < zt_elementsOf(tween_group->items));
+
+	zt_fiz(tween_items_count) {
+		zt_memCpy(&tween_group->items[i], zt_sizeof(ztTweenItem), &tween_items[i], zt_sizeof(ztTweenItem));
+	}
+
+	tween_group->items_count = tween_items_count;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_tweenGroupPercentComplete(ztTweenGroup *tween_group)
+{
+	zt_returnValOnNull(tween_group, 0);
+
+	r32 min_pct_complete = 1;
+
+	zt_fiz(tween_group->items_count) {
+		r32 pct_complete = zt_tweenItemPercentComplete(&tween_group->items[i]);
+		if(pct_complete < min_pct_complete) {
+			min_pct_complete = pct_complete;
+		}
+	}
+
+	return min_pct_complete;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_tweenGroupIsComplete(ztTweenGroup *tween_group)
+{
+	return zt_real32Eq(zt_tweenGroupPercentComplete(tween_group), 1.f);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenGroupUpdate(ztTweenGroup *tween_group, int tween_group_count, r32 dt)
+{
+	zt_returnOnNull(tween_group);
+
+	zt_fiz(tween_group_count) {
+		zt_tweenItemUpdate(tween_group[i].items, tween_group[i].items_count, dt);
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_tweenManagerMake(ztTweenManager *tween_manager)
+{
+	zt_returnOnNull(tween_manager);
+	zt_tweenManagerReset(tween_manager);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenManagerReset(ztTweenManager *tween_manager)
+{
+	zt_returnOnNull(tween_manager);
+	zt_memSet(tween_manager, zt_sizeof(ztTweenManager), 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztTweenGroup *zt_tweenManagerGetTemporaryGroup(ztTweenManager *tween_manager)
+{
+	zt_returnValOnNull(tween_manager, nullptr);
+
+	zt_fize(tween_manager->groups) {
+		if (!zt_bitIsSet(tween_manager->groups_flags[i], ztTweenManagerFlags_Claimed)) {
+			tween_manager->groups_flags[i] |= ztTweenManagerFlags_Claimed | ztTweenManagerFlags_ReclaimOnceComplete;
+			return &tween_manager->groups[i];
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztTweenGroup *zt_tweenManagerGetPermanentGroup(ztTweenManager *tween_manager)
+{
+	zt_returnValOnNull(tween_manager, nullptr);
+
+	zt_fize(tween_manager->groups) {
+		if (!zt_bitIsSet(tween_manager->groups_flags[i], ztTweenManagerFlags_Claimed)) {
+			tween_manager->groups_flags[i] |= ztTweenManagerFlags_Claimed;
+			return &tween_manager->groups[i];
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenManagerReclaimGroup(ztTweenManager *tween_manager, ztTweenGroup *tween_group)
+{
+	zt_returnOnNull(tween_manager);
+	zt_returnOnNull(tween_group);
+
+	zt_fize(tween_manager->groups) {
+		if (&tween_manager->groups[i] == tween_group) {
+			zt_bitRemove(tween_manager->groups_flags[i], ztTweenManagerFlags_Claimed);
+			return;
+		}
+	}
+
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+ztTweenItem *zt_tweenManagerGetTemporaryItem(ztTweenManager *tween_manager)
+{
+	zt_returnValOnNull(tween_manager, nullptr);
+
+	zt_fize(tween_manager->items) {
+		if (!zt_bitIsSet(tween_manager->items_flags[i], ztTweenManagerFlags_Claimed)) {
+			tween_manager->items_flags[i] |= ztTweenManagerFlags_Claimed |ztTweenManagerFlags_ReclaimOnceComplete;
+			return &tween_manager->items[i];
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztTweenItem *zt_tweenManagerGetPermanentItem(ztTweenManager *tween_manager)
+{
+	zt_returnValOnNull(tween_manager, nullptr);
+
+	zt_fize(tween_manager->items) {
+		if (!zt_bitIsSet(tween_manager->items_flags[i], ztTweenManagerFlags_Claimed)) {
+			tween_manager->items_flags[i] |= ztTweenManagerFlags_Claimed;
+			return &tween_manager->items[i];
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenManagerReclaimItem(ztTweenManager *tween_manager, ztTweenItem *tween_item)
+{
+	zt_returnOnNull(tween_manager);
+	zt_returnOnNull(tween_item);
+
+	zt_fize(tween_manager->items) {
+		if (&tween_manager->items[i] == tween_item) {
+			zt_bitRemove(tween_manager->groups_flags[i], ztTweenManagerFlags_Claimed);
+			zt_bitRemove(tween_manager->groups_flags[i], ztTweenManagerFlags_ReclaimOnceComplete);
+			return;
+		}
+	}
+
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt)
+{
+	zt_returnOnNull(tween_manager);
+
+	zt_tweenGroupUpdate(tween_manager->groups, zt_elementsOf(tween_manager->groups), dt);
+	zt_tweenItemUpdate(tween_manager->items, zt_elementsOf(tween_manager->items), dt);
+
+	zt_fize(tween_manager->groups) {
+		if (zt_bitIsSet(tween_manager->groups_flags[i], ztTweenManagerFlags_ReclaimOnceComplete)) {
+			if (zt_tweenGroupIsComplete(&tween_manager->groups[i])) {
+				tween_manager->groups_flags[i] = 0;
+			}
+		}
+	}
 }
 
 
