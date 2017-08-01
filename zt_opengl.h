@@ -874,7 +874,7 @@ void ztgl_contextFree(ztContextGL *context)
 
 ztVec2i ztgl_contextGetSize(ztContextGL *context)
 {
-	zt_returnValOnNull(context, ztVec2i(0,0));
+	zt_returnValOnNull(context, zt_vec2i(0,0));
 	return context->size;
 }
 

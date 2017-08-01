@@ -309,12 +309,11 @@ struct ztVec2i
 		i32 values[2];
 	};
 
-	ztVec2i() {}
-	ztVec2i(i32 _x, i32 _y) :x(_x), y(_y) {}
-
 	bool operator==(const ztVec2i& v) const { return x == v.x && y == v.y; }
 	bool operator!=(const ztVec2i& v) const { return x != v.x || y != v.y; }
 };
+
+ztInline ztVec2i zt_vec2i(i32 x, i32 y) { return { x, y }; }
 
 
 // ================================================================================================================================================================================================
@@ -330,12 +329,11 @@ struct ztVec3i
 		i32 values[3];
 	};
 
-	ztVec3i() {}
-	ztVec3i(i32 _x, i32 _y, i32 _z) : x(_x), y(_y), z(_z) {}
-
 	bool operator==(const ztVec3i& v) const { return x == v.x && y == v.y && z == v.z; }
 	bool operator!=(const ztVec3i& v) const { return x != v.x || y != v.y || z != v.z; }
 };
+
+ztInline ztVec3i zt_vec3i(i32 x, i32 y, i32 z) { return { x, y, z }; }
 
 
 // ================================================================================================================================================================================================
@@ -352,12 +350,11 @@ struct ztVec4i
 		i32 values[4];
 	};
 
-	ztVec4i() {}
-	ztVec4i(i32 _x, i32 _y, i32 _z, i32 _w) : x(_x), y(_y), z(_z), w(_w) {}
-
 	bool operator==(const ztVec4i& v) const { return x == v.x && y == v.y && z == v.z && w == v.w; }
 	bool operator!=(const ztVec4i& v) const { return x != v.x || y != v.y || z != v.z || w != v.w; }
 };
+
+ztInline ztVec4i zt_vec4i(i32 x, i32 y, i32 z, i32 w) { return { x, y, z, w }; }
 
 
 // ================================================================================================================================================================================================
@@ -376,10 +373,6 @@ struct ztVec2
 
 		r32 values[2];
 	};
-
-	ztVec2() {}
-	ztVec2(r32 _x, r32 _y) :x(_x), y(_y) {}
-	explicit ztVec2(r32 v[2]) :x(v[0]), y(v[1]) {}
 
 	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; return *this;}
 	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; return *this;}
@@ -413,11 +406,10 @@ struct ztVec2
 	static const ztVec2 one;
 	static const ztVec2 min;
 	static const ztVec2 max;
-
-#if defined(ZT_VEC2_EXTRAS)
-	ZT_VEC2_EXTRAS	// use this to add conversions to and from your own classes
-#endif
 };
+
+ztInline ztVec2 zt_vec2(r32 x, r32 y) { return{ x, y }; }
+ztInline ztVec2 zt_vec2(r32 v[2]) { return{ v[0], v[1] }; }
 
 ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2);
@@ -450,11 +442,6 @@ struct ztVec3
 
 		r32 values[3];
 	};
-
-	ztVec3() {}
-	ztVec3(r32 _x, r32 _y, r32 _z) :x(_x), y(_y), z(_z) {}
-	ztVec3(const ztVec2& vec2, r32 _z) : x(vec2.x), y(vec2.y), z(_z) {}
-	explicit ztVec3(r32 v[3]) : x(v[0]), y(v[1]), z(v[2]) {}
 
 	ztVec3& operator+=(const ztVec3& v) { x += v.x; y += v.y; z += v.z; return *this; }
 	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
@@ -493,6 +480,11 @@ struct ztVec3
 	ZT_VEC3_EXTRAS	// use this to add conversions to and from your own classes
 #endif
 };
+
+
+ztInline ztVec3 zt_vec3(r32 x, r32 y, r32 z) { return { x, y, z }; }
+ztInline ztVec3 zt_vec3(const ztVec2& v, r32 z) { return { v.x, v.y, z }; }
+ztInline ztVec3 zt_vec3(r32 v[3]) { return { v[0], v[1], v[2] }; }
 
 ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2);
@@ -538,12 +530,6 @@ struct ztVec4
 		r32 values[4];
 	};
 
-	ztVec4() {}
-	ztVec4(r32 _x, r32 _y, r32 _z, r32 _w) :x(_x), y(_y), z(_z), w(_w) {}
-	ztVec4(const ztVec2& vec2a, const ztVec2& vec2b) : x(vec2a.x), y(vec2a.y), z(vec2b.x), w(vec2b.y) {}
-	ztVec4(const ztVec3& vec3, r32 _w) : x(vec3.x), y(vec3.y), z(vec3.z), w(_w) {}
-	explicit ztVec4(r32 v[4]) :x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
-
 	ztVec4& operator+=(const ztVec4& v) { x += v.x; y += v.y; z += v.z; w += v.w; return *this;}
 	ztVec4& operator-=(const ztVec4& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this;}
 	ztVec4& operator*=(r32 v) { x *= v; y *= v; z *= v; w *= v; return *this; }
@@ -573,6 +559,12 @@ struct ztVec4
 #endif
 };
 
+ztInline ztVec4 zt_vec4(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
+ztInline ztVec4 zt_vec4(const ztVec2& v2a, const ztVec2& v2b) { return { v2a.x, v2a.y, v2b.x, v2b.y }; }
+ztInline ztVec4 zt_vec4(const ztVec3& v3, r32 w) { return { v3.x, v3.y, v3.z, w }; }
+ztInline ztVec4 zt_vec4(r32 v[4]) { return { v[0], v[1], v[2], v[3] }; }
+
+
 ztInline ztVec4 operator+(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2);
@@ -582,32 +574,34 @@ ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
 typedef ztVec4                 ztColor;
 #define ztColour               ztColor;       // pick your favorite (favourite?)
 
-ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { return ztVec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
+ztInline ztColor zt_color(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
 
-#define ztColor_White          ztColor(1.0f, 1.0f, 1.0f, 1.f)
-#define ztColor_Black          ztColor( .0f,  .0f,  .0f, 1.f)
-#define ztColor_Gray           ztColor(.50f, .50f, .50f, 1.f)
-#define ztColor_LightGray      ztColor(.73f, .73f, .73f, 1.f)
-#define ztColor_DarkGray       ztColor(.26f, .26f, .26f, 1.f)
-#define ztColor_Red            ztColor(1.0f,  .0f,  .0f, 1.f)
-#define ztColor_LightRed       ztColor(1.0f, .75f, .80f, 1.f)
-#define ztColor_DarkRed        ztColor(.55f,  .0f,  .0f, 1.f)
-#define ztColor_Green          ztColor( .0f, 1.0f,  .0f, 1.f)
-#define ztColor_LightGreen     ztColor(.56f, .93f, .56f, 1.f)
-#define ztColor_DarkGreen      ztColor( .0f, .20f, .13f, 1.f)
-#define ztColor_Blue           ztColor( .0f,  .0f, 1.0f, 1.f)
-#define ztColor_LightBlue      ztColor(.68f, .85f, .90f, 1.f)
-#define ztColor_DarkBlue       ztColor( .0f,  .0f, .55f, 1.f)
-#define ztColor_Purple         ztColor(.50f,  .0f, .50f, 1.f)
-#define ztColor_LightPurple    ztColor(.59f, .48f, .71f, 1.f)
-#define ztColor_DarkPurple     ztColor(.19f, .10f, .20f, 1.f)
-#define ztColor_Cyan           ztColor( .0f, 1.0f, 1.0f, 1.f)
-#define ztColor_Yellow         ztColor(1.0f, 1.0f,  .0f, 1.f)
-#define ztColor_LightYellow    ztColor(1.0f, 1.0f, .88f, 1.f)
-#define ztColor_DarkYellow     ztColor(.61f, .53f,  .0f, 1.f)
-#define ztColor_Orange         ztColor(1.0f, .50f,  .0f, 1.f)
-#define ztColor_LightOrange    ztColor(1.0f, .60f, .40f, 1.f)
-#define ztColor_DarkOrange     ztColor(1.0f, .55f,  .0f, 1.f)
+ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { return zt_vec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
+
+#define ztColor_White          zt_color(1.0f, 1.0f, 1.0f, 1.f)
+#define ztColor_Black          zt_color( .0f,  .0f,  .0f, 1.f)
+#define ztColor_Gray           zt_color(.50f, .50f, .50f, 1.f)
+#define ztColor_LightGray      zt_color(.73f, .73f, .73f, 1.f)
+#define ztColor_DarkGray       zt_color(.26f, .26f, .26f, 1.f)
+#define ztColor_Red            zt_color(1.0f,  .0f,  .0f, 1.f)
+#define ztColor_LightRed       zt_color(1.0f, .75f, .80f, 1.f)
+#define ztColor_DarkRed        zt_color(.55f,  .0f,  .0f, 1.f)
+#define ztColor_Green          zt_color( .0f, 1.0f,  .0f, 1.f)
+#define ztColor_LightGreen     zt_color(.56f, .93f, .56f, 1.f)
+#define ztColor_DarkGreen      zt_color( .0f, .20f, .13f, 1.f)
+#define ztColor_Blue           zt_color( .0f,  .0f, 1.0f, 1.f)
+#define ztColor_LightBlue      zt_color(.68f, .85f, .90f, 1.f)
+#define ztColor_DarkBlue       zt_color( .0f,  .0f, .55f, 1.f)
+#define ztColor_Purple         zt_color(.50f,  .0f, .50f, 1.f)
+#define ztColor_LightPurple    zt_color(.59f, .48f, .71f, 1.f)
+#define ztColor_DarkPurple     zt_color(.19f, .10f, .20f, 1.f)
+#define ztColor_Cyan           zt_color( .0f, 1.0f, 1.0f, 1.f)
+#define ztColor_Yellow         zt_color(1.0f, 1.0f,  .0f, 1.f)
+#define ztColor_LightYellow    zt_color(1.0f, 1.0f, .88f, 1.f)
+#define ztColor_DarkYellow     zt_color(.61f, .53f,  .0f, 1.f)
+#define ztColor_Orange         zt_color(1.0f, .50f,  .0f, 1.f)
+#define ztColor_LightOrange    zt_color(1.0f, .60f, .40f, 1.f)
+#define ztColor_DarkOrange     zt_color(1.0f, .55f,  .0f, 1.f)
 
 
 // ================================================================================================================================================================================================
@@ -700,10 +694,6 @@ struct ztMat4
 		r32 values[16];
 	};
 
-	ztMat4() {}
-	explicit ztMat4(r32 v[16]) { zt_fiz(16) values[i] = v[i]; }
-	ztMat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { values[0] = c0r0; values[1] = c0r1; values[2] = c0r2; values[3] = c0r3; values[4] = c1r0; values[5] = c1r1; values[6] = c1r2; values[7] = c1r3; values[8] = c2r0; values[9] = c2r1; values[10] = c2r2; values[11] = c2r3; values[12] = c3r0; values[13] = c3r1; values[14] = c3r2; values[15] = c3r3; }
-	ztMat4(const ztMat4& copy) { zt_fiz(16) values[i] = copy.values[i]; }
 
 	void translate(const ztVec3& position)                   { values[ztMat4_Col3Row0] = position.x; values[ztMat4_Col3Row1] = position.y; values[ztMat4_Col3Row2] = position.z; }
 	void translate(r32 x, r32 y, r32 z)                      { values[ztMat4_Col3Row0] = x; values[ztMat4_Col3Row1] = y; values[ztMat4_Col3Row2] = z; }
@@ -730,8 +720,8 @@ struct ztMat4
 	void inverse();
 	ztMat4 getInverse() const;
 
-	void lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = ztVec3(0, 1, 0));
-	ztMat4 getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = ztVec3(0, 1, 0)) const;
+	void lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = zt_vec3(0, 1, 0));
+	ztMat4 getLookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec = zt_vec3(0, 1, 0)) const;
 
 	void extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const; // does not work well with scaled matrices
 	void extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const; // does not work well with scaled matrices
@@ -766,6 +756,10 @@ struct ztMat4
 
 // ================================================================================================================================================================================================
 
+ztInline ztMat4 zt_mat4(r32 v[16]) { return{ v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15] }; }
+ztInline ztMat4 zt_mat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { return { c0r0, c0r1, c0r2, c0r3, c1r0, c1r1, c1r2, c1r3, c2r0, c2r1, c2r2, c2r3, c3r0, c3r1, c3r2, c3r3 }; }
+ztInline ztMat4 zt_mat4(const ztMat4& m) { return{ m.values[0], m.values[1], m.values[2], m.values[3], m.values[4], m.values[5], m.values[6], m.values[7], m.values[8], m.values[9], m.values[10], m.values[11], m.values[12], m.values[13], m.values[14], m.values[15] }; }
+
 ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
 ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
 
@@ -793,12 +787,6 @@ struct ztQuat
 
 		r32 values[4];
 	};
-
-	ztQuat() {}
-	explicit ztQuat(r32 v[4]) : x(v[0]), y(v[1]), z(v[2]), w(v[3]) {}
-	ztQuat(r32 _x, r32 _y, r32 _z, r32 _w) : x(_x), y(_y), z(_z), w(_w) {}
-	ztQuat(const ztVec3& _xyz, r32 _w) : xyz(_xyz), w(_w) {}
-	ztQuat(const ztVec4& _xyzw) : xyzw(_xyzw) {}
 
 	ztQuat& operator+=(const ztQuat& q);
 	ztQuat& operator-=(const ztQuat& q);
@@ -845,7 +833,7 @@ struct ztQuat
 	static ztQuat makeFromEuler(r32 pitch, r32 yaw, r32 roll);
 	static ztQuat makeFromEuler(const ztVec3& euler) { return makeFromEuler(euler.x, euler.y, euler.z); }
 	static ztQuat makeFromMat4(const ztMat4& mat);
-	static ztQuat makeFromDirection(const ztVec3& dir, const ztVec3& up = ztVec3(0, 1, 0));
+	static ztQuat makeFromDirection(const ztVec3& dir, const ztVec3& up = zt_vec3(0, 1, 0));
 	static ztQuat makeFromPoints(const ztVec3& p1, const ztVec3 p2);
 
 	static ztQuat lerp(const ztQuat& q1, const ztQuat& q2, r32 percent);
@@ -858,6 +846,12 @@ struct ztQuat
 
 
 // ================================================================================================================================================================================================
+
+ztInline ztQuat zt_quat(r32 v[4]) { return { v[0], v[1], v[2], v[3] }; }
+ztInline ztQuat zt_quat(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
+ztInline ztQuat zt_quat(const ztVec3& xyz, r32 w) { return { xyz.x, xyz.y, xyz.z, w }; }
+ztInline ztQuat zt_quat(const ztVec4& xyzw) { return { xyzw.x, xyzw.y, xyzw.z, xyzw.w }; }
+
 
 ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2);
 ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2);
@@ -2372,49 +2366,49 @@ ztInline r32 ztVec2::distance(const ztVec2& v) const
 
 /*static*/ ztInline ztVec2 ztVec2::fromAngle(r32 angle)
 {
-	return ztVec2(zt_cos(angle), zt_sin(angle));
+	return zt_vec2(zt_cos(angle), zt_sin(angle));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
-	return ztVec2(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent));
+	return zt_vec2(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpHermite(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
-	return ztVec2(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent));
+	return zt_vec2(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpSinerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
-	return ztVec2(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent));
+	return zt_vec2(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpCoserp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
-	return ztVec2(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent));
+	return zt_vec2(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent)
 {
-	return ztVec2(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent));
+	return zt_vec2(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec2 ztVec2::linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b)
 {
-	return ztVec2(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)));
+	return zt_vec2(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)));
 }
 
 // ================================================================================================================================================================================================
@@ -2433,7 +2427,7 @@ ztInline void ztVec2::normalize()
 ztInline ztVec2 ztVec2::getNormal() const
 {
 	r32 len = length();
-	return zt_real32Eq(len, 0) ? *this : ztVec2(x / len, y / len);
+	return zt_real32Eq(len, 0) ? *this : zt_vec2(x / len, y / len);
 }
 
 // ================================================================================================================================================================================================
@@ -2457,40 +2451,40 @@ ztInline ztVec2 ztVec2::getRotated(r32 angle) const
 	r32 vsin = zt_sin(angle);
 	r32 vcos = zt_cos(angle);
 
-	return ztVec2(vcos * x - vsin * y, vsin * x + vcos * y);
+	return zt_vec2(vcos * x - vsin * y, vsin * x + vcos * y);
 }
 
 ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2)
 {
-	return ztVec2(v1.x + v2.x, v1.y + v2.y);
+	return zt_vec2(v1.x + v2.x, v1.y + v2.y);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2)
 {
-	return ztVec2(v1.x - v2.x, v1.y - v2.y);
+	return zt_vec2(v1.x - v2.x, v1.y - v2.y);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2)
 {
-	return ztVec2(v1.x * v2.x, v1.y * v2.y);
+	return zt_vec2(v1.x * v2.x, v1.y * v2.y);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(const ztVec2& v1, r32 scale)
 {
-	return ztVec2(v1.x * scale, v1.y * scale);
+	return zt_vec2(v1.x * scale, v1.y * scale);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec2 operator*(r32 scale, const ztVec2& v1)
 {
-	return ztVec2(v1.x * scale, v1.y * scale);
+	return zt_vec2(v1.x * scale, v1.y * scale);
 }
 
 
@@ -2514,7 +2508,7 @@ ztInline r32 ztVec3::dot(const ztVec3& v) const
 
 ztInline ztVec3 ztVec3::cross(const ztVec3& v) const
 {
-	return ztVec3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
+	return zt_vec3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
 }
 
 // ================================================================================================================================================================================================
@@ -2540,42 +2534,42 @@ ztInline r32 ztVec3::distance(const ztVec3& v) const
 
 /*static*/ ztInline ztVec3 ztVec3::lerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
-	return ztVec3(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent));
+	return zt_vec3(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpHermite(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
-	return ztVec3(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent));
+	return zt_vec3(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpSinerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
-	return ztVec3(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent));
+	return zt_vec3(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpCoserp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
-	return ztVec3(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent));
+	return zt_vec3(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent)
 {
-	return ztVec3(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent));
+	return zt_vec3(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec3 ztVec3::linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b)
 {
-	return ztVec3(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)));
+	return zt_vec3(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)));
 }
 
 // ================================================================================================================================================================================================
@@ -2595,42 +2589,42 @@ ztInline void ztVec3::normalize()
 ztInline ztVec3 ztVec3::getNormal() const
 {
 	r32 len = length();
-	return zt_real32Eq(len, 0) ? *this : ztVec3(x / len, y / len, z / len);
+	return zt_real32Eq(len, 0) ? *this : zt_vec3(x / len, y / len, z / len);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2)
 {
-	return ztVec3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
+	return zt_vec3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2)
 {
-	return ztVec3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
+	return zt_vec3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2)
 {
-	return ztVec3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+	return zt_vec3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(const ztVec3& v1, r32 scale)
 {
-	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
+	return zt_vec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 {
-	return ztVec3(v1.x * scale, v1.y * scale, v1.z * scale);
+	return zt_vec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
 
@@ -2640,77 +2634,77 @@ ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 
 /*static*/ ztInline ztVec4 ztVec4::lerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
-	return ztVec4(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent), v1.w + ((v2.w - v1.w) * percent));
+	return zt_vec4(v1.x + ((v2.x - v1.x) * percent), v1.y + ((v2.y - v1.y) * percent), v1.z + ((v2.z - v1.z) * percent), v1.w + ((v2.w - v1.w) * percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpHermite(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
-	return ztVec4(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent), zt_lerpHermite(v1.w, v2.w, percent));
+	return zt_vec4(zt_lerpHermite(v1.x, v2.x, percent), zt_lerpHermite(v1.y, v2.y, percent), zt_lerpHermite(v1.z, v2.z, percent), zt_lerpHermite(v1.w, v2.w, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpSinerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
-	return ztVec4(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent), zt_lerpSinerp(v1.w, v2.w, percent));
+	return zt_vec4(zt_lerpSinerp(v1.x, v2.x, percent), zt_lerpSinerp(v1.y, v2.y, percent), zt_lerpSinerp(v1.z, v2.z, percent), zt_lerpSinerp(v1.w, v2.w, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpCoserp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
-	return ztVec4(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent), zt_lerpCoserp(v1.w, v2.w, percent));
+	return zt_vec4(zt_lerpCoserp(v1.x, v2.x, percent), zt_lerpCoserp(v1.y, v2.y, percent), zt_lerpCoserp(v1.z, v2.z, percent), zt_lerpCoserp(v1.w, v2.w, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
-	return ztVec4(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent), zt_lerpBerp(v1.w, v2.w, percent));
+	return zt_vec4(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent), zt_lerpBerp(v1.w, v2.w, percent));
 }
 
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::linearRemap(const ztVec4& val, const ztVec4& v1a, const ztVec4& v1b, const ztVec4& v2a, const ztVec4& v2b)
 {
-	return ztVec4(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)), zt_lerp(v2a.w, v2b.w, zt_unlerp(v1a.w, v1b.w, val.w)));
+	return zt_vec4(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)), zt_lerp(v2a.w, v2b.w, zt_unlerp(v1a.w, v1b.w, val.w)));
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec4 operator+(const ztVec4& v1, const ztVec4& v2)
 {
-	return ztVec4(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w);
+	return zt_vec4(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2)
 {
-	return ztVec4(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z, v1.w - v2.w);
+	return zt_vec4(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z, v1.w - v2.w);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2)
 {
-	return ztVec4(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z, v1.w * v2.w);
+	return zt_vec4(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z, v1.w * v2.w);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 {
-	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+	return zt_vec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
 
 // ================================================================================================================================================================================================
 
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
-	return ztVec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+	return zt_vec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
 }
 
 
@@ -2836,7 +2830,7 @@ ztInline void ztQuat::conjugate()
 
 ztInline ztQuat ztQuat::getConjugate() const
 {
-	return ztQuat(-x, -y, -z, w);
+	return zt_quat(-x, -y, -z, w);
 }
 
 // ================================================================================================================================================================================================
@@ -2914,7 +2908,7 @@ ztInline ztVec3 ztQuat::euler() const
 	r32 t4 = 1.f - 2.f * (yy + z * z);
 	r32 yaw = zt_atan2(t3, t4);
 
-	return ztVec3(zt_radiansToDegrees(roll), zt_radiansToDegrees(pitch), zt_radiansToDegrees(yaw));
+	return zt_vec3(zt_radiansToDegrees(roll), zt_radiansToDegrees(pitch), zt_radiansToDegrees(yaw));
 }
 
 // ================================================================================================================================================================================================
@@ -2939,7 +2933,7 @@ ztInline ztVec3 ztQuat::rotatePosition(const ztVec3 &vec) const
 
 ztInline ztVec3 ztQuat::rotatePosition(r32 x, r32 y, r32 z) const
 {
-	ztVec3 r(x, y, z);
+	ztVec3 r = zt_vec3(x, y, z);
 	rotatePosition(&r);
 	return r;
 }
@@ -2948,7 +2942,7 @@ ztInline ztVec3 ztQuat::rotatePosition(r32 x, r32 y, r32 z) const
 
 ztInline void ztQuat::rotatePosition(r32 *x, r32 *y, r32 *z) const
 {
-	ztVec3 r(*x, *y, *z);
+	ztVec3 r = zt_vec3(*x, *y, *z);
 	rotatePosition(&r);
 	*x = r.x;
 	*y = r.y;
@@ -2997,7 +2991,7 @@ ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 
 /*static*/ ztInline ztQuat ztQuat::lerp(const ztQuat& q1, const ztQuat& q2, r32 percent)
 {
-	return ztQuat(ztVec4::lerp(q1.xyzw, q2.xyzw, percent));
+	return zt_quat(ztVec4::lerp(q1.xyzw, q2.xyzw, percent));
 }
 
 // ================================================================================================================================================================================================
@@ -3015,7 +3009,7 @@ ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 	r32 cos_theta = q1.dot(q2);
 
 	if (cos_theta < 0.f) {
-		z = ztQuat(-q2.x, -q2.y, -q2.z, -q2.w);
+		z = zt_quat(-q2.x, -q2.y, -q2.z, -q2.w);
 		cos_theta = -cos_theta;
 	}
 
@@ -3227,11 +3221,11 @@ ztInline u64              zt_variantGetAs_u64      (ztVariant *variant)         
 ztInline r32              zt_variantGetAs_r32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r32); return variant->v_r32; }
 ztInline r64              zt_variantGetAs_r64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r64); return variant->v_r64; }
 ztInline void            *zt_variantGetAs_voidp    (ztVariant *variant)         { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
-ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return ztVec2(variant->v_vec2[0], variant->v_vec2[1]); }
-ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return ztVec3(variant->v_vec3[0], variant->v_vec3[1], variant->v_vec3[2]); }
-ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return ztVec4(variant->v_vec4[0], variant->v_vec4[1], variant->v_vec4[2], variant->v_vec4[3]); }
-ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return ztMat4(variant->v_mat4); }
-ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return ztQuat(variant->v_quat); }
+ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return zt_vec2(variant->v_vec2[0], variant->v_vec2[1]); }
+ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return zt_vec3(variant->v_vec3[0], variant->v_vec3[1], variant->v_vec3[2]); }
+ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return zt_vec4(variant->v_vec4[0], variant->v_vec4[1], variant->v_vec4[2], variant->v_vec4[3]); }
+ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return zt_mat4(variant->v_mat4); }
+ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return zt_quat(variant->v_quat); }
 ztInline bool             zt_variantGetAs_bool     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_bool ); return variant->v_bool; }
 
 ztInline i8              *zt_variantGetAs_i8       (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
@@ -3295,11 +3289,11 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 		case ztVariant_r32: return zt_variantMake_r32((r32)zt_lerp((r32)beg->v_r32, (r32)end->v_r32, pct));
 		case ztVariant_r64: return zt_variantMake_r64((r64)zt_lerp((r32)beg->v_r64, (r32)end->v_r64, pct));
 		case ztVariant_voidp: zt_assert(false); // _voidpcan't lerp void pointers
-		case ztVariant_vec2 : return zt_variantMake_vec2(ztVec2::lerp(ztVec2(beg->v_vec2[0], beg->v_vec2[1]), ztVec2(end->v_vec2[0], end->v_vec2[1]), pct));
-		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(ztVec3(beg->v_vec3[0], beg->v_vec3[1], beg->v_vec3[2]), ztVec3(end->v_vec3[0], end->v_vec3[1], end->v_vec3[2]), pct));
-		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(ztVec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), ztVec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
+		case ztVariant_vec2 : return zt_variantMake_vec2(ztVec2::lerp(zt_vec2(beg->v_vec2[0], beg->v_vec2[1]), zt_vec2(end->v_vec2[0], end->v_vec2[1]), pct));
+		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(zt_vec3(beg->v_vec3[0], beg->v_vec3[1], beg->v_vec3[2]), zt_vec3(end->v_vec3[0], end->v_vec3[1], end->v_vec3[2]), pct));
+		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(zt_vec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), zt_vec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
 		case ztVariant_mat4 : zt_assert(false); // can't lerp mat4s... use quats instead
-		case ztVariant_quat: return zt_variantMake_quat(ztQuat::lerp(ztQuat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), ztQuat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
+		case ztVariant_quat: return zt_variantMake_quat(ztQuat::lerp(zt_quat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), zt_quat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
 		case ztVariant_bool: return zt_variantMake_bool(pct < .5 ? beg->v_bool : end->v_bool);
 	}
 
@@ -4585,25 +4579,25 @@ void zt_memFreeGlobal(void *data)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-/*static*/ const ztVec2 ztVec2::zero = ztVec2(0, 0);
-/*static*/ const ztVec2 ztVec2::one  = ztVec2(1, 1);
-/*static*/ const ztVec2 ztVec2::min  = ztVec2(ztReal32Min, ztReal32Min);
-/*static*/ const ztVec2 ztVec2::max  = ztVec2(ztReal32Max, ztReal32Max);
+/*static*/ const ztVec2 ztVec2::zero = zt_vec2(0, 0);
+/*static*/ const ztVec2 ztVec2::one  = zt_vec2(1, 1);
+/*static*/ const ztVec2 ztVec2::min  = zt_vec2(ztReal32Min, ztReal32Min);
+/*static*/ const ztVec2 ztVec2::max  = zt_vec2(ztReal32Max, ztReal32Max);
 
-/*static*/ const ztVec3 ztVec3::zero = ztVec3(0, 0, 0);
-/*static*/ const ztVec3 ztVec3::one  = ztVec3(1, 1, 1);
-/*static*/ const ztVec3 ztVec3::min  = ztVec3(ztReal32Min, ztReal32Min, ztReal32Min);
-/*static*/ const ztVec3 ztVec3::max  = ztVec3(ztReal32Max, ztReal32Max, ztReal32Max);
+/*static*/ const ztVec3 ztVec3::zero = zt_vec3(0, 0, 0);
+/*static*/ const ztVec3 ztVec3::one  = zt_vec3(1, 1, 1);
+/*static*/ const ztVec3 ztVec3::min  = zt_vec3(ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec3 ztVec3::max  = zt_vec3(ztReal32Max, ztReal32Max, ztReal32Max);
 
-/*static*/ const ztVec4 ztVec4::zero = ztVec4(0, 0, 0, 0);
-/*static*/ const ztVec4 ztVec4::one  = ztVec4(1, 1, 1, 1);
-/*static*/ const ztVec4 ztVec4::min  = ztVec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
-/*static*/ const ztVec4 ztVec4::max  = ztVec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
+/*static*/ const ztVec4 ztVec4::zero = zt_vec4(0, 0, 0, 0);
+/*static*/ const ztVec4 ztVec4::one  = zt_vec4(1, 1, 1, 1);
+/*static*/ const ztVec4 ztVec4::min  = zt_vec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec4 ztVec4::max  = zt_vec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
 
-/*static*/ const ztMat4 ztMat4::zero = ztMat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-/*static*/ const ztMat4 ztMat4::identity = ztMat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+/*static*/ const ztMat4 ztMat4::zero = zt_mat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+/*static*/ const ztMat4 ztMat4::identity = zt_mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
-/*static*/ const ztQuat ztQuat::identity = ztQuat(0, 0, 0, 1);
+/*static*/ const ztQuat ztQuat::identity = zt_quat(0, 0, 0, 1);
 
 // ================================================================================================================================================================================================
 
@@ -4746,21 +4740,21 @@ void ztMat4::rotateEuler(r32 x, r32 y, r32 z)
 	y = zt_degreesToRadians(y);
 	z = zt_degreesToRadians(z);
 
-	ztMat4 rot_x(
+	ztMat4 rot_x = zt_mat4(
 		1, 0, 0, 0,
 		0, cosf(x), -sinf(x), 0,
 		0, sinf(x), cosf(x), 0,
 		0, 0, 0, 1
 		);
 
-	ztMat4 rot_y(
+	ztMat4 rot_y = zt_mat4(
 		cosf(y), 0, sinf(y), 0,
 		0, 1, 0, 0,
 		-sinf(y), 0, cosf(y), 0,
 		0, 0, 0, 1
 		);
 
-	ztMat4 rot_z(
+	ztMat4 rot_z = zt_mat4(
 		cosf(z), -sinf(z), 0, 0,
 		sinf(z), cosf(z), 0, 0,
 		0, 0, 1, 0,
@@ -4840,7 +4834,7 @@ ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 {
 	ZT_PROFILE_TOOLS("ztMat4::getMultiply");
 
-	return ztVec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
+	return zt_vec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
 	              (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
 	              (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
 }
@@ -4996,9 +4990,9 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const //
 	}
 
 	if (scale) {
-		scale->x = ztVec3(m.values[ztMat4_Row0Col0], m.values[ztMat4_Row1Col0], m.values[ztMat4_Row2Col0]).length();
-		scale->y = ztVec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
-		scale->z = ztVec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
+		scale->x = zt_vec3(m.values[ztMat4_Row0Col0], m.values[ztMat4_Row1Col0], m.values[ztMat4_Row2Col0]).length();
+		scale->y = zt_vec3(m.values[ztMat4_Row0Col1], m.values[ztMat4_Row1Col1], m.values[ztMat4_Row2Col1]).length();
+		scale->z = zt_vec3(m.values[ztMat4_Row0Col2], m.values[ztMat4_Row1Col2], m.values[ztMat4_Row2Col2]).length();
 	}
 }
 
@@ -5019,9 +5013,9 @@ void ztMat4::extract(ztVec3 *position, ztQuat *rotation, ztVec3 *scale) const
 	}
 
 	if (scale) {
-		scale->x = ztVec3(values[ztMat4_Row0Col0], values[ztMat4_Row1Col0], values[ztMat4_Row2Col0]).length();
-		scale->y = ztVec3(values[ztMat4_Row0Col1], values[ztMat4_Row1Col1], values[ztMat4_Row2Col1]).length();
-		scale->z = ztVec3(values[ztMat4_Row0Col2], values[ztMat4_Row1Col2], values[ztMat4_Row2Col2]).length();
+		scale->x = zt_vec3(values[ztMat4_Row0Col0], values[ztMat4_Row1Col0], values[ztMat4_Row2Col0]).length();
+		scale->y = zt_vec3(values[ztMat4_Row0Col1], values[ztMat4_Row1Col1], values[ztMat4_Row2Col1]).length();
+		scale->z = zt_vec3(values[ztMat4_Row0Col2], values[ztMat4_Row1Col2], values[ztMat4_Row2Col2]).length();
 	}
 }
 
@@ -5069,7 +5063,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	m[ztMat4_Row2Col3] = -near_z / (far_z - near_z);
 	m[ztMat4_Row3Col3] = 1;
 
-	return ztMat4(m);
+	return zt_mat4(m);
 }
 
 // ================================================================================================================================================================================================
@@ -5088,7 +5082,7 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 	m[2] = 0;                  m[6] = 0; m[10] = -c;  m[14] = -((2 * near_z * far_z) / (far_z - near_z));
 	m[3] = 0;                  m[7] = 0; m[11] = -1;  m[15] = 0;
 
-	return ztMat4(m);
+	return zt_mat4(m);
 }
 
 // ================================================================================================================================================================================================
@@ -5113,7 +5107,7 @@ void ztMat4::cleanup(int digits)
 	ZT_PROFILE_TOOLS("ztQuat::makeFromAxisAngle");
 
 	r32 angle_rad = zt_degreesToRadians(angle);
-	ztQuat quat(axis_x, axis_y, axis_z, 0);
+	ztQuat quat = zt_quat(axis_x, axis_y, axis_z, 0);
 	quat.xyz.normalize();
 	quat.xyz *= zt_sin(.5f * angle_rad);
 	quat.w = zt_cos(.5f * angle_rad);
@@ -5148,7 +5142,7 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	r32 qy = t0 * t2 * t5 + t1 * t3 * t4;
 	r32 qz = t1 * t2 * t4 - t0 * t3 * t5;
 
-	return ztQuat(qx, qy, qz, qw);
+	return zt_quat(qx, qy, qz, qw);
 }
 
 // ================================================================================================================================================================================================
@@ -5173,10 +5167,10 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 
 	const r32 *m = mat.values;
 	switch (biggest_index) {
-		case 0: return ztQuat((m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult, biggest_value);
-		case 1: return ztQuat(biggest_value                                   , (m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, (m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult);
-		case 2: return ztQuat((m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, biggest_value                                   , (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult);
-		case 3: return ztQuat((m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, biggest_value                                   , (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult);
+		case 0: return zt_quat((m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult, biggest_value);
+		case 1: return zt_quat(biggest_value                                   , (m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, (m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult);
+		case 2: return zt_quat((m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, biggest_value                                   , (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult);
+		case 3: return zt_quat((m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, biggest_value                                   , (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult);
 		default: zt_assert(false);
 	}
 
