@@ -134,6 +134,7 @@ ztVec2i      ztgl_contextGetSize(ztContextGL *context);
 bool         ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh);
 bool         ztgl_contextIsFullscreen(ztContextGL *context);
 bool         ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen);
+bool         ztgl_contextChangeResolution(ztContextGL *context, i32 w, i32 h);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -306,6 +307,8 @@ void         ztgl_textureRenderTargetPrepare(ztTextureGL *texture);
 void         ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context);
 
 bool         ztgl_textureIsRenderTarget(ztTextureGL *texture);
+
+void         ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pixels); // pixels = w * h * 4
 
 
 // ------------------------------------------------------------------------------------------------
@@ -773,6 +776,13 @@ bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 
 // ------------------------------------------------------------------------------------------------
 
+bool ztgl_win_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
+{
+	return false;
+}
+
+// ------------------------------------------------------------------------------------------------
+
 bool ztgl_win_setViewport(ztContextGL *context)
 {
 	zt_returnValOnNull(context, false);
@@ -906,6 +916,14 @@ bool ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 {
 	zt_returnValOnNull(context, false);
 	zt_winOnly(return ztgl_win_contextToggleFullscreen(context, fullscreen));
+}
+
+// ------------------------------------------------------------------------------------------------
+
+bool ztgl_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
+{
+	zt_returnValOnNull(context, false);
+	zt_winOnly(return ztgl_win_contextChangeResolution(context, w, h));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1778,6 +1796,35 @@ bool ztgl_textureIsRenderTarget(ztTextureGL *texture)
 	return texture->fbo != 0;
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pixels)
+{
+	if (texture->fbo != 0) {
+		ztgl_callAndReportOnError(glBindFramebuffer(GL_READ_FRAMEBUFFER, texture->rb));
+		ztgl_callAndReportOnError(glReadBuffer(GL_COLOR_ATTACHMENT0));
+		ztgl_callAndReportOnError(glReadPixels(0, 0, texture->w, texture->h, GL_RGBA, GL_UNSIGNED_BYTE, pixels));
+		ztgl_callAndReportOnError(glBindFramebuffer(GL_READ_FRAMEBUFFER, 0));
+
+		int half_height = texture->h / 2;
+		u32* pix_u32 = ((u32*)pixels);
+		for (int y = 0; y < half_height; ++y) {
+			for (int x = 0; x < texture->w; ++x) {
+				int idx_1 = (y * texture->w) + x;
+				int idx_2 = (((texture->h - y) - 1) * texture->w) + x;
+				uint32 pixel = pix_u32[idx_2];
+				pix_u32[idx_2] = pix_u32[idx_1];
+				pix_u32[idx_1] = pixel;
+			}
+		}
+	}
+	else {
+		ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_2D, texture->texid));
+		ztgl_callAndReportOnError(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels));
+		ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_2D, 0));
+	}
+
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
