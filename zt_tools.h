@@ -1746,6 +1746,22 @@ bool                  zt_atomicBoolToggle (ztAtomicBool *atomic_bool);
 
 // ================================================================================================================================================================================================
 
+struct ztDisplay
+{
+	ztVec4i screen_area;
+	ztVec4i work_area; // excludes task bars
+	i32     refresh_rate_in_hz;
+	i32     index;
+	bool    primary;
+	char    name[64];
+	i64     platform_id;
+};
+
+i32 zt_displayGetDetails(ztDisplay *display, i32 display_count);
+
+
+// ================================================================================================================================================================================================
+
 
 // ================================================================================================================================================================================================
 // serialization
@@ -5456,7 +5472,9 @@ int zt_striCmp(const char *s1, const char *s2)
 		}
 	}
 
-	return 0;
+	if (*s1 == *s2) return 0;
+	if (*s1 < *s2) return -1;
+	return 1;
 }
 
 // ================================================================================================================================================================================================
@@ -5485,7 +5503,9 @@ int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 		--s1_len; --s2_len;
 	}
 
-	return 0;
+	if (*s1 == *s2) return 0;
+	if (*s1 < *s2) return -1;
+	return 1;
 }
 
 #undef _zt_strCmpIsEmpty
@@ -8624,6 +8644,62 @@ bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 
 #endif // ZT_WINDOWS
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifdef ZT_WINDOWS
+
+i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
+{
+	struct DisplayInfo
+	{
+		ztDisplay *display;
+		i32        display_count;
+		i32        index;
+	};
+
+	struct local
+	{
+		static BOOL CALLBACK monitorEnumProc(HMONITOR h_monitor, HDC hdc_monitor, LPRECT rect, LPARAM data)
+		{
+			DisplayInfo *display_info = (DisplayInfo*)data;
+
+			zt_assertReturnValOnFail(display_info->index < display_info->display_count, FALSE);
+
+			ztDisplay *display = &display_info->display[display_info->index++];
+
+			MONITORINFOEX monitor_info;
+			zt_memSet(&monitor_info, zt_sizeof(monitor_info), 0);
+			monitor_info.cbSize = zt_sizeof(monitor_info);
+
+			if (FALSE == GetMonitorInfo(h_monitor, &monitor_info)) {
+				zt_logCritical("Unable to get monitor information (monitor index: %d)", --display_info->index);
+				return FALSE;
+			}
+
+			display->index       = display_info->index - 1;
+			display->screen_area = zt_vec4i(monitor_info.rcMonitor.left, monitor_info.rcMonitor.top, monitor_info.rcMonitor.right - monitor_info.rcMonitor.left, monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top);
+			display->work_area   = zt_vec4i(monitor_info.rcWork.left, monitor_info.rcWork.top, monitor_info.rcWork.right - monitor_info.rcWork.left, monitor_info.rcWork.bottom - monitor_info.rcWork.top);
+			display->primary     = zt_bitIsSet(monitor_info.dwFlags, MONITORINFOF_PRIMARY);
+			display->platform_id = (i64)h_monitor;
+
+			zt_strCpy(display->name, zt_elementsOf(display->name), monitor_info.szDevice, zt_elementsOf(monitor_info.szDevice));
+
+			return TRUE;
+		}
+	};
+
+	DisplayInfo display_info = {display, display_count, 0};
+
+	if (FALSE == EnumDisplayMonitors(NULL, NULL, local::monitorEnumProc, (LPARAM)&display_info)) {
+		return display_info.index;
+	}
+
+	return display_info.index;
+}
+
+#endif // ZT_WINDOWS
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
