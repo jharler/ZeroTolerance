@@ -176,13 +176,15 @@ enum ztRenderer_Enum
 
 enum ztRendererFlags_Enum
 {
-	ztRendererFlags_Windowed        = (1<<0),
-	ztRendererFlags_Fullscreen      = (1<<1),
-	ztRendererFlags_Vsync           = (1<<2),
-	ztRendererFlags_RotationAllowed = (1<<3), // mobile
-	ztRendererFlags_VertOrientation = (1<<4), // mobile
-	ztRendererFlags_LockAspect      = (1<<5),
-	ztRendererFlags_HideCursor      = (1<<6),
+	ztRendererFlags_Windowed           = (1 << 0),
+	ztRendererFlags_WindowedBorderless = (1 << 1),
+	ztRendererFlags_Fullscreen         = (1 << 2),
+	ztRendererFlags_Vsync              = (1 << 3),
+	ztRendererFlags_RotationAllowed    = (1 << 4), // mobile
+	ztRendererFlags_VertOrientation    = (1 << 5), // mobile
+	ztRendererFlags_LockAspect         = (1 << 6),
+	ztRendererFlags_HideCursor         = (1 << 7),
+	ztRendererFlags_NoResize           = (1 << 8),
 };
 
 // ================================================================================================================================================================================================
@@ -234,6 +236,8 @@ ztInline r32 zt_unitsToInches(r32 units ) { return units / .0254f; }
 ztInline r32 zt_unitsToFeet  (r32 units ) { return units / .0254f / 12; }
 
 void zt_requestQuit();
+
+bool zt_appHasFocus();
 
 
 // ================================================================================================================================================================================================
@@ -1142,6 +1146,8 @@ void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 
 ztVec2i     zt_textureGetSize(ztTextureID texture_id);
 
+void        zt_textureGetPixels(ztTextureID texture_id, byte *pixels); // pixels needs to be w * h * 4
+
 
 // ================================================================================================================================================================================================
 // vertex arrays
@@ -1654,12 +1660,41 @@ void zt_rendererSetBlendMode(ztRendererBlendMode_Enum source = ztRendererBlendMo
 
 void zt_rendererRequestChange(ztRenderer_Enum renderer);
 void zt_rendererRequestWindowed();
+void zt_rendererRequestWindowedBorderless();
 void zt_rendererRequestFullscreen();
+void zt_rendererRequestResolution(ztVec2i resolution);
+void zt_rendererRequestUpdatePixelsPerUnit(r32 ppu);
 
 void zt_alignToPixel(r32 *val, r32 ppu);
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset);
 void zt_alignToPixel(ztVec2 *val, r32 ppu);
 void zt_alignToPixel(ztVec3 *val, r32 ppu);
+
+// ================================================================================================================================================================================================
+// resolutions
+// ================================================================================================================================================================================================
+
+enum ztAspectRatio_Enum
+{
+	ztAspectRatio_Unknown,
+
+	ztAspectRatio_16x10,
+	ztAspectRatio_16x9,
+	ztAspectRatio_4x3,
+
+	ztAspectRatio_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztResolution
+{
+	ztDisplay          display;
+	ztAspectRatio_Enum aspect_ratio;
+	ztVec2i            dimensions;
+};
+
+int zt_resolutionGetAvailable(ztResolution *resolutions, int resolutions_count, i32 aspect_ratio_flags, ztVec2i minimum = zt_vec2i(0,0), bool current_display_only = true); // use zt_bit() on aspect ratios to limit
 
 
 // ================================================================================================================================================================================================
@@ -3211,7 +3246,7 @@ void zt_audioSetMute(bool mute);
 bool zt_audioGetMute();
 
 void zt_audioSystemSetVolume(i32 audio_system, r32 volume);
-
+r32  zt_audioSystemGetVolume(i32 audio_system);
 
 
 // ================================================================================================================================================================================================
@@ -3758,7 +3793,11 @@ enum ztRendererRequest_Enum
 {
 	ztRendererRequest_Change,
 	ztRendererRequest_Windowed,
+	ztRendererRequest_WindowedBorderless,
 	ztRendererRequest_Fullscreen,
+
+	ztRendererRequest_Resolution,
+	ztRendererRequest_UpdatePixelsPerUnit,
 
 	ztRendererRequest_MAX,
 };
@@ -3772,6 +3811,14 @@ struct ztRendererRequest
 	union {
 		struct {
 			ztRenderer_Enum change_to;
+		};
+
+		struct {
+			ztVec2i resolution;
+		};
+
+		struct {
+			r32 ppu;
 		};
 	};
 };
@@ -5763,11 +5810,19 @@ void zt_requestQuit()
 
 // ================================================================================================================================================================================================
 
+bool zt_appHasFocus()
+{
+	return zt_game->app_has_focus;
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal void (*_zt_rendererSwapBuffers)(ztWindowDetails*);
 ztInternal bool (*_zt_rendererSetViewport)(ztWindowDetails*, ztGameSettings*, bool);
 ztInternal bool (*_zt_rendererMakeContext)(ztWindowDetails*, ztGameSettings*, i32);
 ztInternal bool (*_zt_rendererFreeContext)(ztWindowDetails*);
 ztInternal bool (*_zt_rendererToggleFullscreen)(ztWindowDetails*, ztGameSettings*, bool);
+ztInternal bool (*_zt_rendererChangeResolution)(ztWindowDetails*, ztGameSettings*, i32, i32);
 
 ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer);
 
@@ -5778,6 +5833,7 @@ ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSe
 ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details);
 ztInternal void _ztdx_rendererSwapBuffers(ztWindowDetails *win_details);
 ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails *win_details, ztGameSettings *game_settings, bool);
+ztInternal bool _ztdx_rendererChangeResolution(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 w, i32 h); 
 
 bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_details);
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
@@ -7186,10 +7242,20 @@ bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, z
 {
 	zt_drawListPushShader(draw_list, shader == ztInvalidID ? zt_shaderGetDefault(ztShaderDefault_Unlit) : shader);
 	zt_drawListPushTexture(draw_list, tex);
+
+	r32 tex_aspect_ratio = zt_game->textures[tex].height / (r32)zt_game->textures[tex].width;
+
 	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(camera);
 	if (scale != 1) {
 		cam_ext *= scale;
 	}
+
+	r32 cam_aspect_ratio = cam_ext.y / cam_ext.x;
+
+	if (!zt_real32Eq(cam_aspect_ratio, tex_aspect_ratio)) {
+		cam_ext.y = cam_ext.x * tex_aspect_ratio;
+	}
+
 	if (zt_rendererUvsFlipYRenderTarget()) {
 		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, zt_vec2(0, 1), zt_vec2(1, 0));
 	}
@@ -8406,7 +8472,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		if (clip_regions_count > 0) {
 			ztgl_callAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
-			ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+			ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -8447,7 +8513,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -8473,7 +8539,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 				}
 
 				ztCompileItem *cmp_item = cmp_tex->item;
@@ -8566,7 +8632,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						if (curr_clip_region) {
 							r32 ppu = zt_pixelsPerUnit();
 
-							if(zt_game->win_game_settings[0].screen_w == zt_game->win_game_settings[0].native_w && zt_game->win_game_settings[0].screen_h == zt_game->win_game_settings[0].native_h) {
+							if(camera->width == camera->native_w && camera->height == camera->native_h) {
 								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
 								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
 								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
@@ -8593,7 +8659,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							}
 						}
 						else {
-							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+							ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 							//ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
 						}
 					}
@@ -8788,7 +8854,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -8802,7 +8868,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
 				//glDisable(GL_SCISSOR_TEST);
-				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_game->win_game_settings[0].screen_w, zt_game->win_game_settings[0].screen_h));
+				ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
 			}
 
 			if (shader_id != ztInvalidID) {
@@ -10531,7 +10597,7 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer)
 	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Change;
 	request->change_to = renderer;
 }
@@ -10541,14 +10607,29 @@ void zt_rendererRequestChange(ztRenderer_Enum renderer)
 void zt_rendererRequestWindowed()
 {
 	ZT_PROFILE_RENDERING("zt_rendererRequestWindowed");
-	if (!zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen))
+	if (zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererRequest_Windowed))
 		return;
 
 	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Windowed;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_rendererRequestWindowedBorderless()
+{
+	ZT_PROFILE_RENDERING("zt_rendererRequestWindowedBorderless");
+	if (zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererRequest_WindowedBorderless))
+		return;
+
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
+		return;
+
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	request->type = ztRendererRequest_WindowedBorderless;
 }
 
 // ================================================================================================================================================================================================
@@ -10565,8 +10646,129 @@ void zt_rendererRequestFullscreen()
 	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
 		return;
 
-	auto* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
 	request->type = ztRendererRequest_Fullscreen;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_rendererRequestResolution(ztVec2i resolution)
+{
+	ZT_PROFILE_RENDERING("zt_rendererRequestResolution");
+
+	if (zt_game->win_count > 1)
+		return; // cannot do this if there are multiple windows opened
+
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
+		return;
+
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	request->type = ztRendererRequest_Resolution;
+	request->resolution = resolution;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_rendererRequestUpdatePixelsPerUnit(r32 ppu)
+{
+	ZT_PROFILE_RENDERING("zt_rendererRequestUpdatePixelsPerUnit");
+
+	if (zt_game->win_count > 1)
+		return; // cannot do this if there are multiple windows opened
+
+	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
+		return;
+
+	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
+	request->type = ztRendererRequest_UpdatePixelsPerUnit;
+	request->ppu = ppu;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_resolutionGetAvailable(ztResolution *resolutions, int resolutions_count, i32 aspect_ratio_flags, ztVec2i minimum, bool current_display_only)
+{
+	ztDisplay displays[8];
+	int display_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
+
+	int resolutions_idx = 0;
+
+	struct
+	{
+		ztVec2i resolution;
+		ztAspectRatio_Enum aspect_ratio;
+	} 
+	
+	possible_resolutions[] = {
+		{ { 4096, 2160 }, ztAspectRatio_Unknown },
+		{ { 3840, 2160 }, ztAspectRatio_16x9 },
+		{ { 2560, 1600 }, ztAspectRatio_16x10 },
+		{ { 2048, 1536 }, ztAspectRatio_4x3 },
+		{ { 1920, 1440 }, ztAspectRatio_4x3 },
+		{ { 1920, 1200 }, ztAspectRatio_16x10 },
+		{ { 1920, 1080 }, ztAspectRatio_16x9 },
+		{ { 1728,  960 }, ztAspectRatio_Unknown },
+		{ { 1680, 1050 }, ztAspectRatio_16x10 },
+		{ { 1600, 1200 }, ztAspectRatio_4x3 },
+		{ { 1600, 1024 }, ztAspectRatio_Unknown },
+		{ { 1600,  900 }, ztAspectRatio_16x9 },
+		{ { 1440,  810 }, ztAspectRatio_16x9 },
+		{ { 1366,  768 }, ztAspectRatio_16x9 },
+		{ { 1280, 1024 }, ztAspectRatio_Unknown },
+		{ { 1280,  960 }, ztAspectRatio_4x3 },
+		{ { 1280,  800 }, ztAspectRatio_16x10 },
+		{ { 1280,  768 }, ztAspectRatio_Unknown },
+		{ { 1280,  720 }, ztAspectRatio_16x9 },
+		{ { 1152,  864 }, ztAspectRatio_4x3 },
+		{ { 1024,  768 }, ztAspectRatio_4x3 },
+		{ {  960,  540 }, ztAspectRatio_16x9 },
+		{ {  858,  480 }, ztAspectRatio_Unknown },
+		{ {  800,  600 }, ztAspectRatio_4x3 },
+	};
+
+
+	zt_fiz(2) {
+		bool finding_primary = i == 0;
+
+		zt_fjz(display_count) {
+			if (finding_primary != displays[j].primary) {
+				continue;
+			}
+
+			if (current_display_only) {
+#				ifdef ZT_WINDOWS
+				i64 monitor = (i64)MonitorFromWindow(zt_game->win_details[0].handle, MONITOR_DEFAULTTONEAREST);
+				if (monitor != displays[j].platform_id) {
+					continue;
+				}
+#				endif
+			}
+
+			ztVec2i maximum = zt_vec2i(displays[j].screen_area.z, displays[j].screen_area.w);
+
+			zt_fkze(possible_resolutions) {
+				if (possible_resolutions[k].resolution.x > maximum.x || possible_resolutions[k].resolution.x < minimum.x || possible_resolutions[k].resolution.y > maximum.y || possible_resolutions[k].resolution.y < minimum.y) {
+					continue;
+				}
+
+				if (aspect_ratio_flags != 0 && !zt_bitIsSet(aspect_ratio_flags, zt_bit(possible_resolutions[k].aspect_ratio))) {
+					continue;
+				}
+
+				if (resolutions_idx >= resolutions_count) {
+					continue;
+				}
+
+				ztResolution *res = &resolutions[resolutions_idx++];
+
+				res->display      = displays[j];
+				res->aspect_ratio = possible_resolutions[k].aspect_ratio;
+				res->dimensions   = possible_resolutions[k].resolution;
+			}
+		}
+	}
+
+	return resolutions_idx;
 }
 
 
@@ -14743,6 +14945,25 @@ ztVec2i zt_textureGetSize(ztTextureID texture_id)
 
 // ================================================================================================================================================================================================
 
+void zt_textureGetPixels(ztTextureID texture_id, byte *pixels)
+{
+	ZT_PROFILE_RENDERING("zt_textureGetPixels");
+	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+			zt_openGLSupport(ztgl_textureGetPixels(zt_game->textures[texture_id].gl_texture, zt_game->win_details[0].gl_context, pixels));
+		} break;
+
+		case ztRenderer_DirectX: {
+			zt_directxSupport(zt_assert(false));
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
 ztInline void zt_alignToPixel(r32 *val, r32 ppu)
 {
 	ZT_PROFILE_RENDERING("zt_alignToPixel");
@@ -14992,10 +15213,42 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 		return ztVec2::zero;
 	}
 
-	r32 spct_x = camera->width / (r32)camera->native_w;
-	r32 spct_y = camera->height / (r32)camera->native_h;
-	r32 x = (sx - (camera->width / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
-	r32 y = (sy - (camera->height / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
+	int c_w = camera->width;
+	int c_h = camera->height;
+
+	int n_w = camera->native_w;
+	int n_h = camera->native_h;
+
+	if (zt_game->win_game_settings[0].native_w != camera->native_w || zt_game->win_game_settings[0].native_h != camera->native_h) {
+		r32 aspect_ratio_cam = camera->native_w / (r32)camera->native_h;
+		r32 aspect_ratio_scr = zt_game->win_game_settings[0].native_w / (r32)zt_game->win_game_settings[0].native_h;
+
+		if (!zt_real32Eq(aspect_ratio_cam, aspect_ratio_scr)) {
+			if (aspect_ratio_cam > aspect_ratio_scr) {
+				r32 pct = camera->native_w / (r32)zt_game->win_game_settings[0].native_w;
+
+				i32 diff_y = zt_game->win_game_settings[0].native_h - zt_convertToi32Floor(camera->native_h / pct);
+				sy -= zt_convertToi32Floor((diff_y / 2.f));
+
+				c_w = zt_game->win_game_settings[0].native_w;
+				c_h = zt_convertToi32Floor(zt_game->win_game_settings[0].native_w / aspect_ratio_cam);
+			}
+			else {
+				r32 pct = camera->native_w / (r32)zt_game->win_game_settings[0].native_w;
+
+				i32 diff_x = zt_game->win_game_settings[0].native_w - zt_convertToi32Floor(camera->native_w / pct);
+				sx -= zt_convertToi32Floor(diff_x / 2.f);
+
+				c_w = zt_convertToi32Floor(zt_game->win_game_settings[0].native_w / aspect_ratio_cam);
+				c_h = zt_game->win_game_settings[0].native_h;
+			}
+		}
+	}
+
+	r32 spct_x = c_w / (r32)n_w;
+	r32 spct_y = c_h / (r32)n_h;
+	r32 x = (sx - (c_w / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
+	r32 y = (sy - (c_h / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
 
 	return zt_vec2(x - camera->position.x, y - camera->position.y);
 }
@@ -15493,6 +15746,7 @@ ztInternal void _zt_fontMakeDefaults()
 	i32 tex_data_size = 0;
 	byte *tex_data = _zt_fontLoadFontPng(&tex_data_size);
 	ztTextureID tex = zt_textureMakeFromFileData(tex_data, tex_data_size, ztTextureFlags_PixelPerfect);
+	zt_debugOnly(zt_textureSetName(tex, "Default Font"));
 
 	{
 		// default
@@ -15746,6 +16000,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 						i32 tex_asset_hash = 0;
 						if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
 							font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
+							zt_debugOnly(zt_textureSetName(font->texture, "Bitmap Font Texture"));
 						}
 						else if (zt_fileExists(tex_file_full)) {
 							// TODO(josh): should this support loading non-asset files?
@@ -16136,6 +16391,7 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 	r32 total_height = 0;
 	r32 row_width = 0;
 	r32 row_height = 0;
+	r32 last_xadv = 0;
 
 	int current_row = 0;
 
@@ -16188,10 +16444,12 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 			bool should_skip, pop_color;
 			text_anim(nullptr, font->glyph_code_point[glyph_idx], i, text_len, current_row, dl_pos, dl_uvs, &x, &y, &should_skip, &pop_color, text_anim_user_data);
 		}
-
+		last_xadv = x - font->glyphs[glyph_idx].size.x;
 		row_width += x;
 		row_height = y;// zt_max(zt_max(row_height, font->line_height), y);
 	}
+	row_width -= last_xadv;
+
 	total_height +=  row_height;
 	total_width = zt_max(total_width, row_width);
 
@@ -16443,6 +16701,7 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 	r32 total_height = 0;
 	r32 row_width = 0;
 	r32 row_height = 0;
+	r32 last_xadv = 0;
 
 	int current_row = 0;
 
@@ -16529,9 +16788,11 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 			text_anim(nullptr, font->glyph_code_point[glyph_idx], i, text_len, current_row, dl_pos, dl_uvs, &x, &y, &should_skip, &pop_color, text_anim_user_data);
 		}
 
+		last_xadv = x - font->glyphs[glyph_idx].size.x;
 		row_width += x;
 		row_height = zt_max(zt_max(row_height, font->line_height), y);
 	}
+	row_width -= last_xadv;
 	total_height += row_height;
 	total_width = zt_max(total_width, row_width);
 
@@ -17135,10 +17396,10 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
 	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y +  sprite->half_size.y, 0), // top left
 		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+		zt_vec3(-sprite->anchor.x +  sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x +  sprite->half_size.x, -sprite->anchor.y +  sprite->half_size.y, 0), // top right
 	};
 
 	ztVec2 uvs[4] = {
@@ -18918,7 +19179,7 @@ ztInternal bool _zt_rendererRequestProcess()
 	zt_game->renderer_requests_count = 0;
 
 	zt_fiz(count) {
-		auto* request = &zt_game->renderer_requests[i];
+		ztRendererRequest* request = &zt_game->renderer_requests[i];
 		switch(request->type)
 		{
 			case ztRendererRequest_Change: {
@@ -18955,8 +19216,9 @@ ztInternal bool _zt_rendererRequestProcess()
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Fullscreen);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Windowed;
 
-					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], false))
+					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], false)) {
 						return false;
+					}
 				}
 			} break;
 
@@ -18965,9 +19227,59 @@ ztInternal bool _zt_rendererRequestProcess()
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Windowed);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Fullscreen;
 
-					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], true))
+					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], true)) {
 						return false;
+					}
 				}
+			} break;
+
+			case ztRendererRequest_Resolution: {
+
+				if (!zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen)) {
+#				if defined(ZT_WINDOWS)
+
+					ztWindowDetails *window_details = &zt_game->win_details[0];
+					ztGameSettings *game_settings = &zt_game->win_game_settings[0];
+
+					RECT client_rect = { 0, 0, request->resolution.x, request->resolution.y };
+
+					DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
+					if (AdjustWindowRect(&client_rect, style, FALSE) == FALSE) {
+						zt_logCritical("win: failed to adjust window rect");
+						return false;
+					}
+
+					RECT win_rect;
+					GetWindowRect(window_details->handle, &win_rect);
+
+					window_details->client_rect_buffer = zt_vec4((r32)client_rect.left, (r32)client_rect.top, (r32)client_rect.right - game_settings->native_w, (r32)client_rect.bottom - game_settings->native_h);
+
+					int screen_x = GetSystemMetrics(SM_CXSCREEN);
+					int screen_y = GetSystemMetrics(SM_CYSCREEN);
+					int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
+					int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
+
+					SetWindowPos(window_details->handle, HWND_TOP, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, SWP_SHOWWINDOW);
+
+					GetClientRect(window_details->handle, &window_details->client_rect);
+					GetWindowRect(window_details->handle, &window_details->window_rect);
+
+					window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
+
+					_zt_winUpdateTitle(game_settings, window_details);
+
+#				endif
+				}
+				else if (!_zt_rendererChangeResolution(&zt_game->win_details[i], &zt_game->win_game_settings[i], request->resolution.x, request->resolution.y)) {
+					return false;
+				}
+
+			} break;
+
+			case ztRendererRequest_UpdatePixelsPerUnit: {
+				zt_game->win_game_settings[0].pixels_per_unit = zt_convertToi32Floor(request->ppu);
+				_zt_rendererSetViewport(&zt_game->win_details[0], &zt_game->win_game_settings[0], true);
 			} break;
 		}
 	}
@@ -19055,6 +19367,18 @@ ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails* win_details, ztG
 
 // ================================================================================================================================================================================================
 
+ztInternal bool _ztdx_rendererChangeResolution(ztWindowDetails* win_details, ztGameSettings *game_settings, i32 w, i32 h)
+{
+	ZT_PROFILE_RENDERING("_ztdx_rendererChangeResolution");
+#if defined(ZT_DIRECTX)
+	zt_assert(false); // not yet implemented
+#else
+	return false;
+#endif
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal void _ztgl_rendererSwapBuffers(ztWindowDetails* wd)
 {
 	ZT_PROFILE_RENDERING("_ztgl_rendererSwapBuffers");
@@ -19063,9 +19387,10 @@ ztInternal void _ztgl_rendererSwapBuffers(ztWindowDetails* wd)
 
 // ================================================================================================================================================================================================
 
-ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings*, bool)
+ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings* settings, bool)
 {
 	ZT_PROFILE_RENDERING("_ztgl_rendererSetViewport");
+	wd->gl_context->pixels_per_unit = settings->pixels_per_unit;
 	return ztgl_setViewport(wd->gl_context);
 }
 
@@ -19103,6 +19428,14 @@ ztInternal bool _ztgl_rendererToggleFullscreen(ztWindowDetails* wd, ztGameSettin
 
 // ================================================================================================================================================================================================
 
+ztInternal bool _ztgl_rendererChangeResolution(ztWindowDetails* wd, ztGameSettings* gs, i32 w, i32 h)
+{
+	ZT_PROFILE_RENDERING("_ztgl_rendererToggleFullscreen");
+	return ztgl_contextChangeResolution(wd->gl_context, w, h);
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 {
 	if (renderer == ztRenderer_OpenGL) {
@@ -19112,6 +19445,7 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 		_zt_rendererMakeContext      = _ztgl_rendererMakeContext;
 		_zt_rendererFreeContext      = _ztgl_rendererFreeContext;
 		_zt_rendererToggleFullscreen = _ztgl_rendererToggleFullscreen;
+		_zt_rendererChangeResolution = _ztgl_rendererChangeResolution;
 #		else
 		zt_logFatal("OpenGL is not supported in this configuration");
 		return false;
@@ -19124,6 +19458,7 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 		_zt_rendererMakeContext      = _ztdx_rendererMakeContext;
 		_zt_rendererFreeContext      = _ztdx_rendererFreeContext;
 		_zt_rendererToggleFullscreen = _ztdx_rendererToggleFullscreen;
+		_zt_rendererChangeResolution = _ztdx_rendererChangeResolution;
 #		else
 		zt_logFatal("DirectX is not supported in this configuration");
 		return false;
@@ -21288,7 +21623,7 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 
 	zt_fiz(tween_item_count) {
 
-		if (zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Paused) || zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Stopped)) {
+		if (tween_item[i].type == ztTweenItemType_Invalid || zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Paused) || zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Stopped)) {
 			continue;
 		}
 
@@ -21303,16 +21638,16 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 		else {
 			tween_item[i].time += dt;
 
-			if (tween_item[i].time > tween_item[i].length) {
+			if (tween_item[i].time - tween_item[i].delay > tween_item[i].length) {
 				if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Loops)) {
-					tween_item[i].time -= tween_item[i].length;
+					tween_item[i].time -= tween_item[i].length + tween_item[i].delay;
 				}
 				else if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs)) {
-					tween_item[i].time = tween_item[i].length - (tween_item[i].time - tween_item[i].length);
+					tween_item[i].time = tween_item[i].length - ((tween_item[i].time - tween_item[i].delay) - tween_item[i].length);
 					tween_item[i].flags |= ztTweenItemFlags_DirectionBack;
 				}
 				else {
-					tween_item[i].time = tween_item[i].length;
+					tween_item[i].time = tween_item[i].length + tween_item[i].delay;
 					tween_item[i].flags |= ztTweenItemFlags_Stopped;
 				}
 			}
@@ -22992,7 +23327,23 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size, i3
 	r32 length = 0;
 	ztds_bufferGetDetails(buffer, &channels, &bits_per_sample, &samples_per_second, &length);
 
-	ztAudioClipID audio_clip_id = zt_game->audio_clips_count++;
+	ztAudioClipID audio_clip_id = ztInvalidID;
+	
+	zt_fiz(zt_game->audio_clips_count) {
+		if (zt_game->audio_clips[i].ds_buffer == nullptr) {
+			audio_clip_id = i;
+			break;
+		}
+	}
+
+	if (audio_clip_id == ztInvalidID) {
+		audio_clip_id = zt_game->audio_clips_count++;
+	}
+	if (audio_clip_id == ztInvalidID) {
+		zt_assert(false);
+		return ztInvalidID;
+	}
+
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 	audio_clip->ds_buffer = buffer;
 	audio_clip->length    = length;
@@ -23202,8 +23553,10 @@ bool zt_audioGetMute()
 
 void zt_audioSystemSetVolume(i32 audio_system, r32 volume)
 {
+	_zt_audioCheckContext();
+
 	if (zt_between(audio_system, 0, zt_elementsOf(zt_game->audio_systems))) {
-		zt_game->audio_systems[audio_system].volume = volume;
+		zt_game->audio_systems[audio_system].volume = zt_clamp(volume, 0, 1);
 	}
 
 	zt_fiz(zt_game->audio_clips_count) {
@@ -23213,6 +23566,19 @@ void zt_audioSystemSetVolume(i32 audio_system, r32 volume)
 
 		_zt_audioApplySystemSettings(&zt_game->audio_clips[i]);
 	}
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_audioSystemGetVolume(i32 audio_system)
+{
+	_zt_audioCheckContext();
+
+	if (zt_between(audio_system, 0, zt_elementsOf(zt_game->audio_systems))) {
+		return zt_game->audio_systems[audio_system].volume;
+	}
+
+	return 1;
 }
 
 // ================================================================================================================================================================================================
@@ -23306,12 +23672,12 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 
 	DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 
-	RECT client_rect = { 0, 0, game_settings->native_w, game_settings->native_h };
+	RECT client_rect = { 0, 0, game_settings->screen_w, game_settings->screen_h };
 	if (AdjustWindowRect(&client_rect, style, FALSE) == FALSE) {
 		zt_logCritical("win: failed to adjust window rect");
 	}
 
-	window_details->client_rect_buffer = zt_vec4((r32)client_rect.left, (r32)client_rect.top, (r32)client_rect.right - game_settings->native_w, (r32)client_rect.bottom - game_settings->native_h);
+	window_details->client_rect_buffer = zt_vec4((r32)client_rect.left, (r32)client_rect.top, (r32)client_rect.right - game_settings->screen_w, (r32)client_rect.bottom - game_settings->screen_h);
 
 	int screen_x = GetSystemMetrics(SM_CXSCREEN);
 	int screen_y = GetSystemMetrics(SM_CYSCREEN);
@@ -23761,6 +24127,7 @@ int main(int argc, const char **argv)
 
 			_zt_winControllerInputInit();
 		}
+		
 
 		zt_game->renderer_memory_size = game_settings->renderer_memory;
 		zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
@@ -23784,22 +24151,24 @@ int main(int argc, const char **argv)
 
 		// make a simple white texture to use as a default
 		{
-			ztTextureID white_tex = zt_textureMakeRenderTarget(8, 8);
-			zt_textureRenderTargetPrepare(white_tex);
-			zt_rendererClear(ztVec4::one);
-			zt_textureRenderTargetCommit(white_tex);
+			u32 texture[] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
+
+			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
+			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
 		}
 		// make the default font
 		{
 			_zt_fontMakeDefaults();
 		}
 
-		if (!_zt_callFuncInit(&zt_game->game_details, game_settings))
+		if (!_zt_callFuncInit(&zt_game->game_details, game_settings)) {
 			return 1;
+		}
 
 		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
 
 		_zt_callFuncScreenChange(game_settings);
+		_zt_win_handleWindowSize(win_details, game_settings);
 
 		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
 	}
@@ -24134,58 +24503,65 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		} break;
 
 		case WM_SIZING: {
-			if (window_details && game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
-				r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
-
-				RECT size;
-				memcpy(&size, (const void*)l_param, sizeof(RECT));
-
-				int width = size.right - size.left;
-				int height = size.bottom - size.top;
-
-				switch (w_param)
-				{
-					case WMSZ_LEFT:
-					case WMSZ_RIGHT: {
-						size.bottom = zt_convertToi32Floor(width * (1 / aspect_ratio)) + size.top;
-					} break;
-
-					case WMSZ_TOP:
-					case WMSZ_BOTTOM: {
-						size.right = zt_convertToi32Floor(height * aspect_ratio) + size.left;
-					} break;
-
-					case WMSZ_TOPRIGHT:
-					case WMSZ_TOPLEFT:
-					case WMSZ_BOTTOMRIGHT:
-					case WMSZ_BOTTOMLEFT: {
-						if (width / (r32)height > aspect_ratio) {
-							width = zt_convertToi32Floor(height * aspect_ratio);
-						}
-						else {
-							height = zt_convertToi32Floor(width / aspect_ratio);
-						}
-
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT) {
-							size.top = size.bottom - height;
-						}
-						else {
-							size.bottom = size.top + height;
-						}
-
-						// Adjust Width
-						if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_BOTTOMLEFT) {
-							size.left = size.right - width;
-						}
-						else {
-							size.right = size.left + width;
-						}
-
-
-					} break;
+			if (window_details && game_settings) {
+				if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
+					RECT size;
+					GetWindowRect(handle, &size);
+					memcpy((void*)l_param, &size, sizeof(RECT));
 				}
+				else if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
+					r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
 
-				memcpy((void*)l_param, &size, sizeof(RECT));
+					RECT size;
+					memcpy(&size, (const void*)l_param, sizeof(RECT));
+
+					int width = size.right - size.left;
+					int height = size.bottom - size.top;
+
+					switch (w_param)
+					{
+						case WMSZ_LEFT:
+						case WMSZ_RIGHT: {
+							size.bottom = zt_convertToi32Floor(width * (1 / aspect_ratio)) + size.top;
+						} break;
+
+						case WMSZ_TOP:
+						case WMSZ_BOTTOM: {
+							size.right = zt_convertToi32Floor(height * aspect_ratio) + size.left;
+						} break;
+
+						case WMSZ_TOPRIGHT:
+						case WMSZ_TOPLEFT:
+						case WMSZ_BOTTOMRIGHT:
+						case WMSZ_BOTTOMLEFT: {
+							if (width / (r32)height > aspect_ratio) {
+								width = zt_convertToi32Floor(height * aspect_ratio);
+							}
+							else {
+								height = zt_convertToi32Floor(width / aspect_ratio);
+							}
+
+							if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_TOPRIGHT) {
+								size.top = size.bottom - height;
+							}
+							else {
+								size.bottom = size.top + height;
+							}
+
+							// Adjust Width
+							if (w_param == WMSZ_TOPLEFT || w_param == WMSZ_BOTTOMLEFT) {
+								size.left = size.right - width;
+							}
+							else {
+								size.right = size.left + width;
+							}
+
+
+						} break;
+					}
+
+					memcpy((void*)l_param, &size, sizeof(RECT));
+				}
 			}
 		} break;
 
@@ -24197,10 +24573,15 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_SETCURSOR: {
 			bool process_l_param = true;
-			if (game_settings && zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_HideCursor) && GetFocus() == handle) {
-				if (zt_game->input_mouse_look || LOWORD(l_param) == HTCLIENT) {
-					SetCursor(NULL);
-					zt_game->input_mouse.over_window = true;
+			if (game_settings) {
+				if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_HideCursor) && GetFocus() == handle) {
+					if (zt_game->input_mouse_look || LOWORD(l_param) == HTCLIENT) {
+						SetCursor(NULL);
+						zt_game->input_mouse.over_window = true;
+						process_l_param = false;
+					}
+				}
+				if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
 					process_l_param = false;
 				}
 			}
