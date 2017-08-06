@@ -608,7 +608,7 @@ void ztds_bufferSetVolume(ztDirectSoundBuffer *buffer, r32 volume)
 
 	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
 		if (buffer->buffer[i] != nullptr) {
-			LONG lvol = DSBVOLUME_MAX + zt_convertToi32Floor(DSBVOLUME_MIN * (1 - volume));
+			LONG lvol = zt_real32Eq(volume, 0) ? DSBVOLUME_MIN : DSBVOLUME_MAX + zt_convertToi32Floor((DSBVOLUME_MIN * (1 - volume)) * .5f);
 			buffer->buffer[i]->SetVolume(lvol);
 		}
 	}
