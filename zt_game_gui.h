@@ -424,11 +424,12 @@ enum ztGuiWindowBehaviorFlags_Enum
 	ztGuiWindowBehaviorFlags_AllowClose    = (1 << (ztGuiItemBehaviorFlags_MaxBit + 4)),
 	ztGuiWindowBehaviorFlags_AllowCollapse = (1 << (ztGuiItemBehaviorFlags_MaxBit + 5)),
 	ztGuiWindowBehaviorFlags_CloseHides    = (1 << (ztGuiItemBehaviorFlags_MaxBit + 6)),
+	ztGuiWindowBehaviorFlags_Modal         = (1 << (ztGuiItemBehaviorFlags_MaxBit + 7)),
 
 	ztGuiWindowBehaviorFlags_Default = ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowCollapse,
 };
 
-#define ztGuiWindowBehaviorFlags_MaxBit   (ztGuiItemBehaviorFlags_MaxBit + 6)
+#define ztGuiWindowBehaviorFlags_MaxBit   (ztGuiItemBehaviorFlags_MaxBit + 7)
 
 
 // ================================================================================================================================================================================================
@@ -3014,6 +3015,14 @@ ztInternal void _zt_guiManagerUpdatePre(ztGuiManager *gm, r32 dt)
 		}
 	}
 
+	// modal windows
+	zt_flinknext(child, gm->first_child, sib_next) {
+		if (child->type == ztGuiItemType_Window && zt_bitIsSet(child->behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
+			zt_guiItemBringToFront(child);
+			break;
+		}
+	}
+
 	//zt_memArenaValidate(gm->arena);
 }
 
@@ -3281,6 +3290,9 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 				break; // exit the loop
 			}
 
+		}
+		if (child->type == ztGuiItemType_Window && zt_bitIsSet(child->behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
+			break;
 		}
 		child = child->sib_prev;
 	}
