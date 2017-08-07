@@ -1467,11 +1467,16 @@ void          zt_cameraShakeStart(ztCameraShake *camera_shake);
 void          zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt);
 bool          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera);
 bool          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera);
+void          zt_cameraShakeUpdateMultiple(ztCameraShake *camera_shake, int camera_shake_count, r32 dt);
+void          zt_cameraShakePreRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztCamera *camera);
+void          zt_cameraShakePostRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztCamera *camera);
 
 struct ztDrawList;
 
 void          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
 void          zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list);
+void          zt_cameraShakePreRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztDrawList *draw_list);
+void          zt_cameraShakePostRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztDrawList *draw_list);
 
 // ================================================================================================================================================================================================
 
@@ -15355,27 +15360,36 @@ void zt_cameraShakeStart(ztCameraShake *camera_shake)
 
 void zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt)
 {
-	ZT_PROFILE_RENDERING("zt_cameraShakeUpdate");
+	zt_cameraShakeUpdateMultiple(camera_shake, 1, dt);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_cameraShakeUpdateMultiple(ztCameraShake *camera_shake, int camera_shake_count, r32 dt)
+{
+	ZT_PROFILE_RENDERING("zt_cameraShakeUpdateMultiple");
 	zt_returnOnNull(camera_shake);
 
-	if (camera_shake->current_time > 0) {
-		camera_shake->current_time -= dt;
-		if (camera_shake->current_time > 0) {
-			r32 percent = 1 - camera_shake->current_time / camera_shake->duration;
-			r32 frequency = percent * camera_shake->frequency;
+	zt_fiz(camera_shake_count) {
+		if (camera_shake[i].current_time > 0) {
+			camera_shake[i].current_time -= dt;
+			if (camera_shake[i].current_time > 0) {
+				r32 percent = 1 - camera_shake[i].current_time / camera_shake[i].duration;
+				r32 frequency = percent * camera_shake[i].frequency;
 
-			r32 sample_x       = frequency;
-			i32 sample_x_idx_0 = zt_convertToi32Floor(sample_x);
-			i32 sample_x_idx_1 = sample_x_idx_0 + 1;
-			r32 amplitude_x    = (camera_shake->samples_x[sample_x_idx_0] + (sample_x - sample_x_idx_0) * (camera_shake->samples_x[sample_x_idx_1] - camera_shake->samples_x[sample_x_idx_0])) * (1 - percent);
+				r32 sample_x = frequency;
+				i32 sample_x_idx_0 = zt_convertToi32Floor(sample_x);
+				i32 sample_x_idx_1 = sample_x_idx_0 + 1;
+				r32 amplitude_x = (camera_shake[i].samples_x[sample_x_idx_0] + (sample_x - sample_x_idx_0) * (camera_shake[i].samples_x[sample_x_idx_1] - camera_shake[i].samples_x[sample_x_idx_0])) * (1 - percent);
 
-			r32 sample_y       = frequency;
-			i32 sample_y_idx_0 = zt_convertToi32Floor(sample_y);
-			i32 sample_y_idx_1 = sample_y_idx_0 + 1;
-			r32 amplitude_y    = (camera_shake->samples_y[sample_y_idx_0] + (sample_y - sample_y_idx_0) * (camera_shake->samples_y[sample_y_idx_1] - camera_shake->samples_y[sample_y_idx_0])) * (1 - percent);
+				r32 sample_y = frequency;
+				i32 sample_y_idx_0 = zt_convertToi32Floor(sample_y);
+				i32 sample_y_idx_1 = sample_y_idx_0 + 1;
+				r32 amplitude_y = (camera_shake[i].samples_y[sample_y_idx_0] + (sample_y - sample_y_idx_0) * (camera_shake[i].samples_y[sample_y_idx_1] - camera_shake[i].samples_y[sample_y_idx_0])) * (1 - percent);
 
-			camera_shake->offset.x = amplitude_x * camera_shake->amplitude;
-			camera_shake->offset.y = amplitude_y * camera_shake->amplitude;
+				camera_shake[i].offset.x = amplitude_x * camera_shake[i].amplitude;
+				camera_shake[i].offset.y = amplitude_y * camera_shake[i].amplitude;
+			}
 		}
 	}
 }
@@ -15401,6 +15415,25 @@ bool zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera)
 
 // ================================================================================================================================================================================================
 
+void zt_cameraShakePreRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztCamera *camera)
+{
+	ZT_PROFILE_RENDERING("zt_cameraShakePreRenderMultiple");
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(camera);
+
+	zt_fiz(camera_shake_count) {
+		if (camera_shake[i].current_time <= 0) {
+			continue;
+		}
+
+		camera_shake[i].original_position = camera->position;
+		camera->position.x += camera_shake[i].offset.x;
+		camera->position.y += camera_shake[i].offset.y;
+	}
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera)
 {
 	ZT_PROFILE_RENDERING("zt_cameraShakePostRender");
@@ -15418,6 +15451,23 @@ bool zt_cameraShakePostRender(ztCameraShake *camera_shake, ztCamera *camera)
 
 // ================================================================================================================================================================================================
 
+void zt_cameraShakePostRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztCamera *camera)
+{
+	ZT_PROFILE_RENDERING("zt_cameraShakePostRenderMultiple");
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(camera);
+
+	zt_fizr(camera_shake_count) {
+		if (camera_shake->current_time <= 0) {
+			continue;
+		}
+
+		camera->position = camera_shake->original_position;
+	}
+}
+
+// ================================================================================================================================================================================================
+
 void zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_cameraShakePreRender");
@@ -15429,9 +15479,41 @@ void zt_cameraShakePreRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 
 // ================================================================================================================================================================================================
 
+void zt_cameraShakePreRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztDrawList *draw_list)
+{
+	ZT_PROFILE_RENDERING("zt_cameraShakePreRenderMultiple");
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(draw_list);
+
+	ztVec2 offset = ztVec2::zero;
+
+	zt_fiz(camera_shake_count) {
+		if (camera_shake[i].current_time <= 0) {
+			continue;
+		}
+
+		offset += camera_shake[i].offset;
+	}
+
+	zt_drawListPushOffset(draw_list, zt_vec3(offset, 0));
+}
+
+// ================================================================================================================================================================================================
+
 void zt_cameraShakePostRender(ztCameraShake *camera_shake, ztDrawList *draw_list)
 {
 	ZT_PROFILE_RENDERING("zt_cameraShakePostRender");
+	zt_returnOnNull(camera_shake);
+	zt_returnOnNull(draw_list);
+
+	zt_drawListPopOffset(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_cameraShakePostRenderMultiple(ztCameraShake *camera_shake, int camera_shake_count, ztDrawList *draw_list)
+{
+	ZT_PROFILE_RENDERING("zt_cameraShakePostRenderMultiple");
 	zt_returnOnNull(camera_shake);
 	zt_returnOnNull(draw_list);
 
@@ -19235,46 +19317,60 @@ ztInternal bool _zt_rendererRequestProcess()
 
 			case ztRendererRequest_Resolution: {
 
-				if (!zt_bitIsSet(zt_game->win_game_settings[0].renderer_flags, ztRendererFlags_Fullscreen)) {
-#				if defined(ZT_WINDOWS)
-
-					ztWindowDetails *window_details = &zt_game->win_details[0];
-					ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-
-					RECT client_rect = { 0, 0, request->resolution.x, request->resolution.y };
-
-					DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-
-					if (AdjustWindowRect(&client_rect, style, FALSE) == FALSE) {
-						zt_logCritical("win: failed to adjust window rect");
+				zt_fiz(zt_game->win_count) {
+					if (!_zt_rendererChangeResolution(&zt_game->win_details[0], &zt_game->win_game_settings[0], request->resolution.x, request->resolution.y)) {
 						return false;
 					}
-
-					RECT win_rect;
-					GetWindowRect(window_details->handle, &win_rect);
-
-					window_details->client_rect_buffer = zt_vec4((r32)client_rect.left, (r32)client_rect.top, (r32)client_rect.right - game_settings->native_w, (r32)client_rect.bottom - game_settings->native_h);
-
-					int screen_x = GetSystemMetrics(SM_CXSCREEN);
-					int screen_y = GetSystemMetrics(SM_CYSCREEN);
-					int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
-					int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
-
-					SetWindowPos(window_details->handle, HWND_TOP, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, SWP_SHOWWINDOW);
-
-					GetClientRect(window_details->handle, &window_details->client_rect);
-					GetWindowRect(window_details->handle, &window_details->window_rect);
-
-					window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
-
-					_zt_winUpdateTitle(game_settings, window_details);
-
-#				endif
 				}
-				else if (!_zt_rendererChangeResolution(&zt_game->win_details[i], &zt_game->win_game_settings[i], request->resolution.x, request->resolution.y)) {
+
+#if 0
+#				if defined(ZT_WINDOWS)
+				bool back_to_fullscreen = false;
+//				if (!zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
+//					back_to_fullscreen = true;
+//
+//					if (!_zt_rendererToggleFullscreen(window_details, game_settings, false)) {
+//						return false;
+//					}
+//				}
+
+				RECT client_rect = { 0, 0, request->resolution.x, request->resolution.y };
+
+				DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
+				if (AdjustWindowRect(&client_rect, style, FALSE) == FALSE) {
+					zt_logCritical("win: failed to adjust window rect");
 					return false;
 				}
 
+				RECT win_rect;
+				GetWindowRect(window_details->handle, &win_rect);
+
+				window_details->client_rect_buffer = zt_vec4((r32)client_rect.left, (r32)client_rect.top, (r32)client_rect.right - game_settings->native_w, (r32)client_rect.bottom - game_settings->native_h);
+
+				int screen_x = GetSystemMetrics(SM_CXSCREEN);
+				int screen_y = GetSystemMetrics(SM_CYSCREEN);
+				int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
+				int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
+
+				SetWindowPos(window_details->handle, HWND_TOP, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, SWP_SHOWWINDOW);
+
+				GetClientRect(window_details->handle, &window_details->client_rect);
+				GetWindowRect(window_details->handle, &window_details->window_rect);
+
+				window_details->aspect_ratio = (window_details->window_rect.right - window_details->window_rect.left) / (r32)(window_details->window_rect.bottom - window_details->window_rect.top);
+
+				_zt_winUpdateTitle(game_settings, window_details);
+
+
+				if (back_to_fullscreen) {
+					if (!_zt_rendererToggleFullscreen(window_details, game_settings, true)) {
+						return false;
+					}
+				}
+
+#				endif
+#endif
 			} break;
 
 			case ztRendererRequest_UpdatePixelsPerUnit: {
@@ -24170,6 +24266,11 @@ int main(int argc, const char **argv)
 		_zt_callFuncScreenChange(game_settings);
 		_zt_win_handleWindowSize(win_details, game_settings);
 
+		if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
+			zt_bitRemove(game_settings->renderer_flags, ztRendererFlags_Fullscreen); // if we don't remove, it assumes we haven't done it yet
+			zt_rendererRequestFullscreen();
+		}
+
 		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
 	}
 	zt_profilerFrameEnd();
@@ -24231,19 +24332,23 @@ int main(int argc, const char **argv)
 		if (!_zt_callFuncLoop(dt))
 			break;
 
+		if (zt_game->renderer_requests_count) {
+			if (!_zt_rendererRequestProcess()) {
+				zt_logCritical("renderer request failed: exiting");
+				break;
+			}
+		}
+
 		zt_fiz(zt_game->win_count) {
-			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
 			if(zt_game->win_details[i].resize_cooldown > 0) {
 				zt_game->win_details[i].resize_cooldown -= dt;
 				if(zt_game->win_details[i].resize_cooldown < 0) {
 					_zt_win_handleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
 				}
+				zt_rendererClear(ztColor_Black);
 			}
-		}
 
-		if (zt_game->renderer_requests_count) {
-			if (!_zt_rendererRequestProcess())
-				break;
+			_zt_rendererSwapBuffers(&zt_game->win_details[i]);
 		}
 
 		_zt_inputClearState(false);
