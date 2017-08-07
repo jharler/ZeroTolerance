@@ -754,21 +754,23 @@ bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 		context->flags |= ztRendererFlagsGL_Fullscreen;
 	}
 	else {
-		LONG dwExStyle = GetWindowLong(context->handle, GWL_EXSTYLE);
-		LONG dwStyle = GetWindowLong(context->handle, GWL_STYLE);
+		if(zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
+			LONG dwExStyle = GetWindowLong(context->handle, GWL_EXSTYLE);
+			LONG dwStyle = GetWindowLong(context->handle, GWL_STYLE);
 
-		dwExStyle |= WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
-		dwStyle |= WS_OVERLAPPEDWINDOW;
+			dwExStyle |= WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+			dwStyle |= WS_OVERLAPPEDWINDOW;
 
-		SetWindowLong(context->handle, GWL_EXSTYLE, dwExStyle);
-		SetWindowLong(context->handle, GWL_STYLE, dwStyle);
+			SetWindowLong(context->handle, GWL_EXSTYLE, dwExStyle);
+			SetWindowLong(context->handle, GWL_STYLE, dwStyle);
 
-		SetWindowPos(context->handle, HWND_TOP, 
-					 context->screen_area.left, context->screen_area.top, 
-					 context->screen_area.right - context->screen_area.left, 
-					 context->screen_area.bottom - context->screen_area.top, SWP_FRAMECHANGED);	
+			SetWindowPos(context->handle, HWND_TOP, 
+						 context->screen_area.left, context->screen_area.top, 
+						 context->screen_area.right - context->screen_area.left, 
+						 context->screen_area.bottom - context->screen_area.top, SWP_FRAMECHANGED);	
 
-		zt_bitRemove(context->flags, ztRendererFlagsGL_Fullscreen);
+			zt_bitRemove(context->flags, ztRendererFlagsGL_Fullscreen);
+		}
 	}
 
 	return ztgl_setViewport(context);
@@ -778,7 +780,33 @@ bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 
 bool ztgl_win_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
 {
-	return false;
+	RECT client_rect = { 0, 0, w, h };
+
+	int screen_x = GetSystemMetrics(SM_CXSCREEN);
+	int screen_y = GetSystemMetrics(SM_CYSCREEN);
+	int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
+	int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
+
+	DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
+	if (AdjustWindowRect(&client_rect, style, FALSE) == FALSE) {
+		zt_logCritical("opengl: failed to adjust window rect");
+		return false;
+	}
+
+	context->screen_area.left = pos_x;
+	context->screen_area.top = pos_y;
+	context->screen_area.right = pos_x + (client_rect.right - client_rect.left);
+	context->screen_area.bottom = pos_y + (client_rect.bottom - client_rect.top);
+
+	if (!zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
+		SetWindowPos(context->handle, HWND_TOP, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, SWP_SHOWWINDOW);
+	}
+
+	context->native_size.x = w;
+	context->native_size.y = h;
+
+	return ztgl_setViewport(context);
 }
 
 // ------------------------------------------------------------------------------------------------
