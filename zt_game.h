@@ -860,6 +860,8 @@ enum ztAssetManagerType_Enum
 	ztAssetManagerType_MeshFBX,
 	ztAssetManagerType_Material,
 
+	ztAssetManagerType_Xml,
+
 	ztAssetManagerType_MAX,
 };
 
@@ -1134,7 +1136,8 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_f
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
 ztTextureID zt_textureMakeCubeMapFromPixelData(byte *data[ztTextureCubeMapFiles_MAX], i32 width, i32 height, i32 depth);
 
-byte *      zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth);
+byte       *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth);
+byte       *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth);
 void        zt_textureFreePixelData(byte *pixels);
 
 void        zt_textureFree(ztTextureID texture_id);
@@ -1424,7 +1427,7 @@ ztVec2   zt_cameraOrthoGetMaxExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
@@ -5385,6 +5388,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 		else if (zt_striEndsWith(token, ".obj")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshOBJ;
 		else if (zt_striEndsWith(token, ".fbx")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshFBX;
 		else if (zt_striEndsWith(token, ".mtl")) asset_mgr->asset_type[i] = ztAssetManagerType_Material;
+		else if (zt_striEndsWith(token, ".xml")) asset_mgr->asset_type[i] = ztAssetManagerType_Xml;
 		else asset_mgr->asset_type[i] = ztAssetManagerType_Unknown;
 
 		asset_mgr->asset_data     [i] = nullptr;
@@ -14844,6 +14848,40 @@ on_error:
 
 // ================================================================================================================================================================================================
 
+byte *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth)
+{
+	zt_returnValOnNull(width, nullptr);
+	zt_returnValOnNull(height, nullptr);
+	zt_returnValOnNull(depth, nullptr);
+
+	const char *error = nullptr;
+
+	byte *pixel_data = nullptr;
+
+	*width = *height = *depth = 0;
+
+	{
+		ztBlockProfiler bp_tex("stbi_load_from_memory");
+		pixel_data = stbi_load_from_memory((const stbi_uc*)data, data_size, width, height, depth, 4);
+	}
+
+	if (pixel_data == nullptr) {
+		error = stbi_failure_reason();
+		goto on_error;
+	}
+
+	return pixel_data;
+
+on_error:
+	zt_logCritical("Unable to load texture pixel data. %s.", error);
+	if (pixel_data) {
+		stbi_image_free(pixel_data);
+	}
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
 void zt_textureFreePixelData(byte *pixel_data)
 {
 	zt_returnOnNull(pixel_data);
@@ -15931,7 +15969,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	ztVec2i offset = override_offset;
 	
 	if (asset_mgr) {
-		ztAssetManagerType_Enum verify[] = { ztAssetManagerType_Font };
+		ztAssetManagerType_Enum verify[] = { ztAssetManagerType_Font, ztAssetManagerType_Xml };
 		if (!_zt_assetLoadData(asset_mgr, asset_id, verify, zt_elementsOf(verify), &data, &size)) {
 			return ztInvalidID;
 		}
@@ -15944,261 +15982,413 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 	ztFontID font_id = ztInvalidID;
 	const char *error = nullptr;
 
-	ztToken lines_tok[4096];
-	int lines = zt_strTokenize((char*)data, "\r\n", lines_tok, zt_elementsOf(lines_tok), 0);
-	if (lines < 4) {
-		error = "bitmap font file has an invalid header";
-		goto on_error;
-	}
-	if (lines > zt_elementsOf(lines_tok)) {
-		error = "font glyph count exceeds maximum supported";
-		goto on_error;
-	}
-
-	font_id = zt_game->fonts_count++;
-	ztFont *font = &zt_game->fonts[font_id];
-
-	zt_memSet(font, zt_sizeof(ztFont), 0);
-
-	if (asset_mgr) {
-		font->arena = asset_mgr->arena;
-		font->texture = texture_override_asset_id;
-	}
-	else {
-		font->arena = zt_memGetGlobalArena();
-		font->texture = texture_override_tex_id;
-	}
-
-	struct local
-	{
-		static int32 getIntAfterEquals(char* str, int len)
-		{
-			int idx = 0;
-			while (str[idx]) {
-				if (str[idx] != '=') {
-					idx++;
-				}
-				else {
-					idx++;
-					int str_len = len - idx;
-					char buffer[128] = { 0 };
-					zt_strCpy(buffer, zt_elementsOf(buffer), &str[idx], str_len);
-
-					i32 result = zt_strToInt(buffer, 0);
-					return result;
-				}
-			}
-			return 0;
+	if (zt_strFindPos((char*)data, "<?xml", 0) != ztStrPosNotFound) {
+		ztToken nodes_tok[4096];
+		int nodes = zt_strTokenize((char*)data, ">", nodes_tok, zt_elementsOf(nodes_tok), ztStrTokenizeFlags_TrimWhitespace);
+		if (nodes < 4) {
+			error = "bitmap font file has an invalid header";
+			goto on_error;
 		}
-	};
-
-	char line_buff[1024];
-
-	int chars = 0;
-	int chars_line = 0;
-	int base = 0;
-	int kernings = 0;
-
-	zt_fiz(lines) {
-		if (lines_tok[i].len >= zt_elementsOf(line_buff)) {
-			continue;
+		if (nodes > zt_elementsOf(nodes_tok)) {
+			error = "font glyph count exceeds maximum supported";
+			goto on_error;
 		}
 
-		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
-		line_buff[lines_tok[i].len] = 0;
+		font_id = zt_game->fonts_count++;
+		ztFont *font = &zt_game->fonts[font_id];
 
-		if (zt_strStartsWith(line_buff, "info face")) {
-		}
+		zt_memSet(font, zt_sizeof(ztFont), 0);
 
-		if (zt_strStartsWith(line_buff, "char id")) {
-			if (chars_line == 0) {
-				chars_line = i;
-			}
-		}
-		else if (zt_strStartsWith(line_buff, "kerning ")) {
-			kernings += 1;
+		if (asset_mgr) {
+			font->arena = asset_mgr->arena;
+			font->texture = texture_override_asset_id;
 		}
 		else {
-			ztToken toks[32];
-			int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes | ztStrTokenizeFlags_KeepQuotes);
-			if (toks_cnt > zt_elementsOf(toks)) {
+			font->arena = zt_memGetGlobalArena();
+			font->texture = texture_override_tex_id;
+		}
+
+		struct local
+		{
+			static i32 getIntBetween(char *str, char *beg, char *end)
+			{
+				char value[128] = { 0 };
+				zt_strGetBetween(value, zt_elementsOf(value), str, beg, end);
+				return zt_strToInt(value, 0);
+			}
+
+			static i32 getCodepoint(char *str, char *beg, char *end)
+			{
+				char id[6] = { 0 };
+				zt_strGetBetween(id, zt_elementsOf(id), str, beg, end);
+				if (id[0] == '&') {
+					if (zt_strStartsWith(id, "&amp;")) id[0] = '&';
+					if (zt_strStartsWith(id, "&quo")) id[0] = '\"';
+					if (zt_strStartsWith(id, "&lt;")) id[0] = '<';
+					if (zt_strStartsWith(id, "&gt;")) id[0] = '>';
+				}
+				return (i32)id[0];
+			}
+		};
+
+		char node_buff[1024];
+
+		int chars = 0;
+		int chars_line = 0;
+		int base = 0;
+		int kernings = 0;
+		int ascender = 0;
+		int descender = 0;
+
+		zt_fiz(nodes) {
+			if (nodes_tok[i].len >= zt_elementsOf(node_buff)) {
 				continue;
 			}
 
-			zt_fjz(toks_cnt) {
-				char* start = line_buff + toks[j].beg;
-				if (zt_strStartsWith(start, "face=")) {
-					int find_beg = 5;
-					int find_end = -1;
-					if (start[find_beg] == '\"') {
-						find_beg += 1;
-						find_end = zt_strFindPos(start, "\"", find_beg);
-					}
-					else {
-						find_end = zt_strFindPos(start, " ", find_beg);
+			zt_strCpy(node_buff, zt_elementsOf(node_buff), (char*)data + nodes_tok[i].beg, nodes_tok[i].len);
+			node_buff[nodes_tok[i].len] = 0;
+
+			if (zt_strStartsWith(node_buff, "<font ")) {
+				char type[16];
+				zt_strGetBetween(type, zt_elementsOf(type), node_buff, "type=\"", "\"");
+				if(!zt_strEquals(type, "NGL")) {
+					error = "unsupported xml bitmap format";
+					goto on_error;
+				}
+			}
+
+			if (zt_strStartsWith(node_buff, "<char ")) {
+				if (chars_line == 0) {
+					chars_line = i;
+				}
+				chars += 1;
+			}
+			else if (zt_strStartsWith(node_buff, "<kerning ")) {
+				kernings += 1;
+			}
+			else if(zt_strStartsWith(node_buff, "<description ")) {
+				zt_strGetBetween(font->name, zt_elementsOf(font->name), node_buff, "family=\"", "\"");
+				font->size_pixels = local::getIntBetween(node_buff, "size=\"", "\"");
+			}
+			else if (zt_strStartsWith(node_buff, "<metrics ")) {
+				font->line_height = local::getIntBetween(node_buff, "height=\"", "\"") / zt_pixelsPerUnit();
+				ascender = local::getIntBetween(node_buff, "ascender=\"", "\"");
+				descender = local::getIntBetween(node_buff, "descender=\"", "\"");
+			}
+			else if (zt_strStartsWith(node_buff, "<texture ")) {
+				if (font->texture == ztInvalidID) {
+					char tex_file[ztFileMaxPath];
+					zt_strGetBetween(tex_file, zt_elementsOf(tex_file), node_buff, "file=\"", "\"");
+
+					char bmp_dir[ztFileMaxPath] = "";
+					int pos_sep = zt_strFindLastPos(asset_mgr->asset_name[asset_id], "/");
+					if (pos_sep != ztStrPosNotFound) {
+						zt_strCpy(bmp_dir, zt_elementsOf(bmp_dir), asset_mgr->asset_name[asset_id], pos_sep);
 					}
 
-					if (find_end != ztStrPosNotFound) {
-						zt_strCpy(font->name, zt_elementsOf(font->name), start + find_beg, find_end - find_beg);
+					char tex_file_full[ztFileMaxPath];
+					zt_strPrintf(tex_file_full, zt_elementsOf(tex_file_full), "%s/%s", bmp_dir, tex_file);
+					i32 tex_asset_hash = 0;
+					if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
+						font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
+						zt_debugOnly(zt_textureSetName(font->texture, "Bitmap Font Texture"));
 					}
-				}
-				else if (zt_strStartsWith(start, "size=")) {
-					font->size_pixels = local::getIntAfterEquals(start, toks[j].len);
-				}
-				else if (zt_strStartsWith(start, "lineHeight=")) {
-					font->line_height = local::getIntAfterEquals(start, toks[j].len) / (r32)zt_game->win_game_settings[0].pixels_per_unit;
-				}
-				else if (zt_strStartsWith(start, "base=")) {
-					base = local::getIntAfterEquals(start, toks[j].len);
-				}
-				else if (zt_strStartsWith(start, "count=") && zt_strStartsWith(line_buff, "chars count")) {
-					chars = local::getIntAfterEquals(start, toks[j].len);
-				}
-				else if (zt_strStartsWith(start, "pages=")) {
-					int pages = local::getIntAfterEquals(start, toks[j].len);
-					if (pages != 1) {
-						error = "bitmap fonts with more than one page are not supported";
+					else if (zt_fileExists(tex_file_full)) {
+						// TODO(josh): should this support loading non-asset files?
+						zt_assert(false);
+					}
+					else {
+						zt_assert(false);
+					}
+
+					if (font->texture == ztInvalidID) {
+						error = "unable to load bitmap font texture";
 						goto on_error;
 					}
 				}
-				else if (zt_strStartsWith(start, "file=")) {
-					if (font->texture == ztInvalidID) {
-						char tex_file[ztFileMaxPath];
-						if (zt_strStartsWith(start, "file=\"")) {
-							zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 6, toks[j].len - 7);
+			}
+			else if (zt_strStartsWith(node_buff, "<char ")) {
+				chars += 1;
+			}
+		}
+
+		font->glyph_count = chars;
+		font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
+		font->glyphs = zt_mallocStructArrayArena(ztFont::Glyph, chars, font->arena);
+		font->kernings_count = kernings;
+		font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
+
+		r32 tex_w = (r32)zt_game->textures[font->texture].width;
+		r32 tex_h = (r32)zt_game->textures[font->texture].height;
+
+		r32 ppu = zt_pixelsPerUnit();
+
+		int glyph_idx = 0;
+		i32 x_adv_ttl = 0;
+		r32 base_offset = (-descender / ppu);// base == 0 ? 0 : base / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+
+		font->space_width = 0;
+
+		int kidx = 0;
+
+		int* codepoint = nullptr;
+		ztFont::Glyph *glyph = nullptr;
+
+		for (int i = chars_line; i < nodes; ++i) {
+			zt_strCpy(node_buff, zt_elementsOf(node_buff), (char*)data + nodes_tok[i].beg, nodes_tok[i].len);
+			node_buff[nodes_tok[i].len] = 0;
+
+			if (zt_strStartsWith(node_buff, "<char ")) {
+				if (glyph_idx >= chars) {
+					break;
+				}
+
+				codepoint = &font->glyph_code_point[glyph_idx];
+				glyph = &font->glyphs[glyph_idx];
+				glyph->kerning = nullptr;
+				glyph_idx += 1;
+				
+				*codepoint = local::getCodepoint(node_buff, "id=\"", "\"");
+
+				glyph->tex_uv.x = (offset.x + (r32)local::getIntBetween(node_buff, "rect_x=\"", "\"")) / tex_w;
+				glyph->tex_uv.y = (offset.y + (r32)local::getIntBetween(node_buff, "rect_y=\"", "\"")) / tex_h;
+
+				r32 w = (r32)local::getIntBetween(node_buff, "rect_w=\"", "\"");
+				r32 h = (r32)local::getIntBetween(node_buff, "rect_h=\"", "\"");
+				glyph->tex_uv.z = w / tex_w;
+				glyph->tex_uv.w = h / tex_h;
+				glyph->size.x = w / ppu;
+				glyph->size.y = h / ppu;
+				glyph->offset.x = ((local::getIntBetween(node_buff, "offset_x=\"", "\"") / 1.f) / ppu);
+				glyph->offset.y = -((local::getIntBetween(node_buff, "offset_y=\"", "\"") / 1.f) / ppu) - base_offset;
+				i32 x_adv = local::getIntBetween(node_buff, "advance=\"", "\"");
+				glyph->x_adv = x_adv / ppu;
+				x_adv_ttl += x_adv;
+
+				glyph->tex_uv.z += glyph->tex_uv.x;
+				glyph->tex_uv.w += glyph->tex_uv.y;
+
+				if (*codepoint == ' ') {
+					font->space_width = glyph->x_adv;
+				}
+			}
+			else if (zt_strStartsWith(node_buff, "<kerning ")) {
+				zt_assert(codepoint != nullptr && glyph != nullptr);
+
+				i32 advance = local::getIntBetween(node_buff, "advance=\"", "\"");
+				i32 codepoint = local::getCodepoint(node_buff, "id=\"", "\"");
+
+				ztFont::Kerning *kerning = &font->kernings[kidx++];
+
+				kerning->next_code = codepoint;
+				kerning->spacing = (r32)advance / ppu;
+				kerning->next = nullptr;
+
+				zt_singleLinkAddToEnd(glyph->kerning, kerning);
+
+			}
+		}
+
+		font->line_spacing = ((r32)font->size_pixels * .1f) / ppu;
+		if (font->space_width == 0) {
+			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / ppu;
+		}
+
+		// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
+		zt_fiz(font->glyph_count) {
+			switch(font->glyph_code_point[i])
+			{
+				case '\r': case '\n': case '\t': case ' ': {
+					font->glyph_code_point[i] = -1;
+				} break;
+			}
+		}
+
+		if (asset_mgr) {
+			zt_freeArena(data, asset_mgr->arena);
+		}
+		return font_id;
+	}
+	else {
+		ztToken lines_tok[4096];
+		int lines = zt_strTokenize((char*)data, "\r\n", lines_tok, zt_elementsOf(lines_tok), 0);
+		if (lines < 4) {
+			error = "bitmap font file has an invalid header";
+			goto on_error;
+		}
+		if (lines > zt_elementsOf(lines_tok)) {
+			error = "font glyph count exceeds maximum supported";
+			goto on_error;
+		}
+
+		font_id = zt_game->fonts_count++;
+		ztFont *font = &zt_game->fonts[font_id];
+
+		zt_memSet(font, zt_sizeof(ztFont), 0);
+
+		if (asset_mgr) {
+			font->arena = asset_mgr->arena;
+			font->texture = texture_override_asset_id;
+		}
+		else {
+			font->arena = zt_memGetGlobalArena();
+			font->texture = texture_override_tex_id;
+		}
+
+		struct local
+		{
+			static int32 getIntAfterEquals(char* str, int len)
+			{
+				int idx = 0;
+				while (str[idx]) {
+					if (str[idx] != '=') {
+						idx++;
+					}
+					else {
+						idx++;
+						int str_len = len - idx;
+						char buffer[128] = { 0 };
+						zt_strCpy(buffer, zt_elementsOf(buffer), &str[idx], str_len);
+
+						i32 result = zt_strToInt(buffer, 0);
+						return result;
+					}
+				}
+				return 0;
+			}
+		};
+
+		char line_buff[1024];
+
+		int chars = 0;
+		int chars_line = 0;
+		int base = 0;
+		int kernings = 0;
+
+		zt_fiz(lines) {
+			if (lines_tok[i].len >= zt_elementsOf(line_buff)) {
+				continue;
+			}
+
+			zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
+			line_buff[lines_tok[i].len] = 0;
+
+			if (zt_strStartsWith(line_buff, "info face")) {
+			}
+
+			if (zt_strStartsWith(line_buff, "char id")) {
+				if (chars_line == 0) {
+					chars_line = i;
+				}
+			}
+			else if (zt_strStartsWith(line_buff, "kerning ")) {
+				kernings += 1;
+			}
+			else {
+				ztToken toks[32];
+				int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes | ztStrTokenizeFlags_KeepQuotes);
+				if (toks_cnt > zt_elementsOf(toks)) {
+					continue;
+				}
+
+				zt_fjz(toks_cnt) {
+					char* start = line_buff + toks[j].beg;
+					if (zt_strStartsWith(start, "face=")) {
+						int find_beg = 5;
+						int find_end = -1;
+						if (start[find_beg] == '\"') {
+							find_beg += 1;
+							find_end = zt_strFindPos(start, "\"", find_beg);
 						}
 						else {
-							zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 5, toks[j].len - 5);
+							find_end = zt_strFindPos(start, " ", find_beg);
 						}
 
-						char bmp_dir[ztFileMaxPath] = "";
-						int pos_sep = zt_strFindLastPos(asset_mgr->asset_name[asset_id], "/");
-						if (pos_sep != ztStrPosNotFound) {
-							zt_strCpy(bmp_dir, zt_elementsOf(bmp_dir), asset_mgr->asset_name[asset_id], pos_sep);
+						if (find_end != ztStrPosNotFound) {
+							zt_strCpy(font->name, zt_elementsOf(font->name), start + find_beg, find_end - find_beg);
 						}
-						
-						char tex_file_full[ztFileMaxPath];
-						zt_strPrintf(tex_file_full, zt_elementsOf(tex_file_full), "%s/%s", bmp_dir, tex_file);
-						i32 tex_asset_hash = 0;
-						if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
-							font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
-							zt_debugOnly(zt_textureSetName(font->texture, "Bitmap Font Texture"));
-						}
-						else if (zt_fileExists(tex_file_full)) {
-							// TODO(josh): should this support loading non-asset files?
-							zt_assert(false);
-						}
-						else {
-							zt_assert(false);
-						}
-
-						if (font->texture == ztInvalidID) {
-							error = "unable to load bitmap font texture";
+					}
+					else if (zt_strStartsWith(start, "size=")) {
+						font->size_pixels = local::getIntAfterEquals(start, toks[j].len);
+					}
+					else if (zt_strStartsWith(start, "lineHeight=")) {
+						font->line_height = local::getIntAfterEquals(start, toks[j].len) / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+					}
+					else if (zt_strStartsWith(start, "base=")) {
+						base = local::getIntAfterEquals(start, toks[j].len);
+					}
+					else if (zt_strStartsWith(start, "count=") && zt_strStartsWith(line_buff, "chars count")) {
+						chars = local::getIntAfterEquals(start, toks[j].len);
+					}
+					else if (zt_strStartsWith(start, "pages=")) {
+						int pages = local::getIntAfterEquals(start, toks[j].len);
+						if (pages != 1) {
+							error = "bitmap fonts with more than one page are not supported";
 							goto on_error;
+						}
+					}
+					else if (zt_strStartsWith(start, "file=")) {
+						if (font->texture == ztInvalidID) {
+							char tex_file[ztFileMaxPath];
+							if (zt_strStartsWith(start, "file=\"")) {
+								zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 6, toks[j].len - 7);
+							}
+							else {
+								zt_strCpy(tex_file, zt_elementsOf(tex_file), start + 5, toks[j].len - 5);
+							}
+
+							char bmp_dir[ztFileMaxPath] = "";
+							int pos_sep = zt_strFindLastPos(asset_mgr->asset_name[asset_id], "/");
+							if (pos_sep != ztStrPosNotFound) {
+								zt_strCpy(bmp_dir, zt_elementsOf(bmp_dir), asset_mgr->asset_name[asset_id], pos_sep);
+							}
+
+							char tex_file_full[ztFileMaxPath];
+							zt_strPrintf(tex_file_full, zt_elementsOf(tex_file_full), "%s/%s", bmp_dir, tex_file);
+							i32 tex_asset_hash = 0;
+							if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
+								font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
+								zt_debugOnly(zt_textureSetName(font->texture, "Bitmap Font Texture"));
+							}
+							else if (zt_fileExists(tex_file_full)) {
+								// TODO(josh): should this support loading non-asset files?
+								zt_assert(false);
+							}
+							else {
+								zt_assert(false);
+							}
+
+							if (font->texture == ztInvalidID) {
+								error = "unable to load bitmap font texture";
+								goto on_error;
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	font->glyph_count = chars;
-	font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
-	font->glyphs = zt_mallocStructArrayArena(ztFont::Glyph, chars, font->arena);
-	font->kernings_count = kernings;
-	font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
+		font->glyph_count = chars;
+		font->glyph_code_point = zt_mallocStructArrayArena(i32, chars, font->arena);
+		font->glyphs = zt_mallocStructArrayArena(ztFont::Glyph, chars, font->arena);
+		font->kernings_count = kernings;
+		font->kernings = kernings > 0 ? zt_mallocStructArrayArena(ztFont::Kerning, kernings, font->arena) : nullptr;
 
-	r32 tex_w = (r32)zt_game->textures[font->texture].width;
-	r32 tex_h = (r32)zt_game->textures[font->texture].height;
+		r32 tex_w = (r32)zt_game->textures[font->texture].width;
+		r32 tex_h = (r32)zt_game->textures[font->texture].height;
 
-	int glyph_idx = 0;
-	i32 x_adv_ttl = 0;
-	r32 base_offset = font->line_height;// base == 0 ? 0 : base / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+		int glyph_idx = 0;
+		i32 x_adv_ttl = 0;
+		r32 base_offset = font->line_height;// base == 0 ? 0 : base / (r32)zt_game->win_game_settings[0].pixels_per_unit;
 
-	font->space_width = 0;
+		font->space_width = 0;
 
-	int kerning = 0;
-	for (int i = chars_line; i < lines; ++i) {
-		zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
-		line_buff[lines_tok[i].len] = 0;
-
-		if (!zt_strStartsWith(line_buff, "char id")) {
-			continue;
-		}
-
-		ztToken toks[32];
-		int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes);
-		if (toks_cnt > zt_elementsOf(toks)) {
-			continue;
-		}
-
-		if (glyph_idx >= chars) {
-			break;
-		}
-
-		int* codepoint = &font->glyph_code_point[glyph_idx];
-		ztFont::Glyph *glyph = &font->glyphs[glyph_idx];
-		glyph->kerning = nullptr;
-		glyph_idx += 1;
-		*codepoint = -1;
-
-		zt_fjz(toks_cnt) {
-			char* start = line_buff + toks[j].beg;
-			int val = local::getIntAfterEquals(start, toks[j].len);
-
-			if (zt_strStartsWith(start, "id=")) {
-				*codepoint = val;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "x=")) {
-				glyph->tex_uv.x = (offset.x + (r32)val) / tex_w;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "y=")) {
-				glyph->tex_uv.y = (offset.y + (r32)val) / tex_h;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "width=")) {
-				glyph->tex_uv.z = (r32)val / tex_w;
-				glyph->size.x = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "height=")) {
-				glyph->tex_uv.w = (r32)val / tex_h;
-				glyph->size.y = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
-				//font->line_height = zt_max(font->line_height, glyph->size.y);
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "xoffset=")) {
-				glyph->offset.x = (val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "yoffset=")) {
-				glyph->offset.y = ((val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit) - base_offset;
-			}
-			else if (*codepoint != -1 && zt_strStartsWith(start, "xadvance=")) {
-				glyph->x_adv = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
-				x_adv_ttl += val;
-			}
-		}
-		if (*codepoint != -1) {
-			glyph->tex_uv.z += glyph->tex_uv.x;
-			glyph->tex_uv.w += glyph->tex_uv.y;
-
-			if (*codepoint == ' ') {
-				font->space_width = glyph->x_adv;
-			}
-
-			//font->line_height = zt_max(font->line_height, glyph->size.y - glyph->offset.y));
-		}
-	}
-
-	font->line_spacing = ((r32)font->size_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
-	if (font->space_width == 0) {
-		font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
-	}
-
-	if (kernings > 0) {
-		int kidx = 0;
+		int kerning = 0;
 		for (int i = chars_line; i < lines; ++i) {
 			zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
 			line_buff[lines_tok[i].len] = 0;
 
-			if (!zt_strStartsWith(line_buff, "kerning ")) {
+			if (!zt_strStartsWith(line_buff, "char id")) {
 				continue;
 			}
 
@@ -16208,54 +16398,131 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				continue;
 			}
 
-			int first = -1, second = -1, amount = 0;
+			if (glyph_idx >= chars) {
+				break;
+			}
+
+			int* codepoint = &font->glyph_code_point[glyph_idx];
+			ztFont::Glyph *glyph = &font->glyphs[glyph_idx];
+			glyph->kerning = nullptr;
+			glyph_idx += 1;
+			*codepoint = -1;
 
 			zt_fjz(toks_cnt) {
 				char* start = line_buff + toks[j].beg;
 				int val = local::getIntAfterEquals(start, toks[j].len);
 
-				if (zt_strStartsWith(start, "first=")) {
-					first = val;
+				if (zt_strStartsWith(start, "id=")) {
+					*codepoint = val;
 				}
-				else if (zt_strStartsWith(start, "second=")) {
-					second = val;
+				else if (*codepoint != -1 && zt_strStartsWith(start, "x=")) {
+					glyph->tex_uv.x = (offset.x + (r32)val) / tex_w;
 				}
-				else if (zt_strStartsWith(start, "amount=")) {
-					amount = val;
+				else if (*codepoint != -1 && zt_strStartsWith(start, "y=")) {
+					glyph->tex_uv.y = (offset.y + (r32)val) / tex_h;
+				}
+				else if (*codepoint != -1 && zt_strStartsWith(start, "width=")) {
+					glyph->tex_uv.z = (r32)val / tex_w;
+					glyph->size.x = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+				}
+				else if (*codepoint != -1 && zt_strStartsWith(start, "height=")) {
+					glyph->tex_uv.w = (r32)val / tex_h;
+					glyph->size.y = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+					//font->line_height = zt_max(font->line_height, glyph->size.y);
+				}
+				else if (*codepoint != -1 && zt_strStartsWith(start, "xoffset=")) {
+					glyph->offset.x = (val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit;
+				}
+				else if (*codepoint != -1 && zt_strStartsWith(start, "yoffset=")) {
+					glyph->offset.y = ((val / 1.f) / zt_game->win_game_settings[0].pixels_per_unit) - base_offset;
+				}
+				else if (*codepoint != -1 && zt_strStartsWith(start, "xadvance=")) {
+					glyph->x_adv = val / (r32)zt_game->win_game_settings[0].pixels_per_unit;
+					x_adv_ttl += val;
 				}
 			}
+			if (*codepoint != -1) {
+				glyph->tex_uv.z += glyph->tex_uv.x;
+				glyph->tex_uv.w += glyph->tex_uv.y;
 
-			if (first != -1 && second != -1 && amount != 0) {
-				zt_fjz(font->glyph_count) {
-					if (font->glyph_code_point[j] == first) {
-						ztFont::Kerning *kerning = &font->kernings[kidx++];
+				if (*codepoint == ' ') {
+					font->space_width = glyph->x_adv;
+				}
 
-						kerning->next_code = second;
-						kerning->spacing = (r32)amount / zt_game->win_game_settings[0].pixels_per_unit;
-						kerning->next = nullptr;
+				//font->line_height = zt_max(font->line_height, glyph->size.y - glyph->offset.y));
+			}
+		}
 
-						zt_singleLinkAddToEnd(font->glyphs[j].kerning, kerning);
-						break;
+		font->line_spacing = ((r32)font->size_pixels * .1f) / zt_game->win_game_settings[0].pixels_per_unit;
+		if (font->space_width == 0) {
+			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
+		}
+
+		if (kernings > 0) {
+			int kidx = 0;
+			for (int i = chars_line; i < lines; ++i) {
+				zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
+				line_buff[lines_tok[i].len] = 0;
+
+				if (!zt_strStartsWith(line_buff, "kerning ")) {
+					continue;
+				}
+
+				ztToken toks[32];
+				int toks_cnt = zt_strTokenize(line_buff, " ", toks, zt_elementsOf(toks), ztStrTokenizeFlags_ProcessQuotes);
+				if (toks_cnt > zt_elementsOf(toks)) {
+					continue;
+				}
+
+				int first = -1, second = -1, amount = 0;
+
+				zt_fjz(toks_cnt) {
+					char* start = line_buff + toks[j].beg;
+					int val = local::getIntAfterEquals(start, toks[j].len);
+
+					if (zt_strStartsWith(start, "first=")) {
+						first = val;
+					}
+					else if (zt_strStartsWith(start, "second=")) {
+						second = val;
+					}
+					else if (zt_strStartsWith(start, "amount=")) {
+						amount = val;
+					}
+				}
+
+				if (first != -1 && second != -1 && amount != 0) {
+					zt_fjz(font->glyph_count) {
+						if (font->glyph_code_point[j] == first) {
+							ztFont::Kerning *kerning = &font->kernings[kidx++];
+
+							kerning->next_code = second;
+							kerning->spacing = (r32)amount / zt_game->win_game_settings[0].pixels_per_unit;
+							kerning->next = nullptr;
+
+							zt_singleLinkAddToEnd(font->glyphs[j].kerning, kerning);
+							break;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
-	zt_fiz(font->glyph_count) {
-		switch(font->glyph_code_point[i])
-		{
-			case '\r': case '\n': case '\t': case ' ': {
-				font->glyph_code_point[i] = -1;
-			} break;
+		// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
+		zt_fiz(font->glyph_count) {
+			switch(font->glyph_code_point[i])
+			{
+				case '\r': case '\n': case '\t': case ' ': {
+					font->glyph_code_point[i] = -1;
+				} break;
+			}
 		}
-	}
 
-	if (asset_mgr) {
-		zt_freeArena(data, asset_mgr->arena);
+		if (asset_mgr) {
+			zt_freeArena(data, asset_mgr->arena);
+		}
+		return font_id;
 	}
-	return font_id;
 
 on_error:
 	if (error) {
