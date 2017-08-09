@@ -7071,6 +7071,10 @@ void zt_stringFree(ztString string, ztMemoryArena *arena)
 
 // ================================================================================================================================================================================================
 
+#define _zt_stringSizeFast(STR)  (*((i32*)(STR - zt_sizeof(i32))))
+
+// ================================================================================================================================================================================================
+
 int zt_stringSize(ztString string)
 {
 	ZT_PROFILE_TOOLS("zt_stringSize");
@@ -7079,7 +7083,8 @@ int zt_stringSize(ztString string)
 		return 0;
 	}
 
-	return *((i32*)(string - zt_sizeof(i32)));
+	//return *((i32*)(string - zt_sizeof(i32)));
+	return _zt_stringSizeFast(string);
 }
 
 
@@ -7179,7 +7184,7 @@ ztString zt_stringMake(ztStringPool *pool, int size)
 	zt_returnValOnNull(pool, zt_stringMake(size));
 
 	zt_fiz(pool->size) {
-		if (!pool->used[i] && zt_stringSize(pool->strings[i]) >= size) {
+		if (!pool->used[i] && _zt_stringSizeFast(pool->strings[i]) >= size) {
 			pool->used[i] = true;
 			return pool->strings[i];
 		}
@@ -7225,7 +7230,11 @@ ztString zt_stringResize(ztStringPool *pool, ztString string, int size)
 	ZT_PROFILE_TOOLS("zt_stringResizeFromPool");
 	zt_returnValOnNull(pool, zt_stringResize(string, size));
 
-	int str_size = zt_stringSize(string);
+	if (string == nullptr) {
+		return zt_stringMake(pool, size);
+	}
+
+	int str_size = _zt_stringSizeFast(string);
 	if (str_size >= size) {
 		return string;
 	}
@@ -8863,7 +8872,12 @@ ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size
 		if (serial->file_data_size < data_size)
 			return 0;
 
-		zt_memCpy(data, data_size, serial->file_data, data_size);
+		if (data_size == 1) {
+			*((byte*)data) = *((byte*)serial->file_data);
+		}
+		else {
+			zt_memCpy(data, data_size, serial->file_data, data_size);
+		}
 
 		serial->file_data = ((byte*)serial->file_data) + data_size;
 		serial->file_data_size -= data_size;
