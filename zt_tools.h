@@ -6900,51 +6900,26 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 
 	if (buffer_size < 64) return 0;
 
-	char* buffer_pos = buffer;
+	zt_strPrintf(buffer, buffer_size, "%lld", number);
 
-	int64 abs_number = abs(number);
+	int neg_offset = number < 0 ? 1 : 0;
 
-	struct local
-	{
-		static void process(i64* number, char** buffer, bool* first, int64 div)
-		{
-			if (*number >= div) {
-				int64 num = *number / div;
-				if (*first) {
-					sprintf_s(*buffer, 5, "%lld,", num);
-					*first = false;
-				}
-				else {
-					sprintf_s(*buffer, 5, "%03lld,", num);
-				}
+	int str_len = zt_strLen(buffer);
 
-				++(*buffer);
-				++(*buffer);
-				if (num > 9) ++(*buffer);
-				if (num > 99) ++ (*buffer);
-				*number -= num * div;
+	int offsets[] = { 3, 7, 12, 18 };
+
+	zt_fize(offsets) {
+		if (str_len - neg_offset > offsets[i]) {
+			for (int j = str_len; j > str_len - offsets[i]; --j) {
+				buffer[j] = buffer[j - 1];
 			}
+			buffer[str_len - offsets[i]] = ',';
+			buffer[++str_len] = 0;
 		}
-	};
-
-	if (number < 0) {
-		*buffer_pos = '-';
-		++buffer_pos;
-		number *= -1;
-	}
-	bool first = true;
-	local::process(&number, &buffer_pos, &first, 1000000000000000000);
-	local::process(&number, &buffer_pos, &first, 1000000000000000);
-	local::process(&number, &buffer_pos, &first, 1000000000000);
-	local::process(&number, &buffer_pos, &first, 1000000000);
-	local::process(&number, &buffer_pos, &first, 1000000);
-	local::process(&number, &buffer_pos, &first, 1000);
-
-	if (first) {
-		return (int)((buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%lld", number));
+		else break;
 	}
 
-	return (int)((buffer_pos - buffer) + zt_strPrintf(buffer_pos, 4, "%03lld", number));
+	return str_len;
 }
 
 // ================================================================================================================================================================================================
@@ -9687,7 +9662,7 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 	random->mt_idx = idx + zt_sizeof(unsigned long);
 	i32 rv = *(unsigned long *)((unsigned char *)b + idx);
 
-	return (zt_abs(rv) % (min - max)) + min;
+	return (zt_abs(rv) % (max - min)) + min;
 }
 
 // ================================================================================================================================================================================================
