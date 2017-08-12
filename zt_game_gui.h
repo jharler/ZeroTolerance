@@ -2530,6 +2530,16 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 		// ================================================================================================================================================================================================
 
+		case ztGuiItemType_SpriteDisplay: {
+			if (*(ztVec4*)item->sprite_display.bgcolor != ztVec4::zero) {
+				zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos, 0), item->size, zt_vec4(item->sprite_display.bgcolor));
+			}
+
+			zt_drawListAddGuiThemeSprite(draw_list, item->sprite_display.sprite, pos, item->size);
+		} break;
+
+		// ================================================================================================================================================================================================
+
 		default: return true; // return false to use the default (this is the default though)
 	} 
 
@@ -7426,14 +7436,7 @@ void zt_guiComboBoxSetCallback(ztGuiItem *combobox, ztFunctionID on_item_sel, vo
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpriteDisplayRender))
 {
 	ZT_PROFILE_GUI("_zt_guiSpriteDisplayRender");
-
-	ztVec2 pos = offset + item->pos;
-
-	if (*(ztVec4*)item->sprite_display.bgcolor != ztVec4::zero) {
-		zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos, 0), item->size, zt_vec4(item->sprite_display.bgcolor));
-	}
-
-	zt_drawListAddGuiThemeSprite(draw_list, item->sprite_display.sprite, pos, item->size);
+	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
 }
 
 // ================================================================================================================================================================================================
