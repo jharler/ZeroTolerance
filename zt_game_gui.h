@@ -109,6 +109,7 @@ ztVec2 zt_guiThemeButtonSpriteGetSize     (ztGuiThemeButtonSprite *sprite);
 	_ztGIT(ztGuiItemType_Tab            ) \
 	_ztGIT(ztGuiItemType_Tree           ) \
 	_ztGIT(ztGuiItemType_ComboBox       ) \
+	_ztGIT(ztGuiItemType_CycleBox       ) \
 	_ztGIT(ztGuiItemType_SpriteDisplay  ) \
 	_ztGIT(ztGuiItemType_ProgressBar    ) \
 	_ztGIT(ztGuiItemType_Sizer          ) \
@@ -235,6 +236,8 @@ enum ztGuiThemeValue_Enum
 	ztGuiThemeValue_i32_TreeCollapseButtonBehaviorFlags,
 	
 	ztGuiThemeValue_r32_ComboboxButtonW,
+
+	ztGuiThemeValue_r32_CycleBoxButtonW
 };
 
 // ================================================================================================================================================================================================
@@ -400,6 +403,10 @@ typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(zt_guiSpinnerValueChanged_Func);
 #define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) void name(ztGuiItem *listbox, int selected, void *user_data)
 typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(zt_guiListBoxItemSelected_Func);
 
+#define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(name) void name(ztGuiItem *cyclebox, int value, void *user_data)
+typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(zt_guiCycleBoxValueChanged_Func);
+
+
 // ================================================================================================================================================================================================
 
 struct ztGuiItemFunctions
@@ -509,6 +516,16 @@ enum ztGuiTreeItemFlags_Enum
 
 // ================================================================================================================================================================================================
 
+enum ztGuiCycleBoxBehaviorFlags_Enum
+{
+	ztGuiCycleBoxBehaviorFlags_HideInvalidButton = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiCycleBoxBehaviorFlags_Infinite          = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+};
+
+#define ztGuiCycleBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 2)
+
+// ================================================================================================================================================================================================
+
 enum ztGuiListBoxBehaviorFlags_Enum
 {
 	ztGuiListBoxBehaviorFlags_MultiSelect        = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
@@ -595,6 +612,7 @@ ztGuiItem       *zt_guiMakeMenu                        ();
 ztGuiItem       *zt_guiMakeMenuBar                     (ztGuiItem *parent);
 ztGuiItem       *zt_guiMakeTree                        (ztGuiItem *parent, i32 max_items);
 ztGuiItem       *zt_guiMakeComboBox                    (ztGuiItem *parent, i32 max_items);
+ztGuiItem       *zt_guiMakeCycleBox                    (ztGuiItem *parent, i32 max_items);
 ztGuiItem       *zt_guiMakeSpriteDisplay               (ztGuiItem *parent, ztGuiThemeSprite *sprite);
 ztGuiItem       *zt_guiMakeSpinner                     (ztGuiItem *parent, int *live_value = nullptr);
 ztGuiItem       *zt_guiMakeListBox                     (ztGuiItem *parent, i32 behavior_flags = 0, i32 max_items = 128);
@@ -766,18 +784,14 @@ void             zt_guiMenuClear                       (ztGuiItem *menu);
 
 ztGuiTreeNodeID  zt_guiTreeAppend                      (ztGuiItem *tree, const char *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID, i32 flags = 0);
 ztGuiTreeNodeID  zt_guiTreeAppend                      (ztGuiItem *tree, ztGuiItem *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID, i32 flags = 0);
-
 ztGuiTreeNodeID  zt_guiTreeGetSelected                 (ztGuiItem *tree);
 void             zt_guiTreeSetSelected                 (ztGuiItem *tree, ztGuiTreeNodeID node);
-
 ztGuiTreeNodeID  zt_guiTreeGetRoot                     (ztGuiItem *tree);
 ztGuiItem       *zt_guiTreeGetNodeItem                 (ztGuiItem *tree, ztGuiTreeNodeID node);
 void            *zt_guiTreeGetNodeUserData             (ztGuiItem *tree, ztGuiTreeNodeID node);
 void             zt_guiTreeSetCallback                 (ztGuiItem *tree, ztFunctionID on_item_sel, void *user_data);
-
 void             zt_guiTreeCollapseNode                (ztGuiItem *tree, ztGuiTreeNodeID node);
 void             zt_guiTreeExpandNode                  (ztGuiItem *tree, ztGuiTreeNodeID node);
-
 void             zt_guiTreeClear                       (ztGuiItem *tree);
 
 // ================================================================================================================================================================================================
@@ -795,13 +809,25 @@ void             zt_guiComboBoxSetCallback             (ztGuiItem *combobox, ztF
 
 // ================================================================================================================================================================================================
 
+ztGuiItem       *zt_guiMakeCycleBox                    (ztGuiItem *parent, i32 max_items, i32 behavior_flags = 0);
+void             zt_guiCycleBoxSetContents             (ztGuiItem *cyclebox, const char **contents, int contents_count, int active);
+void             zt_guiCycleBoxClear                   (ztGuiItem *cyclebox);
+void             zt_guiCycleBoxAppend                  (ztGuiItem *cyclebox, const char *content, void *user_data = nullptr);
+int              zt_guiCycleBoxGetSelected             (ztGuiItem *cyclebox);
+void             zt_guiCycleBoxSetSelected             (ztGuiItem *cyclebox, int selected);
+int              zt_guiCycleBoxGetItemCount            (ztGuiItem *cyclebox);
+int              zt_guiCycleBoxGetItemText             (ztGuiItem *cyclebox, int index, char* buffer, int buffer_len);
+void            *zt_guiCycleBoxGetItemUserData         (ztGuiItem *cyclebox, int index);
+void             zt_guiCycleBoxSetCallback             (ztGuiItem *cyclebox, ztFunctionID on_item_change, void *user_data);
+
+// ================================================================================================================================================================================================
+
 void             zt_guiSpriteDisplaySetSprite          (ztGuiItem *item_id, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one, const ztVec4& bgcolor = ztVec4::zero);
 
 // ================================================================================================================================================================================================
 
 int              zt_guiSpinnerGetValue                 (ztGuiItem *spinner);	// -1 or +1
 void             zt_guiSpinnerSetCallback              (ztGuiItem *spinner, ztFunctionID on_value_changed, void *user_data);
-
 void             zt_guiSpinnerTickUp                   (ztGuiItem *spinner);
 void             zt_guiSpinnerTickDown                 (ztGuiItem *spinner);
 
@@ -810,25 +836,19 @@ void             zt_guiSpinnerTickDown                 (ztGuiItem *spinner);
 int              zt_guiListBoxAppend                   (ztGuiItem *listbox, ztGuiItem *item, void *user_data);
 int              zt_guiListBoxAppend                   (ztGuiItem *listbox, const char *item, void *user_data);
 void             zt_guiListBoxClear                    (ztGuiItem *listbox);
-
 int              zt_guiListBoxGetActiveItem            (ztGuiItem *listbox);
 int              zt_guiListBoxGetSelectedCount         (ztGuiItem *listbox);
 int              zt_guiListBoxGetSelected              (ztGuiItem *listbox, int which = 0);
 bool             zt_guiListBoxIsSelected               (ztGuiItem *listbox, int item_idx);
 int              zt_guiListBoxSetSelected              (ztGuiItem *listbox, int item_idx, bool append_to_selection = false, bool force_visible = true);
-
 int              zt_guiListBoxGetCount                 (ztGuiItem *listbox);
 ztGuiItem       *zt_guiListBoxGetItem                  (ztGuiItem *listbox, int item_idx);
 void            *zt_guiListBoxGetItemUserData          (ztGuiItem *listbox, int item_idx);
-
 void             zt_guiListBoxShowItem                 (ztGuiItem *listbox, int item_idx, bool show = true);
 void             zt_guiListBoxHideItem                 (ztGuiItem *listbox, int item_idx);
 bool             zt_guiListBoxIsItemShown              (ztGuiItem *listbox, int item_idx);
-
 void             zt_guiListBoxScrollToItem             (ztGuiItem *listbox, int item_idx);
-
 void             zt_guiListBoxSetHeaderItem            (ztGuiItem *listbox, ztGuiItem *header);
-
 void             zt_guiListBoxSetCallback              (ztGuiItem *listbox, ztFunctionID function_id, void *user_data = nullptr);
 
 // ================================================================================================================================================================================================
@@ -840,7 +860,6 @@ void             zt_guiEditorSetToValue                (ztGuiItem *editor, i32 v
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec2 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec3 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec4 value);
-
 void             zt_guiEditorReassign                  (ztGuiItem *editor, r32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, i32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec2 *value);
@@ -851,15 +870,11 @@ void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec
 
 void             zt_guiSizerAddItem                    (ztGuiItem *sizer, ztGuiItem *item_id, int proportion, r32 padding, i32 align_flags = ztAlign_Center, i32 grow_direction = ztGuiItemOrient_Horz | ztGuiItemOrient_Vert);
 void             zt_guiSizerAddStretcher               (ztGuiItem *sizer, int proportion, r32 padding = 0);
-
 void             zt_guiSizerSizeToParent               (ztGuiItem *sizer, bool size_to_parent = true);
 void             zt_guiSizerSizeParent                 (ztGuiItem *sizer, bool size_parent_x = true, bool size_parent_y = true);
-
 void             zt_guiSizerRecalc                     (ztGuiItem *item);
 void             zt_guiSizerRecalcImmediately          (ztGuiItem *sizer);
-
 ztVec2           zt_guiSizerGetMinSize                 (ztGuiItem *sizer);
-
 void             zt_guiColumnSizerSetProp              (ztGuiItem *sizer, int col, int prop);
 
 // ================================================================================================================================================================================================
@@ -1249,6 +1264,20 @@ struct ztGuiItem
 		// -------------------------------------------------
 
 		struct {
+			ztString    *contents;
+			void       **contents_user_data;
+			int          contents_size;
+			int          contents_count;
+			int          selected;
+			ztGuiItem   *buttons[2]; // 0 - left, 1 - right
+
+			ztFunctionID on_changed;
+			void        *on_changed_user_data;
+		} cyclebox;
+
+		// -------------------------------------------------
+
+		struct {
 			ztGuiThemeSprite* sprite;
 			r32               scale[2];
 			r32               bgcolor[4];
@@ -1593,6 +1622,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		
 		case ztGuiThemeValue_r32_ComboboxButtonW:             *result = 16 / ppu; break;
 
+		case ztGuiThemeValue_r32_CycleBoxButtonW:             *result = 22 / ppu; break;
+
 		default: return true;  // return false to use the default (this is the default though)
 	}
 
@@ -1723,6 +1754,32 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 					zt_guiItemSetSize(subitem, zt_vec2(17 / ppu, 17 / ppu));
 				} break;
 			}
+		} break;
+
+		// ================================================================================================================================================================================================
+
+		case ztGuiItemType_CycleBox: {
+			r32 button_w = zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_CycleBoxButtonW, item);
+
+			subitem->size.x = button_w;
+			subitem->size.y = item->size.y;
+
+			switch (subitem->type)
+			{
+				case ztGuiItemType_Button: {
+					subitem->behavior_flags |= ztGuiButtonBehaviorFlags_NoBackground;
+
+					if (((ztDirection_Enum)(i32)data) == ztDirection_Left) {
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(931, 1), zt_vec2i(12, 12)));
+						zt_guiItemSetPosition(subitem, ztAlign_Left, ztAnchor_Left, ztVec2::zero);
+					}
+					else if (((ztDirection_Enum)(i32)data) == ztDirection_Right) {
+						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12)));
+						zt_guiItemSetPosition(subitem, ztAlign_Right, ztAnchor_Right, ztVec2::zero);
+					}
+				} break;
+			}
+
 		} break;
 
 		// ================================================================================================================================================================================================
@@ -1884,6 +1941,25 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 
 		} break;
 
+		// ================================================================================================================================================================================================
+
+		case ztGuiItemType_CycleBox: {
+			r32 base_width = 44 / ppu;
+
+			item->size.x = 80 / ppu;
+			item->size.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_TextEditDefaultH, item);
+
+			r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding, item);
+			ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_FontID, item);
+			zt_fiz(item->cyclebox.contents_count) {
+				ztVec2 ext = zt_fontGetExtents(font, item->cyclebox.contents[i]);
+				item->size.x = zt_max(item->size.x, base_width + ext.x);
+				item->size.y = zt_max(item->size.y, ext.y + padding * 2);
+			}
+
+		} break;
+
+		// ================================================================================================================================================================================================
 
 		case ztGuiItemType_Spinner: {
 			item->size.x = 20 / ppu;
@@ -2476,6 +2552,21 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 				zt_drawListAddFancyText2D(draw_list, ztFontDefault, item->combobox.contents[item->combobox.selected], pos, ztAlign_Left, ztAnchor_Left);
 			}
 
+		} break;
+
+		// ================================================================================================================================================================================================
+
+		case ztGuiItemType_CycleBox: {
+			ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Cyclebox");
+
+			bool pressed = false, highlighted = zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
+			if (highlighted) {
+				//zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(highlighted, pressed), local::outline(highlighted, pressed));
+			}
+
+			if (item->cyclebox.selected >= 0 && item->cyclebox.selected < item->cyclebox.contents_count) {
+				zt_drawListAddFancyText2D(draw_list, ztFontDefault, item->cyclebox.contents[item->cyclebox.selected], pos);
+			}
 		} break;
 
 		// ================================================================================================================================================================================================
@@ -7247,12 +7338,12 @@ ztGuiItem *zt_guiMakeComboBox(ztGuiItem *parent, i32 max_items)
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
 
-	item->combobox.popup                 = nullptr;
-	item->combobox.contents              = zt_mallocStructArrayArena(ztString, max_items, item->gm->arena);
-	item->combobox.contents_user_data    = zt_mallocStructArrayArena(void*, max_items, item->gm->arena);
-	item->combobox.contents_size         = max_items;
-	item->combobox.contents_count        = 0;
-	item->combobox.on_selected           = ztInvalidID;
+	item->combobox.popup = nullptr;
+	item->combobox.contents = zt_mallocStructArrayArena(ztString, max_items, item->gm->arena);
+	item->combobox.contents_user_data = zt_mallocStructArrayArena(void*, max_items, item->gm->arena);
+	item->combobox.contents_size = max_items;
+	item->combobox.contents_count = 0;
+	item->combobox.on_selected = ztInvalidID;
 	item->combobox.on_selected_user_data = nullptr;
 
 	zt_fiz(max_items) {
@@ -7264,11 +7355,11 @@ ztGuiItem *zt_guiMakeComboBox(ztGuiItem *parent, i32 max_items)
 	item->combobox.selected = 0;
 
 
-	item->functions.cleanup     = _zt_guiComboBoxCleanup_FunctionID;
+	item->functions.cleanup = _zt_guiComboBoxCleanup_FunctionID;
 	item->functions.input_mouse = _zt_guiComboBoxInputMouse_FunctionID;
-	item->functions.input_key   = _zt_guiComboBoxInputKey_FunctionID;
-	item->functions.render      = _zt_guiComboBoxRender_FunctionID;
-	item->functions.best_size   = _zt_guiComboBoxBestSize_FunctionID;
+	item->functions.input_key = _zt_guiComboBoxInputKey_FunctionID;
+	item->functions.render = _zt_guiComboBoxRender_FunctionID;
+	item->functions.best_size = _zt_guiComboBoxBestSize_FunctionID;
 
 	ztVec2 min_size;
 	_zt_guiComboBoxBestSize(item, &min_size, nullptr, &item->size, theme, nullptr);
@@ -7431,6 +7522,303 @@ void zt_guiComboBoxSetCallback(ztGuiItem *combobox, ztFunctionID on_item_sel, vo
 	combobox->combobox.on_selected_user_data = user_data;
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiCycleBoxChanged(ztGuiItem *cyclebox)
+{
+	//
+	if (zt_bitIsSet(cyclebox->behavior_flags, ztGuiCycleBoxBehaviorFlags_HideInvalidButton)) {
+		if (cyclebox->cyclebox.selected == 0 && zt_guiItemIsVisible(cyclebox->cyclebox.buttons[0])) {
+			zt_guiItemHide(cyclebox->cyclebox.buttons[0]);
+		}
+		else if(!zt_guiItemIsVisible(cyclebox->cyclebox.buttons[0])) {
+			zt_guiItemShow(cyclebox->cyclebox.buttons[0]);
+		}
+
+		if (cyclebox->cyclebox.selected >= cyclebox->cyclebox.contents_count - 1 && zt_guiItemIsVisible(cyclebox->cyclebox.buttons[1])) {
+			zt_guiItemHide(cyclebox->cyclebox.buttons[1]);
+		}
+		else if(!zt_guiItemIsVisible(cyclebox->cyclebox.buttons[1])) {
+			zt_guiItemShow(cyclebox->cyclebox.buttons[1]);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiCycleBoxCycleLeft(ztGuiItem *item)
+{
+	bool changed = false;
+
+	if (item->cyclebox.selected > 0) {
+		item->cyclebox.selected -= 1;
+		changed = true;
+	}
+	else if (zt_bitIsSet(item->behavior_flags, ztGuiCycleBoxBehaviorFlags_Infinite)) {
+		item->cyclebox.selected = item->cyclebox.contents_count - 1;
+		changed = true;
+	}
+
+	if (changed) {
+		if (item->cyclebox.on_changed != ztInvalidID) {
+			((zt_guiCycleBoxValueChanged_Func*)zt_functionPointer(item->cyclebox.on_changed))(item, item->cyclebox.selected, item->cyclebox.on_changed_user_data);
+		}
+		_zt_guiCycleBoxChanged(item);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiCycleBoxCycleRight(ztGuiItem *item)
+{
+	bool changed = false;
+
+	if (item->cyclebox.selected < item->cyclebox.contents_count - 1) {
+		item->cyclebox.selected += 1;
+		changed = true;
+	}
+	else if (zt_bitIsSet(item->behavior_flags, ztGuiCycleBoxBehaviorFlags_Infinite)) {
+		item->cyclebox.selected = 0;
+		changed = true;
+	}
+
+	if (changed) {
+		if (item->cyclebox.on_changed != ztInvalidID) {
+			((zt_guiCycleBoxValueChanged_Func*)zt_functionPointer(item->cyclebox.on_changed))(item, item->cyclebox.selected, item->cyclebox.on_changed_user_data);
+		}
+		_zt_guiCycleBoxChanged(item);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiCycleBoxRender))
+{
+	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiCycleBoxCleanup))
+{
+	ZT_PROFILE_GUI("_zt_guiCycleBoxCleanup");
+
+	zt_fiz(item->cyclebox.contents_size) {
+		zt_stringFree(&item->gm->string_pool, item->cyclebox.contents[i]);
+	}
+	zt_freeArena(item->cyclebox.contents, item->gm->arena);
+	zt_freeArena(item->cyclebox.contents_user_data, item->gm->arena);
+	item->cyclebox.contents_size = item->cyclebox.contents_count = -1;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxInputKey, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiCycleBoxInputKey))
+{
+	ZT_PROFILE_GUI("_zt_guiCycleBoxInputKey");
+
+	if (input_keys[ztInputKeys_Left].justPressedOrRepeated()) {
+		_zt_guiCycleBoxCycleLeft(item);
+	}
+	if (input_keys[ztInputKeys_Right].justPressedOrRepeated()) {
+		_zt_guiCycleBoxCycleRight(item);
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxBestSize, static ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiCycleBoxBestSize))
+{
+	ZT_PROFILE_GUI("_zt_guiCycleBoxBestSize");
+
+	zt_guiThemeSizeItem(theme, item);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxButtonLeft, static ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonLeft))
+{
+	ztGuiItem *item = (ztGuiItem*)user_data;
+	_zt_guiCycleBoxCycleLeft(item);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxButtonRight, static ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonRight))
+{
+	ztGuiItem *item = (ztGuiItem*)user_data;
+	_zt_guiCycleBoxCycleRight(item);
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeCycleBox(ztGuiItem *parent, i32 max_items, i32 behavior_flags)
+{
+	ZT_PROFILE_GUI("zt_guiMakeCycleBox");
+
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_CycleBox, ztGuiItemBehaviorFlags_WantsFocus|behavior_flags);
+	zt_returnValOnNull(item, nullptr);
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(item);
+
+	item->cyclebox.contents              = zt_mallocStructArrayArena(ztString, max_items, item->gm->arena);
+	item->cyclebox.contents_user_data    = zt_mallocStructArrayArena(void*, max_items, item->gm->arena);
+	item->cyclebox.contents_size         = max_items;
+	item->cyclebox.contents_count        = 0;
+	item->cyclebox.on_changed            = ztInvalidID;
+	item->cyclebox.on_changed_user_data  = nullptr;
+
+	zt_fiz(max_items) {
+		item->cyclebox.contents[i]           = zt_stringMake(&item->gm->string_pool, 128);
+		item->cyclebox.contents[i][0]        = 0;
+		item->cyclebox.contents_user_data[i] = nullptr;
+	}
+
+	ztGuiItem *button_left = zt_guiMakeButton(item, nullptr, 0);
+	zt_guiButtonSetCallback(button_left, _zt_guiCycleBoxButtonLeft_FunctionID, item);
+	zt_guiThemeUpdateSubitem(theme, item, button_left, (void*)ztDirection_Left);
+
+	ztGuiItem *button_right = zt_guiMakeButton(item, nullptr, 0);
+	zt_guiButtonSetCallback(button_right, _zt_guiCycleBoxButtonRight_FunctionID, item);
+	zt_guiThemeUpdateSubitem(theme, item, button_right, (void*)ztDirection_Right);
+
+	item->cyclebox.selected = 0;
+
+	item->cyclebox.buttons[0] = button_left;
+	item->cyclebox.buttons[1] = button_right;
+
+	item->functions.cleanup     = _zt_guiCycleBoxCleanup_FunctionID;
+	item->functions.input_key   = _zt_guiCycleBoxInputKey_FunctionID;
+	item->functions.render      = _zt_guiCycleBoxRender_FunctionID;
+	item->functions.best_size   = _zt_guiCycleBoxBestSize_FunctionID;
+
+	ztVec2 min_size;
+	_zt_guiCycleBoxBestSize(item, &min_size, nullptr, &item->size, theme, nullptr);
+
+	_zt_guiCycleBoxChanged(item);
+
+	return item;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiCycleBoxSetContents(ztGuiItem *cyclebox, const char **contents, int contents_count, int active)
+{
+	ZT_PROFILE_GUI("zt_guiCycleBoxSetContents");
+
+	zt_assertReturnOnFail(cyclebox->type == ztGuiItemType_CycleBox);
+
+	cyclebox->cyclebox.contents_count = zt_min(contents_count, cyclebox->cyclebox.contents_size);
+	zt_fiz(cyclebox->cyclebox.contents_count) {
+		zt_stringOverwrite(&cyclebox->gm->string_pool, cyclebox->cyclebox.contents[i], contents[i]);
+	}
+
+	cyclebox->cyclebox.selected = zt_clamp(active, 0, cyclebox->cyclebox.contents_count - 1);
+
+	_zt_guiCycleBoxChanged(cyclebox);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiCycleBoxClear(ztGuiItem *cyclebox)
+{
+	ZT_PROFILE_GUI("zt_guiCycleBoxClear");
+
+	zt_assertReturnOnFail(cyclebox->type == ztGuiItemType_CycleBox);
+	cyclebox->cyclebox.contents_count = 0;
+	cyclebox->cyclebox.selected = -1;
+	_zt_guiCycleBoxChanged(cyclebox);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiCycleBoxAppend(ztGuiItem *cyclebox, const char *content, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiCycleBoxAppend");
+
+	zt_assertReturnOnFail(cyclebox->type == ztGuiItemType_CycleBox);
+	zt_assertReturnOnFail(cyclebox->cyclebox.contents_count < cyclebox->cyclebox.contents_size);
+
+	if (cyclebox->cyclebox.contents_count == 0) {
+		cyclebox->cyclebox.selected = 0;
+	}
+
+	int idx = cyclebox->cyclebox.contents_count;
+	cyclebox->cyclebox.contents_count += 1;
+
+	zt_stringOverwrite(&cyclebox->gm->string_pool, cyclebox->cyclebox.contents[idx], content);
+	cyclebox->cyclebox.contents_user_data[idx] = user_data;
+
+	_zt_guiCycleBoxChanged(cyclebox);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_guiCycleBoxGetSelected(ztGuiItem *cyclebox)
+{
+	zt_assertReturnValOnFail(cyclebox->type == ztGuiItemType_CycleBox, -1);
+	return cyclebox->cyclebox.selected;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiCycleBoxSetSelected(ztGuiItem *cyclebox, int selected)
+{
+	zt_assertReturnOnFail(cyclebox->type == ztGuiItemType_CycleBox);
+	cyclebox->cyclebox.selected = selected;
+	_zt_guiCycleBoxChanged(cyclebox);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_guiCycleBoxGetItemCount(ztGuiItem *cyclebox)
+{
+	zt_assertReturnValOnFail(cyclebox->type == ztGuiItemType_CycleBox, 0);
+	return cyclebox->cyclebox.contents_count;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_guiCycleBoxGetItemText(ztGuiItem *cyclebox, int index, char* buffer, int buffer_len)
+{
+	ZT_PROFILE_GUI("zt_guiCycleBoxGetItemText");
+
+	zt_assertReturnValOnFail(cyclebox->type == ztGuiItemType_CycleBox, 0);
+	if (index >= 0 && index < cyclebox->cyclebox.contents_count) {
+		return zt_strCpy(buffer, buffer_len, cyclebox->cyclebox.contents[index]);
+	}
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+void *zt_guiCycleBoxGetItemUserData(ztGuiItem *cyclebox, int index)
+{
+	ZT_PROFILE_GUI("zt_guiCycleBoxGetItemUserData");
+
+	zt_assertReturnValOnFail(cyclebox->type == ztGuiItemType_CycleBox, nullptr);
+	if (index >= 0 && index < cyclebox->cyclebox.contents_count) {
+		return cyclebox->cyclebox.contents_user_data[index];
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiCycleBoxSetCallback(ztGuiItem *cyclebox, ztFunctionID on_item_change, void *user_data)
+{
+	zt_assertReturnOnFail(cyclebox->type == ztGuiItemType_CycleBox);
+	cyclebox->cyclebox.on_changed = on_item_change;
+	cyclebox->cyclebox.on_changed_user_data = user_data;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpriteDisplayRender))
