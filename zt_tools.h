@@ -8653,11 +8653,11 @@ i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
 
 			ztDisplay *display = &display_info->display[display_info->index++];
 
-			MONITORINFOEX monitor_info;
+			MONITORINFOEXA monitor_info;
 			zt_memSet(&monitor_info, zt_sizeof(monitor_info), 0);
 			monitor_info.cbSize = zt_sizeof(monitor_info);
 
-			if (FALSE == GetMonitorInfo(h_monitor, &monitor_info)) {
+			if (FALSE == GetMonitorInfoA(h_monitor, &monitor_info)) {
 				zt_logCritical("Unable to get monitor information (monitor index: %d)", --display_info->index);
 				return FALSE;
 			}
