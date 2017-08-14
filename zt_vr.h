@@ -252,9 +252,9 @@ ztInternal ztModel *_zt_vrLoadModel(ztVrInternal *vr, int tracking_device_index,
 	u32* indices = zt_mallocStructArray(u32, render_model->unTriangleCount * 3);
 
 	zt_fiz(render_model->unVertexCount) {
-		verts[i] = ztVec3(render_model->rVertexData[i].vPosition.v[0], render_model->rVertexData[i].vPosition.v[1], render_model->rVertexData[i].vPosition.v[2]);
-		uvs[i] = ztVec2(render_model->rVertexData[i].rfTextureCoord[0], render_model->rVertexData[i].rfTextureCoord[1]);
-		normals[i] = ztVec3(render_model->rVertexData[i].vNormal.v[0], render_model->rVertexData[i].vNormal.v[1], render_model->rVertexData[i].vNormal.v[2]);
+		verts[i] = zt_vec3(render_model->rVertexData[i].vPosition.v[0], render_model->rVertexData[i].vPosition.v[1], render_model->rVertexData[i].vPosition.v[2]);
+		uvs[i] = zt_vec2(render_model->rVertexData[i].rfTextureCoord[0], render_model->rVertexData[i].rfTextureCoord[1]);
+		normals[i] = zt_vec3(render_model->rVertexData[i].vNormal.v[0], render_model->rVertexData[i].vNormal.v[1], render_model->rVertexData[i].vNormal.v[2]);
 	}
 	zt_fiz(render_model->unTriangleCount * 3) {
 		indices[i] = render_model->rIndexData[i];
