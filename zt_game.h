@@ -2212,9 +2212,14 @@ void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const 
 void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
-// fancy fonts allows colors to be added in the middle of text using the format:
+// fancy text allows colors to be added in the middle of text using the format:
 // "This text is <color=ff0000ff>red</color> text.
 // be sure to avoid spaces in the color specifier
+//
+// fancy text also allows for sprites to be added in the middle of the text using the format:
+// "This is a sprite: <sprite=tex_id,x,y,w,h,scale_x,scale_y>
+// where tex_id is the id of the texture to use, x,y are the pixel coordinates of the top left corner, w,h are the pixel width and height, and scale_x,scale_y are r32 scale values to apply
+// be sure to avoid spaces in the sprite specifier
 
 ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
@@ -16136,11 +16141,16 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 		for (int i = chars_line; i < nodes; ++i) {
 			zt_strCpy(node_buff, zt_elementsOf(node_buff), (char*)data + nodes_tok[i].beg, nodes_tok[i].len);
-			node_buff[nodes_tok[i].len] = 0;
 
 			if (zt_strStartsWith(node_buff, "<char ")) {
 				if (glyph_idx >= chars) {
 					break;
+				}
+
+				if (i < nodes - 1 && *((char*)data + nodes_tok[i+1].beg) != '<') {
+					zt_strCat(node_buff, zt_elementsOf(node_buff), ">", 1);
+					zt_strCat(node_buff, zt_elementsOf(node_buff), (char*)data + nodes_tok[i + 1].beg, nodes_tok[i + 1].len);
+					i += 1;
 				}
 
 				codepoint = &font->glyph_code_point[glyph_idx];
@@ -17125,6 +17135,39 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 				in_format = false;
 				*format_ptr = 0;
 				format_ptr = format;
+
+				int str_len = zt_strLen(format);
+				if (zt_strStartsWith(format, "sprite=")) {
+					ztToken tokens[7];
+					char *sprite_str = format + 7;
+					int tokens_count = zt_strTokenize(sprite_str, ",", tokens, zt_elementsOf(tokens));
+
+					if (tokens_count >= 5) {
+						i32 id = zt_strToInt(sprite_str + tokens[0].beg, tokens[0].len, 0);
+						i32 x  = zt_strToInt(sprite_str + tokens[1].beg, tokens[1].len, 0);
+						i32 y  = zt_strToInt(sprite_str + tokens[2].beg, tokens[2].len, 0);
+						i32 w  = zt_strToInt(sprite_str + tokens[3].beg, tokens[3].len, 0);
+						i32 h  = zt_strToInt(sprite_str + tokens[4].beg, tokens[4].len, 0);
+
+						r32 sx = tokens_count >= 6 ? zt_strToReal32(sprite_str + tokens[5].beg, tokens[5].len, 0) : 1.f;
+						r32 sy = tokens_count >= 7 ? zt_strToReal32(sprite_str + tokens[6].beg, tokens[6].len, 0) : 1.f;
+
+						ztVec2i ts = zt_textureGetSize(id);
+						if (ts.x > 0 && ts.y > 0) {
+							r32 ppu = zt_pixelsPerUnit();
+							r32 sprite_w = w / ppu;
+							r32 sprite_h = h / ppu;
+
+							r32 scale_diff_x = sprite_w - (sprite_w * sx);
+							r32 scale_diff_y = sprite_h - (sprite_h * sy);
+
+							last_xadv = 0;
+							row_width += sprite_w - scale_diff_x;
+							row_height = zt_max(zt_max(row_height, font->line_height), h / ppu);
+						}
+					}
+				}
+
 				continue;
 			}
 			else if (ch == '<') {
@@ -17391,6 +17434,71 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 					else if (zt_strStartsWith(format, "/color")) {
 						zt_drawListPopColor(draw_list);
 						colors_pushed -= 1;
+					}
+					else if (zt_strStartsWith(format, "sprite=")) {
+						ztToken tokens[7];
+						char *sprite_str = format + 7;
+						int tokens_count = zt_strTokenize(sprite_str, ",", tokens, zt_elementsOf(tokens));
+
+						if (tokens_count >= 5) {
+							i32 id = zt_strToInt(sprite_str + tokens[0].beg, tokens[0].len, 0);
+							i32 x = zt_strToInt(sprite_str + tokens[1].beg, tokens[1].len, 0);
+							i32 y = zt_strToInt(sprite_str + tokens[2].beg, tokens[2].len, 0);
+							i32 w = zt_strToInt(sprite_str + tokens[3].beg, tokens[3].len, 0);
+							i32 h = zt_strToInt(sprite_str + tokens[4].beg, tokens[4].len, 0);
+
+							r32 sx = scale_x * (tokens_count >= 6 ? zt_strToReal32(sprite_str + tokens[5].beg, tokens[5].len, 0) : 1.f);
+							r32 sy = scale_y * (tokens_count >= 7 ? zt_strToReal32(sprite_str + tokens[6].beg, tokens[6].len, 0) : 1.f);
+
+							ztVec2i ts = zt_textureGetSize(id);
+							if (ts.x > 0 && ts.y > 0) {
+								r32 ppu = zt_pixelsPerUnit();
+								r32 sprite_w = w / ppu;
+								r32 sprite_h = h / ppu;
+
+								r32 uv_x = x / (r32)ts.x;
+								r32 uv_y = y / (r32)ts.y;
+								r32 uv_w = w / (r32)ts.x + uv_x;
+								r32 uv_h = h / (r32)ts.y + uv_y;
+
+								r32 scale_diff_x = sprite_w - (sprite_w * sx);
+								r32 scale_diff_y = sprite_h - (sprite_h * sy);
+
+								zt_drawListPushTexture(draw_list, id);
+								{
+									position.x = start_pos_x;
+									position.y = start_pos_y + (scale_diff_y / 2.f);
+
+									// points in ccw order
+									dl_pos[0].x = position.x; dl_pos[1].x = position.x;                 dl_pos[2].x = position.x + sprite_w * sx; dl_pos[3].x = position.x + sprite_w * sx;
+									dl_pos[0].y = position.y + sprite_h * sy; dl_pos[1].y = position.y; dl_pos[2].y = position.y; dl_pos[3].y = position.y + sprite_h * sy;
+
+									dl_uvs[0].x = uv_x; dl_uvs[1].x = uv_x; dl_uvs[2].x = uv_w; dl_uvs[3].x = uv_w;
+									dl_uvs[0].y = uv_y; dl_uvs[1].y = uv_h; dl_uvs[2].y = uv_h; dl_uvs[3].y = uv_y;
+
+									r32 x_adv = sprite_w - scale_diff_x;
+
+									if (text_anim) {
+										bool should_skip = false, pop_color = false;
+										text_anim(draw_list, 0, actl_letter, actl_text_len, r, dl_pos, dl_uvs, &x_adv, &y_adv, &should_skip, &pop_color, text_anim_user_data);
+										if (!should_skip) {
+											zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+										}
+
+										if (pop_color) {
+											zt_drawListPopColor(draw_list);
+
+										}
+									}
+									else {
+										zt_drawListAddFilledQuad(draw_list, dl_pos, dl_uvs, dl_nml);
+									}
+
+									start_pos_x += x_adv;
+								}
+								zt_drawListPopTexture(draw_list);
+							}
+						}
 					}
 
 					continue;
