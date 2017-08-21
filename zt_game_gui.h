@@ -613,7 +613,7 @@ ztGuiItem       *zt_guiMakeMenuBar                     (ztGuiItem *parent);
 ztGuiItem       *zt_guiMakeTree                        (ztGuiItem *parent, i32 max_items);
 ztGuiItem       *zt_guiMakeComboBox                    (ztGuiItem *parent, i32 max_items);
 ztGuiItem       *zt_guiMakeCycleBox                    (ztGuiItem *parent, i32 max_items);
-ztGuiItem       *zt_guiMakeSpriteDisplay               (ztGuiItem *parent, ztGuiThemeSprite *sprite);
+ztGuiItem       *zt_guiMakeSpriteDisplay               (ztGuiItem *parent, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one, const ztVec4& bgcolor = ztVec4::zero);
 ztGuiItem       *zt_guiMakeSpinner                     (ztGuiItem *parent, int *live_value = nullptr);
 ztGuiItem       *zt_guiMakeListBox                     (ztGuiItem *parent, i32 behavior_flags = 0, i32 max_items = 128);
 ztGuiItem       *zt_guiMakeSizer                       (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
@@ -7846,7 +7846,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayBestSize, ztInternal ZT_FUNC_GU
 }
 // ================================================================================================================================================================================================
 
-ztGuiItem *zt_guiMakeSpriteDisplay(ztGuiItem *parent, ztGuiThemeSprite *sprite)
+ztGuiItem *zt_guiMakeSpriteDisplay(ztGuiItem *parent, ztGuiThemeSprite *sprite, const ztVec2& scale, const ztVec4& bgcolor)
 {
 	ZT_PROFILE_GUI("zt_guiMakeSpriteDisplay");
 
@@ -7862,8 +7862,11 @@ ztGuiItem *zt_guiMakeSpriteDisplay(ztGuiItem *parent, ztGuiThemeSprite *sprite)
 	else {
 		item->sprite_display.sprite->type = ztGuiThemeSpriteType_Invalid;
 	}
-	item->sprite_display.scale[0] = item->sprite_display.scale[1] = 1;
-
+	item->sprite_display.scale[0] = scale.x;
+	item->sprite_display.scale[1] = scale.y;
+	zt_fize(item->sprite_display.bgcolor) {
+		item->sprite_display.bgcolor[i] = bgcolor.values[i];
+	}
 
 	item->functions.render    = _zt_guiSpriteDisplayRender_FunctionID;
 	item->functions.cleanup   = _zt_guiSpriteDisplayCleanup_FunctionID;
