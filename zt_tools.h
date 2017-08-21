@@ -393,6 +393,7 @@ struct ztVec2
 	static ztVec2 lerpSinerp(const ztVec2& v1, const ztVec2& v2, r32 percent);
 	static ztVec2 lerpCoserp(const ztVec2& v1, const ztVec2& v2, r32 percent);
 	static ztVec2 lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent);
+	static ztVec2 lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent, r32 power);
 
 	static ztVec2 linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b);
 
@@ -465,6 +466,7 @@ struct ztVec3
 	static ztVec3 lerpSinerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
 	static ztVec3 lerpCoserp(const ztVec3& v1, const ztVec3& v2, r32 percent);
 	static ztVec3 lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
+	static ztVec3 lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent, r32 power);
 
 	static ztVec3 linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b);
 
@@ -543,6 +545,7 @@ struct ztVec4
 	static ztVec4 lerpSinerp(const ztVec4& v1, const ztVec4& v2, r32 percent);
 	static ztVec4 lerpCoserp(const ztVec4& v1, const ztVec4& v2, r32 percent);
 	static ztVec4 lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent);
+	static ztVec4 lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent, r32 power);
 
 	static ztVec4 linearRemap(const ztVec4& val, const ztVec4& v1a, const ztVec4& v1b, const ztVec4& v2a, const ztVec4& v2b);
 
@@ -2422,6 +2425,13 @@ ztInline r32 ztVec2::distance(const ztVec2& v) const
 
 // ================================================================================================================================================================================================
 
+/*static*/ ztInline ztVec2 ztVec2::lerpBerp(const ztVec2& v1, const ztVec2& v2, r32 percent, r32 power)
+{
+	return zt_vec2(zt_lerpBerp(v1.x, v2.x, percent, power), zt_lerpBerp(v1.y, v2.y, percent, power));
+}
+
+// ================================================================================================================================================================================================
+
 /*static*/ ztInline ztVec2 ztVec2::linearRemap(const ztVec2& val, const ztVec2& v1a, const ztVec2& v1b, const ztVec2& v2a, const ztVec2& v2b)
 {
 	return zt_vec2(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)));
@@ -2583,6 +2593,13 @@ ztInline r32 ztVec3::distance(const ztVec3& v) const
 
 // ================================================================================================================================================================================================
 
+/*static*/ ztInline ztVec3 ztVec3::lerpBerp(const ztVec3& v1, const ztVec3& v2, r32 percent, r32 power)
+{
+	return zt_vec3(zt_lerpBerp(v1.x, v2.x, percent, power), zt_lerpBerp(v1.y, v2.y, percent, power), zt_lerpBerp(v1.z, v2.z, percent, power));
+}
+
+// ================================================================================================================================================================================================
+
 /*static*/ ztInline ztVec3 ztVec3::linearRemap(const ztVec3& val, const ztVec3& v1a, const ztVec3& v1b, const ztVec3& v2a, const ztVec3& v2b)
 {
 	return zt_vec3(zt_lerp(v2a.x, v2b.x, zt_unlerp(v1a.x, v1b.x, val.x)), zt_lerp(v2a.y, v2b.y, zt_unlerp(v1a.y, v1b.y, val.y)), zt_lerp(v2a.z, v2b.z, zt_unlerp(v1a.z, v1b.z, val.z)));
@@ -2679,6 +2696,13 @@ ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 /*static*/ ztInline ztVec4 ztVec4::lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
 {
 	return zt_vec4(zt_lerpBerp(v1.x, v2.x, percent), zt_lerpBerp(v1.y, v2.y, percent), zt_lerpBerp(v1.z, v2.z, percent), zt_lerpBerp(v1.w, v2.w, percent));
+}
+
+// ================================================================================================================================================================================================
+
+/*static*/ ztInline ztVec4 ztVec4::lerpBerp(const ztVec4& v1, const ztVec4& v2, r32 percent, r32 power)
+{
+	return zt_vec4(zt_lerpBerp(v1.x, v2.x, percent, power), zt_lerpBerp(v1.y, v2.y, percent, power), zt_lerpBerp(v1.z, v2.z, percent, power), zt_lerpBerp(v1.w, v2.w, percent, power));
 }
 
 // ================================================================================================================================================================================================
