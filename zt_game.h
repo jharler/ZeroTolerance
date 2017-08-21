@@ -22004,6 +22004,8 @@ void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *va
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+
+	*value = beg_val;
 }
 
 // ================================================================================================================================================================================================
@@ -22023,6 +22025,8 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+
+	*value = beg_val;
 }
 
 // ================================================================================================================================================================================================
@@ -22042,6 +22046,8 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+
+	*value = beg_val;
 }
 
 // ================================================================================================================================================================================================
@@ -22061,6 +22067,8 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+
+	*value = beg_val;
 }
 
 // ================================================================================================================================================================================================
@@ -22080,6 +22088,8 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+
+	*value = beg_val;
 }
 
 // ================================================================================================================================================================================================
@@ -22186,27 +22196,29 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 
 		r32 percent = tween_item[i].time < tween_item[i].delay ? 0 : (tween_item[i].time - tween_item[i].delay) / tween_item[i].length;
 
-		switch (tween_item[i].type)
-		{
-			case ztTweenItemType_Real: {
-				*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
-			} break;
+		if (percent > 0 || tween_item[i].delay == 0) {
+			switch (tween_item[i].type)
+			{
+				case ztTweenItemType_Real: {
+					*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+				} break;
 
-			case ztTweenItemType_Vec2: {
-				*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
-			} break;
+				case ztTweenItemType_Vec2: {
+					*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+				} break;
 
-			case ztTweenItemType_Vec3: {
-				*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
-			} break;
+				case ztTweenItemType_Vec3: {
+					*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+				} break;
 
-			case ztTweenItemType_Vec4: {
-				*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
-			} break;
+				case ztTweenItemType_Vec4: {
+					*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+				} break;
 
-			case ztTweenItemType_Quat: {
-				tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
-			} break;
+				case ztTweenItemType_Quat: {
+					tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+				} break;
+			}
 		}
 	}
 }
@@ -22911,7 +22923,10 @@ ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller
 	ztSpriteAnimController::Sequence *sequence = &controller->sequences[controller->active_sequence];
 
 	if (sequence->current_sprite < 0 || sequence->current_sprite >= sequence->sprites_size) {
-		return nullptr;
+		if (sequence->sprites_size <= 0) {
+			return nullptr;
+		}
+		return &sequence->sprites[0];
 	}
 
 	return &sequence->sprites[sequence->current_sprite];
