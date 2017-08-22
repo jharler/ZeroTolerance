@@ -2809,6 +2809,37 @@ void           zt_tweenManagerReclaimItem(ztTweenManager *tween_manager, ztTween
 
 void           zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt);
 
+
+// ================================================================================================================================================================================================
+// variable cache
+//
+// variable caches allow for easy tweening without having to creating member/static variables specifically for the
+// tween.  it helps keep all functionality for the tween local
+// ================================================================================================================================================================================================
+
+struct ztVariableCache
+{
+	ztVariant *variables;
+	i32       *ids;
+	i32       *frame_referenced;
+
+	i32        variables_count;
+};
+
+
+void       zt_variableCacheMake(ztVariableCache *cache, int max_variables);
+void       zt_variableCacheFree(ztVariableCache *cache);
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32       defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32       defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2    defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3    defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4    defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat    defval);
+
+bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames); // the maximum number of frames that can pass before resetting variable.  returns true if variable has been reset
+
 // ================================================================================================================================================================================================
 // animation
 // ================================================================================================================================================================================================
@@ -2976,6 +3007,7 @@ void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, cons
 void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i32 sequence_name_hash);
 void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int controllers_count, r32 dt);
 
+bool      zt_spriteAnimControllerIsActive(ztSpriteAnimController *controller);
 ztSprite *zt_spriteAnimControllerActiveSprite(ztSpriteAnimController *controller);
 r32       zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimController *controller);
 
@@ -5304,11 +5336,11 @@ void zt_debuggingSet(ztDebugVarID debug_var, u32    val) {  zt_assertReturnOnFai
 void zt_debuggingSet(ztDebugVarID debug_var, u64    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_u64  = val; }
 void zt_debuggingSet(ztDebugVarID debug_var, r32    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_r32  = val; }
 void zt_debuggingSet(ztDebugVarID debug_var, r64    val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_r64  = val; }
-void zt_debuggingSet(ztDebugVarID debug_var, ztVec2 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec2[i] = val.values[i]; }
-void zt_debuggingSet(ztDebugVarID debug_var, ztVec3 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec3[i] = val.values[i]; }
-void zt_debuggingSet(ztDebugVarID debug_var, ztVec4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_vec4[i] = val.values[i]; }
-void zt_debuggingSet(ztDebugVarID debug_var, ztMat4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_mat4[i] = val.values[i]; }
-void zt_debuggingSet(ztDebugVarID debug_var, ztQuat val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_fize(val.values) zt_game->debug_vars[debug_var].variable.v_quat[i] = val.values[i]; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec2 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_vec2 = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec3 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_vec3 = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztVec4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_vec4 = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztMat4 val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_mat4 = val; }
+void zt_debuggingSet(ztDebugVarID debug_var, ztQuat val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_quat = val; }
 void zt_debuggingSet(ztDebugVarID debug_var, bool   val) {  zt_assertReturnOnFail(debug_var >= 0 && debug_var < zt_game->debug_vars_count); zt_game->debug_vars[debug_var].variable.v_bool = val; }
 
 
@@ -22005,7 +22037,9 @@ void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *va
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
 
-	*value = beg_val;
+	if (delay == 0) {
+		*value = beg_val;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22026,7 +22060,9 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, z
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
 
-	*value = beg_val;
+	if (delay == 0) {
+		*value = beg_val;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22047,7 +22083,9 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, z
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
 
-	*value = beg_val;
+	if (delay == 0) {
+		*value = beg_val;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22068,7 +22106,9 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, z
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
 
-	*value = beg_val;
+	if (delay == 0) {
+		*value = beg_val;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22089,7 +22129,9 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, z
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
 
-	*value = beg_val;
+	if (delay == 0) {
+		*value = beg_val;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22413,6 +22455,201 @@ void zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt)
 	}
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_variableCacheMake(ztVariableCache *cache, int max_variables)
+{
+	zt_returnOnNull(cache);
+	cache->variables = zt_mallocStructArray(ztVariant, max_variables);
+	cache->ids = zt_mallocStructArray(i32, max_variables);
+	cache->frame_referenced = zt_mallocStructArray(i32, max_variables);
+	cache->variables_count = max_variables;
+
+	zt_fiz(max_variables) {
+		cache->ids[i] = 0;
+		cache->frame_referenced[i] = -1;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_variableCacheFree(ztVariableCache *cache)
+{
+	if (cache == nullptr) {
+		return;
+	}
+
+	zt_free(cache->variables);
+	zt_free(cache->ids);
+	zt_free(cache->frame_referenced);
+	cache->variables_count = 0;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal ztVariant *_zt_variableCacheFind(ztVariableCache *cache, i32 id)
+{
+	zt_fiz(cache->variables_count) {
+		if (cache->ids[i] == id) {
+			cache->frame_referenced[i] = zt_game->game_details.current_frame;
+			return &cache->variables[i];
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal ztVariant *_zt_variableCacheNew(ztVariableCache *cache, i32 id)
+{
+	zt_fiz(cache->variables_count) {
+		if (cache->ids[i] == 0) {
+			cache->ids[i] = id;
+			cache->frame_referenced[i] = zt_game->game_details.current_frame;
+			return &cache->variables[i];
+		}
+	}
+
+	zt_assert(false);
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval)
+{
+	zt_returnValOnNull(cache, nullptr);
+
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		zt_variantAssignValue(result, defval);
+	}
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32 defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_r32(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32 defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_i32(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2 defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_vec2(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3 defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_vec3(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4 defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_vec4(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat defval)
+{
+	ztVariant *result = _zt_variableCacheFind(cache, id);
+	if (result == nullptr) {
+		result = _zt_variableCacheNew(cache, id);
+		if (result == nullptr) {
+			return nullptr;
+		}
+
+		*result = zt_variantMake_quat(defval);
+	}
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames)
+{
+	zt_returnValOnNull(cache, true);
+
+	zt_fiz(cache->variables_count) {
+		if (cache->ids[i] == id) {
+			if (zt_game->game_details.current_frame - cache->frame_referenced[i] > frames) {
+				cache->ids[i] = 0;
+				return true;
+			}
+			return false;
+		}
+	}
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -22909,6 +23146,24 @@ void zt_spriteAnimControllerUpdate(ztSpriteAnimController **controllers, int con
 			}
 		}
 	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteAnimControllerIsActive(ztSpriteAnimController *controller)
+{
+	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerIsActive");
+	if (controller->active_sequence < 0 || controller->active_sequence >= controller->sequences_count) {
+		return false;
+	}
+
+	ztSpriteAnimController::Sequence *sequence = &controller->sequences[controller->active_sequence];
+
+	if (sequence->current_sprite < 0 || sequence->current_sprite >= sequence->sprites_size) {
+		return false;
+	}
+
+	return true;
 }
 
 // ================================================================================================================================================================================================
