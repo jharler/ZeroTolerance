@@ -967,22 +967,22 @@ struct ztVariant
 
 	union
 	{
-		i8    v_i8;
-		i16   v_i16;
-		i32   v_i32;
-		i64   v_i64;
-		u8    v_u8;
-		u16   v_u16;
-		u32   v_u32;
-		u64   v_u64;
-		r32   v_r32;
-		r64   v_r64;
-		void *v_voidp;
-		r32   v_vec2[2];
-		r32   v_vec3[3];
-		r32   v_vec4[4];
-		r32   v_mat4[16];
-		r32   v_quat[4];
+		i8     v_i8;
+		i16    v_i16;
+		i32    v_i32;
+		i64    v_i64;
+		u8     v_u8;
+		u16    v_u16;
+		u32    v_u32;
+		u64    v_u64;
+		r32    v_r32;
+		r64    v_r64;
+		void  *v_voidp;
+		ztVec2 v_vec2;
+		ztVec3 v_vec3;
+		ztVec4 v_vec4;
+		ztMat4 v_mat4;
+		ztQuat v_quat;
 		bool  v_bool;
 	};
 };
@@ -1873,7 +1873,9 @@ bool zt_serialWrite      (ztSerial *serial, ztVec2 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec3 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec4 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec2i vec);
-bool zt_serialWrite      (ztSerial *serial, ztVec3i vec);
+bool zt_serialWrite      (ztSerial *serial, ztMat4 mat);
+bool zt_serialWrite      (ztSerial *serial, ztQuat quat);
+
 
 bool zt_serialRead       (ztSerial *serial, i8 *value);
 bool zt_serialRead       (ztSerial *serial, i16 *value);
@@ -1895,6 +1897,8 @@ bool zt_serialRead       (ztSerial *serial, ztVec3 *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec4 *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec2i *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec3i *vec);
+bool zt_serialRead       (ztSerial *serial, ztMat4 *mat);
+bool zt_serialRead       (ztSerial *serial, ztQuat *quat);
 
 
 // ================================================================================================================================================================================================
@@ -3199,12 +3203,12 @@ ztInline ztVariant        zt_variantMake_u64       (u64           val)          
 ztInline ztVariant        zt_variantMake_r32       (r32           val)          { ztVariant var; var.type = ztVariant_r32  ; var.v_r32   = val; return var; }
 ztInline ztVariant        zt_variantMake_r64       (r64           val)          { ztVariant var; var.type = ztVariant_r64  ; var.v_r64   = val; return var; }
 ztInline ztVariant        zt_variantMake_voidp     (void         *val)          { ztVariant var; var.type = ztVariant_voidp; var.v_voidp = val; return var; }
-ztInline ztVariant        zt_variantMake_vec2      (const ztVec2& val)          { ztVariant var; var.type = ztVariant_vec2 ; zt_fize(val.values) var.v_vec2[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMake_vec3      (const ztVec3& val)          { ztVariant var; var.type = ztVariant_vec3 ; zt_fize(val.values) var.v_vec3[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMake_vec4      (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; zt_fize(val.values) var.v_vec4[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMake_mat4      (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; zt_fize(val.values) var.v_mat4[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMake_quat      (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; zt_fize(val.values) var.v_quat[i] = val.values[i]; return var; }
-ztInline ztVariant        zt_variantMake_bool      (const bool    val)          { ztVariant var; var.type = ztVariant_bool ; var.v_bool = val; return var; }
+ztInline ztVariant        zt_variantMake_vec2      (const ztVec2& val)          { ztVariant var; var.type = ztVariant_vec2 ; var.v_vec2  = val; return var; }
+ztInline ztVariant        zt_variantMake_vec3      (const ztVec3& val)          { ztVariant var; var.type = ztVariant_vec3 ; var.v_vec3  = val; return var; }
+ztInline ztVariant        zt_variantMake_vec4      (const ztVec4& val)          { ztVariant var; var.type = ztVariant_vec4 ; var.v_vec4  = val; return var; }
+ztInline ztVariant        zt_variantMake_mat4      (const ztMat4& val)          { ztVariant var; var.type = ztVariant_mat4 ; var.v_mat4  = val; return var; }
+ztInline ztVariant        zt_variantMake_quat      (const ztQuat& val)          { ztVariant var; var.type = ztVariant_quat ; var.v_quat  = val; return var; }
+ztInline ztVariant        zt_variantMake_bool      (const bool    val)          { ztVariant var; var.type = ztVariant_bool ; var.v_bool  = val; return var; }
 
 ztInline ztVariant        zt_variantMake(ztVariantPointer *variant)
 {
@@ -3261,11 +3265,11 @@ ztInline u64              zt_variantGetAs_u64      (ztVariant *variant)         
 ztInline r32              zt_variantGetAs_r32      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r32); return variant->v_r32; }
 ztInline r64              zt_variantGetAs_r64      (ztVariant *variant)         { zt_assert(variant->type == ztVariant_r64); return variant->v_r64; }
 ztInline void            *zt_variantGetAs_voidp    (ztVariant *variant)         { zt_assert(variant->type == ztVariant_voidp); return variant->v_voidp; }
-ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return zt_vec2(variant->v_vec2[0], variant->v_vec2[1]); }
-ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return zt_vec3(variant->v_vec3[0], variant->v_vec3[1], variant->v_vec3[2]); }
-ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return zt_vec4(variant->v_vec4[0], variant->v_vec4[1], variant->v_vec4[2], variant->v_vec4[3]); }
-ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return zt_mat4(variant->v_mat4); }
-ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return zt_quat(variant->v_quat); }
+ztInline ztVec2           zt_variantGetAs_vec2     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec2 ); return variant->v_vec2; }
+ztInline ztVec3           zt_variantGetAs_vec3     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec3 ); return variant->v_vec3; }
+ztInline ztVec4           zt_variantGetAs_vec4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_vec4 ); return variant->v_vec4; }
+ztInline ztMat4           zt_variantGetAs_mat4     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_mat4 ); return variant->v_mat4; }
+ztInline ztQuat           zt_variantGetAs_quat     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_quat ); return variant->v_quat; }
 ztInline bool             zt_variantGetAs_bool     (ztVariant *variant)         { zt_assert(variant->type == ztVariant_bool ); return variant->v_bool; }
 
 ztInline i8              *zt_variantGetAs_i8       (ztVariantPointer *variant)  { zt_assert(variant->type == ztVariant_i8   ); return variant->v_i8; }
@@ -3293,23 +3297,23 @@ ztInline void zt_variantAssignValue(ztVariantPointer *variant, ztVariant value)
 	variant->type = value.type;
 	switch (variant->type)
 	{
-		case ztVariant_i8: *variant->v_i8 = value.v_i8; break;
-		case ztVariant_i16: *variant->v_i16 = value.v_i16; break;
-		case ztVariant_i32: *variant->v_i32 = value.v_i32; break;
-		case ztVariant_i64: *variant->v_i64 = value.v_i64; break;
-		case ztVariant_u8: *variant->v_u8 = value.v_u8; break;
-		case ztVariant_u16: *variant->v_u16 = value.v_u16; break;
-		case ztVariant_u32: *variant->v_u32 = value.v_u32; break;
-		case ztVariant_u64: *variant->v_u64 = value.v_u64; break;
-		case ztVariant_r32: *variant->v_r32 = value.v_r32; break;
-		case ztVariant_r64: *variant->v_r64 = value.v_r64; break;
+		case ztVariant_i8:    *variant->v_i8    = value.v_i8;    break;
+		case ztVariant_i16:   *variant->v_i16   = value.v_i16;   break;
+		case ztVariant_i32:   *variant->v_i32   = value.v_i32;   break;
+		case ztVariant_i64:   *variant->v_i64   = value.v_i64;   break;
+		case ztVariant_u8:    *variant->v_u8    = value.v_u8;    break;
+		case ztVariant_u16:   *variant->v_u16   = value.v_u16;   break;
+		case ztVariant_u32:   *variant->v_u32   = value.v_u32;   break;
+		case ztVariant_u64:   *variant->v_u64   = value.v_u64;   break;
+		case ztVariant_r32:   *variant->v_r32   = value.v_r32;   break;
+		case ztVariant_r64:   *variant->v_r64   = value.v_r64;   break;
 		case ztVariant_voidp: *variant->v_voidp = value.v_voidp; break;
-		case ztVariant_vec2: variant->v_vec2->x = value.v_vec2[0]; variant->v_vec2->y = value.v_vec2[1]; break;
-		case ztVariant_vec3: variant->v_vec3->x = value.v_vec3[0]; variant->v_vec3->y = value.v_vec3[1]; variant->v_vec3->z = value.v_vec3[2]; break;
-		case ztVariant_vec4: variant->v_vec4->x = value.v_vec4[0]; variant->v_vec4->y = value.v_vec4[1]; variant->v_vec4->z = value.v_vec4[2]; variant->v_vec4->w = value.v_vec4[3]; break;
-		case ztVariant_mat4: zt_fiz(16) variant->v_mat4->values[i] = value.v_mat4[i]; break;
-		case ztVariant_quat: variant->v_quat->x = value.v_quat[0]; variant->v_quat->y = value.v_quat[1]; variant->v_quat->z = value.v_quat[2]; variant->v_quat->w = value.v_quat[3]; break;
-		case ztVariant_bool: *variant->v_bool = value.v_bool; break;
+		case ztVariant_vec2:  *variant->v_vec2  = value.v_vec2;  break;
+		case ztVariant_vec3:  *variant->v_vec3  = value.v_vec3;  break;
+		case ztVariant_vec4:  *variant->v_vec4  = value.v_vec4;  break;
+		case ztVariant_mat4:  *variant->v_mat4  = value.v_mat4;  break;
+		case ztVariant_quat:  *variant->v_quat  = value.v_quat;  break;
+		case ztVariant_bool:  *variant->v_bool  = value.v_bool;  break;
 	}
 }
 
@@ -3324,17 +3328,17 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 		case ztVariant_i64  : return zt_variantMake_i64  ((i64)zt_lerp((i32)beg->v_i64, (i32)end->v_i64, pct));
 		case ztVariant_u8   : return zt_variantMake_u8   (( u8)zt_lerp((i32)beg->v_u8 , (i32)end->v_u8 , pct));
 		case ztVariant_u16  : return zt_variantMake_u16  ((u16)zt_lerp((i32)beg->v_u16, (i32)end->v_u16, pct));
-		case ztVariant_u32: return zt_variantMake_u32((u32)zt_lerp((i32)beg->v_u32, (i32)end->v_u32, pct));
-		case ztVariant_u64: return zt_variantMake_u64((u64)zt_lerp((i32)beg->v_u64, (i32)end->v_u64, pct));
-		case ztVariant_r32: return zt_variantMake_r32((r32)zt_lerp((r32)beg->v_r32, (r32)end->v_r32, pct));
-		case ztVariant_r64: return zt_variantMake_r64((r64)zt_lerp((r32)beg->v_r64, (r32)end->v_r64, pct));
+		case ztVariant_u32  : return zt_variantMake_u32  ((u32)zt_lerp((i32)beg->v_u32, (i32)end->v_u32, pct));
+		case ztVariant_u64  : return zt_variantMake_u64  ((u64)zt_lerp((i32)beg->v_u64, (i32)end->v_u64, pct));
+		case ztVariant_r32  : return zt_variantMake_r32  ((r32)zt_lerp((r32)beg->v_r32, (r32)end->v_r32, pct));
+		case ztVariant_r64  : return zt_variantMake_r64  ((r64)zt_lerp((r32)beg->v_r64, (r32)end->v_r64, pct));
 		case ztVariant_voidp: zt_assert(false); // _voidpcan't lerp void pointers
-		case ztVariant_vec2 : return zt_variantMake_vec2(ztVec2::lerp(zt_vec2(beg->v_vec2[0], beg->v_vec2[1]), zt_vec2(end->v_vec2[0], end->v_vec2[1]), pct));
-		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(zt_vec3(beg->v_vec3[0], beg->v_vec3[1], beg->v_vec3[2]), zt_vec3(end->v_vec3[0], end->v_vec3[1], end->v_vec3[2]), pct));
-		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(zt_vec4(beg->v_vec4[0], beg->v_vec4[1], beg->v_vec4[2], beg->v_vec4[3]), zt_vec4(end->v_vec4[0], end->v_vec4[1], end->v_vec4[2], end->v_vec4[3]), pct));
+		case ztVariant_vec2 : return zt_variantMake_vec2(ztVec2::lerp(beg->v_vec2, end->v_vec2, pct));
+		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(beg->v_vec3, end->v_vec3, pct));
+		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(beg->v_vec4, end->v_vec4, pct));
 		case ztVariant_mat4 : zt_assert(false); // can't lerp mat4s... use quats instead
-		case ztVariant_quat: return zt_variantMake_quat(ztQuat::lerp(zt_quat(beg->v_quat[0], beg->v_quat[1], beg->v_quat[2], beg->v_quat[3]), zt_quat(end->v_quat[0], end->v_quat[1], end->v_quat[2], end->v_quat[3]), pct));
-		case ztVariant_bool: return zt_variantMake_bool(pct < .5 ? beg->v_bool : end->v_bool);
+		case ztVariant_quat : return zt_variantMake_quat(ztQuat::lerp(beg->v_quat, end->v_quat, pct));
+		case ztVariant_bool : return zt_variantMake_bool(pct < .5 ? beg->v_bool : end->v_bool);
 	}
 
 	ztVariant v = { ztVariant_Invalid }; return v;
@@ -9297,6 +9301,8 @@ bool zt_serialWrite(ztSerial *serial, ztVec3  vec) { zt_fize(vec.values) { if (!
 bool zt_serialWrite(ztSerial *serial, ztVec4  vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztVec2i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztMat4 mat)  { zt_fize(mat.values) { if (!zt_serialWrite(serial, mat.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztQuat quat)  { zt_fize(quat.values) { if (!zt_serialWrite(serial, quat.values[i])) return false; } return true; }
 
 // ================================================================================================================================================================================================
 
@@ -9321,11 +9327,11 @@ bool zt_serialWrite(ztSerial *serial, ztVariant *variant)
 		case ztVariant_r32   : if (!zt_serialWrite(serial, variant->v_r32)) { return false; } break;
 		case ztVariant_r64   : if (!zt_serialWrite(serial, variant->v_r64)) { return false; } break;
 		case ztVariant_voidp : zt_assert(false); break;
-		case ztVariant_vec2  : zt_fize(variant->v_vec2) if (!zt_serialWrite(serial, variant->v_vec2[i])) { return false; } break;
-		case ztVariant_vec3  : zt_fize(variant->v_vec3) if (!zt_serialWrite(serial, variant->v_vec3[i])) { return false; } break;
-		case ztVariant_vec4  : zt_fize(variant->v_vec4) if (!zt_serialWrite(serial, variant->v_vec4[i])) { return false; } break;
-		case ztVariant_mat4  : zt_fize(variant->v_mat4) if (!zt_serialWrite(serial, variant->v_mat4[i])) { return false; } break;
-		case ztVariant_quat  : zt_fize(variant->v_quat) if (!zt_serialWrite(serial, variant->v_quat[i])) { return false; } break;
+		case ztVariant_vec2  : if (!zt_serialWrite(serial, variant->v_vec2)) { return false; } break;
+		case ztVariant_vec3  : if (!zt_serialWrite(serial, variant->v_vec3)) { return false; } break;
+		case ztVariant_vec4  : if (!zt_serialWrite(serial, variant->v_vec4)) { return false; } break;
+		case ztVariant_mat4  : if (!zt_serialWrite(serial, variant->v_mat4)) { return false; } break;
+		case ztVariant_quat  : if (!zt_serialWrite(serial, variant->v_quat)) { return false; } break;
 		case ztVariant_bool  : if (!zt_serialWrite(serial, variant->v_bool)) { return false; } break;
 		default: zt_assert(false);
 	}
@@ -9403,6 +9409,8 @@ bool zt_serialRead(ztSerial *serial, ztVec3  *vec) { zt_fize(vec->values) { if (
 bool zt_serialRead(ztSerial *serial, ztVec4  *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztVec2i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztMat4 *mat) { zt_fize(mat->values) { if (!zt_serialRead(serial, &mat->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztQuat *quat) { zt_fize(quat->values) { if (!zt_serialRead(serial, &quat->values[i])) return false; } return true; }
 
 // ================================================================================================================================================================================================
 
@@ -9429,11 +9437,11 @@ bool zt_serialRead(ztSerial *serial, ztVariant *variant)
 		case ztVariant_r32   : if (!zt_serialRead(serial, &variant->v_r32 )) { return false; } break;
 		case ztVariant_r64   : if (!zt_serialRead(serial, &variant->v_r64 )) { return false; } break;
 		case ztVariant_voidp : zt_assert(false); break;
-		case ztVariant_vec2  : zt_fize(variant->v_vec2) if (!zt_serialRead(serial, &variant->v_vec2[i])) { return false; } break;
-		case ztVariant_vec3  : zt_fize(variant->v_vec3) if (!zt_serialRead(serial, &variant->v_vec3[i])) { return false; } break;
-		case ztVariant_vec4  : zt_fize(variant->v_vec4) if (!zt_serialRead(serial, &variant->v_vec4[i])) { return false; } break;
-		case ztVariant_mat4  : zt_fize(variant->v_mat4) if (!zt_serialRead(serial, &variant->v_mat4[i])) { return false; } break;
-		case ztVariant_quat  : zt_fize(variant->v_quat) if (!zt_serialRead(serial, &variant->v_quat[i])) { return false; } break;
+		case ztVariant_vec2  : if (!zt_serialRead(serial, &variant->v_vec2)) { return false; } break;
+		case ztVariant_vec3  : if (!zt_serialRead(serial, &variant->v_vec3)) { return false; } break;
+		case ztVariant_vec4  : if (!zt_serialRead(serial, &variant->v_vec4)) { return false; } break;
+		case ztVariant_mat4  : if (!zt_serialRead(serial, &variant->v_mat4)) { return false; } break;
+		case ztVariant_quat  : if (!zt_serialRead(serial, &variant->v_quat)) { return false; } break;
 		case ztVariant_bool  : if (!zt_serialRead(serial, &variant->v_bool)) { return false; } break;
 		default: zt_assert(false);
 	}
