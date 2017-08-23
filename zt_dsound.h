@@ -86,6 +86,7 @@ void ztds_bufferPlayLooping(ztDirectSoundBuffer *buffer);
 void ztds_bufferStop(ztDirectSoundBuffer *buffer);
 
 void ztds_bufferSetVolume(ztDirectSoundBuffer *buffer, r32 volume);
+void ztds_bufferSetFrequency(ztDirectSoundBuffer *buffer, r32 frequency);
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -155,6 +156,8 @@ struct ztDirectSoundBuffer
 	i32                   bits_per_sample;
 	i32                   samples_per_second;
 	r32                   length;
+
+	i32                   frequency;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -290,6 +293,13 @@ ztInternal bool _ztds_bufferFillNextSlot(ztDirectSoundBuffer *buffer, ztDirectSo
 
 	zt_memCpy(region_1, region_1_size, buffer->audio_data, buffer->buffer_size);
 	buffer->buffer[didx]->Unlock(region_1, region_1_size, 0, 0);
+
+	if(didx == 0) {
+		buffer->frequency = 0;
+		DWORD freq;
+		buffer->buffer[didx]->GetFrequency(&freq);
+		buffer->frequency = freq;
+	}
 
 	return true;
 }
@@ -606,10 +616,36 @@ void ztds_bufferSetVolume(ztDirectSoundBuffer *buffer, r32 volume)
 {
 	zt_returnOnNull(buffer);
 
+	LONG lvol = zt_real32Eq(volume, 0) ? DSBVOLUME_MIN : DSBVOLUME_MAX + zt_convertToi32Floor((DSBVOLUME_MIN * (1 - volume)) * .5f);
+
 	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
 		if (buffer->buffer[i] != nullptr) {
-			LONG lvol = zt_real32Eq(volume, 0) ? DSBVOLUME_MIN : DSBVOLUME_MAX + zt_convertToi32Floor((DSBVOLUME_MIN * (1 - volume)) * .5f);
 			buffer->buffer[i]->SetVolume(lvol);
+		}
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void ztds_bufferSetFrequency(ztDirectSoundBuffer *buffer, r32 frequency)
+{
+	zt_returnOnNull(buffer);
+
+	i32 amount_below = buffer->frequency - DSBFREQUENCY_MIN;
+	i32 amount_above = DSBFREQUENCY_MAX - buffer->frequency;
+
+	i32 lfreq;
+
+	if (frequency < .5f) {
+		lfreq = zt_convertToi32Floor(amount_below * zt_linearRemap(frequency, 0, .5f, 0, 1)) + DSBFREQUENCY_MIN;
+	}
+	else {
+		lfreq = zt_convertToi32Floor(amount_above * zt_linearRemap(frequency, .5f, 1.f, 0, 1)) + buffer->frequency;
+	}
+
+	zt_fiz(ZT_DSOUND_BUFFERS_PER_SOUND) {
+		if (buffer->buffer[i] != nullptr) {
+			buffer->buffer[i]->SetFrequency(lfreq);
 		}
 	}
 }
