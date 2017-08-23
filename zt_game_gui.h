@@ -608,7 +608,7 @@ ztGuiItem       *zt_guiMakeSlider                      (ztGuiItem *parent, ztGui
 ztGuiItem       *zt_guiMakeScrollbar                   (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
 ztGuiItem       *zt_guiMakeScrollContainer             (ztGuiItem *parent, i32 behavior_flags = 0);
 ztGuiItem       *zt_guiMakeTextEdit                    (ztGuiItem *parent, const char *value, i32 behavior_flags = 0, i32 buffer_size = 1024);
-ztGuiItem       *zt_guiMakeMenu                        ();
+ztGuiItem       *zt_guiMakeMenu                        (ztGuiItem *parent);
 ztGuiItem       *zt_guiMakeMenuBar                     (ztGuiItem *parent);
 ztGuiItem       *zt_guiMakeTree                        (ztGuiItem *parent, i32 max_items);
 ztGuiItem       *zt_guiMakeComboBox                    (ztGuiItem *parent, i32 max_items);
@@ -6446,7 +6446,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBestSize, ztInternal ZT_FUNC_GUI_ITEM_BE
 
 // ================================================================================================================================================================================================
 
-ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, bool bar)
+ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, ztGuiItem *owner, bool bar)
 {
 	ZT_PROFILE_GUI("_zt_guiMakeMenuBase");
 
@@ -6459,6 +6459,7 @@ ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, bool bar)
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
 
+	item->menu.owner = owner;
 	item->menu.scrollbar_vert = zt_guiMakeScrollbar(item, ztGuiItemOrient_Vert);
 	item->menu.scrollbar_horz = zt_guiMakeScrollbar(item, ztGuiItemOrient_Horz);
 
@@ -6500,11 +6501,11 @@ ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, bool bar)
 
 // ================================================================================================================================================================================================
 
-ztGuiItem *zt_guiMakeMenu()
+ztGuiItem *zt_guiMakeMenu(ztGuiItem *parent)
 {
 	ZT_PROFILE_GUI("zt_guiMakeMenu");
 
-	return _zt_guiMakeMenuBase(nullptr, false);
+	return _zt_guiMakeMenuBase(nullptr, parent, false);
 }
 
 // ================================================================================================================================================================================================
@@ -6513,7 +6514,7 @@ ztGuiItem *zt_guiMakeMenuBar(ztGuiItem *parent)
 {
 	ZT_PROFILE_GUI("zt_guiMakeMenuBar");
 
-	return _zt_guiMakeMenuBase(parent, true);
+	return _zt_guiMakeMenuBase(parent, nullptr, true);
 }
 
 // ================================================================================================================================================================================================
@@ -7392,7 +7393,7 @@ void zt_guiComboBoxSetContents(ztGuiItem *combobox, const char **contents, int c
 	if (combobox->combobox.popup != nullptr) {
 		zt_guiItemQueueFree(combobox->combobox.popup);
 	}
-	combobox->combobox.popup = zt_guiMakeMenu();
+	combobox->combobox.popup = zt_guiMakeMenu(combobox);
 	zt_guiMenuSetCallback(combobox->combobox.popup, _zt_guiComboBoxMenuSelected_FunctionID);
 	combobox->combobox.popup->menu.owner = combobox;
 	zt_guiItemReparent(combobox->combobox.popup, combobox);
@@ -7447,7 +7448,7 @@ void zt_guiComboBoxAppendWithIcon(ztGuiItem *combobox, const char *content, ztSp
 		if (combobox->combobox.popup != nullptr) {
 			zt_guiItemFree(combobox->combobox.popup);
 		}
-		combobox->combobox.popup = zt_guiMakeMenu();
+		combobox->combobox.popup = zt_guiMakeMenu(combobox);
 		combobox->combobox.popup->menu.owner = combobox;
 		zt_guiMenuSetCallback(combobox->combobox.popup, _zt_guiComboBoxMenuSelected_FunctionID);
 		combobox->combobox.selected = 0;
@@ -13663,14 +13664,14 @@ void zt_guiInitDebug(ztGuiManager *gm)
 	zt_guiMenuSetCallback(menubar, _zt_guiInitDebugOnMenuItem_FunctionID);
 
 	{
-		ztGuiItem *menu_options = zt_guiMakeMenu();
+		ztGuiItem *menu_options = zt_guiMakeMenu(nullptr);
 		zt_guiMenuAppend(menu_options, "Toggle FPS Display", ztGuiDebugMenu_FpsDisplay);
 		zt_guiMenuAppend(menu_options, "Exit", ztGuiDebugMenu_Exit);
 		zt_guiMenuAppendSubmenu(menubar, "Options", menu_options);
 		zt_guiMenuSetCallback(menu_options, _zt_guiInitDebugOnMenuItem_FunctionID);
 	}
 	{
-		ztGuiItem *menu_tools = zt_guiMakeMenu();
+		ztGuiItem *menu_tools = zt_guiMakeMenu(nullptr);
 		zt_guiMenuAppend(menu_tools, "Console", ztGuiDebugMenu_Console);
 		zt_guiMenuAppend(menu_tools, "GUI Hierarchy", ztGuiDebugMenu_GuiHierarchy);
 		zt_guiMenuAppend(menu_tools, "Texture Viewer", ztGuiDebugMenu_TextureViewer);
