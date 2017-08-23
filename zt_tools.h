@@ -581,6 +581,9 @@ ztInline ztColor zt_color(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
 
 ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { return zt_vec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
 
+ztInline ztColor               zt_colorRgbToHsv(ztColor rgba);
+ztInline ztColor               zt_colorHsvToRgb(ztColor hsva);
+
 #define ztColor_White          zt_color(1.0f, 1.0f, 1.0f, 1.f)
 #define ztColor_Black          zt_color( .0f,  .0f,  .0f, 1.f)
 #define ztColor_Gray           zt_color(.50f, .50f, .50f, 1.f)
@@ -2749,6 +2752,69 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
 	return zt_vec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+}
+
+// ================================================================================================================================================================================================
+
+ztColor zt_colorRgbToHsv(ztColor rgba)
+{
+	r32 min = zt_min(rgba.r, zt_min(rgba.g, rgba.b));
+	r32 max = zt_max(rgba.r, zt_max(rgba.g, rgba.b));
+	r32 delta = max - min;
+
+	r32 r = rgba.r;
+	r32 g = rgba.g;
+	r32 b = rgba.b;
+
+	rgba.b = max;
+	rgba.g = delta / (max + 1e-20f);
+
+	if (r == max) {
+		rgba.r = (g - b) / (delta + 1e-20f);
+	}
+	else if (g == max) {
+		rgba.r = 2 + (b - r) / (delta + 1e-20f);
+	}
+	else {
+		rgba.r = 4 + (r - g) / (delta + 1e-20f);
+	}
+
+	rgba.r *= 60;
+	if (rgba.r < 0) {
+		rgba.r += 360;
+	}
+
+	return rgba;
+}
+
+// ================================================================================================================================================================================================
+
+ztColor zt_colorHsvToRgb(ztColor hsva)
+{
+	if (hsva.g == 0) {
+		hsva.r = hsva.g = hsva.b = hsva.b / 255;
+		return hsva;
+	}
+
+	r32 temp_h = hsva.r / 60.0f;
+	int i = zt_convertToi32Floor(temp_h);
+	r32 f = temp_h - i;
+	r32 p = hsva.b * (1.0f - hsva.g);
+	r32 q = hsva.b * (1.0f - hsva.g * f);
+	r32 t = hsva.b * (1.0f - hsva.g * (1.0f - f));
+	r32 v = hsva.b;
+
+	switch (i)
+	{
+		case  0: { hsva.r = v; hsva.g = t; hsva.b = p; } break;
+		case  1: { hsva.r = q; hsva.g = v; hsva.b = p; } break;
+		case  2: { hsva.r = p; hsva.g = v; hsva.b = t; } break;
+		case  3: { hsva.r = p; hsva.g = q; hsva.b = v; } break;
+		case  4: { hsva.r = t; hsva.g = p; hsva.b = v; } break;
+		default: { hsva.r = v; hsva.g = p; hsva.b = q; } break;
+	}
+
+	return hsva;
 }
 
 
