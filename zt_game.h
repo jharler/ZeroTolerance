@@ -256,6 +256,7 @@ struct ztGameDetails
 	const char** argv;
 
 	i32 current_frame;
+	r32 current_dt;
 
 	struct {
 		i32 shader_switches;
@@ -2249,6 +2250,10 @@ ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec
 void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
 void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 pos[6], ztVec2 uvs[6]);
 
+// the fast versions do not align to pixel (useful if the positions are already pixel aligned)
+void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 pos[6], ztVec2 uvs[6]);
+
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
 
@@ -3153,6 +3158,7 @@ ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *setting
 ztParticleEmitter2D  zt_particleEmitter2DMake(ztParticleEmitterSettings *settings, ztSprite *sprites, int *sprites_props, int sprites_count, i32 seed, r32 prewarm_time = 0);
 bool                 zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticleEmitParticle_Func emit_particle = nullptr, void *user_data = nullptr); // returns false when emitter is exhausted
 void                 zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list);
+int                  zt_particleEmitter2DGetTriangles(ztParticleEmitter2D *emitter, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
 
 void                 zt_particleEmitter2DEnable(ztParticleEmitter2D *emitter, bool enabled = true);
 void                 zt_particleEmitter2DReset(ztParticleEmitter2D *emitter, r32 prewarm_time = 0);
@@ -3276,13 +3282,16 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 
 typedef i32 ztAudioClipID;
 
+#define ztAudioClipDefaultFrequency	.5f
+
+
 ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 audio_system = 0);
 ztAudioClipID zt_audioClipMakeFromFile(const char *file_name, i32 audio_system);
 
 void zt_audioClipFree(ztAudioClipID audio_clip_id);
 
-void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id);
-void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id);
+void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
+void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
 
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
 bool zt_audioClipStop(ztAudioClipID audio_clip_id);
@@ -7299,7 +7308,12 @@ bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, z
 	r32 cam_aspect_ratio = cam_ext.y / cam_ext.x;
 
 	if (!zt_real32Eq(cam_aspect_ratio, tex_aspect_ratio)) {
-		cam_ext.y = cam_ext.x * tex_aspect_ratio;
+		if (cam_aspect_ratio > tex_aspect_ratio) {
+			cam_ext.y = cam_ext.x * tex_aspect_ratio;
+		}
+		else {
+			cam_ext.x = cam_ext.y * ((r32)zt_game->textures[tex].width / (r32)zt_game->textures[tex].height);
+		}
 	}
 
 	if (zt_rendererUvsFlipYRenderTarget()) {
@@ -15314,12 +15328,12 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 				c_h = zt_convertToi32Floor(zt_game->win_game_settings[0].native_w / aspect_ratio_cam);
 			}
 			else {
-				r32 pct = camera->native_w / (r32)zt_game->win_game_settings[0].native_w;
+				r32 pct = camera->native_h / (r32)zt_game->win_game_settings[0].native_h;
 
 				i32 diff_x = zt_game->win_game_settings[0].native_w - zt_convertToi32Floor(camera->native_w / pct);
 				sx -= zt_convertToi32Floor(diff_x / 2.f);
 
-				c_w = zt_convertToi32Floor(zt_game->win_game_settings[0].native_w / aspect_ratio_cam);
+				c_w = zt_convertToi32Floor(zt_game->win_game_settings[0].native_h * aspect_ratio_cam);
 				c_h = zt_game->win_game_settings[0].native_h;
 			}
 		}
@@ -17793,6 +17807,106 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 
 		zt_alignToPixel(&pos[i].x, ppu);
 		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	if (rotation != ztVec3::zero) {
+		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rotation);
+
+		zt_fiz(4) {
+			pos[i] = rotation_mat * pos[i];
+		}
+	}
+
+	if (scale != ztVec3::one) {
+		zt_fize(pos) pos[i] *= scale;
+	}
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
 	}
 
 	_pos[0] = pos[0];
@@ -23516,12 +23630,11 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 
 // ================================================================================================================================================================================================
 
-void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list)
+ztInternal void _zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list, ztVec3 *tri_pos, ztVec2 *tri_uv, ztVec4 *tri_colors, int size, int *used)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitter2DRender");
 
 	zt_returnOnNull(emitter);
-	zt_returnOnNull(draw_list);
 
 	if (emitter->enabled == false) {
 		return;
@@ -23537,9 +23650,14 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 		color = ztColor_White;
 	}
 
+	int index = 0;
+
 	zt_fxz(emitter->sprites_count) {
 		ztSprite* sprite = &emitter->sprites[x];
-		zt_drawListPushTexture(draw_list, sprite->tex);
+
+		if (draw_list) {
+			zt_drawListPushTexture(draw_list, sprite->tex);
+		}
 
 		ztVec2 uv[4] = {
 			zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
@@ -23553,6 +23671,10 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 				continue;
 			}
 
+			if (draw_list == nullptr) {
+				zt_assert(index < size - 6);
+			}
+
 			if (change_color) {
 				ZT_PROFILE_PARTICLES("change_color");
 				if (emitter->settings.color_life.colors_count > 1) {
@@ -23561,7 +23683,25 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 				else {
 					color = ztVec4::lerp(emitter->settings.color_life_begin, emitter->settings.color_life_end, 1 - zt_min(1, (emitter->particles[i].life / emitter->particles[i].life_span)));
 				}
-				zt_drawListPushColor(draw_list, color);
+				if (draw_list) {
+					zt_drawListPushColor(draw_list, color);
+				}
+				else {
+					tri_colors[index + 0] = color;
+					tri_colors[index + 1] = color;
+					tri_colors[index + 2] = color;
+					tri_colors[index + 3] = color;
+					tri_colors[index + 4] = color;
+					tri_colors[index + 5] = color;
+				}
+			}
+			else {
+				tri_colors[index + 0] = ztColor_White;
+				tri_colors[index + 1] = ztColor_White;
+				tri_colors[index + 2] = ztColor_White;
+				tri_colors[index + 3] = ztColor_White;
+				tri_colors[index + 4] = ztColor_White;
+				tri_colors[index + 5] = ztColor_White;
 			}
 
 			ztVec3 pos = emitter->particles[i].transform.position;
@@ -23579,32 +23719,86 @@ void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_l
 
 			if (emitter->particles[i].rotation) {
 				ZT_PROFILE_PARTICLES("rotate");
-				ztVec3 p[4] = {
-					scale * zt_vec3(-sprite->half_size.x,  sprite->half_size.y, 0),
-					scale * zt_vec3(-sprite->half_size.x, -sprite->half_size.y, 0),
-					scale * zt_vec3( sprite->half_size.x, -sprite->half_size.y, 0),
-					scale * zt_vec3( sprite->half_size.x,  sprite->half_size.y, 0),
-				};
+				if (draw_list) {
+					ztVec3 p[4] = {
+						scale * zt_vec3(-sprite->half_size.x,  sprite->half_size.y, 0),
+						scale * zt_vec3(-sprite->half_size.x, -sprite->half_size.y, 0),
+						scale * zt_vec3( sprite->half_size.x, -sprite->half_size.y, 0),
+						scale * zt_vec3( sprite->half_size.x,  sprite->half_size.y, 0),
+					};
 
-				zt_fjze(p) {
-					emitter->particles[i].transform.rotation.rotatePosition(&p[j]);
-					p[j] += pos;
+					zt_fjze(p) {
+						emitter->particles[i].transform.rotation.rotatePosition(&p[j]);
+						p[j] += pos;
+					}
+
+					zt_drawListAddFilledQuad(draw_list, p, uv, normals	);
 				}
+				else {
+					ztVec3 positions[6];
+					ztVec2 uvs[6];
+					zt_spriteGetTrianglesFast(sprite, pos, emitter->particles[i].transform.rotation.euler(), scale, positions, uvs);
 
-				zt_drawListAddFilledQuad(draw_list, p, uv, normals	);
-
+					zt_fize(positions) {
+						tri_pos[index + i] = positions[i];
+						tri_uv[index + i] = uvs[i];
+					}
+				}
 			}
 			else {
-				//zt_drawListAddBillboard(draw_list, emitt6er->settings.origin + emitter->particles[i].transform.position, emitter->sprite.half_size * 2, emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
-				zt_drawListAddFilledRect2D(draw_list, pos, scale.xy * (sprite->half_size * 2), sprite->tex_uv.xy, sprite->tex_uv.zw);
+				if (draw_list) {
+					//zt_drawListAddBillboard(draw_list, emitt6er->settings.origin + emitter->particles[i].transform.position, emitter->sprite.half_size * 2, emitter->sprite.tex_uv.xy, emitter->sprite.tex_uv.zw);
+					zt_drawListAddFilledRect2D(draw_list, pos, scale.xy * (sprite->half_size * 2), sprite->tex_uv.xy, sprite->tex_uv.zw);
+				}
+				else {
+					ztVec3 positions[6];
+					ztVec2 uvs[6];
+					zt_spriteGetTrianglesFast(sprite, pos, ztVec3::one, scale, positions, uvs);
+
+					zt_fize(positions) {
+						tri_pos[index + i] = positions[i];
+						tri_uv[index + i] = uvs[i];
+					}
+				}
 			}
-			if (change_color) {
-				zt_drawListPopColor(draw_list);
+			if (draw_list) {
+				if (change_color) {
+					zt_drawListPopColor(draw_list);
+				}
+			}
+			else {
+				index += 6;
 			}
 		}
 
-		zt_drawListPopTexture(draw_list);
+		if (draw_list) {
+			zt_drawListPopTexture(draw_list);
+		}
 	}
+
+	if (used != nullptr) {
+		*used = index;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list)
+{
+	zt_returnOnNull(draw_list);
+	_zt_particleEmitter2DRender(emitter, draw_list, nullptr, nullptr, nullptr, 0, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitter2DGetTriangles(ztParticleEmitter2D *emitter, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitter2DGetTriangles");
+	//ztInternal void _zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDrawList *draw_list, ztVec3 *tri_pos, ztVec2 *tri_uv, ztVec4 *tri_colors, int size, int *used)
+
+	int used = 0;
+	_zt_particleEmitter2DRender(emitter, nullptr, pos, uv, colors, size, &used);
+	return used;
 }
 
 // ================================================================================================================================================================================================
@@ -24258,7 +24452,7 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 
 // ================================================================================================================================================================================================
 
-void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
+void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipPlayOnce");
 	if (zt_game->audio_muted) {
@@ -24272,6 +24466,7 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 #	if defined(ZT_DSOUND)
+	ztds_bufferSetFrequency(audio_clip->ds_buffer, frequency);
 	ztds_bufferPlay(audio_clip->ds_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing;
 #	endif
@@ -24279,7 +24474,7 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id)
 
 // ================================================================================================================================================================================================
 
-void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
+void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipPlayLooped");
 	if (zt_game->audio_muted) {
@@ -24293,6 +24488,7 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id)
 
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 #	if defined(ZT_DSOUND)
+	ztds_bufferSetFrequency(audio_clip->ds_buffer, frequency);
 	ztds_bufferPlayLooping(audio_clip->ds_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
 #	endif
@@ -25031,6 +25227,7 @@ int main(int argc, const char **argv)
 		time_last = time_this;
 
 		zt_debugOnly(if (dt > 1.f / 30.f) dt = 1.f / 30.f); // keep the delta time meaningful during debugging
+		zt_game->game_details.current_dt = dt;
 
 		_zt_audioUpdateFrame(dt);
 
