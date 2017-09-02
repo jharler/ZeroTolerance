@@ -2435,6 +2435,10 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					zt_strCat(*s, s_len, ")");
 				} break;
 
+				case ztShLangSyntaxNodeType_Break: {
+					zt_strCat(*s, s_len, "break");
+				} break;
+
 				default: {
 					zt_assert(false);
 				} break;
