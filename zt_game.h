@@ -933,7 +933,7 @@ ztAssetID zt_assetLoad                   (ztAssetManager *asset_mgr, const char 
 ztAssetID zt_assetLoad                   (ztAssetManager *asset_mgr, i32 asset_hash);
 ztAssetID zt_assetLoad                   (ztAssetManager *asset_mgr, const char *asset, ztAssetID same_location_as);
 i32       zt_assetSize                   (ztAssetManager *asset_mgr, ztAssetID asset_id);
-bool      zt_assetLoadData               (ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size);
+bool      zt_assetLoadData               (ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size, bool always_reload = false);
 
 bool      zt_assetClearCache             (ztAssetManager *asset_mgr, ztAssetID asset_id);
 
@@ -1152,6 +1152,7 @@ ztVec2i     zt_textureGetSize(ztTextureID texture_id);
 
 void        zt_textureGetPixels(ztTextureID texture_id, byte *pixels); // pixels needs to be w * h * 4
 
+bool        zt_textureIsRenderTarget(ztTextureID texture_id);
 
 // ================================================================================================================================================================================================
 // vertex arrays
@@ -2277,6 +2278,50 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, 
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
 
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size);
+void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2& at_pos, const ztVec2& size, ztVec2 pos[54], ztVec2 uvs[54]);
+
+// ================================================================================================================================================================================================
+
+enum ztSpriteType_Enum
+{
+	ztSpriteType_Invalid,
+	ztSpriteType_SpriteNineSlice,
+	ztSpriteType_Sprite,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztSpriteManager
+{
+	struct Entry {
+		i32                    hash;
+		char                   name[64];
+		ztSpriteType_Enum      type;
+
+		union {
+			ztSprite           s;
+			ztSpriteNineSlice  sns;
+		};
+	};
+
+	Entry  *sprites;
+	int     sprites_count;
+};
+
+
+void               zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites);
+bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
+bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
+bool               zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial);
+void               zt_spriteManagerFree(ztSpriteManager *sprite_manager);
+
+void               zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name);
+void               zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name);
+
+ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, char *name);
+ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_hash);
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, char *name);
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash);
 
 
 // ================================================================================================================================================================================================
@@ -3426,6 +3471,7 @@ enum ztShLangTokenType_Enum
 	ztShLangTokenType_ivec2,
 	ztShLangTokenType_ivec3,
 	ztShLangTokenType_ivec4,
+	ztShLangTokenType_mat2,
 	ztShLangTokenType_mat3,
 	ztShLangTokenType_mat4,
 	ztShLangTokenType_texture2d,
@@ -5602,7 +5648,7 @@ i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
 
 // ================================================================================================================================================================================================
 
-bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size)
+bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data, i32 data_size, bool always_reload)
 {
 	ZT_PROFILE_ASSETS("zt_assetLoadData");
 	zt_returnValOnNull(asset_mgr, false);
@@ -5611,6 +5657,12 @@ bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data,
 	switch(asset_mgr->source)
 	{
 		case ztAssetManagerSource_Directory: {
+			if (always_reload && asset_mgr->asset_data[asset_id] != nullptr) {
+				zt_freeArena(asset_mgr->asset_data[asset_id], asset_mgr->arena);
+				asset_mgr->asset_data[asset_id] = nullptr;
+				asset_mgr->asset_size[asset_id] = 0;
+			}
+
 			if (asset_mgr->asset_data[asset_id] == nullptr) {
 				i32 size = 0;
 				asset_mgr->asset_data[asset_id] = zt_readEntireFile(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &size, false, asset_mgr->arena);
@@ -11208,6 +11260,7 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 						else if (zt_strEquals(token, "ivec2"          )) { type = ztShLangTokenType_ivec2;       flags = ztShLangTokenFlags_DataType; }
 						else if (zt_strEquals(token, "ivec3"          )) { type = ztShLangTokenType_ivec3;       flags = ztShLangTokenFlags_DataType; }
 						else if (zt_strEquals(token, "ivec4"          )) { type = ztShLangTokenType_ivec4;       flags = ztShLangTokenFlags_DataType; }
+						else if (zt_strEquals(token, "mat2"           )) { type = ztShLangTokenType_mat2;        flags = ztShLangTokenFlags_DataType; }
 						else if (zt_strEquals(token, "mat3"           )) { type = ztShLangTokenType_mat3;        flags = ztShLangTokenFlags_DataType; }
 						else if (zt_strEquals(token, "mat4"           )) { type = ztShLangTokenType_mat4;        flags = ztShLangTokenFlags_DataType; }
 						else if (zt_strEquals(token, "texture2d"      )) { type = ztShLangTokenType_texture2d;   flags = ztShLangTokenFlags_DataType; }
@@ -11399,6 +11452,7 @@ char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
 		case ztShLangTokenType_ivec2:              return "ivec2";
 		case ztShLangTokenType_ivec3:              return "ivec3";
 		case ztShLangTokenType_ivec4:              return "ivec4";
+		case ztShLangTokenType_mat2:               return "mat2";
 		case ztShLangTokenType_mat3:               return "mat3";
 		case ztShLangTokenType_mat4:               return "mat4";
 		case ztShLangTokenType_texture2d:          return "texture2d";
@@ -11494,6 +11548,7 @@ ztShLangTokenType_Enum _zt_shaderLangTokenTypeFromDesc(char *desc, int desc_len 
 	if (zt_strEquals(desc, "ivec2")) return ztShLangTokenType_ivec2;
 	if (zt_strEquals(desc, "ivec3")) return ztShLangTokenType_ivec3;
 	if (zt_strEquals(desc, "ivec4")) return ztShLangTokenType_ivec4;
+	if (zt_strEquals(desc, "mat2")) return ztShLangTokenType_mat2;
 	if (zt_strEquals(desc, "mat3")) return ztShLangTokenType_mat3;
 	if (zt_strEquals(desc, "mat4")) return ztShLangTokenType_mat4;
 	if (zt_strEquals(desc, "texture2d")) return ztShLangTokenType_texture2d;
@@ -12217,7 +12272,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	// ---------------------------------------------
 
 	ztShLangSyntaxNodeCache *cache = zt_mallocStruct(ztShLangSyntaxNodeCache);
-	cache->cache_size = tokens_count + 256; // extra to account for the built in functions and types
+	cache->cache_size = tokens_count + 512; // extra to account for the built in functions and types
 	cache->cache_used = 0;
 	cache->cache = zt_mallocStructArray(ztShLangSyntaxNode, cache->cache_size);
 	//zt_memSet(cache->cache, zt_sizeof(ztShLangSyntaxNode) * cache->cache_size, 0);
@@ -12428,6 +12483,9 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"lerp,vec3,vec3,float,vec3",
 			"lerp,vec4,vec4,float,vec4",
 			"clamp,float,float,float,float",
+			"clamp,vec2,vec2,vec2,vec2",
+			"clamp,vec3,vec3,vec3,vec3",
+			"clamp,vec4,vec4,vec4,vec4",
 			"min,float,float,float",
 			"max,float,float,float",
 			"normalize,vec2,vec2",
@@ -12448,11 +12506,35 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"cos,float,float", 
 			"exp,float,float",
 			"fract,float,float",
+			"fract,vec2,vec2",
+			"fract,vec3,vec3",
 			"floor,float,float",
+			"floor,vec2,vec2",
+			"floor,vec3,vec3",
+			"floor,vec4,vec4",
 			"ceil,float,float",
+			"ceil,vec2,vec2",
+			"ceil,vec3,vec3",
+			"ceil,vec4,vec4",
 			"abs,float,float",
+			"abs,vec2,vec2",
+			"abs,vec3,vec3",
+			"abs,vec4,vec4",
 			"distance,vec2,vec2,float",
 			"distance,vec3,vec3,float",
+			"mod,float,float,float",
+			"mod,vec2,float,vec2",
+			"mod,vec3,float,vec3",
+			"log,vec2,vec2",
+			"log,vec3,vec3",
+			"log,float,float",
+			"cross,vec2,vec2,vec2",
+			"cross,vec3,vec3,vec3",
+			"cross,vec4,vec4,vec4",
+			"sqrt,float,float",
+			"sqrt,vec2,vec2",
+			"sqrt,vec3,vec3",
+			"sqrt,vec4,vec4",
 
 			"int,int,int",
 			"int,uint,int",
@@ -12476,6 +12558,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"bool,double,bool",
 			"vec2,vec2,vec2",
 			"vec2,float,float,vec2",
+			"vec2,float,vec2",
 			"vec3,vec3,vec3",
 			"vec3,float,float,float,vec3",
 			"vec3,vec2,float,vec3",
@@ -12500,6 +12583,8 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"ivec4,ivec2,ivec2,ivec4",
 			"ivec4,ivec3,int,ivec4",
 			"ivec4,int,ivec4",
+			"mat2,mat2,mat2",
+			"mat2,float,float,float,float,mat2",
 			"mat3,mat3,mat3",
 			"mat3,float,float,float,float,float,float,float,float,float,mat3",
 			"mat3,vec3,vec3,vec3,mat3",
@@ -12536,7 +12621,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	{
 		char *built_in_structs[] = {
 			"vec2,float x,float y",
-			"vec3,float x,float y,float z,float r,float g,float b,vec2 xy",
+			"vec3,float x,float y,float z,float r,float g,float b,vec2 xy,vec2 xz,vec2 yz",
 			"vec4,float x,float y,float z,float w,float r,float g,float b,float a,vec3 xyz,vec3 rgb",
 			"ivec2,int x,int y",
 			"ivec3,int x,int y,int z,int r,int g,int b,ivec2 xy",
@@ -12743,16 +12828,9 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 				return node->variable_val.decl->variable_decl.type;
 			}
 			if (node->type == ztShLangSyntaxNodeType_FunctionCall) {
-				ztShLangSyntaxNode *global_scope = node->parent;
-				while (global_scope && global_scope->parent) {
-					global_scope = global_scope->parent;
-				}
-				zt_flink(func_node, global_scope->first_child) {
-					if (func_node->type == ztShLangSyntaxNodeType_FunctionDecl) {
-						if (zt_strEquals(func_node->function_decl.name, node->function_call.name)) {
-							return _zt_shaderLangTokenTypeFromDesc(func_node->function_decl.returns_name);
-						}
-					}
+				ztShLangSyntaxNode *func_node = findFunction(node, nullptr, error, file_data);
+				if (func_node) {
+					return func_node->function_decl.returns;
 				}
 			}
 			if (node->type == ztShLangSyntaxNodeType_ValueNumberInt) {
@@ -12966,14 +13044,14 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 				}
 
 				if (left == ztShLangTokenType_float || left == ztShLangTokenType_double || left == ztShLangTokenType_int || left == ztShLangTokenType_uint) {
-					if (right == ztShLangTokenType_vec2 || right == ztShLangTokenType_vec3 || right == ztShLangTokenType_vec4 || right == ztShLangTokenType_mat3 || right == ztShLangTokenType_mat4) {
+					if (right == ztShLangTokenType_vec2 || right == ztShLangTokenType_vec3 || right == ztShLangTokenType_vec4 || right == ztShLangTokenType_mat2 || right == ztShLangTokenType_mat3 || right == ztShLangTokenType_mat4) {
 						op_node->operation.returns = right;
 						return right;
 					}
 				}
 
-				if (left == ztShLangTokenType_vec3 || left == ztShLangTokenType_vec4) {
-					if (right == ztShLangTokenType_mat3 || right == ztShLangTokenType_mat4) {
+				if (left == ztShLangTokenType_vec2 || left == ztShLangTokenType_vec3 || left == ztShLangTokenType_vec4) {
+					if (right == ztShLangTokenType_mat2 || right == ztShLangTokenType_mat3 || right == ztShLangTokenType_mat4) {
 						op_node->operation.returns = left;
 						return left;
 					}
@@ -13909,6 +13987,8 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
 	zt_game->shaders[shader_id].asset_id = asset_id;
 
+	asset_mgr->asset_callback_ids[asset_id] = shader_id;
+
 	zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererShaderReload_FunctionID, (void*)shader_id);
 
 	zt_freeArena(data, asset_mgr->arena);
@@ -14536,6 +14616,13 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, ztInvalidID);
 
+	zt_fize(zt_game->textures) {
+		if (zt_game->textures[i].load_type == ztTextureLoadType_Asset && zt_game->textures[i].asset_id == asset_id) {
+			zt_logDebug("returning preloaded texture asset: %s (texture id: %d)", asset_mgr->asset_name[asset_id], i);
+			return i;
+		}
+	}
+
 	zt_logDebug("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
@@ -14578,6 +14665,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		texture->load_type = ztTextureLoadType_Asset;
 		texture->asset_mgr = asset_mgr;
 		texture->asset_id = asset_id;
+		zt_strCpy(texture->name, zt_elementsOf(texture->name), asset_mgr->asset_name[asset_id]);
 
 		zt_assetAddReloadCallback(asset_mgr, asset_id, _zt_rendererTextureReload_FunctionID, (void*)texture_id);
 	}
@@ -14969,6 +15057,9 @@ void zt_textureFree(ztTextureID texture_id)
 	if (zt_game->textures[texture_id].load_type == ztTextureLoadType_Data) {
 		zt_freeArena(zt_game->textures[texture_id].data, zt_game->textures[texture_id].arena);
 	}
+	else {
+		zt_game->textures[texture_id].asset_id = ztInvalidID;
+	}
 	zt_memSet(&zt_game->textures[texture_id], sizeof(ztTexture), 0);
 }
 
@@ -15054,6 +15145,27 @@ void zt_textureGetPixels(ztTextureID texture_id, byte *pixels)
 			zt_directxSupport(zt_assert(false));
 		} break;
 	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_textureIsRenderTarget(ztTextureID texture_id)
+{
+	ZT_PROFILE_RENDERING("zt_textureIsRenderTarget");
+	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, false);
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+			zt_openGLSupport(return zt_game->textures[texture_id].gl_texture == nullptr ? false : ztgl_textureIsRenderTarget(zt_game->textures[texture_id].gl_texture));
+		} break;
+
+		case ztRenderer_DirectX: {
+			zt_directxSupport(return zt_game->textures[texture_id].dx_texture == nullptr ? false : ztdx_textureIsRenderTarget(zt_game->textures[texture_id].dx_texture));
+		} break;
+	}
+
+	return false;
 }
 
 // ================================================================================================================================================================================================
@@ -16142,7 +16254,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 					i32 tex_asset_hash = 0;
 					if (zt_assetFileExistsAsAsset(asset_mgr, tex_file_full, &tex_asset_hash)) {
 						font->texture = zt_textureMake(asset_mgr, zt_assetLoad(asset_mgr, tex_asset_hash), 0);
-						zt_debugOnly(zt_textureSetName(font->texture, "Bitmap Font Texture"));
 					}
 					else if (zt_fileExists(tex_file_full)) {
 						// TODO(josh): should this support loading non-asset files?
@@ -17732,10 +17843,10 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6
 	};
 
 	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
 	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
@@ -17779,10 +17890,22 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 	};
 
 	if (rotation != ztVec3::zero) {
-		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rotation);
+		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
+			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
+			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
 
-		zt_fiz(4) {
-			pos[i] = rotation_mat * pos[i];
+			zt_fiz(4) {
+				r32 tpos_x = pos[i].x;
+				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
+				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
+			}
+		}
+		else {
+			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
+
+			zt_fiz(4) {
+				rotation_quat.rotatePosition(&pos[i]);
+			}
 		}
 	}
 
@@ -17791,10 +17914,10 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 	}
 
 	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
 	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
@@ -17828,7 +17951,7 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 
 void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
-	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
 
 	ztVec3 pos[4] = {
 		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
@@ -17838,10 +17961,10 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _p
 	};
 
 	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
 	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
@@ -17872,7 +17995,7 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _p
 
 void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
-	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
 
 	ztVec3 pos[4] = {
 		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
@@ -17882,10 +18005,22 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztV
 	};
 
 	if (rotation != ztVec3::zero) {
-		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rotation);
+		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
+			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
+			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
 
-		zt_fiz(4) {
-			pos[i] = rotation_mat * pos[i];
+			zt_fiz(4) {
+				r32 tpos_x = pos[i].x;
+				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
+				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
+			}
+		}
+		else {
+			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
+
+			zt_fiz(4) {
+				rotation_quat.rotatePosition(&pos[i]);
+			}
 		}
 	}
 
@@ -17894,10 +18029,10 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztV
 	}
 
 	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, 1 - sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
 	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
@@ -18192,53 +18327,6 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
 	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
 
-#if 0
-	struct local
-	{
-		static void fix(r32 *val, r32 *offset, r32 ppu)
-		{
-			r32 rem = zt_abs(*val * ppu) - zt_convertToi32Floor(zt_abs(*val * ppu));
-			if (rem > .25f && rem < .75f) {
-				*val = zt_convertToi32Floor((*val * ppu)) / ppu;
-				*offset += rem / ppu;
-			}
-		}
-	};
-
-	r32 ul_center_add_x = 0, ul_center_add_y = 0;
-	//zt_alignToPixel(&upper_left.x, ppu, &ul_center_add_x);
-	//zt_alignToPixel(&upper_left.y, ppu, &ul_center_add_y);
-
-	r32 ur_center_add_x = 0, ur_center_add_y = 0;
-	//zt_alignToPixel(&upper_right.x, ppu, &ur_center_add_x);
-	//zt_alignToPixel(&upper_right.y, ppu, &ur_center_add_y);
-
-	r32 ll_center_add_x = 0, ll_center_add_y = 0;
-	//zt_alignToPixel(&lower_left.x, ppu, &ll_center_add_x);
-	//zt_alignToPixel(&lower_left.y, ppu, &ll_center_add_y);
-
-	r32 lr_center_add_x = 0, lr_center_add_y = 0;
-	//zt_alignToPixel(&lower_right.x, ppu, &lr_center_add_x);
-	//zt_alignToPixel(&lower_right.y, ppu, &lr_center_add_y);
-
-	//ul_center_add_x = ul_center_add_y = ur_center_add_x = ur_center_add_y = ll_center_add_x = ll_center_add_y = lr_center_add_x = lr_center_add_y = 0;
-
-	zt_drawListPushTexture(draw_list, sns->tex);
-
-	/* center */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(center.x,                                            center.y,                                           0), zt_vec2(size.x - ((sns->sz_e + sns->sz_w)),                         size.y - ((sns->sz_n + sns->sz_s))),                   sns->sp_c.xy, sns->sp_c.zw);
-	/* west   */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f,  center.y,                                           0), zt_vec2(sns->sz_w * scale_corners.x + ul_center_add_x,              size.y - ((sns->sz_n + sns->sz_s) + ul_center_add_y)), sns->sp_w.xy, sns->sp_w.zw);
-	/* east   */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, center.y,                                           0), zt_vec2(sns->sz_e * scale_corners.x + ur_center_add_x,              size.y - ((sns->sz_n + sns->sz_s) + ur_center_add_y)), sns->sp_e.xy, sns->sp_e.zw);
-	/* north  */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(center.x,                                            upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0), zt_vec2(size.x - ((sns->sz_e + sns->sz_w) + (ul_center_add_x * 2)), sns->sz_n * scale_corners.y + ul_center_add_y),        sns->sp_n.xy, sns->sp_n.zw);
-	/* south  */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(center.x,                                            lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0), zt_vec2(size.x - ((sns->sz_e + sns->sz_w) + (ll_center_add_x * 2)), sns->sz_s * scale_corners.y + ll_center_add_y),        sns->sp_s.xy, sns->sp_s.zw);
-
-	/* north west */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(upper_left.x + (sns->sz_w * scale_corners.x) / 2.f, upper_left.y - (sns->sz_n * scale_corners.y) / 2.f, 0), zt_vec2(sns->sz_w * scale_corners.x + ul_center_add_x, sns->sz_n * scale_corners.y + ul_center_add_y), sns->sp_nw.xy, sns->sp_nw.zw);
-	/* north east */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(upper_right.x - (sns->sz_e * scale_corners.x) / 2.f, upper_right.y - (sns->sz_n * scale_corners.y) / 2.f, 0), zt_vec2(sns->sz_e * scale_corners.x + ur_center_add_x, sns->sz_n * scale_corners.y + ur_center_add_y), sns->sp_ne.xy, sns->sp_ne.zw);
-	/* south west */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(lower_left.x + (sns->sz_w * scale_corners.x) / 2.f, lower_left.y + (sns->sz_s * scale_corners.y) / 2.f, 0), zt_vec2(sns->sz_w * scale_corners.x + ll_center_add_x, sns->sz_s * scale_corners.y + ll_center_add_y), sns->sp_sw.xy, sns->sp_sw.zw);
-	/* south east */ zt_drawListAddFilledRect2D(draw_list, zt_vec3(lower_right.x - (sns->sz_e * scale_corners.x) / 2.f, lower_right.y + (sns->sz_s * scale_corners.y) / 2.f, 0), zt_vec2(sns->sz_e * scale_corners.x + lr_center_add_x, sns->sz_s * scale_corners.y + lr_center_add_y), sns->sp_se.xy, sns->sp_se.zw);
-
-	zt_drawListPopTexture(draw_list);
-#else
-
 	ztVec3 pos_nw[] = {
 		zt_vec3(upper_left.x,                               upper_left.y, 0),
 		zt_vec3(upper_left.x,                               upper_left.y - sns->sz_n * scale_corners.y, 0),
@@ -18283,7 +18371,459 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	/* south west */ zt_drawListAddFilledQuad(draw_list, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
 	/* south east */ zt_drawListAddFilledQuad(draw_list, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
 	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+#if 1
+void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2& at_pos, const ztVec2& csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
+{
+	ZT_PROFILE_RENDERING("zt_spriteNineSliceGetTriangles");
+	r32 ppu = zt_pixelsPerUnit();
+
+	ztVec2 pos = at_pos;
+	ztVec2 size = csize;
+
+	r32 x_diff = sns->offset.z - sns->offset.x;
+	r32 y_diff = sns->offset.y - sns->offset.w;
+
+	pos.x += x_diff / 2.f;
+	pos.y += y_diff / 2.f;
+
+	size.x += sns->offset.x + sns->offset.z;
+	size.y += sns->offset.y + sns->offset.w;
+
+	ztVec2 upper_left = zt_vec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
+
+	ztVec2 scale_corners = ztVec2::one;
+	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
+	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
+
+	ztVec2 pos_nw[] = {
+		zt_vec2(upper_left.x, upper_left.y),
+		zt_vec2(upper_left.x, upper_left.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y)
+	};
+	ztVec2 pos_ne[] = {
+		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y),
+		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_right.x, upper_right.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_right.x, upper_right.y)
+	};
+	ztVec2 pos_sw[] = {
+		zt_vec2(lower_left.x, lower_left.y + sns->sz_s * scale_corners.y),
+		zt_vec2(lower_left.x, lower_left.y),
+		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y),
+		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y)
+	};
+	ztVec2 pos_se[] = {
+		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y),
+		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y),
+		zt_vec2(lower_right.x, lower_right.y),
+		zt_vec2(lower_right.x, lower_right.y + sns->sz_s * scale_corners.y)
+	};
+
+	zt_fiz(4) {
+		zt_alignToPixel(&pos_nw[i], ppu);
+		zt_alignToPixel(&pos_ne[i], ppu);
+		zt_alignToPixel(&pos_sw[i], ppu);
+		zt_alignToPixel(&pos_se[i], ppu);
+	}
+
+	struct local
+	{
+		static void process(ztVec2 *pos, ztVec2 *uvs, int &idx, const ztVec2& p1, const ztVec2& p2, const ztVec2& p3, const ztVec2& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4)
+		{
+			{
+				pos[idx + 0] = p1;
+				pos[idx + 1] = p2;
+				pos[idx + 2] = p3;
+
+				uvs[idx + 0] = uv1;
+				uvs[idx + 1] = uv2;
+				uvs[idx + 2] = uv3;
+
+				idx += 3;
+			}
+			{
+				pos[idx + 0] = p1;
+				pos[idx + 1] = p3;
+				pos[idx + 2] = p4;
+
+				uvs[idx + 0] = uv1;
+				uvs[idx + 1] = uv3;
+				uvs[idx + 2] = uv4;
+
+				idx += 3;
+			}
+		}
+	};
+
+	int idx = 0;
+	/* center     */ local::process(pos_arr, uvs_arr, idx, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, zt_vec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, zt_vec2(sns->sp_c.z, sns->sp_c.y));
+	/* west       */ local::process(pos_arr, uvs_arr, idx, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, zt_vec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, zt_vec2(sns->sp_w.z, sns->sp_w.y));
+	/* east       */ local::process(pos_arr, uvs_arr, idx, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, zt_vec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, zt_vec2(sns->sp_e.z, sns->sp_e.y));
+	/* north      */ local::process(pos_arr, uvs_arr, idx, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, zt_vec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, zt_vec2(sns->sp_n.z, sns->sp_n.y));
+	/* south      */ local::process(pos_arr, uvs_arr, idx, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, zt_vec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, zt_vec2(sns->sp_s.z, sns->sp_s.y));
+
+	/* north west */ local::process(pos_arr, uvs_arr, idx, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, zt_vec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, zt_vec2(sns->sp_nw.z, sns->sp_nw.y));
+	/* north east */ local::process(pos_arr, uvs_arr, idx, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, zt_vec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, zt_vec2(sns->sp_ne.z, sns->sp_ne.y));
+	/* south west */ local::process(pos_arr, uvs_arr, idx, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y));
+	/* south east */ local::process(pos_arr, uvs_arr, idx, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y));
+}
 #endif
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerMake");
+	zt_returnOnNull(sprite_manager);
+	zt_assertReturnOnFail(max_sprites > 0);
+
+	sprite_manager->sprites = zt_mallocStructArray(ztSpriteManager::Entry, max_sprites);
+	sprite_manager->sprites_count = max_sprites;
+
+	zt_fiz(max_sprites) {
+		sprite_manager->sprites[i].hash = 0;
+		sprite_manager->sprites[i].type = ztSpriteType_Invalid;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
+	zt_returnValOnNull(asset_mgr, false);
+	if (asset_id == ztInvalidID) {
+		return false;
+	}
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		return false;
+	}
+
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		return false;
+	}
+
+	const char *error = nullptr;
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, size, "3ab6d99a-afe6-4a1a-9f52-5cd62973c028")) {
+		goto on_error;
+	}
+
+	if (!zt_spriteManagerLoad(sprite_manager, &serial, tex)) {
+		zt_serialClose(&serial);
+		goto on_error;
+	}
+
+	zt_serialClose(&serial);
+	zt_freeArena(data, asset_mgr->arena);
+	return true;
+
+on_error:
+	zt_logCritical(error);
+	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
+	zt_returnValOnNull(sprite_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) return false;
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		int idx = 0;
+		zt_fiz(sprite_manager->sprites_count) {
+			if (sprite_manager->sprites[i].hash == 0) {
+				idx = i;
+				break;
+			}
+		}
+
+		while(true) {
+			_serialCheck(zt_serialGroupPush(serial));
+			{
+				i32 hash = 0;
+				_serialCheck(zt_serialRead(serial, &hash));
+
+				if (hash == 0) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+				if (idx >= sprite_manager->sprites_count) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+
+				sprite_manager->sprites[idx].hash = hash;
+
+				_serialCheck(zt_serialRead(serial, sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), nullptr));
+
+				i32 type = 0;
+				_serialCheck(zt_serialRead(serial, &type));
+
+				sprite_manager->sprites[idx].type = (ztSpriteType_Enum)type;
+
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					if (sprite_manager->sprites[idx].type == ztSpriteType_Sprite) {
+						sprite_manager->sprites[idx].s.tex = tex;
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.tex_uv));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.half_size));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.anchor));
+					}
+					else if (sprite_manager->sprites[idx].type == ztSpriteType_SpriteNineSlice) {
+						sprite_manager->sprites[idx].sns.tex = tex;
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_nw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_n));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_ne));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_w));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_c));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_e));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_sw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_s));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_se));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_n));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_s));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_e));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_w));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_cw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_ch));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.offset));
+					}
+					else zt_assert(false);
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+
+				idx += 1;
+			}
+			_serialCheck(zt_serialGroupPop(serial));
+		}
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerSave");
+	zt_returnValOnNull(sprite_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) return false;
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		zt_fiz(sprite_manager->sprites_count) {
+			if (sprite_manager->sprites[i].hash != 0) {
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].hash));
+					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].name, zt_elementsOf(sprite_manager->sprites[i].name)));
+					_serialCheck(zt_serialWrite(serial, (i32)sprite_manager->sprites[i].type));
+
+					_serialCheck(zt_serialGroupPush(serial));
+					{
+						if(sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.tex_uv));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.half_size));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.anchor));
+						}
+						else if(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_nw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_n));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_ne));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_w));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_c));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_e));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_sw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_s));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_se));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_n));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_s));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_e));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_w));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_cw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_ch));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.offset));
+						}
+						else zt_assert(false);
+					}
+					_serialCheck(zt_serialGroupPop(serial));
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+			}
+		}
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialWrite(serial, 0)); // indicates end of file
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerFree(ztSpriteManager *sprite_manager)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerFree");
+	if (sprite_manager == nullptr || sprite_manager->sprites == nullptr) {
+		return;
+	}
+
+	zt_free(sprite_manager->sprites);
+	sprite_manager->sprites = nullptr;
+	sprite_manager->sprites_count = 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerAddSprite");
+	zt_returnOnNull(sprite_manager);
+	zt_returnOnNull(s);
+	zt_assertReturnOnFail(name != nullptr);
+
+	i32 sprite_hash = zt_strHash(name);
+
+	int idx = -1;
+	zt_fiz(sprite_manager->sprites_count) {
+		if(idx < 0 && sprite_manager->sprites[i].hash == 0) {
+			idx = i;
+		}
+		if(sprite_manager->sprites[i].hash == sprite_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx < 0) {
+		zt_assert(false);
+		return;
+	}
+
+	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
+	sprite_manager->sprites[idx].hash = sprite_hash;
+	sprite_manager->sprites[idx].type = ztSpriteType_Sprite;
+	sprite_manager->sprites[idx].s    = *s;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerAddSpriteNineSlice");
+	zt_returnOnNull(sprite_manager);
+	zt_returnOnNull(sns);
+	zt_assertReturnOnFail(name != nullptr);
+
+	i32 sprite_hash = zt_strHash(name);
+
+	int idx = -1;
+	zt_fiz(sprite_manager->sprites_count) {
+		if(idx < 0 && sprite_manager->sprites[i].hash == 0) {
+			idx = i;
+		}
+		if(sprite_manager->sprites[i].hash == sprite_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx < 0) {
+		zt_assert(false);
+		return;
+	}
+
+	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
+	sprite_manager->sprites[idx].hash = sprite_hash;
+	sprite_manager->sprites[idx].type = ztSpriteType_SpriteNineSlice;
+	sprite_manager->sprites[idx].sns  = *sns;
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
+	return zt_spriteManagerGetSprite(sprite_manager, zt_strHash(name));
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_hash)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
+	zt_returnValOnNull(sprite_manager, nullptr);
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if(sprite_manager->sprites[i].hash == sprite_hash) {
+			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_Sprite, nullptr);
+			return &sprite_manager->sprites[i].s;
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
+	return zt_spriteManagerGetSpriteNineSlice(sprite_manager, zt_strHash(name));
+}
+
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
+	zt_returnValOnNull(sprite_manager, nullptr);
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if(sprite_manager->sprites[i].hash == sprite_hash) {
+			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice, nullptr);
+			return &sprite_manager->sprites[i].sns;
+		}
+	}
+
+	return nullptr;
 }
 
 
@@ -25013,14 +25553,17 @@ int main(int argc, const char **argv)
 {
 	char *app_path = (char*)malloc(ztFileMaxPath);
 	zt_fileGetAppPath(app_path, ztFileMaxPath);
+	zt_logDebug("application path: %s", app_path);
 
 	char *data_path_temp = (char*)malloc(ztFileMaxPath);
 	char *data_path = (char*)malloc(ztFileMaxPath);
 	zt_fileGetCurrentPath(data_path_temp, ztFileMaxPath);
 	zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "data");
+	zt_logDebug("application data path: %s", data_path);
 
 	if(!zt_directoryExists(data_path)) {
 		zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "run" ztFilePathSeparatorStr "data");
+		zt_logDebug("adjusted application data path: %s", data_path);
 	}
 
 	free(data_path_temp);
@@ -25032,6 +25575,7 @@ int main(int argc, const char **argv)
 #	else
 	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
 #	endif
+	zt_logDebug("user path: %s", user_path);
 
 	ztGameGlobals *game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
 	zt_memSet(game, zt_sizeof(ztGameGlobals), 0);
