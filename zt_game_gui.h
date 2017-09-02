@@ -371,7 +371,7 @@ typedef ZT_FUNC_GUI_ITEM_BEST_SIZE(zt_guiItemBestSize_Func);
 #define ZT_FUNC_GUI_ITEM_INPUT_KEY(name) bool name(ztGuiItem *item, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], void *user_data)
 typedef ZT_FUNC_GUI_ITEM_INPUT_KEY(zt_guiItemInputKey_Func);
 
-#define ZT_FUNC_GUI_ITEM_INPUT_MOUSE(name) bool name(ztGuiItem *item, ztInputMouse *input_mouse, void *user_data)
+#define ZT_FUNC_GUI_ITEM_INPUT_MOUSE(name) bool name(ztGuiItem *item, ztInputMouse *input_mouse, bool key_ctrl, bool key_alt, bool key_shift, void *user_data)
 typedef ZT_FUNC_GUI_ITEM_INPUT_MOUSE(zt_guiItemInputMouse_Func);
 
 // ================================================================================================================================================================================================
@@ -406,6 +406,8 @@ typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(zt_guiListBoxItemSelected_Func);
 #define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(name) void name(ztGuiItem *cyclebox, int value, void *user_data)
 typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(zt_guiCycleBoxValueChanged_Func);
 
+#define ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(name) void name(ztGuiItem *editor, void *user_data)
+typedef ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(zt_guiEditorValueChanged_Func);
 
 // ================================================================================================================================================================================================
 
@@ -626,6 +628,7 @@ ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec2 *value, ztVec2 min, ztVec2 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y");
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec3 *value, ztVec3 min, ztVec3 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z");
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec4 *value, ztVec4 min, ztVec4 max, r32 step = .1f, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z", char *label_w = "W");
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec2i *value, ztVec2i min, ztVec2i max, i32 step = 1, bool label_above = true, char *label_x = "X", char *label_y = "Y");
 
 // ================================================================================================================================================================================================
 
@@ -756,6 +759,7 @@ void             zt_guiScrollbarSetCallback            (ztGuiItem *scrollbar, zt
 void             zt_guiScrollContainerSetItem          (ztGuiItem *scroll, ztGuiItem *internal_item);
 void             zt_guiScrollContainerResetScroll      (ztGuiItem *scroll);
 void             zt_guiScrollContainerSetScroll        (ztGuiItem *scroll, ztGuiItemOrient_Enum orient, r32 value);
+r32              zt_guiScrollContainerGetScroll        (ztGuiItem *scroll, ztGuiItemOrient_Enum orient);
 
 // ================================================================================================================================================================================================
 
@@ -860,11 +864,14 @@ void             zt_guiEditorSetToValue                (ztGuiItem *editor, i32 v
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec2 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec3 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec4 value);
+void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec2i value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, r32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, i32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec2 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec3 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec4 *value);
+void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec2i *value);
+void             zt_guiEditorSetCallback               (ztGuiItem *editor, ztFunctionID function_id, void *user_data);
 
 // ================================================================================================================================================================================================
 
@@ -890,6 +897,8 @@ void             zt_guiDebugShowDetails                (bool show = true);
 
 //               returns a static text that will appear in the dropdown when [+] is pressed next to the fps display
 ztGuiItem       *zt_guiDebugAddMetric                  (const char *sample);
+
+ztGuiItem       *zt_guiDebugGetMenuBar                 ();
 
 // ================================================================================================================================================================================================
 
@@ -1416,7 +1425,7 @@ struct ztGuiGlobals
 	ztGuiItem        *console_display_container    = nullptr;
 	ztGuiItem        *console_display              = nullptr;
 	ztGuiItem        *console_command              = nullptr;
-
+	ztGuiItem        *menu_bar                     = nullptr;
 	ztMemoryArena    *arena = nullptr;
 };
 
@@ -1620,7 +1629,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 		
 		case ztGuiThemeValue_r32_TreeIndent:                  *result = 12 / ppu; break;
 		
-		case ztGuiThemeValue_r32_ComboboxButtonW:             *result = 16 / ppu; break;
+		case ztGuiThemeValue_r32_ComboboxButtonW:             *result = 22 / ppu; break;
 
 		case ztGuiThemeValue_r32_CycleBoxButtonW:             *result = 22 / ppu; break;
 
@@ -2582,8 +2591,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 			r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 			
-			ztVec2 pos_txt_p = zt_vec2(pos.x, (pos.y + (item->size.y / 2)) + (4 / ppu));
-			ztVec2 pos_txt_m = zt_vec2(pos.x, (pos.y - (item->size.y / 2)) - (8 / ppu));
+			ztVec2 pos_txt_p = zt_vec2(pos.x, (pos.y + (item->size.y / 2)) + (2 / ppu));
+			ztVec2 pos_txt_m = zt_vec2(pos.x, (pos.y - (item->size.y / 2)) - (9 / ppu));
 
 			zt_drawListAddText2D(draw_list, ztFontDefault, "+", pos_txt_p, ztAlign_Top, ztAnchor_Top);
 			zt_drawListAddText2D(draw_list, ztFontDefault, "-", pos_txt_m, ztAlign_Bottom, ztAnchor_Bottom);
@@ -3231,7 +3240,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 				}
 
 				// clicks and releases
-				static bool processMouseFocusEvent(ztGuiManager *gm, ztGuiItem *item, ztInputMouse *input_mouse, const ztVec2& mpos)
+				static bool processMouseFocusEvent(ztGuiManager *gm, ztGuiItem *item, ztInputMouse *input_mouse, ztInputKeys *input_keys, const ztVec2& mpos)
 				{
 					if (!zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Visible)) || zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Disabled))) {
 						zt_assert(item != gm->item_has_mouse);
@@ -3241,7 +3250,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					if (gm->item_has_mouse != nullptr && gm->item_has_mouse != item) {
 						ztGuiItem *mi = gm->item_has_mouse;
 						if (mi) {
-							bool result = processMouseFocusEvent(gm, mi, input_mouse, mpos);
+							bool result = processMouseFocusEvent(gm, mi, input_mouse, input_keys, mpos);
 							if (gm->item_has_mouse != nullptr && !zt_guiItemIsShowing(gm->item_has_mouse)) {
 								zt_bitRemove(gm->item_has_mouse->state_flags, zt_bit(ztGuiItemStates_MouseClick));
 								gm->item_has_mouse = nullptr;
@@ -3260,11 +3269,17 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 						if (mouse_intersecting || zt_bitIsSet(item->behavior_flags, ztGuiItemBehaviorFlags_HasOutlyingChildren)) {
 							// check each child first
 							ztGuiItem *child = item->first_child;
-							while (child) {
-								if (processMouseFocusEvent(gm, child, input_mouse, mpos)) {
-									return true;
+							if (child) {
+								while (child->sib_next) {
+									child = child->sib_next;
 								}
-								child = child->sib_next;
+
+								while (child) {
+									if (processMouseFocusEvent(gm, child, input_mouse, input_keys, mpos)) {
+										return true;
+									}
+									child = child->sib_prev;
+								}
 							}
 						}
 						else return false; // the mouse is not captured and it's not in this item's area, so ignore
@@ -3295,7 +3310,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
 							item->state_flags |= zt_bit(ztGuiItemStates_MouseOver);
 						}
-						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, item->functions.user_data)) {
+						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, input_keys[ztInputKeys_Control].pressed(), input_keys[ztInputKeys_Menu].pressed(), input_keys[ztInputKeys_Shift].pressed(), item->functions.user_data)) {
 							recv_focus = true;
 						}
 					}
@@ -3308,7 +3323,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 				}
 
 				// movements and scroll wheel
-				static bool mouseProcessNonFocusEvent(ztGuiManager *gm, ztGuiItem *item, ztInputMouse *input_mouse, const ztVec2& mpos)
+				static bool mouseProcessNonFocusEvent(ztGuiManager *gm, ztGuiItem *item, ztInputMouse *input_mouse, ztInputKeys *input_keys, const ztVec2& mpos)
 				{
 					if (!zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Visible))) {
 						zt_assert(item != gm->item_has_mouse);
@@ -3326,7 +3341,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 							// check each child first
 							ztGuiItem *child = item->first_child;
 							while (child) {
-								if (mouseProcessNonFocusEvent(gm, child, input_mouse, mpos)) {
+								if (mouseProcessNonFocusEvent(gm, child, input_mouse, input_keys, mpos)) {
 									return true;
 								}
 								child = child->sib_next;
@@ -3347,7 +3362,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 							gm->item_cache_flags[item->id] |= ztGuiManagerItemCacheFlags_MouseOver;
 							item->state_flags |= zt_bit(ztGuiItemStates_MouseOver);
 						}
-						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, item->functions.user_data)) {
+						if (item->functions.input_mouse != ztInvalidID && ((zt_guiItemInputMouse_Func*)zt_functionPointer(item->functions.input_mouse))(item, input_mouse, input_keys[ztInputKeys_Control].pressed(), input_keys[ztInputKeys_Menu].pressed(), input_keys[ztInputKeys_Shift].pressed(), item->functions.user_data)) {
 							return true;
 						}
 					}
@@ -3358,7 +3373,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 			bool mouse_just_released = input_mouse->leftJustReleased() || input_mouse->rightJustReleased() || input_mouse->middleJustReleased();
 			if (mouse_captured || input_mouse->leftPressed() || input_mouse->rightPressed() || input_mouse->middlePressed() ||
 				input_mouse->leftJustReleased() || input_mouse->rightJustReleased() || input_mouse->middleJustReleased()) {
-				if (local::processMouseFocusEvent(gm, child, input_mouse, mpos)) {
+				if (local::processMouseFocusEvent(gm, child, input_mouse, input_keys, mpos)) {
 					gm->keyboard_focus = true;
 					if (zt_bitIsSet(child->behavior_flags, ztGuiItemBehaviorFlags_BringToFront)) {
 						// need to make this particular child the last in the series
@@ -3387,7 +3402,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					break; // exit the loop, the mouse has been handled
 				}
 			}
-			else if (local::mouseProcessNonFocusEvent(gm, child, input_mouse, mpos)) {
+			else if (local::mouseProcessNonFocusEvent(gm, child, input_mouse, input_keys, mpos)) {
 				break; // exit the loop
 			}
 
@@ -5389,6 +5404,21 @@ void zt_guiScrollContainerSetScroll(ztGuiItem *scroll, ztGuiItemOrient_Enum orie
 }
 
 // ================================================================================================================================================================================================
+
+r32 zt_guiScrollContainerGetScroll(ztGuiItem *scroll, ztGuiItemOrient_Enum orient)
+{
+	zt_returnValOnNull(scroll, 0);
+	zt_assertReturnValOnFail(scroll->type == ztGuiItemType_ScrollContainer, 0);
+
+	if (orient == ztGuiItemOrient_Horz) {
+		return scroll->scrolled_container.scroll_amt_horz;
+	}
+	else {
+		return scroll->scrolled_container.scroll_amt_vert;
+	}
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -5893,11 +5923,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputKey, ztInternal ZT_FUNC_GUI_ITE
 		_zt_guiTextEditSelectEnd(item);
 	}
 
-	int keys = 0;
-	zt_fiz(input_key_strokes) {
-		if (input_key_strokes[i] == ztInputKeys_Invalid) break;
-
-		if (input_keys[input_key_strokes[i]].display != 0) {
+	struct local
+	{
+		static bool processKeyStroke(ztGuiItem *item, char display_ch, int &str_len, bool &recalc_cursor, int &keys)
+		{
 			if (item->textedit.select_beg != item->textedit.select_end) {
 				int offset = zt_max(item->textedit.select_beg, item->textedit.select_end) - zt_min(item->textedit.select_beg, item->textedit.select_end);
 				for (int i = zt_min(item->textedit.select_beg, item->textedit.select_end); i <= str_len; ++i) {
@@ -5910,20 +5939,67 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputKey, ztInternal ZT_FUNC_GUI_ITE
 
 			if (str_len >= zt_stringSize(item->textedit.text_buffer)) {
 				zt_logInfo("GUI text edit control has reached its max size");
-				break;
+				return false;
 			}
 
-			if (input_key_strokes[i] == ztInputKeys_Return && !zt_bitIsSet(item->behavior_flags, ztGuiTextEditBehaviorFlags_MultiLine)) {
-				continue;
+			if (display_ch == '\n' && !zt_bitIsSet(item->behavior_flags, ztGuiTextEditBehaviorFlags_MultiLine)) {
+				return true;
 			}
 
 			for (int j = str_len; j >= item->textedit.cursor_pos; --j) {
 				item->textedit.text_buffer[j + 1] = item->textedit.text_buffer[j];
 			}
-			item->textedit.text_buffer[item->textedit.cursor_pos++] = shifting ? input_keys[input_key_strokes[i]].shift_display : input_keys[input_key_strokes[i]].display;
-			item->textedit.text_buffer[item->textedit.cursor_pos] = 0;
+			item->textedit.text_buffer[item->textedit.cursor_pos++] = display_ch;;
+
+			if(item->textedit.cursor_pos >= str_len) {
+				item->textedit.text_buffer[item->textedit.cursor_pos] = 0;
+				str_len += 1;
+			}
+
 			recalc_cursor = true;
 			keys += 1;
+			return true;
+		}
+	};
+
+	bool control = input_keys[ztInputKeys_Control].pressed();
+	bool alt = input_keys[ztInputKeys_Menu].pressed();
+	int keys = 0;
+	if (!control && !alt) {
+		zt_fiz(input_key_strokes) {
+			if (input_key_strokes[i] == ztInputKeys_Invalid) break;
+
+			if (input_keys[input_key_strokes[i]].display != 0) {
+				if (!local::processKeyStroke(item, shifting ? input_keys[input_key_strokes[i]].shift_display : input_keys[input_key_strokes[i]].display, str_len, recalc_cursor, keys)) {
+					break;
+				}
+			}
+		}
+	}
+	else {
+		if (control && input_keys[ztInputKeys_V].justPressed()) {
+			if (zt_clipboardContains(ztClipboardDataType_PlainText)) {
+				char buffer[1024 * 4] = {0};
+				int buffer_len = 0;
+				if (zt_clipboardReadPlainText(buffer, zt_elementsOf(buffer), &buffer_len)) {
+					zt_fiz(buffer_len) {
+						if(!local::processKeyStroke(item, buffer[i], str_len, recalc_cursor, keys)) {
+							break;
+						}
+					}
+				}
+			}
+		}
+		else if (control && input_keys[ztInputKeys_C].justPressed()) {
+			if (item->textedit.select_beg != item->textedit.select_end) {
+				int min = zt_min(item->textedit.select_beg, item->textedit.select_end);
+				int max = zt_max(item->textedit.select_beg, item->textedit.select_end);
+
+				char buffer[1024 * 4] = {0};
+				zt_strCpy(buffer, zt_elementsOf(buffer), item->textedit.text_buffer + min, max - min);
+
+				zt_clipboardSendPlainText(buffer);
+			}
 		}
 	}
 
@@ -8913,15 +8989,20 @@ struct ztGuiEditorValue
 		} val_i32;
 	};
 
-	ztGuiItem *editor;
-	ztGuiItem *text_edit;
-	ztGuiItem *spinner;
+	ztGuiItem    *editor;
+	ztGuiItem    *text_edit;
+	ztGuiItem    *spinner;
+
+	ztFunctionID  func_val_changed;
+	void         *func_val_changed_user_data;
+
 };
 
 #define ztGuiEditorFirstChildName       "editor"
 #define ztGuiEditorFirstChildNameVec2   "editor-vec2"
 #define ztGuiEditorFirstChildNameVec3   "editor-vec3"
 #define ztGuiEditorFirstChildNameVec4   "editor-vec4"
+#define ztGuiEditorFirstChildNameVec2i  "editor-vec2i"
 
 #define ztGuiEditor_Guid                zt_guidMake(0x4787c0e7, 0x2c9d61aa, 0xc7f1dc78, 0x8776b714)
 
@@ -8947,6 +9028,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_gu
 		else if (vptr->type == ztGuiEditorType_r32) {
 			if (vptr->val_r32.value == nullptr) return;
 			*vptr->val_r32.value = zt_strToReal32(buffer, 0);
+		}
+
+		if (vptr->func_val_changed != ztInvalidID) {
+			((zt_guiEditorValueChanged_Func*)zt_functionPointer(vptr->func_val_changed))(item, vptr->func_val_changed_user_data);
 		}
 	}
 	if (vptr->needs_update_from_spinner) {
@@ -8977,6 +9062,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_gu
 		}
 
 		zt_guiTextEditSetValue(vptr->text_edit, buffer);
+
+		if (vptr->func_val_changed != ztInvalidID) {
+			((zt_guiEditorValueChanged_Func*)zt_functionPointer(vptr->func_val_changed))(item, vptr->func_val_changed_user_data);
+		}
 	}
 }
 
@@ -9124,6 +9213,9 @@ ztInternal ztGuiItem *_zt_guiEditorMakeBase(ztGuiItem *parent, const char *label
 	value->needs_update_from_spinner = true;
 	value->needs_update_from_editor = false;
 
+	value->func_val_changed = ztInvalidID;
+	value->func_val_changed_user_data = nullptr;
+
 	return panel;
 }
 
@@ -9163,10 +9255,12 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec2);
 
 	r32 padding = 1 / zt_pixelsPerUnit();
-	zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	if (label != nullptr) {
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
 
 	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_edit, 1, padding);
+	zt_guiSizerAddItem(sizer, sizer_edit, 1, 0);
 
 	char * labels[] = { label_x, label_y };
 
@@ -9176,7 +9270,6 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2 *value,
 		}
 
 		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], (value ? &value->values[i] : nullptr), min.values[i], max.values[i], step);
-		editor->size.y = 25 / zt_pixelsPerUnit();
 		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -9195,10 +9288,12 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec3);
 
 	r32 padding = 3 / zt_pixelsPerUnit();
-	zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	if (label != nullptr) {
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
 
 	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_edit, 1, padding);
+	zt_guiSizerAddItem(sizer, sizer_edit, 1, 0);
 
 	char * labels[] = { label_x, label_y, label_z };
 
@@ -9208,7 +9303,6 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3 *value,
 		}
 
 		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], (value ? &value->values[i] : nullptr), min.values[i], max.values[i], step);
-		editor->size.y = 25 / zt_pixelsPerUnit();
 		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -9227,10 +9321,12 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec4);
 
 	r32 padding = 3 / zt_pixelsPerUnit();
-	zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	if (label != nullptr) {
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
 
 	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_edit, 1, padding);
+	zt_guiSizerAddItem(sizer, sizer_edit, 1, 0);
 
 	char * labels[] = { label_x, label_y, label_z, label_w };
 
@@ -9240,12 +9336,44 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value,
 		}
 
 		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], (value ? &value->values[i] : nullptr), min.values[i], max.values[i], step);
-		editor->size.y = 25 / zt_pixelsPerUnit();
 
 		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
 	panel->size = zt_guiSizerGetMinSize(sizer) + zt_vec2(6 / zt_pixelsPerUnit(), 6 / zt_pixelsPerUnit());
+	panel->min_size = panel->size;
+
+	return panel;
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2i *value, ztVec2i min, ztVec2i max, i32 step, bool label_above, char *label_x, char *label_y)
+{
+	ztGuiItem *panel = zt_guiMakePanel(parent);
+	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec2i);
+
+	r32 padding = 1 / zt_pixelsPerUnit();
+	if (label != nullptr) {
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
+
+	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, sizer_edit, 1, 0);
+
+	char * labels[] = { label_x, label_y };
+
+	zt_fize(labels) {
+		if (i != 0) {
+			zt_guiSizerAddStretcher(sizer_edit, 0, padding);
+		}
+
+		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], (value ? &value->values[i] : nullptr), min.values[i], max.values[i], step);
+		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
+
+	panel->size = zt_guiSizerGetMinSize(sizer);// +zt_vec2(6 / zt_pixelsPerUnit(), 6 / zt_pixelsPerUnit());
 	panel->min_size = panel->size;
 
 	return panel;
@@ -9410,6 +9538,26 @@ void zt_guiEditorSetToValue(ztGuiItem *editor, ztVec4 value)
 
 // ================================================================================================================================================================================================
 
+void zt_guiEditorSetToValue(ztGuiItem *editor, ztVec2i value)
+{
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec2i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value.values));
+				zt_guiEditorSetToValue(edit, value.values[editor_idx++]);
+			}
+		}
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
 void zt_guiEditorReassign(ztGuiItem *editor, r32 *value)
 {
 	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
@@ -9524,6 +9672,61 @@ void zt_guiEditorReassign(ztGuiItem *editor, ztVec4 *value)
 	zt_assert(false); // wrong editor type
 }
 
+// ================================================================================================================================================================================================
+
+void zt_guiEditorReassign(ztGuiItem *editor, ztVec2i *value)
+{
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec2i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value->values));
+				if (value == nullptr) {
+					zt_guiEditorReassign(edit, (r32*)nullptr);
+				}
+				else {
+					zt_guiEditorReassign(edit, &value->values[editor_idx++]);
+				}
+			}
+		}
+		return;
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorSetCallback(ztGuiItem *editor, ztFunctionID function_id, void *user_data)
+{
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildName)) {
+		ztGuiEditorValue *vptr = (ztGuiEditorValue*)editor->panel.user_data;
+		zt_assertReturnOnFail(vptr != nullptr);
+
+		vptr->func_val_changed = function_id;
+		vptr->func_val_changed_user_data = user_data;
+	}
+	else {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_guiEditorSetCallback(edit, function_id, user_data);
+			}
+		}
+	}
+	return;
+
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
@@ -9651,7 +9854,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 	}
 
 	if (item->sizer.size_to_parent && !item->sizer.size_parent_x && !item->sizer.size_parent_y) {
-		ztVec2 parent_size = item->parent->min_size == ztVec2::zero ? item->parent->size : item->parent->min_size;
+		//ztVec2 parent_size = item->parent->min_size == ztVec2::zero ? item->parent->size : item->parent->min_size;
+		ztVec2 parent_size = zt_vec2(zt_max(item->parent->min_size.x, item->parent->size.x), zt_max(item->parent->min_size.y, item->parent->size.y));
 		item->sizer.size[0] = item->size.x = parent_size.x;
 		item->sizer.size[1] = item->size.y = parent_size.y;
 	}
@@ -11005,6 +11209,13 @@ ztGuiItem *zt_guiDebugAddMetric(const char *sample)
 }
 
 // ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiDebugGetMenuBar()
+{
+	return zt_gui->menu_bar;
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -11950,7 +12161,7 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 	ztGuiItem *display = zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_DISPLAY_NAME, zt_guiItemFindByName(ZT_GUI_DEBUG_TEXVIEW_NAME));
 
 	ztVec2 scale = ztVec2::one;
-	i32 max = zt_max(zt_game->textures[tex_id].width, zt_game->textures[tex_id].height);
+	i32 max = zt_game->textures[tex_id].height;//zt_max(zt_game->textures[tex_id].width, zt_game->textures[tex_id].height);
 	if (max > 1024) {
 		scale.x = scale.y = 1.f / (max / 1024.f);
 	}
@@ -13529,6 +13740,1251 @@ void zt_guiDebugMemoryInspectorRemoveArena(ztMemoryArena *arena)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#define ztDebugSpriteGUID       "3ab6d99a-afe6-4a1a-9f52-5cd62973c028"
+#define ztDebugSpriteVersion     1
+
+enum ztDebugSpriteDragType_Enum
+{
+	ztDebugSpriteDragType_None,
+	ztDebugSpriteDragType_Move,
+	ztDebugSpriteDragType_MoveRight,
+	ztDebugSpriteDragType_Sprite,
+	ztDebugSpriteDragType_SpriteResize,
+
+	ztDebugSpriteDragType_MAX,
+};
+
+// private functions ==============================================================================================================================================================================
+
+struct ztDebugSpriteEditor
+{
+	ztGuiItem                  *combo_textures;
+	ztGuiItem                  *display;
+	ztVec2                      display_drag_pos;
+	ztVec2                      display_drag_mpos;
+	ztDebugSpriteDragType_Enum  display_drag_type;
+	ztVec2                      display_scroll_amt;
+	ztGuiItem                  *display_scroll;
+	int                         display_zoom_level;
+	r32                         display_zoom_mult;
+
+	ztGuiItem                  *sprite_info_panel;
+
+	ztGuiItem                  *text_name;
+	ztGuiItem                  *combo_type; // sprite, nine slice
+
+	ztGuiItem                  *edit_xy;
+	ztGuiItem                  *edit_wh;
+	ztGuiItem                  *edit_anchor;
+	ztGuiItem                  *edit_nw;
+	ztGuiItem                  *edit_se;
+	ztGuiItem                  *edit_offset_nw;
+	ztGuiItem                  *edit_offset_se;
+
+	ztGuiItem                  *gui_edit_sprite[32];
+	ztGuiItem                  *gui_edit_nineslice[32];
+
+	ztVec2i                     val_xy;
+	ztVec2i                     val_wh;
+	ztVec2i                     val_anchor;
+	ztVec2i                     val_nw;
+	ztVec2i                     val_se;
+	ztVec2i                     val_offset_nw;
+	ztVec2i                     val_offset_se;
+
+	bool                        ignore_value_change;
+
+	ztTextureID                 active_tex;
+	ztVec2i                     active_tex_size;
+
+	ztTextureID                 grid_texture;
+	ztVec2i                     grid_texture_size;
+
+	char                        sprite_name[1024][64];
+	int                         sprite_type[1024];
+	ztVec2                      sprite_pos[1024];
+	ztVec2                      sprite_size[1024];
+	ztVec2                      sprite_anchor[1024];
+	ztVec2                      sprite_nw[1024];
+	ztVec2                      sprite_se[1024];
+	ztVec2                      sprite_offset_nw[1024];
+	ztVec2                      sprite_offset_se[1024];
+	int                         sprite_active;
+	i32                         sprite_active_drag;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_debugSpriteEdDisplayCalcSize(ztGuiItem *display)
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)display->functions.user_data;
+
+	ztVec2 size = zt_vec2(editor->active_tex_size.x / zt_pixelsPerUnit(), editor->active_tex_size.y / zt_pixelsPerUnit());
+
+	switch (editor->display_zoom_level) {
+		case -3: editor->display_zoom_mult = .25f; break;
+		case -2: editor->display_zoom_mult = .50f; break;
+		case -1: editor->display_zoom_mult = .75f; break;
+		case  0: editor->display_zoom_mult = 1.00f; break;
+		case  1: editor->display_zoom_mult = 2.00f; break;
+		case  2: editor->display_zoom_mult = 4.00f; break;
+		case  3: editor->display_zoom_mult = 8.00f; break;
+		case  4: editor->display_zoom_mult = 16.00f; break;
+	}
+
+	zt_guiItemSetSize(editor->display, size * editor->display_zoom_mult + zt_vec2(editor->sprite_info_panel->size.x, 0));
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_debugSpriteEdDisplayAdjustGui(ztDebugSpriteEditor *editor)
+{
+	int selected = zt_guiComboBoxGetSelected(editor->combo_type);
+	if (selected == 0) { // sprite
+		zt_fize(editor->gui_edit_nineslice) {
+			if (editor->gui_edit_nineslice[i]) {
+				zt_guiItemHide(editor->gui_edit_nineslice[i]);
+			}
+		}
+		zt_fize(editor->gui_edit_sprite) {
+			if (editor->gui_edit_sprite[i]) {
+				zt_guiItemShow(editor->gui_edit_sprite[i]);
+			}
+		}
+	}
+	else if (selected == 1) { // nine slice
+		zt_fize(editor->gui_edit_nineslice) {
+			if (editor->gui_edit_nineslice[i]) {
+				zt_guiItemShow(editor->gui_edit_nineslice[i]);
+			}
+		}
+		zt_fize(editor->gui_edit_sprite) {
+			if (editor->gui_edit_sprite[i]) {
+				zt_guiItemHide(editor->gui_edit_sprite[i]);
+			}
+		}
+	}
+	else zt_assert(false);
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->combo_type));
+
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_debugSpriteEdDisplayReadVals(ztDebugSpriteEditor *editor)
+{
+	r32 ppu = zt_pixelsPerUnit();
+	int i = editor->sprite_active;
+	editor->val_xy = zt_vec2i(zt_convertToi32Floor(editor->sprite_pos[i].x * ppu), zt_convertToi32Floor(editor->sprite_pos[i].y * ppu));
+	editor->val_wh = zt_vec2i(zt_convertToi32Floor(editor->sprite_size[i].x * ppu), zt_convertToi32Floor(editor->sprite_size[i].y * ppu));
+	editor->val_anchor = zt_vec2i(zt_convertToi32Floor(editor->sprite_anchor[i].x * ppu), zt_convertToi32Floor(editor->sprite_anchor[i].y * ppu));
+	editor->val_nw = zt_vec2i(zt_convertToi32Floor(editor->sprite_nw[i].x * ppu), zt_convertToi32Floor(editor->sprite_nw[i].y * ppu));
+	editor->val_se = zt_vec2i(zt_convertToi32Floor(editor->sprite_se[i].x * ppu), zt_convertToi32Floor(editor->sprite_se[i].y * ppu));
+	editor->val_offset_nw = zt_vec2i(zt_convertToi32Floor(editor->sprite_offset_nw[i].x * ppu), zt_convertToi32Floor(editor->sprite_offset_nw[i].y * ppu));
+	editor->val_offset_se = zt_vec2i(zt_convertToi32Floor(editor->sprite_offset_se[i].x * ppu), zt_convertToi32Floor(editor->sprite_offset_se[i].y * ppu));
+
+	zt_guiTextEditSetValue(editor->text_name, editor->sprite_name[i]);
+
+	zt_guiComboBoxSetSelected(editor->combo_type, editor->sprite_type[i]);
+
+	zt_guiEditorReassign(editor->edit_xy, &editor->val_xy);
+	zt_guiEditorReassign(editor->edit_wh, &editor->val_wh);
+	zt_guiEditorReassign(editor->edit_anchor, &editor->val_anchor);
+	zt_guiEditorReassign(editor->edit_nw, &editor->val_nw);
+	zt_guiEditorReassign(editor->edit_se, &editor->val_se);
+	zt_guiEditorReassign(editor->edit_offset_nw, &editor->val_offset_nw);
+	zt_guiEditorReassign(editor->edit_offset_se, &editor->val_offset_se);
+
+	_zt_debugSpriteEdDisplayAdjustGui(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_debugSpriteEdDisplayApplyVals(ztDebugSpriteEditor *editor)
+{
+	r32 ppu = zt_pixelsPerUnit();
+	int i = editor->sprite_active;
+	editor->sprite_pos[i] = zt_vec2(editor->val_xy.x / ppu, editor->val_xy.y / ppu);
+	editor->sprite_size[i] = zt_vec2(editor->val_wh.x / ppu, editor->val_wh.y / ppu);
+	editor->sprite_anchor[i] = zt_vec2(editor->val_anchor.x / ppu, editor->val_anchor.y / ppu);
+	editor->sprite_nw[i] = zt_vec2(editor->val_nw.x / ppu, editor->val_nw.y / ppu);
+	editor->sprite_se[i] = zt_vec2(editor->val_se.x / ppu, editor->val_se.y / ppu);
+	editor->sprite_offset_nw[i] = zt_vec2(editor->val_offset_nw.x / ppu, editor->val_offset_nw.y / ppu);
+	editor->sprite_offset_se[i] = zt_vec2(editor->val_offset_se.x / ppu, editor->val_offset_se.y / ppu);
+
+	zt_guiTextEditGetValue(editor->text_name, editor->sprite_name[i], zt_elementsOf(editor->sprite_name[i]));
+
+	editor->sprite_type[i] = zt_guiComboBoxGetSelected(editor->combo_type);
+
+	_zt_debugSpriteEdDisplayAdjustGui(editor);
+
+	if (editor->sprite_type[i] == 1) { // nine slice
+		if (editor->sprite_nw[i] == ztVec2::zero) {
+			r32 ppu = zt_pixelsPerUnit();
+			editor->sprite_size[i].x = zt_max(16 / ppu, editor->sprite_size[i].x);
+			editor->sprite_size[i].y = zt_max(16 / ppu, editor->sprite_size[i].y);
+
+			editor->sprite_nw[i] = editor->sprite_pos[i] + zt_vec2(4 / ppu, 4 / ppu);
+			editor->sprite_se[i] = (editor->sprite_pos[i] + editor->sprite_size[i]) - zt_vec2(4 / ppu, 4 / ppu);
+
+			_zt_debugSpriteEdDisplayReadVals(editor);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal bool _zt_debugSpriteEdDisplayGetFileName(ztDebugSpriteEditor *editor, char *name, int name_size)
+{
+	if (zt_game->textures[editor->active_tex].load_type == ztTextureLoadType_Asset) {
+		zt_fileConcatFileToPath(name, name_size, zt_game->game_details.data_path, zt_game->textures[editor->active_tex].asset_mgr->asset_name[zt_game->textures[editor->active_tex].asset_id]);
+
+		int pos = zt_strFindLastPos(name, ".");
+		if (pos != ztStrPosNotFound) {
+			name[pos] = 0;
+		}
+
+		zt_strCat(name, ztFileMaxPath, ".spr");
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayEditorChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_debugSpriteEdDisplayEditorChanged))
+{
+	ztDebugSpriteEditor *editor_ = (ztDebugSpriteEditor*)user_data;
+
+	if (editor_->ignore_value_change) {
+		return;
+	}
+
+	_zt_debugSpriteEdDisplayApplyVals(editor_);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_debugSpriteEdDisplayRender))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	ztVec2 pos = offset + item->pos;
+	ztVec3 scale = zt_vec3(editor->display_zoom_mult, editor->display_zoom_mult, 1);
+
+	int w = zt_convertToi32Ceil(editor->active_tex_size.x / (r32)editor->grid_texture_size.x) + 1;
+	int h = zt_convertToi32Ceil(editor->active_tex_size.y / (r32)editor->grid_texture_size.y) + 1;
+
+	int sw = zt_min(editor->grid_texture_size.x, editor->active_tex_size.x);
+	int sh = zt_min(editor->grid_texture_size.y, editor->active_tex_size.y);
+	ztVec2 checker_size = zt_vec2(sw / zt_pixelsPerUnit(), sh / zt_pixelsPerUnit());
+
+	ztVec2 start = zt_vec2(pos.x + (item->size.x / -2 + (checker_size.x * scale.x) / 2), pos.y + (item->size.y / 2 - (checker_size.y * scale.y) / 2)) - zt_vec2(editor->sprite_info_panel->size.x / 2, 0);
+
+	ztSprite grid_sprite = zt_spriteMake(editor->grid_texture, zt_vec2i(0, 0), zt_vec2i(sw, sh));
+	zt_fyz(h) {
+		zt_fxz(w) {
+			zt_drawListAddSprite(draw_list, &grid_sprite, zt_vec3(start.x + (x * checker_size.x * scale.x), start.y - (y * checker_size.y * scale.y), 0), ztVec3::zero, scale);
+		}
+	}
+
+
+	zt_drawListAddSprite(draw_list, &zt_spriteMake(editor->active_tex, zt_vec2i(0, 0), editor->active_tex_size), zt_vec3(offset + item->pos - zt_vec2(editor->sprite_info_panel->size.x / 2, 0), 0), ztVec3::zero, scale);
+
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	ztVec2 image_pos = offset + item->pos - zt_vec2(editor->sprite_info_panel->size.x / 2.f, 0);
+	ztVec2 image_size = zt_vec2(editor->active_tex_size.x / zt_pixelsPerUnit(), editor->active_tex_size.y / zt_pixelsPerUnit()) * editor->display_zoom_mult;
+	zt_drawListAddEmptyRect(draw_list, zt_vec3(image_pos, 0), image_size);
+
+	ztVec2 zero = zt_guiItemPositionLocalToScreen(item, ztVec2::zero);
+	ztVec2 local_tl = zt_vec2(zero.x - item->size.x / 2, zero.y + item->size.y / 2);
+
+	r32 ppu = zt_pixelsPerUnit();
+	r32 scaled_pix = (1 / ppu) * editor->display_zoom_mult;
+
+	zt_drawListPushColor(draw_list, ztColor_White);
+	zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_OneMinusDestColor, ztRendererBlendMode_Zero);
+	zt_fize(editor->sprite_pos) {
+		if (editor->sprite_size[i] != ztVec2::zero) {
+			ztVec2 size = editor->sprite_size[i] * editor->display_zoom_mult;
+			ztVec2 sptl = editor->sprite_pos[i] * editor->display_zoom_mult;
+			sptl.x += local_tl.x;
+			sptl.y = local_tl.y - sptl.y;
+			sptl.x += size.x / 2;
+			sptl.y -= size.y / 2;
+
+			r32 anchor_offset_x = zt_convertToi32Floor(editor->sprite_size[i].x * ppu) % 2 != 0 ? 0 : (.5f / ppu);
+			r32 anchor_offset_y = zt_convertToi32Floor(editor->sprite_size[i].y * ppu) % 2 != 0 ? 0 : (.5f / ppu);
+
+			ztVec3 anchor = zt_vec3(sptl + (editor->display_zoom_mult * zt_vec2(editor->sprite_anchor[i].x + anchor_offset_x, editor->sprite_anchor[i].y - anchor_offset_y)), 0);
+
+			if (i == editor->sprite_active) {
+				zt_drawListPushColor(draw_list, ztColor_Cyan);
+			}
+
+			zt_drawListAddEmptyRect(draw_list, sptl, size);
+
+			if (editor->sprite_type[i] == 0) {
+				zt_drawListAddEmptyCircle(draw_list, anchor, 5 / ppu, 5);
+
+				if (i == editor->sprite_active) {
+					zt_drawListAddLine(draw_list, zt_vec2(anchor.x, sptl.y - size.y / 2.f), zt_vec2(anchor.x, sptl.y + size.y / 2.f));
+					zt_drawListAddLine(draw_list, zt_vec2(sptl.x - size.x / 2.f, anchor.y), zt_vec2(sptl.x + size.x / 2.f, anchor.y));
+				}
+			}
+			else {
+				ztVec2 nw = editor->sprite_nw[i] * editor->display_zoom_mult;
+				nw.x += local_tl.x;
+				nw.y = local_tl.y - nw.y;
+				ztVec2 se = editor->sprite_se[i] * editor->display_zoom_mult;
+				se.x += local_tl.x;
+				se.y = local_tl.y - se.y;
+
+				zt_drawListAddLine(draw_list, zt_vec2(nw.x, sptl.y + size.y / 2.f), zt_vec2(nw.x, sptl.y - size.y / 2.f));
+				zt_drawListAddLine(draw_list, zt_vec2(se.x, sptl.y + size.y / 2.f), zt_vec2(se.x, sptl.y - size.y / 2.f));
+				zt_drawListAddLine(draw_list, zt_vec2(sptl.x - size.x / 2.f, nw.y), zt_vec2(sptl.x + size.x / 2.f, nw.y));
+				zt_drawListAddLine(draw_list, zt_vec2(sptl.x - size.x / 2.f, se.y), zt_vec2(sptl.x + size.x / 2.f, se.y));
+
+				if (editor->sprite_offset_nw[i] != ztVec2::zero || editor->sprite_offset_se[i] != ztVec2::zero) {
+					ztVec2 offset_size = size - (editor->sprite_offset_nw[i] + editor->sprite_offset_se[i]) * editor->display_zoom_mult;
+					ztVec2 offset_diff = (editor->sprite_offset_se[i] - editor->sprite_offset_nw[i]) * editor->display_zoom_mult;
+
+					ztVec2 offset_center = zt_vec2(sptl.x - offset_diff.x / 2, sptl.y + offset_diff.y / 2);
+
+					zt_drawListPushColor(draw_list, i == editor->sprite_active ? ztColor_Red : ztColor_White);
+					zt_drawListAddEmptyRect(draw_list, offset_center, offset_size);
+					zt_drawListPopColor(draw_list);
+				}
+			}
+
+			if (i == editor->sprite_active) {
+				zt_drawListPopColor(draw_list);
+			}
+		}
+	}
+	zt_drawListPopBlendMode(draw_list);
+	zt_drawListPopColor(draw_list);
+
+	if (image_size.x < item->parent->size.x) {
+		ztVec2 start = zt_vec2(pos.x + item->size.x / -2.f, pos.y);
+		ztVec2 right_size = zt_vec2(item->parent->size.x - image_size.x, image_size.y);
+		ztVec2 right_pos = zt_vec2(start.x + image_size.x + right_size.x / 2, start.y);
+		zt_drawListAddSolidRect2D(draw_list, right_pos, right_size, ztColor_Black);
+	}
+	else {
+		ztVec2 start = zt_vec2(pos.x + item->size.x / -2.f, pos.y);
+		ztVec2 right_size = zt_vec2(editor->sprite_info_panel->size.x, image_size.y);
+		ztVec2 right_pos = zt_vec2(start.x + image_size.x + right_size.x / 2, start.y);
+		zt_drawListAddSolidRect2D(draw_list, right_pos, right_size, ztColor_Black);
+	}
+	if (image_size.y < item->parent->size.y) {
+		ztVec2 start = zt_vec2(offset.x, pos.y + item->size.y / -2.f);
+		ztVec2 bottom_size = zt_vec2(item->parent->size.x, item->parent->size.y - image_size.y);
+		ztVec2 bottom_pos = zt_vec2(start.x, start.y + bottom_size.y / -2);
+		zt_drawListAddSolidRect2D(draw_list, bottom_pos, bottom_size, ztColor_Black);
+	}
+
+	if (editor->display_drag_type == ztDebugSpriteDragType_Sprite) {
+		zt_drawListPushColor(draw_list, ztColor_Cyan);
+
+		ztVec2 size = editor->display_drag_mpos - editor->display_drag_pos;
+		ztVec2 center = editor->display_drag_pos + (size * .5f);
+
+		zt_drawListAddEmptyRect(draw_list, center, size);
+		zt_drawListPopColor(draw_list);
+	}
+
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_debugSpriteEdDisplayUpdate))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_debugSpriteEdDisplayInputMouse))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	ztVec2 mpos = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+
+	switch (editor->display_drag_type)
+	{
+		case ztDebugSpriteDragType_None: {
+			bool dragging = false;
+			ztInputMouseCursor_Enum cursor = ztInputMouseCursor_Arrow;
+
+			if (key_shift) {
+				cursor = ztInputMouseCursor_Hand;
+
+				if (input_mouse->leftJustPressed()) {
+					dragging = true;
+					editor->display_drag_type = ztDebugSpriteDragType_Move;
+				}
+			}
+			else if (input_mouse->rightJustPressed()) {
+				dragging = true;
+				editor->display_drag_type = ztDebugSpriteDragType_MoveRight;
+			}
+
+			ztVec2 conv_mpos = zt_guiItemPositionScreenToLocal(item, mpos) * (1.f / editor->display_zoom_mult);
+			{
+				ztVec2 zero = zt_guiItemPositionLocalToScreen(item, ztVec2::zero);
+				ztVec2 local_tl = zt_vec2(zero.x - item->size.x / 2, zero.y + item->size.y / 2);
+				conv_mpos = zt_vec2(mpos.x - local_tl.x, local_tl.y - mpos.y) * (1.f / editor->display_zoom_mult);
+			}
+
+			i32 hover_direction = 0;
+			if (editor->sprite_active >= 0) {
+				int i = editor->sprite_active;
+				ztVec2 sprite_pos = zt_vec2(editor->sprite_pos[i].x + editor->sprite_size[i].x / 2, editor->sprite_pos[i].y + editor->sprite_size[i].y / 2);
+				ztVec2 sprite_size = editor->sprite_size[editor->sprite_active];
+				if (zt_collisionPointInRect(conv_mpos, sprite_pos, sprite_size)) {
+					r32 side_check = 3 / zt_pixelsPerUnit();
+
+					// top side
+					if (zt_collisionPointInRect(conv_mpos, sprite_pos + zt_vec2(0, sprite_size.y / -2), zt_vec2(sprite_size.x, side_check))) {
+						hover_direction |= zt_bit(ztDirection_North);
+					}
+					else if (zt_collisionPointInRect(conv_mpos, sprite_pos + zt_vec2(0, sprite_size.y / 2), zt_vec2(sprite_size.x, side_check))) {
+						hover_direction |= zt_bit(ztDirection_South);
+					}
+					if (zt_collisionPointInRect(conv_mpos, sprite_pos + zt_vec2(sprite_size.x / 2, 0), zt_vec2(side_check, sprite_size.y))) {
+						hover_direction |= zt_bit(ztDirection_East);
+					}
+					else if (zt_collisionPointInRect(conv_mpos, sprite_pos + zt_vec2(sprite_size.x / -2, 0), zt_vec2(side_check, sprite_size.y))) {
+						hover_direction |= zt_bit(ztDirection_West);
+					}
+
+					if (hover_direction == 0) {
+						zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
+					}
+					else {
+						if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_North))) {
+							if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_East))) {
+								cursor = ztInputMouseCursor_ResizeSWNE;
+							}
+							else if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_West))) {
+								cursor = ztInputMouseCursor_ResizeNWSE;
+							}
+							else {
+								cursor = ztInputMouseCursor_ResizeNS;
+							}
+						}
+						else if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_South))) {
+							if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_East))) {
+								cursor = ztInputMouseCursor_ResizeNWSE;
+							}
+							else if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_West))) {
+								cursor = ztInputMouseCursor_ResizeSWNE;
+							}
+							else {
+								cursor = ztInputMouseCursor_ResizeNS;
+							}
+						}
+						else if (zt_bitIsSet(hover_direction, zt_bit(ztDirection_East)) || zt_bitIsSet(hover_direction, zt_bit(ztDirection_West))) {
+							cursor = ztInputMouseCursor_ResizeEW;
+						}
+					}
+				}
+			}
+
+			if (dragging) {
+				editor->display_drag_pos = mpos;
+				editor->display_scroll_amt.x = zt_guiScrollContainerGetScroll(editor->display_scroll, ztGuiItemOrient_Horz);
+				editor->display_scroll_amt.y = zt_guiScrollContainerGetScroll(editor->display_scroll, ztGuiItemOrient_Vert);
+			}
+			else if (input_mouse->leftJustPressed()) {
+
+				bool allow_new_sprite = true;
+
+				if (editor->sprite_active != -1) {
+					int i = editor->sprite_active;
+					ztVec2 sprite_pos = zt_vec2(editor->sprite_pos[i].x + editor->sprite_size[i].x / 2, editor->sprite_pos[i].y + editor->sprite_size[i].y / 2);
+					if (zt_collisionPointInRect(conv_mpos, sprite_pos, editor->sprite_size[editor->sprite_active])) {
+						editor->sprite_active_drag = hover_direction;
+						editor->display_drag_type = ztDebugSpriteDragType_SpriteResize;
+						editor->ignore_value_change = true;
+					}
+					else {
+						_zt_debugSpriteEdDisplayApplyVals(editor);
+						editor->sprite_active = -1;
+					}
+
+					allow_new_sprite = false;
+				}
+
+				if (editor->sprite_active == -1) {
+					zt_fize(editor->sprite_pos) {
+						if (editor->sprite_size[i] != ztVec2::zero) {
+							ztVec2 sprite_pos = zt_vec2(editor->sprite_pos[i].x + editor->sprite_size[i].x / 2, editor->sprite_pos[i].y + editor->sprite_size[i].y / 2);
+							if (zt_collisionPointInRect(conv_mpos, sprite_pos, editor->sprite_size[i])) {
+								editor->sprite_active = i;
+								editor->sprite_active_drag = 0;
+
+								_zt_debugSpriteEdDisplayReadVals(editor);
+								break;
+							}
+						}
+					}
+				}
+
+				editor->display_drag_pos = mpos;
+
+				if (allow_new_sprite && editor->sprite_active == -1) {
+					editor->display_drag_mpos = mpos;
+					editor->display_drag_type = ztDebugSpriteDragType_Sprite;
+				}
+			}
+
+			zt_inputMouseSetCursor(cursor);
+		} break;
+
+		case ztDebugSpriteDragType_Move: {
+			if (input_mouse->leftPressed()) {
+				ztVec2 mdiff = mpos - editor->display_drag_pos;
+				ztVec2 pct = zt_vec2(mdiff.x / (item->size.x - item->parent->size.x), mdiff.y / (item->size.y - item->parent->size.y));
+
+				r32 scroll_h = zt_clamp(editor->display_scroll_amt.x - pct.x, 0, 1);
+				r32 scroll_v = zt_clamp(editor->display_scroll_amt.y + pct.y, 0, 1);
+
+				zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Horz, scroll_h);
+				zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Vert, scroll_v);
+			}
+			else {
+				editor->display_drag_pos = ztVec2::min;
+				editor->display_drag_type = ztDebugSpriteDragType_None;
+			}
+		} break;
+
+		case ztDebugSpriteDragType_MoveRight: {
+			if (input_mouse->rightPressed()) {
+				ztVec2 mdiff = mpos - editor->display_drag_pos;
+				ztVec2 pct = zt_vec2(mdiff.x / (item->size.x - item->parent->size.x), mdiff.y / (item->size.y - item->parent->size.y));
+
+				r32 scroll_h = zt_clamp(editor->display_scroll_amt.x - pct.x, 0, 1);
+				r32 scroll_v = zt_clamp(editor->display_scroll_amt.y + pct.y, 0, 1);
+
+				zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Horz, scroll_h);
+				zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Vert, scroll_v);
+			}
+			else {
+				editor->display_drag_pos = ztVec2::min;
+				editor->display_drag_type = ztDebugSpriteDragType_None;
+			}
+		} break;
+
+		case ztDebugSpriteDragType_Sprite: {
+			if (input_mouse->leftPressed()) {
+				editor->display_drag_mpos = mpos;
+			}
+			else {
+				editor->display_drag_type = ztDebugSpriteDragType_None;
+
+				zt_fize(editor->sprite_pos) {
+					if (editor->sprite_size[i] == ztVec2::zero) {
+
+						ztVec2 pos1 = editor->display_drag_pos;
+						ztVec2 pos2 = editor->display_drag_mpos;
+
+						if (pos1.x > pos2.x) zt_swap(pos1.x, pos2.x);
+						if (pos1.y < pos2.y) zt_swap(pos1.y, pos2.y);
+
+						// 0,0 is top left of image
+						ztVec2 local = pos1;
+
+						ztVec2 zero = zt_guiItemPositionLocalToScreen(item, ztVec2::zero);
+						ztVec2 local_tl = zt_vec2(zero.x - item->size.x / 2, zero.y + item->size.y / 2);
+
+						ztVec2 top_left = zt_vec2(local.x - local_tl.x, local_tl.y - local.y);// -item->pos;
+						ztVec2 size = zt_vec2(pos2.x - pos1.x, pos1.y - pos2.y);
+
+						ztVec2i pix_top_left = zt_vec2i(zt_convertToi32Floor(top_left.x * zt_pixelsPerUnit()), zt_convertToi32Floor(top_left.y * zt_pixelsPerUnit()));
+						ztVec2i pix_size = zt_vec2i(zt_convertToi32Floor(size.x * zt_pixelsPerUnit()), zt_convertToi32Floor(size.y * zt_pixelsPerUnit()));
+
+						if (pix_size.x > 0 && pix_size.y > 0) {
+							editor->sprite_pos[i] = zt_vec2(pix_top_left.x / zt_pixelsPerUnit(), pix_top_left.y / zt_pixelsPerUnit()) * (1.f / editor->display_zoom_mult);
+							editor->sprite_size[i] = zt_vec2(pix_size.x / zt_pixelsPerUnit(), pix_size.y / zt_pixelsPerUnit()) * (1.f / editor->display_zoom_mult);
+
+							editor->sprite_active = i;
+
+							int total_sprites = 0;
+							zt_fjze(editor->sprite_size) {
+								if (editor->sprite_size[j] != ztVec2::zero) {
+									total_sprites += 1;
+								}
+							}
+
+							while (true) {
+								zt_strMakePrintf(sprite_name, 64, "sprite_%d", total_sprites);
+								zt_strCpy(editor->sprite_name[i], zt_elementsOf(editor->sprite_name[i]), sprite_name);
+
+								bool found_copy = false;
+								zt_fjze(editor->sprite_pos) {
+									if (j != i && editor->sprite_pos[j] != ztVec2::zero && zt_strEquals(editor->sprite_name[j], editor->sprite_name[i])) {
+										found_copy = true;
+										break;
+									}
+								}
+								if (!found_copy) {
+									break;
+								}
+								total_sprites += 1;
+							}
+
+							zt_guiComboBoxSetSelected(editor->combo_type, 0);
+						}
+						break;
+					}
+				}
+
+				_zt_debugSpriteEdDisplayReadVals(editor);
+			}
+		} break;
+
+		case ztDebugSpriteDragType_SpriteResize: {
+			if (input_mouse->leftPressed()) {
+				editor->display_drag_mpos = mpos;
+
+				ztVec2 conv_mpos = zt_guiItemPositionScreenToLocal(item, mpos) * (1.f / editor->display_zoom_mult);
+				ztVec2 conv_dpos = zt_guiItemPositionScreenToLocal(item, editor->display_drag_pos) * (1.f / editor->display_zoom_mult);
+				{
+					ztVec2 zero = zt_guiItemPositionLocalToScreen(item, ztVec2::zero);
+					ztVec2 local_tl = zt_vec2(zero.x - item->size.x / 2, zero.y + item->size.y / 2);
+					conv_mpos = zt_vec2(mpos.x - local_tl.x, local_tl.y - mpos.y) * (1.f / editor->display_zoom_mult);
+					conv_dpos = zt_vec2(editor->display_drag_pos.x - local_tl.x, local_tl.y - editor->display_drag_pos.y) * (1.f / editor->display_zoom_mult);
+				}
+
+				r32 min_size = 1 / zt_pixelsPerUnit();
+
+				if (zt_bitIsSet(editor->sprite_active_drag, zt_bit(ztDirection_North))) {
+					r32 diff_y = conv_mpos.y - conv_dpos.y;
+					if (editor->sprite_size[editor->sprite_active].y > min_size || diff_y < 0) {
+						editor->sprite_pos[editor->sprite_active].y += diff_y;
+						editor->sprite_size[editor->sprite_active].y -= diff_y;
+					}
+				}
+				if (zt_bitIsSet(editor->sprite_active_drag, zt_bit(ztDirection_South))) {
+					r32 diff_y = conv_dpos.y - conv_mpos.y;
+					if (editor->sprite_size[editor->sprite_active].y > min_size || diff_y < 0) {
+						editor->sprite_size[editor->sprite_active].y -= diff_y;
+					}
+				}
+				if (zt_bitIsSet(editor->sprite_active_drag, zt_bit(ztDirection_East))) {
+					r32 diff_x = conv_mpos.x - conv_dpos.x;
+					if (editor->sprite_size[editor->sprite_active].x > min_size || diff_x > 0) {
+						editor->sprite_size[editor->sprite_active].x += diff_x;
+					}
+				}
+				if (zt_bitIsSet(editor->sprite_active_drag, zt_bit(ztDirection_West))) {
+					r32 diff_x = conv_dpos.x - conv_mpos.x;
+					if (editor->sprite_size[editor->sprite_active].x > min_size || diff_x > 0) {
+						editor->sprite_pos[editor->sprite_active].x -= diff_x;
+						editor->sprite_size[editor->sprite_active].x += diff_x;
+					}
+				}
+
+				editor->display_drag_pos = mpos;
+
+				_zt_debugSpriteEdDisplayReadVals(editor);
+			}
+			else {
+				editor->display_drag_type = ztDebugSpriteDragType_None;
+				editor->ignore_value_change = false;
+				_zt_debugSpriteEdDisplayApplyVals(editor);
+				zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
+			}
+		} break;
+	}
+
+	if (input_mouse->wheel_delta) {
+		editor->display_zoom_level = zt_clamp(editor->display_zoom_level + input_mouse->wheel_delta, -3, 4);
+		_zt_debugSpriteEdDisplayCalcSize(editor->display);
+	}
+
+	zt_guiItemShow(editor->sprite_info_panel, editor->sprite_active >= 0);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboTexture, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboTexture))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	ztTextureID tex = (ztTextureID)zt_guiComboBoxGetItemUserData(combobox, zt_guiComboBoxGetSelected(combobox));
+	editor->active_tex = tex;
+	editor->active_tex_size = zt_textureGetSize(tex);
+	editor->display_zoom_level = 0;
+	editor->sprite_active = -1;
+
+	zt_fize(editor->sprite_size) {
+		editor->sprite_name[i][0] = 0;
+		editor->sprite_size[i] = ztVec2::zero;
+		editor->sprite_pos[i] = ztVec2::zero;
+		editor->sprite_anchor[i] = ztVec2::zero;
+		editor->sprite_nw[i] = ztVec2::zero;;
+		editor->sprite_se[i] = ztVec2::zero;
+		editor->sprite_offset_nw[i] = ztVec2::zero;
+		editor->sprite_offset_se[i] = ztVec2::zero;
+	}
+
+	char sm_name[ztFileMaxPath];
+	if (_zt_debugSpriteEdDisplayGetFileName(editor, sm_name, zt_elementsOf(sm_name))) {
+		ztSpriteManager sm;
+		zt_spriteManagerMake(&sm, zt_elementsOf(editor->sprite_pos));
+
+		ztSerial serial;
+		if (zt_serialMakeReader(&serial, sm_name, ztDebugSpriteGUID)) {
+			if (zt_spriteManagerLoad(&sm, &serial, editor->active_tex)) {
+				zt_logInfo("sprite manager loaded: %s", sm_name);
+			}
+
+			zt_serialClose(&serial);
+		}
+
+		ztVec2 tex_size = zt_vec2((r32)editor->active_tex_size.x, (r32)editor->active_tex_size.y);
+
+		r32 ppu = zt_pixelsPerUnit();
+
+		zt_fiz(sm.sprites_count) {
+			if (sm.sprites[i].hash != 0) {
+				zt_strCpy(editor->sprite_name[i], zt_elementsOf(editor->sprite_name[i]), sm.sprites[i].name);
+				if (sm.sprites[i].type == ztSpriteType_Sprite) {
+					editor->sprite_type[i] = 0;
+					editor->sprite_pos[i] = (sm.sprites[i].s.tex_uv.xy * tex_size) * (1 / ppu);
+					editor->sprite_size[i] = ((sm.sprites[i].s.tex_uv.zw - sm.sprites[i].s.tex_uv.xy) * tex_size) * (1 / ppu);
+					editor->sprite_anchor[i] = sm.sprites[i].s.anchor;
+
+				}
+				else if (sm.sprites[i].type == ztSpriteType_SpriteNineSlice) {
+					editor->sprite_type[i] = 1;
+					editor->sprite_pos[i] = (sm.sprites[i].sns.sp_nw.xy * tex_size) * (1 / ppu);
+					editor->sprite_size[i] = ((sm.sprites[i].sns.sp_se.zw - sm.sprites[i].sns.sp_nw.xy) * tex_size) * (1 / ppu);
+					editor->sprite_nw[i] = (sm.sprites[i].sns.sp_nw.zw * tex_size) * (1 / ppu);
+					editor->sprite_se[i] = (sm.sprites[i].sns.sp_se.xy * tex_size) * (1 / ppu);
+					editor->sprite_offset_nw[i] = (sm.sprites[i].sns.offset.xy);
+					editor->sprite_offset_se[i] = (sm.sprites[i].sns.offset.zw);
+				}
+			}
+		}
+
+	}
+
+	zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Horz, 0);
+	zt_guiScrollContainerSetScroll(editor->display_scroll, ztGuiItemOrient_Vert, 0);
+
+	_zt_debugSpriteEdDisplayCalcSize(editor->display);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboType))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+	_zt_debugSpriteEdDisplayApplyVals(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_debugSpriteEdDisplayCleanup))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	zt_textureFree(editor->grid_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_debugSpriteEdDisplayTextChange))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+	_zt_debugSpriteEdDisplayApplyVals(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonBestFit, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonBestFit))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	i32 bytes_size = editor->active_tex_size.x * editor->active_tex_size.y * 4;
+	byte *pixels = zt_mallocStructArray(byte, bytes_size);
+
+	zt_textureGetPixels(editor->active_tex, pixels);
+
+	//zt_writeEntireFile("pixels.raw", pixels, bytes_size);
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	ztVec2 nwv = editor->sprite_pos[editor->sprite_active];
+	ztVec2i nw = zt_vec2i(zt_convertToi32Floor(nwv.x * ppu), zt_convertToi32Floor(nwv.y * ppu));
+	ztVec2 sev = editor->sprite_pos[editor->sprite_active] + editor->sprite_size[editor->sprite_active];
+	ztVec2i se = zt_vec2i(zt_convertToi32Floor(sev.x * ppu), zt_convertToi32Floor(sev.y * ppu));
+
+#define _idx(X,Y)  int idx = ((((editor->active_tex_size.y - 1) - Y) * editor->active_tex_size.x) + X) * 4;
+
+	int sides_filled = 4;
+	int direction = 1;
+	int attempts = 0;
+	i32 adjusted = 0;
+	while (sides_filled != 0) {
+		sides_filled = 0;
+
+		// check top
+		for (int x = nw.x; x <= se.x; ++x) {
+			_idx(x, nw.y);
+			if (pixels[idx + 3] != 0) {
+				if (direction > 0 && nw.y > 0) {
+					adjusted |= zt_bit(ztDirection_Up);
+					nw.y = nw.y - 1;
+					sides_filled += 1;
+				}
+				else {
+					zt_bitRemove(adjusted, ztDirection_Up);
+				}
+				break;
+			}
+		}
+		// check bottom
+		for (int x = nw.x; x <= se.x; ++x) {
+			_idx(x, se.y);
+			if (pixels[idx + 3] != 0) {
+				if (direction > 0 && se.y < editor->active_tex_size.y - 1) {
+					adjusted |= zt_bit(ztDirection_Down);
+					se.y = se.y + 1;
+					sides_filled += 1;
+				}
+				else {
+					zt_bitRemove(adjusted, ztDirection_Down);
+				}
+				break;
+			}
+		}
+		// check left
+		for (int y = nw.y; y <= se.y; ++y) {
+			_idx(nw.x, y);
+			if (pixels[idx + 3] != 0) {
+				if (direction > 0 && nw.x > 0) {
+					adjusted |= zt_bit(ztDirection_Left);
+					nw.x = nw.x - 1;
+					sides_filled += 1;
+				}
+				else {
+					zt_bitRemove(adjusted, ztDirection_Down);
+				}
+				break;
+			}
+		}
+		// check right
+		for (int y = nw.y; y <= se.y; ++y) {
+			_idx(se.x, y);
+			if (pixels[idx + 3] != 0) {
+				if (direction > 0 && se.x < editor->active_tex_size.x - 1) {
+					adjusted |= zt_bit(ztDirection_Right);
+					se.x = se.x + 1;
+					sides_filled += 1;
+				}
+				else {
+					zt_bitRemove(adjusted, ztDirection_Right);
+				}
+				break;
+			}
+		}
+
+		if (sides_filled == 0) {
+			break;
+		}
+		attempts += 1;
+	}
+
+	if (attempts == 0) {
+		// got all transparent pixels on first attempt, meaning we need to shrink to fit
+
+		int sides_empty = 4;
+		while (sides_empty != 0) {
+			sides_empty = 0;
+
+			// check top
+			bool has_pixel = false;
+			for (int x = nw.x; x <= se.x; ++x) {
+				_idx(x, nw.y);
+				if (pixels[idx + 3] != 0) {
+					has_pixel = true;
+					break;
+				}
+			}
+			if (!has_pixel) {
+				nw.y += 1;
+				sides_empty += 1;
+			}
+
+			// check bottom
+			has_pixel = false;
+			for (int x = nw.x; x <= se.x; ++x) {
+				_idx(x, se.y);
+				if (pixels[idx + 3] != 0) {
+					has_pixel = true;
+					break;
+				}
+			}
+			if (!has_pixel && se.y > nw.y + 1) {
+				se.y -= 1;
+				sides_empty += 1;
+			}
+
+			// check left
+			has_pixel = false;
+			for (int y = nw.y; y <= se.y; ++y) {
+				_idx(nw.x, y);
+				if (pixels[idx + 3] != 0) {
+					has_pixel = true;
+					break;
+				}
+			}
+			if (!has_pixel) {
+				nw.x += 1;
+				sides_empty += 1;
+			}
+
+			// check right
+			has_pixel = false;
+			for (int y = nw.y; y <= se.y; ++y) {
+				_idx(se.x, y);
+				if (pixels[idx + 3] != 0) {
+					has_pixel = true;
+					break;
+				}
+			}
+			if (!has_pixel && se.x > nw.x + 1) {
+				se.x -= 1;
+				sides_empty += 1;
+			}
+
+			if (sides_empty == 0) {
+				se.y += 1;
+				se.x += 1;
+				break;
+			}
+			attempts += 1;
+		}
+	}
+	else {
+		if (zt_bitIsSet(adjusted, zt_bit(ztDirection_Up))) {
+			nw.y += 1;
+		}
+		//		if (zt_bitIsSet(adjusted, zt_bit(ztDirection_Down))) {
+		//			se.y -= 1;
+		//		}
+		if (zt_bitIsSet(adjusted, zt_bit(ztDirection_Left))) {
+			nw.x += 1;
+		}
+		//		if (zt_bitIsSet(adjusted, zt_bit(ztDirection_Right))) {
+		//			se.x -= 1;
+		//		}
+	}
+
+	zt_free(pixels);
+
+	editor->sprite_pos[editor->sprite_active] = zt_vec2(nw.x / ppu, nw.y / ppu);
+	editor->sprite_size[editor->sprite_active] = zt_vec2((se.x - nw.x) / ppu, (se.y - nw.y) / ppu);
+
+	_zt_debugSpriteEdDisplayReadVals(editor);
+
+#undef _idx
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonDelete, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonDelete))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+	editor->sprite_size[editor->sprite_active] = ztVec2::zero;
+	editor->sprite_active = -1;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonSave))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	int total_sprites = 0;
+	zt_fize(editor->sprite_pos) {
+		if (editor->sprite_size[i] != ztVec2::zero) {
+			total_sprites += 1;
+		}
+	}
+
+	ztSpriteManager sm;
+	zt_spriteManagerMake(&sm, total_sprites);
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fize(editor->sprite_pos) {
+		if (editor->sprite_size[i] != ztVec2::zero) {
+			if (editor->sprite_type[i] == 0) {
+				ztVec2i sprite_pos = zt_vec2i(zt_convertToi32Floor(editor->sprite_pos[i].x * ppu), zt_convertToi32Floor(editor->sprite_pos[i].y * ppu));
+				ztVec2i sprite_size = zt_vec2i(zt_convertToi32Floor(editor->sprite_size[i].x * ppu), zt_convertToi32Floor(editor->sprite_size[i].y * ppu));
+				ztVec2i sprite_anchor = zt_vec2i(zt_convertToi32Floor(editor->sprite_anchor[i].x * ppu), zt_convertToi32Floor(editor->sprite_anchor[i].y * ppu));
+
+				ztSprite sprite = zt_spriteMake(editor->active_tex, sprite_pos, sprite_size, sprite_anchor);
+				zt_spriteManagerAddSprite(&sm, &sprite, editor->sprite_name[i]);
+			}
+			else {
+				ztVec2i sprite_pos = zt_vec2i(zt_convertToi32Floor(editor->sprite_pos[i].x * ppu), zt_convertToi32Floor(editor->sprite_pos[i].y * ppu));
+				ztVec2i sprite_size = zt_vec2i(zt_convertToi32Floor(editor->sprite_size[i].x * ppu), zt_convertToi32Floor(editor->sprite_size[i].y * ppu));
+				ztVec2i sprite_nw = zt_vec2i(zt_convertToi32Floor(editor->sprite_nw[i].x * ppu), zt_convertToi32Floor(editor->sprite_nw[i].y * ppu));
+				ztVec2i sprite_se = zt_vec2i(zt_convertToi32Floor(editor->sprite_se[i].x * ppu), zt_convertToi32Floor(editor->sprite_se[i].y * ppu));
+				ztVec2i sprite_offset_nw = zt_vec2i(zt_convertToi32Floor(editor->sprite_offset_nw[i].x * ppu), zt_convertToi32Floor(editor->sprite_offset_nw[i].y * ppu));
+				ztVec2i sprite_offset_se = zt_vec2i(zt_convertToi32Floor(editor->sprite_offset_se[i].x * ppu), zt_convertToi32Floor(editor->sprite_offset_se[i].y * ppu));
+
+				ztSpriteNineSlice sns = zt_spriteNineSliceMake(editor->active_tex, sprite_pos, sprite_size, sprite_nw, sprite_se, sprite_offset_nw.x, sprite_offset_nw.y, sprite_offset_se.x, sprite_offset_se.y);
+				zt_spriteManagerAddSpriteNineSlice(&sm, &sns, editor->sprite_name[i]);
+			}
+		}
+	}
+
+	char tex_name[ztFileMaxPath];
+	if (_zt_debugSpriteEdDisplayGetFileName(editor, tex_name, zt_elementsOf(tex_name))) {
+		ztSerial serial;
+		if (zt_serialMakeWriter(&serial, tex_name, ztDebugSpriteGUID, ztDebugSpriteVersion)) {
+			if (zt_spriteManagerSave(&sm, &serial)) {
+				zt_logInfo("Sprite manager saved: %s", tex_name);
+			}
+			zt_serialClose(&serial);
+		}
+	}
+	else {
+		zt_assert(false); // should only be working with asset textures here
+	}
+
+	zt_spriteManagerFree(&sm);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonReset, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonReset))
+{
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_debugSpriteEditor()
+{
+	const char *window_name = "Sprite Editor";
+
+	{
+		ztGuiItem *window = zt_guiItemFindByName(window_name);
+		if (window != nullptr) {
+			zt_guiItemShow(window, true);
+			zt_guiItemBringToFront(window);
+			return;
+		}
+	}
+
+	ztGuiManager *gm = zt_gui->gui_manager_active;
+	ztDebugSpriteEditor *editor = zt_mallocStructArena(ztDebugSpriteEditor, gm->arena);
+	*editor = {};
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	ztGuiItem *window = zt_guiMakeWindow(window_name, ztGuiWindowBehaviorFlags_Default);
+	zt_guiItemSetName(window, window_name);
+	zt_guiItemSetSize(window, zt_cameraOrthoGetViewportSize(gm->gui_camera) - zt_vec2(1, 1.5f));
+	zt_guiItemSetUserData(window, editor);
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+	zt_guiSizerSizeToParent(sizer);
+	zt_guiItemSetName(sizer, "main_panel");
+
+	ztGuiItem *tools_panel = zt_guiMakePanel(sizer, ztGuiPanelBehaviorFlags_DrawBackground, editor, gm->arena);
+	zt_guiItemSetName(tools_panel, "tools_panel");
+	zt_guiItemSetMinSize(tools_panel, zt_vec2(350 / zt_pixelsPerUnit(), 30 / zt_pixelsPerUnit()));
+	{
+		ztGuiItem *sizer_tools = zt_guiMakeSizer(tools_panel, ztGuiItemOrient_Horz);
+
+		zt_guiSizerAddItem(sizer_tools, zt_guiMakeStaticText(sizer_tools, "Texture:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->combo_textures = zt_guiMakeComboBox(sizer_tools, 128);
+		zt_guiSizerAddItem(sizer_tools, editor->combo_textures, 0, padding);
+		zt_guiComboBoxSetCallback(editor->combo_textures, _zt_debugSpriteEditorComboTexture_FunctionID, editor);
+
+		zt_fiz(zt_game->textures_count) {
+			if (i > 0 && !zt_textureIsRenderTarget(i) && zt_textureGetSize(i) != zt_vec2i(0, 0)) {
+				zt_strMakePrintf(texture_info, 256, "[%d] %s (%d x %d)", i, zt_game->textures[i].name, zt_game->textures[i].width, zt_game->textures[i].height);
+				zt_guiComboBoxAppend(editor->combo_textures, texture_info, (void*)i);
+			}
+		}
+		zt_guiItemAutoSize(editor->combo_textures);
+		zt_guiComboBoxSetSelected(editor->combo_textures, 0);
+
+		ztGuiItem *button_save = zt_guiMakeButton(sizer, "Save");
+		zt_guiButtonSetCallback(button_save, _zt_debugSpriteEdDisplayButtonSave_FunctionID, editor);
+		zt_guiSizerAddItem(sizer_tools, button_save, 0, padding);
+
+		ztGuiItem *button_reset = zt_guiMakeButton(sizer, "Reset");
+		zt_guiSizerAddItem(sizer_tools, button_reset, 0, padding);
+
+
+		zt_guiSizerAddStretcher(sizer_tools, 1);
+	}
+
+	{
+		int w = 512;
+		int h = 512;
+		byte *grid_tex = zt_mallocStructArray(byte, w * h * 4);
+
+		zt_fyz(h) {
+			zt_fxz(w) {
+				int idx = ((y * w) + x) * 4;
+
+				i32 color = ((zt_convertToi32Floor(y / 16.f) % 2) + zt_convertToi32Floor(x / 16.f)) % 2 == 0 ? 128 : 190;
+				grid_tex[idx + 0] = color;
+				grid_tex[idx + 1] = color;
+				grid_tex[idx + 2] = color;
+				grid_tex[idx + 3] = 255;
+			}
+		}
+
+		ztTextureID tex = zt_textureMakeFromPixelData(grid_tex, w, h, ztTextureFlags_PixelPerfect);
+		editor->grid_texture = tex;
+
+		editor->grid_texture_size = zt_vec2i(w, h);
+
+		zt_free(grid_tex);
+	}
+
+
+	zt_guiSizerAddItem(sizer, tools_panel, 0, padding);
+
+	ztGuiItem *scroll = zt_guiMakeScrollContainer(sizer);
+
+	ztGuiItem *display_panel = zt_guiMakePanel(scroll, ztGuiPanelBehaviorFlags_DrawBackground | ztGuiItemBehaviorFlags_WantsFocus);
+	zt_guiScrollContainerSetItem(scroll, display_panel);
+	zt_guiSizerAddItem(sizer, scroll, 1, padding);
+
+
+	editor->sprite_info_panel = zt_guiMakePanel(zt_guiWindowGetContentParent(window), ztGuiPanelBehaviorFlags_DrawBackground | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	{
+		int idx_spr = 0;
+		int idx_sns = 0;
+
+		zt_guiItemSetPosition(editor->sprite_info_panel, ztAlign_Right | ztAlign_Bottom, ztAnchor_Right | ztAnchor_Bottom, zt_vec2(-10 / zt_pixelsPerUnit(), 10 / zt_pixelsPerUnit()));
+
+		ztGuiItem *sizer = zt_guiMakeColumnSizer(editor->sprite_info_panel, 2, ztGuiColumnSizerType_FillRow, true);
+		zt_guiColumnSizerSetProp(sizer, 1, 1);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Sprite Name:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+
+		editor->text_name = zt_guiMakeTextEdit(sizer, "sprite_01", 0, 128);
+		zt_guiTextEditSetCallback(editor->text_name, _zt_debugSpriteEdDisplayTextChange_FunctionID, editor);
+		zt_guiSizerAddItem(sizer, editor->text_name, 1, padding);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Type:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->combo_type = zt_guiMakeComboBox(sizer, 2);
+		zt_guiComboBoxAppend(editor->combo_type, "Sprite");
+		zt_guiComboBoxAppend(editor->combo_type, "Nine Slice");
+		zt_guiComboBoxSetCallback(editor->combo_type, _zt_debugSpriteEditorComboType_FunctionID, editor);
+		zt_guiSizerAddItem(sizer, editor->combo_type, 1, padding);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Position:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_xy = zt_guiMakeEditor(sizer, nullptr, &editor->val_xy, zt_vec2i(0, 0), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_xy, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_xy, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Size:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_wh = zt_guiMakeEditor(sizer, nullptr, &editor->val_wh, zt_vec2i(1, 1), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "W", "H");
+		zt_guiSizerAddItem(sizer, editor->edit_wh, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_wh, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+
+		ztGuiItem *label = zt_guiMakeStaticText(sizer, "Anchor:");
+		zt_guiSizerAddItem(sizer, label, 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_anchor = zt_guiMakeEditor(sizer, nullptr, &editor->val_anchor, zt_vec2i(ztInt32Min, ztInt32Min), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_anchor, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_anchor, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+		editor->gui_edit_sprite[idx_spr++] = label;
+		editor->gui_edit_sprite[idx_spr++] = editor->edit_anchor;
+
+
+		label = zt_guiMakeStaticText(sizer, "Nine Slice NW:");
+		zt_guiSizerAddItem(sizer, label, 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_nw = zt_guiMakeEditor(sizer, nullptr, &editor->val_nw, zt_vec2i(0, 0), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_nw, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_nw, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+		editor->gui_edit_nineslice[idx_sns++] = label;
+		editor->gui_edit_nineslice[idx_sns++] = editor->edit_nw;
+
+		label = zt_guiMakeStaticText(sizer, "Offset:");
+		zt_guiSizerAddItem(sizer, label, 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_offset_nw = zt_guiMakeEditor(sizer, nullptr, &editor->val_offset_nw, zt_vec2i(ztInt32Min, ztInt32Min), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_offset_nw, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_offset_nw, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+		editor->gui_edit_nineslice[idx_sns++] = label;
+		editor->gui_edit_nineslice[idx_sns++] = editor->edit_offset_nw;
+
+		label = zt_guiMakeStaticText(sizer, "Nine Slice SE:");
+		zt_guiSizerAddItem(sizer, label, 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_se = zt_guiMakeEditor(sizer, nullptr, &editor->val_se, zt_vec2i(0, 0), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_se, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_se, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+		editor->gui_edit_nineslice[idx_sns++] = label;
+		editor->gui_edit_nineslice[idx_sns++] = editor->edit_se;
+
+		label = zt_guiMakeStaticText(sizer, "Offset:");
+		zt_guiSizerAddItem(sizer, label, 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		editor->edit_offset_se = zt_guiMakeEditor(sizer, nullptr, &editor->val_offset_se, zt_vec2i(ztInt32Min, ztInt32Min), zt_vec2i(ztInt32Max, ztInt32Max), 1, false, "X", "Y");
+		zt_guiSizerAddItem(sizer, editor->edit_offset_se, 1, padding);
+		zt_guiEditorSetCallback(editor->edit_offset_se, _zt_debugSpriteEdDisplayEditorChanged_FunctionID, editor);
+		editor->gui_edit_nineslice[idx_sns++] = label;
+		editor->gui_edit_nineslice[idx_sns++] = editor->edit_offset_se;
+
+		zt_guiSizerAddStretcher(sizer, 0);
+
+		ztGuiItem *button_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, button_sizer, 0, padding, ztAlign_Right, ztGuiItemOrient_Vert);
+
+		ztGuiItem *button_delete = zt_guiMakeButton(sizer, "Delete Sprite");
+		zt_guiSizerAddItem(button_sizer, button_delete, 0, padding, ztAlign_Right, ztGuiItemOrient_Vert);
+		zt_guiButtonSetCallback(button_delete, _zt_debugSpriteEdDisplayButtonDelete_FunctionID, editor);
+
+		ztGuiItem *button_best_fit = zt_guiMakeButton(sizer, "Best Fit");
+		zt_guiSizerAddItem(button_sizer, button_best_fit, 0, padding, ztAlign_Right, ztGuiItemOrient_Vert);
+		zt_guiButtonSetCallback(button_best_fit, _zt_debugSpriteEdDisplayButtonBestFit_FunctionID, editor);
+
+		zt_guiItemSetSize(editor->sprite_info_panel, zt_guiSizerGetMinSize(sizer) + zt_vec2(padding * 2, padding * 2));
+		zt_guiItemHide(editor->sprite_info_panel);
+	}
+
+	editor->display = display_panel;
+	editor->display_scroll = scroll;
+	editor->display_drag_pos = ztVec2::min;
+	editor->display_drag_type = ztDebugSpriteDragType_None;
+	editor->display_zoom_level = 0;
+	editor->ignore_value_change = false;
+
+	editor->sprite_active = -1;
+
+	display_panel->functions.render = _zt_debugSpriteEdDisplayRender_FunctionID;
+	display_panel->functions.update = _zt_debugSpriteEdDisplayUpdate_FunctionID;
+	display_panel->functions.input_mouse = _zt_debugSpriteEdDisplayInputMouse_FunctionID;
+	display_panel->functions.cleanup = _zt_debugSpriteEdDisplayCleanup_FunctionID;
+	display_panel->functions.user_data = editor;
+
+	_zt_debugSpriteEditorComboTexture(editor->combo_textures, 0, editor);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
 ztInternal void _zt_guiDebugVariables()
 {
 	const char *window_name = "Variables";
@@ -13611,6 +15067,7 @@ enum
 	ztGuiDebugMenu_TextureViewer,
 	ztGuiDebugMenu_Profiler,
 	ztGuiDebugMenu_MemoryInspector,
+	ztGuiDebugMenu_SpriteEditor,
 
 	ztGuiDebugMenu_Variables,
 };
@@ -13652,6 +15109,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_
 		case ztGuiDebugMenu_Variables: {
 			_zt_guiDebugVariables();
 		} break;
+
+		case ztGuiDebugMenu_SpriteEditor: {
+			_zt_debugSpriteEditor();
+		} break;
 	};
 }
 
@@ -13677,6 +15138,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 		zt_guiMenuAppend(menu_tools, "Texture Viewer", ztGuiDebugMenu_TextureViewer);
 		zt_guiMenuAppend(menu_tools, "Profiler", ztGuiDebugMenu_Profiler);
 		zt_guiMenuAppend(menu_tools, "Memory Inspector", ztGuiDebugMenu_MemoryInspector);
+		zt_guiMenuAppend(menu_tools, "Sprite Editor", ztGuiDebugMenu_SpriteEditor);
 		zt_guiMenuAppendSubmenu(menubar, "Tools", menu_tools);
 		zt_guiMenuSetCallback(menu_tools, _zt_guiInitDebugOnMenuItem_FunctionID);
 	}
@@ -13688,6 +15150,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 
 	_zt_guiDebugFpsDisplay();
 
+	zt_gui->menu_bar = menubar;
 	zt_gui->console_window = nullptr;
 	_zt_guiDebugConsole();
 }
