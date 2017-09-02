@@ -577,7 +577,8 @@ ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
 typedef ztVec4                 ztColor;
 #define ztColour               ztColor;       // pick your favorite (favourite?)
 
-ztInline ztColor zt_color(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
+ztInline ztColor zt_color(r32 x, r32 y, r32 z, r32 w) { return{ x, y, z, w }; }
+ztInline ztColor zt_color(ztVec3 rgb, r32 w) { return{ rgb.x, rgb.y, rgb.z, w }; }
 
 ztInline ztColor               zt_colorRgb(int r, int g, int b, int a = 255) { return zt_vec4(r / 255.f, g / 255.f, b / 255.f, a / 255.f); }
 
@@ -1767,6 +1768,27 @@ i32 zt_displayGetDetails(ztDisplay *display, i32 display_count);
 
 
 // ================================================================================================================================================================================================
+
+
+// ================================================================================================================================================================================================
+// clipboard
+// ================================================================================================================================================================================================
+
+enum ztClipboardDataType_Enum
+{
+	ztClipboardDataType_Invalid,
+
+	ztClipboardDataType_PlainText,
+
+	ztClipboardDataType_MAX,
+};
+
+
+bool zt_clipboardSendPlainText(const char *text);
+
+bool zt_clipboardContains(ztClipboardDataType_Enum type);
+
+bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read);
 
 
 // ================================================================================================================================================================================================
@@ -3894,6 +3916,7 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 		OutputDebugStringA("\n");
 	}
 #endif
+	printf(message);
 
 	zt_fiz(zt->log_callbacks_count) {
 		if (zt->log_callbacks_minlevel[i] >= level) {
@@ -8778,6 +8801,87 @@ i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
 }
 
 #endif // ZT_WINDOWS
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifdef ZT_WINDOWS
+
+bool _zt_clipboardSetData(const void *data, int data_size, UINT format)
+{
+	if (OpenClipboard(NULL) == FALSE) {
+		return false;
+	}
+
+	EmptyClipboard();
+
+	HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, data_size);
+	if (hg == NULL) {
+		CloseClipboard();
+		return false;
+	}
+
+	char *copy = (char*)GlobalLock(hg);
+	zt_memCpy(copy, data_size, data, data_size);
+	GlobalUnlock(hg);
+
+	SetClipboardData(format, hg);
+
+	CloseClipboard();
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardSendPlainText(const char *text)
+{
+	return _zt_clipboardSetData(text, zt_strSize(text), CF_TEXT);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardContains(ztClipboardDataType_Enum type)
+{
+	switch(type)
+	{
+		case ztClipboardDataType_PlainText: {
+			return IsClipboardFormatAvailable(CF_TEXT) == TRUE;
+		} break;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
+{
+	if (!IsClipboardFormatAvailable(CF_TEXT)) {
+		return false;
+	}
+
+	if (!OpenClipboard(NULL)) {
+		return false;
+	}
+
+	bool result = false;
+	HANDLE handle = GetClipboardData(CF_TEXT); 
+	if (handle != NULL) { 
+		char *data = (char*)GlobalLock(handle); 
+		if (data != NULL)  {
+			int len = zt_strCpy(buffer, buffer_len, data, zt_strLen(data));
+			if (chars_read) *chars_read = len;
+			result = true;
+			GlobalUnlock(handle);
+		} 
+	} 
+	CloseClipboard(); 
+	return result;
+}
+
+#endif
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
