@@ -707,6 +707,12 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 	zt_logDebug("OpenGL: setting viewport");
 	ztgl_setViewport(result);
 
+	zt_logDebug("OpenGL: version %s", glGetString(GL_VERSION));
+	zt_logDebug("OpenGL: vendor %s", glGetString(GL_VENDOR));
+	zt_logDebug("OpenGL: renderer %s", glGetString(GL_RENDERER));
+	zt_logDebug("OpenGL: shader version %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	zt_logDebug("OpenGL: extensions %s", glGetString(GL_EXTENSIONS));
+
 	return result;
 }
 
@@ -2251,7 +2257,8 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					zt_strMakePrintf(input_check, 256, "%s.", vars->var_input ? vars->var_input->variable_decl.name : "");
 
 					if (node->variable_val.decl == vars->v_position) {
-						zt_strCat(*s, s_len, "gl_Position");
+						//zt_strCat(*s, s_len, "gl_Position");
+						zt_strCat(*s, s_len, node->variable_val.name);
 					}
 					else if (node->variable_val.decl == vars->f_color) {
 						zt_strCat(*s, s_len, "_ztfs_frag_color");
@@ -2571,6 +2578,12 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					break;
 				}
 			}
+
+			zt_strCat(*vs, vs_len, "\tgl_Position = ");
+			zt_strCat(*vs, vs_len, param_output->variable_decl.name);
+			zt_strCat(*vs, vs_len, ".");
+			zt_strCat(*vs, vs_len, vars.v_position->variable_decl.name);
+			zt_strCat(*vs, vs_len, ";\n");
 
 			zt_strCat(*vs, vs_len, "}\n");
 		}
