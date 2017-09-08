@@ -1752,6 +1752,36 @@ bool                  zt_atomicBoolToggle (ztAtomicBool *atomic_bool);
 
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztSystemInfoFlags_Enum
+{
+	ztSystemInfoFlags_x86 = (1<<0),
+	ztSystemInfoFlags_x64 = (1<<1),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztSystemInfo
+{
+	i32 flags;
+	int no_processors;
+	int no_displays;
+
+	u64 physical_memory_total;
+	u64 physical_memory_avail;
+	u64 virtual_memory_total;
+	u64 virtual_memory_avail;
+};
+
+// ================================================================================================================================================================================================
+
+bool zt_systemInfo(ztSystemInfo *system_info);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 struct ztDisplay
 {
@@ -1764,7 +1794,40 @@ struct ztDisplay
 	i64     platform_id;
 };
 
+// ================================================================================================================================================================================================
+
 i32 zt_displayGetDetails(ztDisplay *display, i32 display_count);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztDriveType_Enum
+{
+	ztDriveType_Unknown,
+	ztDriveType_Fixed,
+	ztDriveType_Removable,
+	ztDriveType_Remote,
+	ztDriveType_OpticalDisk,
+	ztDriveType_Ram,
+
+	ztDriveType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztDrive
+{
+	char             name[64];
+	char             mount[64];
+	ztDriveType_Enum type;
+};
+
+// ================================================================================================================================================================================================
+
+i32  zt_driveGetDetails (ztDrive *drives, i32 drives_count);
+void zt_driveGetSize    (ztDrive *drive, u64 *space_avail, u64 *space_total);
 
 
 // ================================================================================================================================================================================================
@@ -3916,8 +3979,6 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 		OutputDebugStringA("\n");
 	}
 #endif
-	printf(message);
-
 	zt_fiz(zt->log_callbacks_count) {
 		if (zt->log_callbacks_minlevel[i] >= level) {
 			zt->log_callbacks[i](level, message);
@@ -7023,7 +7084,7 @@ int zt_strNumberToString(char *buffer, int buffer_size, i64 number)
 
 	int str_len = zt_strLen(buffer);
 
-	int offsets[] = { 3, 7, 12, 18 };
+	int offsets[] = { 3, 7, 11, 15 };
 
 	zt_fize(offsets) {
 		if (str_len - neg_offset > offsets[i]) {
@@ -8244,7 +8305,7 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
 				}
 				else {
-					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, file_data.cFileName);
 				}
 				buffer[buffer_used++] = '\n';
 
@@ -8318,13 +8379,13 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 				zt_free(dir_buffer);
 			}
 		}
-		else {
+		else if (!zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
 			int buff_before = buffer_used;
 			if (!end_sep) {
 				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
 			}
 			else {
-				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, file_data.cFileName);
 			}
 			buffer[buffer_used++] = '\n';
 		}
@@ -8751,6 +8812,43 @@ bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 
 #ifdef ZT_WINDOWS
 
+bool zt_systemInfo(ztSystemInfo *system_info)
+{
+	zt_returnValOnNull(system_info, false);
+
+	zt_memSet(system_info, zt_sizeof(ztSystemInfo), 0);
+
+	SYSTEM_INFO sysinf;
+
+	BOOL is64 = FALSE;
+	if (IsWow64Process(GetCurrentProcess(), &is64) && is64 == TRUE) {
+		system_info->flags = ztSystemInfoFlags_x64;
+		GetNativeSystemInfo(&sysinf);
+	}
+	else {
+		system_info->flags = ztSystemInfoFlags_x86;
+		GetSystemInfo(&sysinf);
+	}
+
+	system_info->no_processors = sysinf.dwNumberOfProcessors;
+	system_info->no_displays = GetSystemMetrics(SM_CMONITORS);
+
+	MEMORYSTATUSEX memory_status;
+	memory_status.dwLength = sizeof(MEMORYSTATUSEX);
+	if( GlobalMemoryStatusEx(&memory_status) ) {
+		system_info->physical_memory_total = memory_status.ullTotalPhys;
+		system_info->physical_memory_avail = memory_status.ullAvailPhys;
+		system_info->virtual_memory_total = memory_status.ullTotalVirtual;
+		system_info->virtual_memory_avail = memory_status.ullAvailVirtual;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
 {
 	struct DisplayInfo
@@ -8785,6 +8883,10 @@ i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
 			display->primary     = zt_bitIsSet(monitor_info.dwFlags, MONITORINFOF_PRIMARY);
 			display->platform_id = (i64)h_monitor;
 
+			DEVMODE dev_mode;
+			EnumDisplaySettingsA(monitor_info.szDevice, ENUM_CURRENT_SETTINGS, &dev_mode);
+			display->refresh_rate_in_hz = dev_mode.dmDisplayFrequency;
+
 			zt_strCpy(display->name, zt_elementsOf(display->name), monitor_info.szDevice, zt_elementsOf(monitor_info.szDevice));
 
 			return TRUE;
@@ -8798,6 +8900,71 @@ i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
 	}
 
 	return display_info.index;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_driveGetDetails(ztDrive *drives, i32 drives_count)
+{
+	i32 drives_idx = 0;
+	i32 drives_bits = GetLogicalDrives();
+	zt_fiz(26) {
+		if(!zt_bitIsSet(drives_bits, zt_bit(i))) {
+			continue;
+		}
+
+		char drive_ch = 'A' + i;
+		char drive_str[4] = {drive_ch, ':', '\\', 0};
+		int  drive_type = GetDriveType(drive_str);
+
+		if(drives && drives_idx < drives_count) {
+//			drives[drives_idx].name
+
+			zt_strCpy(drives[drives_idx].name, zt_elementsOf(drives[drives_idx].name), drive_str);
+			zt_strCpy(drives[drives_idx].mount, zt_elementsOf(drives[drives_idx].mount), drive_str);
+
+			switch(drive_type)
+			{
+				case DRIVE_NO_ROOT_DIR:
+				case DRIVE_REMOVABLE  : drives[drives_idx].type = ztDriveType_Removable;   break;
+				case DRIVE_UNKNOWN    : drives[drives_idx].type = ztDriveType_Unknown;     break;
+				case DRIVE_FIXED      : drives[drives_idx].type = ztDriveType_Fixed;       break;
+				case DRIVE_REMOTE     : drives[drives_idx].type = ztDriveType_Remote;      break;
+				case DRIVE_CDROM      : drives[drives_idx].type = ztDriveType_OpticalDisk; break;
+				case DRIVE_RAMDISK    : drives[drives_idx].type = ztDriveType_Ram;         break;
+			}
+
+			if(drives[drives_idx].type == ztDriveType_Fixed) {
+				GetVolumeInformationA(drive_str, drives[drives_idx].name, zt_elementsOf(drives[drives_idx].name), NULL, NULL, NULL, NULL, 0);
+			}
+		}
+
+		drives_idx += 1;
+	}
+
+	return drives_idx;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_driveGetSize(ztDrive *drive, u64 *space_avail, u64 *space_total)
+{
+	zt_returnOnNull(drive);
+
+	ULARGE_INTEGER free_bytes, total_bytes, total_free_bytes;
+	if(FALSE != GetDiskFreeSpaceExA(drive->mount, &free_bytes, &total_bytes, &total_free_bytes)) {
+		if(space_avail) *space_avail = free_bytes.QuadPart;
+		if(space_total) *space_total = total_bytes.QuadPart;
+	}
+
+//	DWORD sectors_per_clustor, bytes_per_sector, no_free_clusters, no_total_clusters;
+//	if(TRUE == GetDiskFreeSpaceA(drive->mount, &sectors_per_clustor, &bytes_per_sector, &no_free_clusters, &no_total_clusters)) {
+//		if(space_avail) *space_avail = no_free_clusters * sectors_per_clustor * bytes_per_sector;
+//		if(space_total) *space_total = no_total_clusters * sectors_per_clustor * bytes_per_sector;
+//	}
+
 }
 
 #endif // ZT_WINDOWS
