@@ -3063,6 +3063,47 @@ r32       zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimContr
 
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifndef ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES
+#define ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES   128
+#endif
+
+#define ZT_SPRITE_ANIM_FILE_GUID     "3b8be0a7-e7d8-4633-b439-21305a9e9f6f"
+#define ZT_SPRITE_ANIM_FILE_VERSION   100000
+
+// ================================================================================================================================================================================================
+
+struct ztSpriteAnimManager
+{
+	struct Entry {
+		i32  hash;
+		char name[64];
+
+		i32  sprite_hash[ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
+		i32  sprite_prop[ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
+
+		i32  sprite_count;
+		r32  length;
+		bool loops;
+	};
+
+	Entry *sequences;
+	int    sequences_count;
+};
+
+void zt_spriteAnimManagerMake(ztSpriteAnimManager *anim_manager, int max_sequences);
+bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztAssetManager *asset_mgr, ztAssetID asset_id);
+bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztSerial *serial);
+bool zt_spriteAnimManagerSave(ztSpriteAnimManager *anim_manager, ztSerial *serial);
+void zt_spriteAnimManagerFree(ztSpriteAnimManager *anim_manager);
+
+void zt_spriteAnimManagerAddSequence(ztSpriteAnimManager *anim_manager, const char *name, i32 *sprite_hash, int *sprite_prop, int sprites, r32 length, bool loops);
+bool zt_spriteAnimManagerLoadSequence(ztSpriteAnimManager *anim_manager, ztSpriteManager *sprite_manager, ztSpriteAnimController *anim_controller, const char *name);
+
+
+// ================================================================================================================================================================================================
 // Particles
 // ================================================================================================================================================================================================
 
@@ -4009,6 +4050,7 @@ struct ztTexture
 			byte *data;
 			i32 data_len;
 			ztMemoryArena *arena;
+			char file_name[64];
 		};
 	};
 };
@@ -4154,6 +4196,14 @@ struct ztAudioSystem
 #ifndef ZT_MAX_AUDIO_SYSTEMS
 #define ZT_MAX_AUDIO_SYSTEMS  16
 #endif
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
+#define ZT_SPRITE_FILE_GUID      "3ab6d99a-afe6-4a1a-9f52-5cd62973c028"
+#define ZT_SPRITE_FILE_VERSION    1
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -14727,6 +14777,16 @@ ztTextureID zt_textureMakeFromFile(const char *file, i32 flags)
 
 	ztTextureID tex_id = zt_textureMakeFromFileData(data, size, flags);
 
+	if (tex_id != ztInvalidID) {
+		const char *file_name = file;
+		if (zt_striStartsWith(file_name, zt_game->game_details.data_path)) {
+			file_name += zt_strLen(zt_game->game_details.data_path);
+		}
+
+		zt_strCpy(zt_game->textures[tex_id].file_name, zt_elementsOf(zt_game->textures[tex_id].file_name), file_name);
+		zt_strCpy(zt_game->textures[tex_id].name, zt_elementsOf(zt_game->textures[tex_id].name), file_name);
+	}
+
 	zt_free(data);
 
 	if (tex_id == ztInvalidID) {
@@ -14762,6 +14822,7 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 		texture->arena = zt_memGetGlobalArena();
 		texture->data_len = width * height * depth;
 		texture->data = zt_mallocStructArray(byte, texture->data_len);
+		texture->file_name[0] = 0;
 		zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
 	}
 
@@ -16014,11 +16075,12 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 ztInternal byte *_zt_fontLoadFontPng(i32 *size)
 {
 	// base64 is a space efficient way to store binary data inline
-	char *data = "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";
-	*size = 9914;
+	char *data = "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";
+	*size = 12937;
 	byte *result = zt_mallocStructArray(byte, *size);
-	i32 decoded_size = zt_base64Decode(data, 13221, result, *size);
-	zt_assert(decoded_size == 9914);
+	i32 decoded_size = zt_base64Decode(data, 17253, result, *size);
+	zt_assert(decoded_size == 12937);
 	return result;
 }
 
@@ -18524,7 +18586,7 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset
 	}
 
 	ztSerial serial;
-	if (!zt_serialMakeReader(&serial, data, size, "3ab6d99a-afe6-4a1a-9f52-5cd62973c028")) {
+	if (!zt_serialMakeReader(&serial, data, size, ZT_SPRITE_FILE_GUID)) {
 		goto on_error;
 	}
 
@@ -23871,6 +23933,301 @@ r32 zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimController 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+void zt_spriteAnimManagerMake(ztSpriteAnimManager *anim_manager, int max_sequences)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerMake");
+	zt_returnOnNull(anim_manager);
+	zt_assertReturnOnFail(max_sequences > 0);
+
+	anim_manager->sequences = zt_mallocStructArray(ztSpriteAnimManager::Entry, max_sequences);
+	anim_manager->sequences_count = max_sequences;
+
+	zt_fiz(max_sequences) {
+		anim_manager->sequences[i].hash = 0;
+		anim_manager->sequences[i].name[0] = 0;
+		anim_manager->sequences[i].sprite_count = 0;
+		anim_manager->sequences[i].length = 0;
+		anim_manager->sequences[i].loops = false;
+
+		zt_fjz(ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES) {
+			anim_manager->sequences[i].sprite_hash[j] = 0;
+			anim_manager->sequences[i].sprite_prop[j] = 1;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerLoad");
+	zt_returnValOnNull(anim_manager, false);
+	zt_returnValOnNull(asset_mgr, false);
+	if (asset_id == ztInvalidID) {
+		return false;
+	}
+	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, false);
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		return false;
+	}
+
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		return false;
+	}
+
+	const char *error = nullptr;
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, size, ZT_SPRITE_ANIM_FILE_GUID)) {
+		goto on_error;
+	}
+
+	if (!zt_spriteAnimManagerLoad(anim_manager, &serial)) {
+		zt_serialClose(&serial);
+		goto on_error;
+	}
+
+	zt_serialClose(&serial);
+	zt_freeArena(data, asset_mgr->arena);
+	return true;
+
+on_error:
+	zt_logCritical(error);
+	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztSerial *serial)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerLoad");
+	zt_returnValOnNull(anim_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) return false;
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		int idx = 0;
+		zt_fiz(anim_manager->sequences_count) {
+			if (anim_manager->sequences[i].hash == 0) {
+				idx = i;
+				break;
+			}
+		}
+
+		while(true) {
+			_serialCheck(zt_serialGroupPush(serial));
+			{
+				i32 hash = 0;
+				_serialCheck(zt_serialRead(serial, &hash));
+
+				if (hash == 0) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+				if (idx >= anim_manager->sequences_count) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+
+				anim_manager->sequences[idx].hash = hash;
+
+				_serialCheck(zt_serialRead(serial, anim_manager->sequences[idx].name, zt_elementsOf(anim_manager->sequences[idx].name), nullptr));
+				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].sprite_count));
+				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].length));
+				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].loops));
+
+
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					zt_fiz(zt_min(anim_manager->sequences[idx].sprite_count, ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES)) {
+						_serialCheck(zt_serialGroupPush(serial));
+						{
+							_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].sprite_hash[i]));
+							_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].sprite_prop[i]));
+						}
+						_serialCheck(zt_serialGroupPop(serial));
+					}
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+
+				idx += 1;
+			}
+			_serialCheck(zt_serialGroupPop(serial));
+		}
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteAnimManagerSave(ztSpriteAnimManager *anim_manager, ztSerial *serial)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerSave");
+	zt_returnValOnNull(anim_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) return false;
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		zt_fiz(anim_manager->sequences_count) {
+			if (anim_manager->sequences[i].hash != 0) {
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].hash));
+					_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].name, zt_elementsOf(anim_manager->sequences[i].name)));
+					_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].sprite_count));
+					_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].length));
+					_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].loops));
+
+					_serialCheck(zt_serialGroupPush(serial));
+					{
+						zt_fjz(anim_manager->sequences[i].sprite_count) {
+							_serialCheck(zt_serialGroupPush(serial));
+							{
+								_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].sprite_hash[j]));
+								_serialCheck(zt_serialWrite(serial, anim_manager->sequences[i].sprite_prop[j]));
+							}
+							_serialCheck(zt_serialGroupPop(serial));
+						}
+					}
+					_serialCheck(zt_serialGroupPop(serial));
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+			}
+		}
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialWrite(serial, 0)); // indicates end of file
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteAnimManagerFree(ztSpriteAnimManager *anim_manager)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerFree");
+	if (anim_manager == nullptr || anim_manager->sequences == nullptr) {
+		return;
+	}
+
+	zt_free(anim_manager->sequences);
+	anim_manager->sequences = nullptr;
+	anim_manager->sequences_count = 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteAnimManagerAddSequence(ztSpriteAnimManager *anim_manager, const char *name, i32 *sprite_hash, int *sprite_prop, int sprites,  r32 length, bool loops)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerAddSequence");
+	zt_returnOnNull(anim_manager);
+	zt_returnOnNull(sprite_hash);
+	zt_returnOnNull(sprite_prop);
+	zt_assertReturnOnFail(name != nullptr);
+
+	i32 sequence_hash = zt_strHash(name);
+
+	int idx = -1;
+	zt_fiz(anim_manager->sequences_count) {
+		if(idx < 0 && anim_manager->sequences[i].hash == 0) {
+			idx = i;
+			break;
+		}
+		if(anim_manager->sequences[i].hash == sequence_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx < 0) {
+		zt_assert(false);
+		return;
+	}
+
+	zt_strCpy(anim_manager->sequences[idx].name, zt_elementsOf(anim_manager->sequences[idx].name), name);
+	anim_manager->sequences[idx].hash = sequence_hash;
+	anim_manager->sequences[idx].sprite_count = sprites;
+	anim_manager->sequences[idx].length = length;
+	anim_manager->sequences[idx].loops = loops;
+
+	zt_fiz(zt_min(sprites, ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES)) {
+		anim_manager->sequences[idx].sprite_hash[i] = sprite_hash[i];
+		anim_manager->sequences[idx].sprite_prop[i] = sprite_prop[i];
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteAnimManagerLoadSequence(ztSpriteAnimManager *anim_manager, ztSpriteManager *sprite_manager, ztSpriteAnimController *anim_controller, const char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteAnimManagerLoadSequence");
+	zt_returnValOnNull(anim_manager, false);
+	zt_returnValOnNull(sprite_manager, false);
+	zt_returnValOnNull(anim_controller, false);
+	zt_assertReturnValOnFail(name != nullptr, false);
+
+	i32 hash = zt_strHash(name);
+
+	zt_fiz(anim_manager->sequences_count) {
+		if(anim_manager->sequences[i].hash == hash) {
+
+			ztSprite sprites[ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
+			r32      times  [ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
+
+			int total_prop = 0;
+			zt_fjz(anim_manager->sequences[i].sprite_count) {
+				ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, anim_manager->sequences[i].sprite_hash[j]);
+				if (sprite) {
+					total_prop += anim_manager->sequences[i].sprite_prop[j];
+					sprites[j] = *sprite;
+				}
+				else {
+					zt_logCritical("sprite manager is missing sprite hash %d for sequence %s", anim_manager->sequences[i].sprite_hash[j], anim_manager->sequences[i].name);
+					sprites[j] = zt_spriteMake(ztTextureDefault, 0, 0, 1, 1);
+				}
+			}
+
+			r32 time_per_prop = anim_manager->sequences[i].length / total_prop;
+			zt_fjz(anim_manager->sequences[i].sprite_count) {
+				times[j] = anim_manager->sequences[i].sprite_prop[j] * time_per_prop;
+			}
+
+			zt_spriteAnimControllerAddSequence(anim_controller, name, sprites, times, anim_manager->sequences[i].sprite_count, anim_manager->sequences[i].loops);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent)
 {
 	ztColor result = zt_color(1,1,1,1);
@@ -25537,6 +25894,81 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 	}
 }
 
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_logSystemInfo()
+{
+	SYSTEM_INFO system_info;
+
+	BOOL is64 = FALSE;
+	if (IsWow64Process(GetCurrentProcess(), &is64) && is64 == TRUE) {
+		GetNativeSystemInfo(&system_info);
+	}
+	else {
+		GetSystemInfo(&system_info);
+	}
+
+	switch(system_info.wProcessorArchitecture)
+	{
+		case PROCESSOR_ARCHITECTURE_AMD64  : zt_logDebug("processor architecture: x64"); break;
+		case PROCESSOR_ARCHITECTURE_ARM    : zt_logDebug("processor architecture: ARM"); break;
+		case PROCESSOR_ARCHITECTURE_IA64   : zt_logDebug("processor architecture: Intel Itanium based"); break;
+		case PROCESSOR_ARCHITECTURE_INTEL  : zt_logDebug("processor architecture: x86"); break;
+		case PROCESSOR_ARCHITECTURE_UNKNOWN: zt_logDebug("processor architecture: Unknown"); break;
+	}
+
+	zt_logDebug("processor count: %d", system_info.dwNumberOfProcessors);
+
+	switch(system_info.dwProcessorType)
+	{
+		case PROCESSOR_INTEL_386: zt_logDebug("processor type: Intel 386"); break;
+		case PROCESSOR_INTEL_486: zt_logDebug("processor type: Intel 486"); break;
+		case PROCESSOR_INTEL_PENTIUM: zt_logDebug("processor type: Intel Pentium"); break;
+		case PROCESSOR_INTEL_IA64: zt_logDebug("processor type: IA 64"); break;
+		case PROCESSOR_AMD_X8664: zt_logDebug("processor type: x8664"); break;
+		default: zt_logDebug("processor type: Unknown (%d)", system_info.dwProcessorType); break;
+	}
+
+	{
+		ztSystemInfo system_info;
+		zt_systemInfo(&system_info);
+
+		char total[64], avail[64];
+		zt_strNumberToString(total, zt_elementsOf(total), system_info.physical_memory_total);
+		zt_strNumberToString(avail, zt_elementsOf(avail), system_info.physical_memory_avail);
+		zt_logDebug("physical memory: %s total / %s available", total, avail);
+
+		zt_strNumberToString(total, zt_elementsOf(total), system_info.virtual_memory_total);
+		zt_strNumberToString(avail, zt_elementsOf(avail), system_info.virtual_memory_avail);
+		zt_logDebug("virtual memory: %s total / %s available", total, avail);
+
+		ztDrive drives[26];
+		int drives_count = zt_driveGetDetails(drives, zt_elementsOf(drives));
+
+		zt_fiz(zt_min(drives_count, zt_elementsOf(drives))) {
+			if(drives[i].type == ztDriveType_Fixed) {
+				u64 space_avail = 0, space_total = 0;
+				zt_driveGetSize(&drives[i], &space_avail, &space_total);
+
+				char space_avail_str[64] = {0}, space_total_str[64] = {0};
+				zt_strNumberToString(space_avail_str, zt_elementsOf(space_avail_str), (i64)space_avail);
+				zt_strNumberToString(space_total_str, zt_elementsOf(space_total_str), (i64)space_total);
+
+				zt_logDebug("drive: %s (%s) %s available out of %s total", drives[i].mount, drives[i].name, space_avail_str, space_total_str);
+			}
+			else {
+				zt_logDebug("drive: %s (%s)", drives[i].mount, drives[i].name);
+			}
+		}
+
+		ztDisplay displays[16];
+		int displays_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
+		zt_fiz(zt_min(displays_count, zt_elementsOf(displays))) {
+			zt_logDebug("display: %s (xy: %d, %d / wh: %d, %d) refresh: %d hz %s", displays[i].name, displays[i].screen_area.x, displays[i].screen_area.y, displays[i].screen_area.z, displays[i].screen_area.w, displays[i].refresh_rate_in_hz, displays[i].primary ? "primary" : "secondary");
+		}
+	}
+}
+
 #endif // !ZT_DLL
 
 // ================================================================================================================================================================================================
@@ -25648,6 +26080,8 @@ int main(int argc, const char **argv)
 
 		zt_logDebug("main: app path: %s", zt_game->game_details.app_path);
 		zt_logDebug("main: user path: %s", zt_game->game_details.user_path);
+
+		_zt_logSystemInfo();
 
 		char app_memory_str[128];
 		zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
