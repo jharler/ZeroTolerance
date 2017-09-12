@@ -12672,7 +12672,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 		char *built_in_structs[] = {
 			"vec2,float x,float y",
 			"vec3,float x,float y,float z,float r,float g,float b,vec2 xy,vec2 xz,vec2 yz",
-			"vec4,float x,float y,float z,float w,float r,float g,float b,float a,vec3 xyz,vec3 rgb",
+			"vec4,float x,float y,float z,float w,float r,float g,float b,float a,vec2 xy,vec2 yz,vec2 zw,vec3 xyz,vec3 rgb",
 			"ivec2,int x,int y",
 			"ivec3,int x,int y,int z,int r,int g,int b,ivec2 xy",
 			"ivec4,int x,int y,int z,int w,ivec3 xyz",
