@@ -2515,6 +2515,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 			ztVec2 size = item->size;
 			zt_alignToPixel(&size, zt_pixelsPerUnit());
+			//zt_drawListAddSolidOutlinedRect2D(draw_list, pos, size, local::face(false, false), local::outline(false, false));
 			local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
 
 			ztVec2 text_pos = zt_vec2(item->textedit.text_pos[0], item->textedit.text_pos[1] + (-2 / zt_pixelsPerUnit()));
@@ -2565,10 +2566,19 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Menu");
 
 			if (item->type == ztGuiItemType_Menu) {
+				//zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
 				local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
 			}
 			else {
 				local::drawOutlinedSolidRect(draw_list, pos + zt_vec2(0, 1 / ppu), item->size + zt_vec2(2 / ppu, 2 / ppu), false, false);
+				//zt_drawListPushTexture(draw_list, 0);
+				//zt_drawListPushColor(draw_list, local::face(false, false));
+				//zt_drawListAddFilledRect2D(draw_list, pos, item->size, ztVec2::zero, ztVec2::one);
+				//zt_drawListPopColor(draw_list);
+				//zt_drawListPushColor(draw_list, local::outline(false, false));
+				//zt_drawListAddLine(draw_list, zt_vec3(pos, 0) - zt_vec3(item->size.x / 2, item->size.y / 2, 0), zt_vec3(pos, 0) + zt_vec3(item->size.x / 2, item->size.y / -2, 0));
+				//zt_drawListPopColor(draw_list);
+				//zt_drawListPopTexture(draw_list);
 			}
 
 			r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding, item);
@@ -2635,6 +2645,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 		case ztGuiItemType_Tree: {
 			ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Tree");
 
+			//zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
 			local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
 
 			if (item->tree.active_item != nullptr) {
@@ -2667,8 +2678,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(highlighted, pressed), local::outline(highlighted, pressed));
 
 			r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+			//pos.y += padding;
 
 			r32 button_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
+			//zt_drawListAddText2D(draw_list, ztFontDefault, "v", zt_vec2(pos.x + (item->size.x - button_w) / 2, pos.y));
 			zt_drawListAddSprite(draw_list, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12)), zt_vec3(pos.x + (item->size.x - button_w) / 2, pos.y, 0));
 
 			if (item->combobox.selected >= 0 && item->combobox.selected < item->combobox.contents_count) {
