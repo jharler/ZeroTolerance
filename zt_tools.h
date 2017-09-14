@@ -326,6 +326,12 @@ struct ztVec3i
 			i32 y;
 			i32 z;
 		};
+
+		struct {
+			ztVec2i xy;
+			i32     z;
+		};
+
 		i32 values[3];
 	};
 
@@ -347,6 +353,17 @@ struct ztVec4i
 			i32 z;
 			i32 w;
 		};
+
+		struct {
+			ztVec3i xyz;
+			i32     w;
+		};
+
+		struct {
+			ztVec2i xy;
+			ztVec2i zw;
+		};
+
 		i32 values[4];
 	};
 
@@ -593,6 +610,7 @@ ztInline ztColor               zt_colorHsvToRgb(ztColor hsva);
 #define ztColor_Red            zt_color(1.0f,  .0f,  .0f, 1.f)
 #define ztColor_LightRed       zt_color(1.0f, .75f, .80f, 1.f)
 #define ztColor_DarkRed        zt_color(.55f,  .0f,  .0f, 1.f)
+#define ztColor_Magenta        zt_color(1.0f,  .0f, 1.0f, 1.f)
 #define ztColor_Green          zt_color( .0f, 1.0f,  .0f, 1.f)
 #define ztColor_LightGreen     zt_color(.56f, .93f, .56f, 1.f)
 #define ztColor_DarkGreen      zt_color( .0f, .20f, .13f, 1.f)
@@ -2876,13 +2894,8 @@ ztColor zt_colorRgbToHsv(ztColor rgba)
 
 ztColor zt_colorHsvToRgb(ztColor hsva)
 {
-	if (hsva.g == 0) {
-		hsva.r = hsva.g = hsva.b = hsva.b / 255;
-		return hsva;
-	}
-
 	r32 temp_h = hsva.r / 60.0f;
-	int i = zt_convertToi32Floor(temp_h);
+	int i = (int)temp_h;// zt_convertToi32Floor(temp_h);
 	r32 f = temp_h - i;
 	r32 p = hsva.b * (1.0f - hsva.g);
 	r32 q = hsva.b * (1.0f - hsva.g * f);
