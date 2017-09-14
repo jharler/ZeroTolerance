@@ -1202,6 +1202,23 @@ int             zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id);
 int             zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type);
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztVertexDefault
+{
+	ztVec3 position;
+	ztVec2 uv;
+	ztVec3 normal;
+	ztVec4 color;
+};
+
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayMakeDefault(ztVertexDefault *vertices, int vertices_count);
+ztVertexArrayID zt_vertexArrayUpdateDefault(ztVertexArrayID vertex_array_id, ztVertexDefault *vertices, int vertices_count);
+
+
+// ================================================================================================================================================================================================
 // materials
 // ================================================================================================================================================================================================
 
@@ -1777,6 +1794,7 @@ struct ztDrawCommand
 			ztVec3 tri_pos[3];
 			ztVec2 tri_uv[3];
 			ztVec3 tri_norm[3];
+			ztVec4 tri_color[3];
 		};
 
 		struct {
@@ -1885,14 +1903,20 @@ bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min,
 bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points);
 bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points, const ztVec4& color_x = zt_vec4(1, 0, 0, 1), const ztVec4& color_y = zt_vec4(0, 1, 0, 1), const ztVec4& color_z = zt_vec4(0, 0, 1, 1));
 bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 size, r32 radius, r32 top);
-bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3); // points need to be ccw
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3]);
+bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3], const ztVec4 colors[3]);
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4); // points need to be ccw
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4, const ztVec4& c1, const ztVec4& c2, const ztVec4& c3, const ztVec4& c4); // points need to be ccw
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4]);
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4], const ztVec4 colors[4]);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4]);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4]);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor colors[4]);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor color[4]);
 bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color);
 bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color);
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color);
@@ -3835,7 +3859,7 @@ struct ztProfiledThread
 #endif
 
 #ifndef ZT_PROFILER_MAX_SECTIONS_PER_FRAME
-#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	1024 * 2
+#define ZT_PROFILER_MAX_SECTIONS_PER_FRAME	1024 * 4
 #endif
 
 // ================================================================================================================================================================================================
@@ -6928,6 +6952,14 @@ bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 siz
 
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3])
 {
+	ztVec4 colors[3] = { ztColor_White, ztColor_White, ztColor_White };
+	return zt_drawListAddFilledTriangle(draw_list, p, uvs, normals, colors);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3], const ztVec4 colors[3])
+{
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledTriangle");
 	_zt_drawListCheck(draw_list);
 	_zt_drawListVerifyTexture(draw_list);
@@ -6935,10 +6967,11 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
 	command->type = ztDrawCommandType_Triangle;
-	
+
 	zt_fiz(3) command->tri_pos[i] = p[i];
 	zt_fiz(3) command->tri_uv[i] = uvs[i];
 	zt_fiz(3) command->tri_norm[i] = normals[i];
+	zt_fiz(3) command->tri_color[i] = colors[i];
 
 	return true;
 }
@@ -6946,6 +6979,13 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 // ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4)
+{
+	return zt_drawListAddFilledQuad(draw_list, p1, p2, p3, p4, uv1, uv2, uv3, uv4, n1, n2, n3, n4, ztColor_White, ztColor_White, ztColor_White, ztColor_White);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4, const ztVec4& c1, const ztVec4& c2, const ztVec4& c3, const ztVec4& c4)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledQuad");
 	_zt_drawListVerifyTexture(draw_list);
@@ -6967,6 +7007,10 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztV
 		command->tri_norm[0] = n1;
 		command->tri_norm[1] = n2;
 		command->tri_norm[2] = n3;
+
+		command->tri_color[0] = c1;
+		command->tri_color[1] = c2;
+		command->tri_color[2] = c3;
 	}
 	{
 		_zt_drawListCheck(draw_list);
@@ -6985,6 +7029,10 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztV
 		command->tri_norm[0] = n1;
 		command->tri_norm[1] = n3;
 		command->tri_norm[2] = n4;
+
+		command->tri_color[0] = c1;
+		command->tri_color[1] = c3;
+		command->tri_color[2] = c4;
 	}
 
 	return true;
@@ -6993,6 +7041,14 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztV
 // ================================================================================================================================================================================================
 
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4])
+{
+	ztVec4 colors[] = { ztColor_White, ztColor_White, ztColor_White, ztColor_White };
+	return zt_drawListAddFilledQuad(draw_list, p, uvs, normals, colors);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4], const ztVec4 colors[4])
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledQuad");
 	_zt_drawListVerifyTexture(draw_list);
@@ -7014,6 +7070,10 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const zt
 		command->tri_norm[0] = normals[0];
 		command->tri_norm[1] = normals[1 + j];
 		command->tri_norm[2] = normals[2 + j];
+
+		command->tri_color[0] = colors[0];
+		command->tri_color[1] = colors[1 + j];
+		command->tri_color[2] = colors[2 + j];
 	}
 
 	return true;
@@ -7028,7 +7088,22 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& p, const zt
 
 // ================================================================================================================================================================================================
 
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4])
+{
+	return zt_drawListAddFilledRect2D(draw_list, zt_vec3(p.x, p.y, 0), size, uv_nw, uv_se, colors);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se)
+{
+	ztVec4 colors[] = { ztColor_White, ztColor_White, ztColor_White, ztColor_White };
+	return zt_drawListAddFilledRect2D(draw_list, p, size, uv_nw, uv_se, colors);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4])
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledRect2D");
 	r32 half_w = size.x / 2.f;
@@ -7045,7 +7120,10 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const zt
 		zt_vec2(uv_se.x, uv_se.y),
 		zt_vec2(uv_se.x, uv_nw.y),
 		
-		ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+		ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero,
+		
+		colors[0], colors[1], colors[2], colors[3]
+		);
 }
 
 // ================================================================================================================================================================================================
@@ -7057,13 +7135,26 @@ bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, con
 
 // ================================================================================================================================================================================================
 
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor colors[4])
+{
+	return zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos_ctr, 0), size, colors);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color)
+{
+	ztColor colors[] = { color, color, color, color };
+	return zt_drawListAddSolidRect2D(draw_list, pos_ctr, size, colors);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor colors[4])
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidRect2D");
 	zt_drawListPushTexture(draw_list, 0);
-	zt_drawListPushColor(draw_list, color);
-	zt_drawListAddFilledRect2D(draw_list, pos_ctr, size, ztVec2::zero, ztVec2::one);
-	zt_drawListPopColor(draw_list);
+	zt_drawListAddFilledRect2D(draw_list, pos_ctr, size, ztVec2::zero, ztVec2::one, colors);
 	zt_drawListPopTexture(draw_list);
 	return true;
 }
@@ -8861,7 +8952,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 								buffer.vertices[idx].uv = cmp_item->command->tri_uv[k];
 								buffer.vertices[idx].norm = cmp_item->command->tri_norm[k];
-								buffer.vertices[idx].color = active_color;
+								buffer.vertices[idx].color = cmp_item->command->tri_color[k] * active_color;
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 
 
@@ -9239,7 +9330,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j] + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
-								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
+								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_item->command->tri_color[k] * active_color.values[j];
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 
 								if (transform) {
@@ -9649,6 +9740,34 @@ int zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type)
 	return 0;
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayMakeDefault(ztVertexDefault *vertices, int vertices_count)
+{
+	ztVertexArrayEntry entries[] = {
+		{ ztVertexArrayDataType_Float, 3 }, // position
+		{ ztVertexArrayDataType_Float, 2 }, // uv
+		{ ztVertexArrayDataType_Float, 3 }, // normal
+		{ ztVertexArrayDataType_Float, 4 }, // color
+	};
+
+	return zt_vertexArrayMake(entries, zt_elementsOf(entries), vertices, vertices_count);
+}
+
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayUpdateDefault(ztVertexArrayID vertex_array_id, ztVertexDefault *vertices, int vertices_count)
+{
+	ztVertexArrayEntry entries[] = {
+		{ ztVertexArrayDataType_Float, 3 }, // position
+		{ ztVertexArrayDataType_Float, 2 }, // uv
+		{ ztVertexArrayDataType_Float, 3 }, // normal
+		{ ztVertexArrayDataType_Float, 4 }, // color
+	};
+
+	return zt_vertexArrayUpdate(vertex_array_id, entries, zt_elementsOf(entries), vertices, vertices_count);
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -14849,10 +14968,10 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
-		texture->arena = zt_memGetGlobalArena();
-		texture->data_len = width * height * 4;
-		texture->data = zt_mallocStructArray(byte, zt_game->textures[texture_id].data_len);
-		zt_memCpy(texture->data, texture->data_len, data, texture->data_len);
+		//texture->arena = zt_memGetGlobalArena();
+		//texture->data_len = width * height * 4;
+		//texture->data = zt_mallocStructArray(byte, zt_game->textures[texture_id].data_len);
+		//zt_memCpy(texture->data, texture->data_len, data, texture->data_len);
 	}
 
 	return texture_id;
@@ -26128,7 +26247,7 @@ int main(int argc, const char **argv)
 		{
 			u32 texture[] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
 
-			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
+			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8, ztTextureFlags_PixelPerfect);
 			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
 		}
 		// make the default font
