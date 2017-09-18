@@ -920,8 +920,8 @@ r32  zt_pow                 (r32 v, r32 p);
 r32  zt_exp                 (r32 v);
 r32  zt_fmod                (r32 v, r32 d);
 
-i32  zt_lerp                (i32 v1, i32 v2, r32 percent);
-i32  zt_unlerp              (i32 v1, i32 v2, r32 percent);
+i32  zt_ilerp               (i32 v1, i32 v2, r32 percent);
+i32  zt_iunlerp             (i32 v1, i32 v2, r32 percent);
 
 
 // ================================================================================================================================================================================================
@@ -2432,14 +2432,14 @@ ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 
 // ================================================================================================================================================================================================
 
-ztInline i32 zt_lerp(i32 v1, i32 v2, r32 percent)
+ztInline i32 zt_ilerp(i32 v1, i32 v2, r32 percent)
 {
 	return v1 + (i32)((v2 - v1) * percent);
 }
 
 // ================================================================================================================================================================================================
 
-ztInline i32 zt_unlerp(i32 v1, i32 v2, r32 value)
+ztInline i32 zt_iunlerp(i32 v1, i32 v2, r32 value)
 {
 	return (v2 - v1) == 0 ? 0 : (i32)((value - v1) / (r32)(v2 - v1));
 }
@@ -3486,14 +3486,14 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 	zt_assert(beg->type == end->type);
 	switch (beg->type)
 	{
-		case ztVariant_i8   : return zt_variantMake_i8   (( i8)zt_lerp((i32)beg->v_i8 , (i32)end->v_i8 , pct));
-		case ztVariant_i16  : return zt_variantMake_i16  ((i16)zt_lerp((i32)beg->v_i16, (i32)end->v_i16, pct));
-		case ztVariant_i32  : return zt_variantMake_i32  ((i32)zt_lerp((i32)beg->v_i32, (i32)end->v_i32, pct));
-		case ztVariant_i64  : return zt_variantMake_i64  ((i64)zt_lerp((i32)beg->v_i64, (i32)end->v_i64, pct));
-		case ztVariant_u8   : return zt_variantMake_u8   (( u8)zt_lerp((i32)beg->v_u8 , (i32)end->v_u8 , pct));
-		case ztVariant_u16  : return zt_variantMake_u16  ((u16)zt_lerp((i32)beg->v_u16, (i32)end->v_u16, pct));
-		case ztVariant_u32  : return zt_variantMake_u32  ((u32)zt_lerp((i32)beg->v_u32, (i32)end->v_u32, pct));
-		case ztVariant_u64  : return zt_variantMake_u64  ((u64)zt_lerp((i32)beg->v_u64, (i32)end->v_u64, pct));
+		case ztVariant_i8   : return zt_variantMake_i8   (( i8)zt_ilerp((i32)beg->v_i8 , (i32)end->v_i8 , pct));
+		case ztVariant_i16  : return zt_variantMake_i16  ((i16)zt_ilerp((i32)beg->v_i16, (i32)end->v_i16, pct));
+		case ztVariant_i32  : return zt_variantMake_i32  ((i32)zt_ilerp((i32)beg->v_i32, (i32)end->v_i32, pct));
+		case ztVariant_i64  : return zt_variantMake_i64  ((i64)zt_ilerp((i32)beg->v_i64, (i32)end->v_i64, pct));
+		case ztVariant_u8   : return zt_variantMake_u8   (( u8)zt_ilerp((i32)beg->v_u8 , (i32)end->v_u8 , pct));
+		case ztVariant_u16  : return zt_variantMake_u16  ((u16)zt_ilerp((i32)beg->v_u16, (i32)end->v_u16, pct));
+		case ztVariant_u32  : return zt_variantMake_u32  ((u32)zt_ilerp((i32)beg->v_u32, (i32)end->v_u32, pct));
+		case ztVariant_u64  : return zt_variantMake_u64  ((u64)zt_ilerp((i32)beg->v_u64, (i32)end->v_u64, pct));
 		case ztVariant_r32  : return zt_variantMake_r32  ((r32)zt_lerp((r32)beg->v_r32, (r32)end->v_r32, pct));
 		case ztVariant_r64  : return zt_variantMake_r64  ((r64)zt_lerp((r32)beg->v_r64, (r32)end->v_r64, pct));
 		case ztVariant_voidp: zt_assert(false); // _voidpcan't lerp void pointers
