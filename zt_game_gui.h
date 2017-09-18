@@ -116,6 +116,7 @@ ztVec2 zt_guiThemeButtonSpriteGetSize     (ztGuiThemeButtonSprite *sprite);
 	_ztGIT(ztGuiItemType_Spinner        ) \
 	_ztGIT(ztGuiItemType_ListBox        ) \
 	_ztGIT(ztGuiItemType_ColorPicker    ) \
+	_ztGIT(ztGuiItemType_GradientPicker ) \
 	_ztGIT(ztGuiItemType_Custom         )
 
 // ================================================================================================================================================================================================
@@ -409,6 +410,9 @@ typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(zt_guiCycleBoxValueChanged_Func);
 #define ZT_FUNC_GUI_COLOR_PICKER_CHANGED(name) void name(ztGuiItem *color_picker, ztColor color_chosen, void *user_data)
 typedef ZT_FUNC_GUI_COLOR_PICKER_CHANGED(zt_guiColorPickerChanged_Func);
 
+#define ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED(name) void name(ztGuiItem *gradient_picker, ztColorGradient2 *gradient_chosen, void *user_data)
+typedef ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED(zt_guiColorGradientChanged_Func);
+
 #define ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(name) void name(ztGuiItem *editor, void *user_data)
 typedef ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(zt_guiEditorValueChanged_Func);
 
@@ -554,6 +558,26 @@ enum ztGuiListGridBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
+enum ztGuiColorPickerBehaviorFlags_Enum
+{
+	ztGuiColorPickerBehaviorFlags_LiveEdit = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiColorPickerBehaviorFlags_IncludesAlpha = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+};
+
+#define ztGuiColorPickerBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 2)
+
+
+// ================================================================================================================================================================================================
+
+enum ztGuiGradientPickerBehaviorFlags_Enum
+{
+	ztGuiGradientPickerBehaviorFlags_LiveEdit      = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+};
+
+#define ztGuiGradientPickerBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 1)
+
+
+// ================================================================================================================================================================================================
 enum ztGuiItemOrient_Enum
 {
 	ztGuiItemOrient_Horz = (1 << 1),
@@ -622,7 +646,8 @@ ztGuiItem       *zt_guiMakeCycleBox                    (ztGuiItem *parent, i32 m
 ztGuiItem       *zt_guiMakeSpriteDisplay               (ztGuiItem *parent, ztGuiThemeSprite *sprite, const ztVec2& scale = ztVec2::one, const ztVec4& bgcolor = ztVec4::zero);
 ztGuiItem       *zt_guiMakeSpinner                     (ztGuiItem *parent, int *live_value = nullptr);
 ztGuiItem       *zt_guiMakeListBox                     (ztGuiItem *parent, i32 behavior_flags = 0, i32 max_items = 128);
-ztGuiItem       *zt_guiMakeColorPicker                 (ztGuiItem *parent, ztColor color, bool includes_alpha);
+ztGuiItem       *zt_guiMakeColorPicker                 (ztGuiItem *parent, ztColor color, i32 behavior_flags = 0, ztColor *live_value = nullptr);
+ztGuiItem       *zt_guiMakeGradientPicker              (ztGuiItem *parent, ztColorGradient2 *gradient, i32 behavior_flags = 0, ztColorGradient2 *live_value = nullptr);
 ztGuiItem       *zt_guiMakeSizer                       (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
 ztGuiItem       *zt_guiMakeColumnSizer                 (ztGuiItem *parent, int columns, ztGuiColumnSizerType_Enum type, bool size_to_parent = true);
 ztGuiItem       *zt_guiMakeWrapSizer                   (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
@@ -654,6 +679,7 @@ void             zt_guiItemSetLabel                    (ztGuiItem *item, const c
 void             zt_guiItemSetTooltip                  (ztGuiItem *item, const char *tooltip);
 void             zt_guiItemSetThemeType                (ztGuiItem *item, const char *theme_type);
 void             zt_guiItemSetTheme                    (ztGuiItem *item, ztGuiTheme *theme);
+void             zt_guiItemSetColor                    (ztGuiItem *item, const ztVec4& color);
 
 void             zt_guiItemSetCustomFlags              (ztGuiItem *item, i32 flags);
 
@@ -868,6 +894,12 @@ void             zt_guiListBoxRemoveItem               (ztGuiItem *listbox, int 
 // ================================================================================================================================================================================================
 
 void             zt_guiColorPickerSetCallback          (ztGuiItem *color_picker, ztFunctionID callback, void *user_data);
+void             zt_guiColorPickerSetLiveValue         (ztGuiItem *color_picker, ztColor *live_value);
+
+// ================================================================================================================================================================================================
+
+void             zt_guiGradientPickerSetCallback       (ztGuiItem *gradient_picker, ztFunctionID callback, void *user_data);
+void             zt_guiGradientPickerSetLiveValue      (ztGuiItem *gradient_picker, ztColorGradient2 *live_value);
 
 // ================================================================================================================================================================================================
 
@@ -943,7 +975,14 @@ void             zt_guiDialogFileSelect(const char *title, i32 flags, ztFunction
 #define          ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED(name) void name(ztColor color_chosen, void *user_data)
 typedef          ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED(zt_guiDialogColorPickerSelected_Func);
 
-void             zt_guiDialogColorPicker(ztColor *selected_color, bool include_alpha, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Select a Color");
+void             zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Select a Color");
+
+// ================================================================================================================================================================================================
+
+#define          ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(name) void name(ztColorGradient2 *gradient, void *user_data)
+typedef          ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(zt_guiDialogColorGradientEditorComplete_Func);
+
+void             zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Color Gradient");
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -1402,7 +1441,18 @@ struct ztGuiItem
 		struct {
 			ztFunctionID  callback;
 			void         *user_data;
+			ztColor      *live_value;
+			bool          include_alpha;
 		} color_picker;
+
+		// -------------------------------------------------
+
+		struct {
+			ztFunctionID       callback;
+			void              *user_data;
+			ztColorGradient2  *gradient;
+			ztColorGradient2  *live_value;
+		} gradient_picker;
 
 		// -------------------------------------------------
 	};
@@ -9183,377 +9233,10 @@ void zt_guiListBoxRemoveItem(ztGuiItem *listbox, int item)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-struct ztGuiColorPickerData
-{
-	ztVec4i       color_rgba;
-	ztVec4i       color_rgba_save;
-	ztVec4        color_rgba_work;
-	ztVec4        color_full;
-	bool          include_alpha;
-
-	ztTextureID   tex_details;
-	bool          recalc_tex;
-
-	bool          black_at_bottom_right;
-
-	ztVec2        mpos_click;
-	int           dragging;
-
-	ztGuiItem    *curr_clr;
-
-	ztVec4       *color_val;
-
-	ztFunctionID  callback;
-	void         *user_data;
-};
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonOk))
-{
-	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
-	if (picker_data->color_val) {
-		*picker_data->color_val = picker_data->color_rgba_work;
-	}
-
-	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
-
-	if (picker_data->callback != ztInvalidID) {
-		((zt_guiDialogColorPickerSelected_Func*)zt_functionPointer(picker_data->callback))(picker_data->color_rgba_work, picker_data->user_data);
-	}
-}
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonCancel))
-{
-	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
-}
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelPreviewRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelPreviewRender))
-{
-	ztColor colors[4] = { item->color, item->color, item->color, item->color };
-	zt_drawListPushTexture(draw_list, ztTextureDefault);
-	zt_drawListAddFilledRect2D(draw_list, item->pos + offset, item->size, ztVec2::zero, ztVec2::one, colors);
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerPanelInputMouse))
-{
-	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
-
-	if (input_mouse->leftPressed()) {
-		picker_data->mpos_click = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
-		return true;
-	}
-	else if(input_mouse->leftJustReleased()){
-		picker_data->mpos_click = ztVec2::min;
-		picker_data->dragging = -1;
-		return false;
-	}
-
-	return false;
-}
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiColorPickerPanelCleanup))
-{
-	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
-	zt_textureFree(picker_data->tex_details);
-}
-
-// ================================================================================================================================================================================================
-
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelRender))
-{
-	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
-
-	if (picker_data->color_rgba_save != picker_data->color_rgba) {
-		picker_data->color_rgba_save = picker_data->color_rgba;
-		picker_data->color_rgba_work = zt_vec4(picker_data->color_rgba.x / 255.f, picker_data->color_rgba.y / 255.f, picker_data->color_rgba.z / 255.f, picker_data->color_rgba.w / 255.f);
-		picker_data->color_full = ztVec4::min;
-		picker_data->recalc_tex = true;
-	}
-
-	if (picker_data->recalc_tex) {
-		ZT_PROFILE_GUI("zt_guiColorPickerPanelRender::createTex");
-		picker_data->recalc_tex = false;
-
-		if (picker_data->color_full == ztVec4::min) {
-			picker_data->color_full = zt_colorRgbToHsv(picker_data->color_rgba_work);
-			picker_data->color_full.g = 1;
-			picker_data->color_full.b = 1;
-			picker_data->color_full = zt_colorHsvToRgb(picker_data->color_full);
-		}
-
-		ztColor color_hsv = zt_colorRgbToHsv(picker_data->color_full);
-
-		byte pixels[256 * 256 * 4];
-		zt_fyz(256) {
-			color_hsv.b = y / 255.f;
-
-			zt_fxz(256) {
-				color_hsv.g = x / 255.f;
-
-				ztColor color_rgb = zt_colorHsvToRgb(color_hsv);
-
-				int idx = (((255 - y) * 256) + x) * 4;
-				pixels[idx + 0] = zt_convertToi32Ceil(color_rgb.r * 255);
-				pixels[idx + 1] = zt_convertToi32Ceil(color_rgb.g * 255);
-				pixels[idx + 2] = zt_convertToi32Ceil(color_rgb.b * 255);
-				pixels[idx + 3] = 255;
-			}
-		}
-
-		if (picker_data->tex_details != ztInvalidID) {
-			zt_textureFree(picker_data->tex_details);
-		}
-
-		picker_data->tex_details = zt_textureMakeFromPixelData(pixels, 256, 256);
-	}
-
-	// draw detail for color
-	ztVec2 size = zt_vec2(4, 4);
-
-	ztVec4 color_sel = picker_data->color_rgba_work;
-	ztVec4 color_sel_hsv = zt_colorRgbToHsv(color_sel);
-	ztVec4 color_full = picker_data->color_full;
-
-	if (color_full == ztVec4::min) {
-		color_full = color_sel_hsv;
-		color_full.g = 1;
-		color_full.b = 1;
-		color_full = zt_colorHsvToRgb(color_full);
-		picker_data->color_full = color_full;
-	}
-
-	picker_data->curr_clr->color = color_sel;
-
-	r32 color_sel_x = size.x * color_sel_hsv.g;
-	r32 color_sel_y = size.y * color_sel_hsv.b;
-
-	if (picker_data->black_at_bottom_right) {
-		color_sel_x = size.x;
-	}
-
-	r32 hsv_sel_y = size.y * (zt_colorRgbToHsv(color_full).r / 360);
-	r32 alp_sel_y = size.y * color_sel.a;
-
-	r32 ppu = zt_pixelsPerUnit();
-	{
-		ztVec3 center = zt_vec3(offset + item->pos, 0);
-
-		center.x -= .5f;
-
-		zt_drawListAddSprite(draw_list, &zt_spriteMake(picker_data->tex_details, 0, 0, 256, 256), center);
-
-		zt_drawListPushColor(draw_list, ztColor_White);
-		zt_drawListAddEmptyCircle(draw_list, center + zt_vec3(size.x / -2 + color_sel_x, size.y / -2 + color_sel_y, 0), 5 / ppu, 10);
-		zt_drawListAddEmptyRect(draw_list, center, zt_vec2(size.y, size.y));
-		zt_drawListPopColor(draw_list);
-
-		if (picker_data->dragging == 0 || (picker_data->mpos_click != ztVec2::min && zt_collisionPointInRect(picker_data->mpos_click, center.xy, size + zt_vec2(6 / ppu, 6 / ppu)) && picker_data->dragging == -1)) {
-			picker_data->dragging = 0;
-			r32 pct_y = zt_clamp((picker_data->mpos_click.y - (center.y - size.y / 2)) / size.y, 0, 1);
-			r32 pct_x = zt_clamp((picker_data->mpos_click.x - (center.x - size.x / 2)) / size.x, 0, 1);
-
-			ztColor clr_new = zt_colorRgbToHsv(color_full);
-			clr_new.g = pct_x;
-			clr_new.b = pct_y;
-			clr_new = zt_colorHsvToRgb(clr_new);
-
-			picker_data->black_at_bottom_right = clr_new == ztColor_Black && picker_data->mpos_click.x > center.x;
-
-			picker_data->color_rgba_work = clr_new;
-			picker_data->color_rgba_save = picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(clr_new.r * 255), zt_convertToi32Ceil(clr_new.g * 255), zt_convertToi32Ceil(clr_new.b * 255), zt_convertToi32Ceil(clr_new.a * 255));
-		}
-	}
-
-	// draw hue and alpha gradients
-	zt_fxz(2) {
-		ztVec3 center = zt_vec3(offset + item->pos, 0);
-		center.x += 1.8f + (x * .5f);
-		r32 width = .35f;
-
-		ztColor colors[] = {
-			ztColor_Red,
-			ztColor_Magenta,
-			ztColor_Blue,
-			ztColor_Cyan,
-			ztColor_Green,
-			ztColor_Yellow,
-			ztColor_Red,
-		};
-
-		int colors_count = zt_elementsOf(colors);
-
-		if (x == 1) {
-			colors[0] = ztColor_White;
-			colors[1] = ztColor_Black;
-			colors_count = 2;
-		}
-
-		r32 height_per = size.y / (colors_count - 1);
-
-		ztVec3 start = zt_vec3(center.x, center.y + ((size.y / 2) - (height_per / 2)), 0);
-
-		zt_drawListPushTexture(draw_list, ztTextureDefault);
-		zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_OneMinusDestColor);
-
-		zt_fiz(colors_count - 1) {
-			ztColor colors_this[] = {
-				colors[i], colors[i + 1], colors[i + 1], colors[i]
-			};
-
-			zt_drawListAddFilledRect2D(draw_list, start, zt_vec2(width, height_per), ztVec2::zero, ztVec2::one, colors_this);
-
-			start.y -= height_per;
-		}
-		zt_drawListPopBlendMode(draw_list);
-		zt_drawListPopTexture(draw_list);
-
-		r32 sel_y = x == 0 ? hsv_sel_y : alp_sel_y;
-
-		zt_drawListPushColor(draw_list, ztColor_White);
-		zt_drawListAddEmptyRect(draw_list, center + zt_vec3(0, size.y / -2 + sel_y, 0), zt_vec2(width + 4 / ppu, 5 / ppu));
-		zt_drawListAddEmptyRect(draw_list, center, zt_vec2(width, size.y));
-		zt_drawListPopColor(draw_list);
-
-		if (zt_inputKeysAccessState()[ztInputKeys_Space].justPressed()) {
-			int debug_stop = 1;
-		}
-		if (picker_data->dragging == 1 + x || (picker_data->mpos_click != ztVec2::min && zt_collisionPointInRect(picker_data->mpos_click, center.xy, zt_vec2(width, size.y)) && picker_data->dragging == -1)) {
-			picker_data->dragging = 1 + x;
-			r32 pct_y = zt_clamp((picker_data->mpos_click.y - (center.y - size.y / 2)) / size.y, 0, .9999f);
-
-			ztColor clr_new;
-			if (x == 0) {
-				clr_new = color_sel_hsv;
-				clr_new.r = 360 * pct_y;
-				clr_new = zt_colorHsvToRgb(clr_new);
-
-				color_full = zt_colorRgbToHsv(color_full);
-				color_full.r = 360 * pct_y;
-				picker_data->color_full = zt_colorHsvToRgb(color_full);
-				picker_data->recalc_tex = true;
-			}
-			else {
-				clr_new = picker_data->color_rgba_work;
-				clr_new.a = pct_y;
-			}
-
-			picker_data->color_rgba_work = clr_new;
-			picker_data->color_rgba_save = picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(clr_new.r * 255), zt_convertToi32Ceil(clr_new.g * 255), zt_convertToi32Ceil(clr_new.b * 255), zt_convertToi32Ceil(clr_new.a * 255));
-		}
-	}
-}
-
-// ================================================================================================================================================================================================
-
-void zt_guiMakeColorPickerWindow(ztColor *selected_color, bool include_alpha, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Select a Color")
-{
-	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
-
-	zt_guiItemSetSize(window, zt_vec2(5.5f, 5.5f));
-
-	ztGuiColorPickerData *picker_data = zt_mallocStructArena(ztGuiColorPickerData, window->gm->arena);
-	zt_guiMakePanel(window, 0, picker_data, window->gm->arena);
-
-	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
-
-	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
-
-	ztGuiItem *panel_picker = zt_guiMakePanel(sizer, ztGuiItemBehaviorFlags_WantsInput|ztGuiItemBehaviorFlags_WantsFocus);
-	zt_guiSizerAddItem(sizer, panel_picker, 1, padding);
-
-	zt_guiItemSetSize(panel_picker, zt_vec2(5, 4));
-	zt_guiItemSetMinSize(panel_picker, zt_vec2(5, 4));
-
-	panel_picker->functions.input_mouse = _zt_guiColorPickerPanelInputMouse_FunctionID;
-	panel_picker->functions.render = _zt_guiColorPickerPanelRender_FunctionID;
-	panel_picker->functions.cleanup = _zt_guiColorPickerPanelCleanup_FunctionID;
-	panel_picker->functions.user_data = picker_data;
-
-	ztGuiItem *sizer_btm = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_btm, 0, 0);
-
-	ztGuiItem *ed_rgba;
-	picker_data->color_rgba_work = *selected_color;
-	picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(selected_color->r * 255), zt_convertToi32Ceil(selected_color->g * 255), zt_convertToi32Ceil(selected_color->b * 255), zt_convertToi32Ceil(selected_color->a * 255));
-	picker_data->color_rgba_save = picker_data->color_rgba;
-	picker_data->color_full = ztVec4::min;
-	picker_data->include_alpha = include_alpha;
-	picker_data->black_at_bottom_right = false;
-	picker_data->mpos_click = ztVec2::min;
-	picker_data->dragging = -1;
-	picker_data->color_val = selected_color;
-	picker_data->tex_details = ztInvalidID;
-	picker_data->recalc_tex = true;
-	picker_data->callback = callback;
-	picker_data->user_data = user_data;
-
-	if (include_alpha) {
-		ed_rgba = zt_guiMakeEditor(sizer, nullptr, &picker_data->color_rgba, zt_vec4i(0, 0, 0, 0), zt_vec4i(255, 255, 255, 255), 1, false, "R", "G", "B", "A");
-	}
-	else {
-		ed_rgba = zt_guiMakeEditor(sizer, nullptr, &picker_data->color_rgba.xyz, zt_vec3i(0, 0, 0), zt_vec3i(255, 255, 255), 1, false, "R", "G", "B");
-	}
-
-	zt_guiSizerAddItem(sizer_btm, ed_rgba, 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
-
-	zt_guiSizerAddStretcher(sizer_btm, 0, padding);
-
-	ztGuiItem *curr_clr = zt_guiMakePanel(sizer_btm);
-	curr_clr->color = *selected_color;
-	curr_clr->functions.render = _zt_guiColorPickerPanelPreviewRender_FunctionID;
-	zt_guiSizerAddItem(sizer_btm, curr_clr, 0, 0, 0, 0);
-	curr_clr->size.x = .5f;
-	curr_clr->size.y = zt_guiThemeGetRValue(zt_guiItemGetTheme(curr_clr), ztGuiThemeValue_r32_TextEditDefaultH, curr_clr);
-
-
-	picker_data->curr_clr = curr_clr;
-
-	ztGuiItem *prev_clr = zt_guiMakePanel(sizer_btm);
-	prev_clr->color = *selected_color;
-	prev_clr->functions.render = _zt_guiColorPickerPanelPreviewRender_FunctionID;
-	zt_guiSizerAddItem(sizer_btm, prev_clr, 0, 0, 0, 0);
-	prev_clr->size.x = .5f;
-	prev_clr->size.y = curr_clr->size.y;
-
-
-	ztGuiItem *sizer_btns = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_btns, 0, 0);
-	zt_guiSizerAddStretcher(sizer_btns, 1);
-
-	ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
-	zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
-	zt_guiButtonSetCallback(button_ok, _zt_guiColorPickerButtonOk_FunctionID, picker_data);
-	button_ok->size.x *= 2;
-	zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
-
-	ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
-	zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
-	zt_guiButtonSetCallback(button_cancel, _zt_guiColorPickerButtonCancel_FunctionID, picker_data);
-	button_cancel->size.x *= 2;
-	zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
-
-	zt_guiSizerAddStretcher(sizer_btns, 1);
-}
-
-
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerInputMouse))
 {
 	if (input_mouse->leftJustReleased()) {
-		zt_guiMakeColorPickerWindow(&item->color, true);
+		zt_guiDialogColorPicker(&item->color, item->behavior_flags);
 		return true;
 	}
 
@@ -9569,16 +9252,24 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerRender, ZT_FUNC_GUI_ITEM_RENDER(_
 	zt_drawListAddFilledRect2D(draw_list, item->pos + offset, item->size, ztVec2::zero, ztVec2::one);
 	zt_drawListPopColor(draw_list);
 	zt_drawListPopTexture(draw_list);
+
+	if (item->color_picker.live_value && *item->color_picker.live_value != item->color) {
+		*item->color_picker.live_value = item->color;
+	}
 }
 
 // ================================================================================================================================================================================================
 
-ztGuiItem *zt_guiMakeColorPicker(ztGuiItem *parent, ztColor color, bool includes_alpha)
+ztGuiItem *zt_guiMakeColorPicker(ztGuiItem *parent, ztColor color, i32 behavior_flags, ztColor *live_value)
 {
 	ZT_PROFILE_GUI("zt_guiMakeColorPicker");
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_ColorPicker, ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_ColorPicker, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
 	item->color = color;
-	item->size = zt_vec2(1, .5f);
+	item->size = zt_vec2(1, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
+
+	item->color_picker.callback = ztInvalidID;
+	item->color_picker.user_data = nullptr;
+	item->color_picker.live_value = live_value;
 
 	item->functions.input_mouse = _zt_guiColorPickerInputMouse_FunctionID;
 	item->functions.render = _zt_guiColorPickerRender_FunctionID;
@@ -9595,6 +9286,138 @@ void zt_guiColorPickerSetCallback(ztGuiItem *color_picker, ztFunctionID callback
 
 	color_picker->color_picker.callback = callback;
 	color_picker->color_picker.user_data = user_data;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiColorPickerSetLiveValue(ztGuiItem *color_picker, ztColor *live_value)
+{
+	zt_returnOnNull(color_picker);
+	zt_assertReturnOnFail(color_picker->type == ztGuiItemType_ColorPicker);
+
+	color_picker->color_picker.live_value = live_value;
+
+	if (live_value) {
+		color_picker->color = *live_value;
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiGradientPickerInputMouse))
+{
+	if (input_mouse->leftJustReleased()) {
+		zt_guiDialogColorGradient(item->gradient_picker.gradient, item->behavior_flags);
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiGradientPickerRender))
+{
+	ztVec2 center = item->pos + offset;
+	ztVec2 size = item->size;
+	ztVec3 start = zt_vec3(center.x - (size.x / 2), center.y, 0);
+
+	//zt_drawListAddSpriteTiled(draw_list, &zt_spriteMake(grad_editor->tex_background, 0, 0, 32, 32), zt_vec3(center, 0), size);
+
+	{
+		ztColor colors[ZT_COLOR_GRADIENT_MAX_VALUES * 2];
+		r32 locations[ZT_COLOR_GRADIENT_MAX_VALUES * 2];
+		int colors_count = zt_colorGradientGetColors(item->gradient_picker.gradient, colors, locations, ZT_COLOR_GRADIENT_MAX_VALUES * 2);
+
+		zt_drawListPushTexture(draw_list, ztTextureDefault);
+		zt_fiz(colors_count - 1) {
+			r32 width_this = size.x * (locations[i + 1] - locations[i]);
+
+			ztColor colors_this[] = {
+				colors[i], zt_vec4(colors[i].xyz, colors[i].a), zt_vec4(colors[i + 1].xyz, colors[i + 1].a), colors[i + 1]
+			};
+
+			zt_drawListAddFilledRect2D(draw_list, start + zt_vec3(width_this / 2, 0, 0), zt_vec2(width_this, size.y), ztVec2::zero, ztVec2::one, colors_this);
+			start.x += width_this;
+		}
+		zt_drawListPopTexture(draw_list);
+	}
+
+	if (item->gradient_picker.live_value && !zt_colorGradientIsEqual(item->gradient_picker.live_value, item->gradient_picker.gradient)) {
+		zt_memCpy(item->gradient_picker.live_value, zt_sizeof(ztColorGradient2), item->gradient_picker.gradient, zt_sizeof(ztColorGradient2));
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiGradientPickerCleanup))
+{
+	zt_freeArena(item->gradient_picker.gradient, item->gm->arena);
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeGradientPicker(ztGuiItem *parent, ztColorGradient2 *gradient, i32 behavior_flags, ztColorGradient2 *live_value)
+{
+	ZT_PROFILE_GUI("zt_guiMakeGradientPicker");
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_GradientPicker, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+
+	item->size = zt_vec2(1, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
+
+	item->gradient_picker.gradient = zt_mallocStructArena(ztColorGradient2, item->gm->arena);
+
+	if (gradient) {
+		zt_memCpy(item->gradient_picker.gradient, zt_sizeof(ztColorGradient2), gradient, zt_sizeof(ztColorGradient2));
+	}
+	else {
+		item->gradient_picker.gradient->color_vals[item->gradient_picker.gradient->color_entries  ] = ztColor_Black;
+		item->gradient_picker.gradient->color_locs[item->gradient_picker.gradient->color_entries++] = 0;
+		item->gradient_picker.gradient->color_vals[item->gradient_picker.gradient->color_entries  ] = ztColor_White;
+		item->gradient_picker.gradient->color_locs[item->gradient_picker.gradient->color_entries++] = 1;
+
+		item->gradient_picker.gradient->alpha_vals[item->gradient_picker.gradient->alpha_entries  ] = 1;
+		item->gradient_picker.gradient->alpha_locs[item->gradient_picker.gradient->alpha_entries++] = 0;
+		item->gradient_picker.gradient->alpha_vals[item->gradient_picker.gradient->alpha_entries  ] = 1;
+		item->gradient_picker.gradient->alpha_locs[item->gradient_picker.gradient->alpha_entries++] = 1;
+	}
+
+	item->gradient_picker.callback = ztInvalidID;
+	item->gradient_picker.user_data = nullptr;
+	item->gradient_picker.live_value = live_value;
+
+	item->functions.input_mouse = _zt_guiGradientPickerInputMouse_FunctionID;
+	item->functions.render = _zt_guiGradientPickerRender_FunctionID;
+	item->functions.cleanup = _zt_guiGradientPickerCleanup_FunctionID;
+
+	return item;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiGradientPickerSetCallback(ztGuiItem *gradient_picker, ztFunctionID callback, void *user_data)
+{
+	zt_returnOnNull(gradient_picker);
+	zt_assertReturnOnFail(gradient_picker->type == ztGuiItemType_GradientPicker);
+
+	gradient_picker->gradient_picker.callback = callback;
+	gradient_picker->gradient_picker.user_data = user_data;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiGradientPickerSetLiveValue(ztGuiItem *gradient_picker, ztColorGradient2 *live_value)
+{
+	zt_returnOnNull(gradient_picker);
+	zt_assertReturnOnFail(gradient_picker->type == ztGuiItemType_GradientPicker);
+
+	gradient_picker->gradient_picker.live_value = live_value;
+
+	if (live_value) {
+		zt_memCpy(&gradient_picker->gradient_picker.gradient, zt_sizeof(ztColorGradient2), live_value, zt_sizeof(ztColorGradient2));
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -11168,7 +10991,7 @@ ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool 
 
 	item->sizer.orient = orient;
 	item->sizer.type = ztGuiSizerType_Normal;
-	item->sizer.size[0] = item->sizer.size[1] = 0;
+	item->sizer.size[0] = item->sizer.size[1] = -1;
 	item->sizer.size_to_parent = size_to_parent;
 	item->sizer.size_parent_x = item->sizer.size_parent_y = false;
 	item->sizer.items = nullptr;
@@ -11240,7 +11063,7 @@ void zt_guiSizerAddItem(ztGuiItem *sizer, ztGuiItem *item, int proportion, r32 p
 
 	zt_singleLinkAddToEnd(sizer->sizer.items, entry);
 
-	sizer->sizer.size[0] = sizer->sizer.size[1] = 0; // trigger recalc
+	sizer->sizer.size[0] = sizer->sizer.size[1] = -1; // trigger recalc
 
 	if (item->type == ztGuiItemType_Sizer) {
 		item->sizer.size_to_parent = false;
@@ -11915,6 +11738,859 @@ void zt_guiDialogFileSelect(const char *title, i32 flags, ztFunctionID callback,
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+struct ztGuiColorPickerData
+{
+	ztVec4i       color_rgba;
+	ztVec4i       color_rgba_save;
+	ztVec4        color_rgba_work;
+	ztVec4        color_full;
+	ztVec4        color_orig;
+	i32           cp_behavior_flags;
+
+	ztTextureID   tex_details;
+	bool          recalc_tex;
+
+	bool          black_at_bottom_right;
+
+	ztVec2        mpos_click;
+	int           dragging;
+
+	ztGuiItem    *curr_clr;
+
+	ztVec4       *color_val;
+
+	ztFunctionID  callback;
+	void         *user_data;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelPreviewRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelPreviewRender))
+{
+	ztColor colors[4] = { item->color, item->color, item->color, item->color };
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_drawListAddFilledRect2D(draw_list, item->pos + offset, item->size, ztVec2::zero, ztVec2::one, colors);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerPanelInputMouse))
+{
+	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
+
+	if (input_mouse->leftPressed()) {
+		picker_data->mpos_click = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+		return true;
+	}
+	else if (input_mouse->leftJustReleased()){
+		picker_data->mpos_click = ztVec2::min;
+		picker_data->dragging = -1;
+		return false;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiColorPickerPanelCleanup))
+{
+	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
+	zt_textureFree(picker_data->tex_details);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelRender))
+{
+	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
+
+	bool updated_color = false;
+
+	if (picker_data->color_rgba_save != picker_data->color_rgba) {
+		picker_data->color_rgba_save = picker_data->color_rgba;
+		picker_data->color_rgba_work = zt_vec4(picker_data->color_rgba.x / 255.f, picker_data->color_rgba.y / 255.f, picker_data->color_rgba.z / 255.f, picker_data->color_rgba.w / 255.f);
+		picker_data->color_full = ztVec4::min;
+		picker_data->recalc_tex = true;
+		updated_color = true;
+	}
+
+	if (picker_data->recalc_tex) {
+		ZT_PROFILE_GUI("zt_guiColorPickerPanelRender::createTex");
+		picker_data->recalc_tex = false;
+
+		if (picker_data->color_full == ztVec4::min) {
+			picker_data->color_full = zt_colorRgbToHsv(picker_data->color_rgba_work);
+			picker_data->color_full.g = 1;
+			picker_data->color_full.b = 1;
+			picker_data->color_full = zt_colorHsvToRgb(picker_data->color_full);
+		}
+
+		ztColor color_hsv = zt_colorRgbToHsv(picker_data->color_full);
+
+		byte pixels[256 * 256 * 4];
+		zt_fyz(256) {
+			color_hsv.b = y / 255.f;
+
+			zt_fxz(256) {
+				color_hsv.g = x / 255.f;
+
+				ztColor color_rgb = zt_colorHsvToRgb(color_hsv);
+
+				int idx = (((255 - y) * 256) + x) * 4;
+				pixels[idx + 0] = zt_convertToi32Ceil(color_rgb.r * 255);
+				pixels[idx + 1] = zt_convertToi32Ceil(color_rgb.g * 255);
+				pixels[idx + 2] = zt_convertToi32Ceil(color_rgb.b * 255);
+				pixels[idx + 3] = 255;
+			}
+		}
+
+		if (picker_data->tex_details != ztInvalidID) {
+			zt_textureFree(picker_data->tex_details);
+		}
+
+		picker_data->tex_details = zt_textureMakeFromPixelData(pixels, 256, 256);
+	}
+
+	// draw detail for color
+	ztVec2 size = zt_vec2(4, 4);
+
+	ztVec4 color_sel = picker_data->color_rgba_work;
+	ztVec4 color_sel_hsv = zt_colorRgbToHsv(color_sel);
+	ztVec4 color_full = picker_data->color_full;
+
+	if (color_full == ztVec4::min) {
+		color_full = color_sel_hsv;
+		color_full.g = 1;
+		color_full.b = 1;
+		color_full = zt_colorHsvToRgb(color_full);
+		picker_data->color_full = color_full;
+	}
+
+	picker_data->curr_clr->color = color_sel;
+
+	r32 color_sel_x = size.x * color_sel_hsv.g;
+	r32 color_sel_y = size.y * color_sel_hsv.b;
+
+	if (picker_data->black_at_bottom_right) {
+		color_sel_x = size.x;
+	}
+
+	r32 hsv_sel_y = size.y * (zt_colorRgbToHsv(color_full).r / 360);
+	r32 alp_sel_y = size.y * color_sel.a;
+
+	r32 ppu = zt_pixelsPerUnit();
+	{
+		ztVec3 center = zt_vec3(offset + item->pos, 0);
+
+		center.x -= .5f;
+
+		zt_drawListAddSprite(draw_list, &zt_spriteMake(picker_data->tex_details, 0, 0, 256, 256), center);
+
+		zt_drawListPushColor(draw_list, ztColor_White);
+		zt_drawListAddEmptyCircle(draw_list, center + zt_vec3(size.x / -2 + color_sel_x, size.y / -2 + color_sel_y, 0), 5 / ppu, 10);
+		zt_drawListAddEmptyRect(draw_list, center, zt_vec2(size.y, size.y));
+		zt_drawListPopColor(draw_list);
+
+		if (picker_data->dragging == 0 || (picker_data->mpos_click != ztVec2::min && zt_collisionPointInRect(picker_data->mpos_click, center.xy, size + zt_vec2(6 / ppu, 6 / ppu)) && picker_data->dragging == -1)) {
+			picker_data->dragging = 0;
+			r32 pct_y = zt_clamp((picker_data->mpos_click.y - (center.y - size.y / 2)) / size.y, 0, 1);
+			r32 pct_x = zt_clamp((picker_data->mpos_click.x - (center.x - size.x / 2)) / size.x, 0, 1);
+
+			ztColor clr_new = zt_colorRgbToHsv(color_full);
+			clr_new.g = pct_x;
+			clr_new.b = pct_y;
+			clr_new = zt_colorHsvToRgb(clr_new);
+
+			picker_data->black_at_bottom_right = clr_new == ztColor_Black && picker_data->mpos_click.x > center.x;
+
+			picker_data->color_rgba_work = clr_new;
+			picker_data->color_rgba_save = picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(clr_new.r * 255), zt_convertToi32Ceil(clr_new.g * 255), zt_convertToi32Ceil(clr_new.b * 255), zt_convertToi32Ceil(clr_new.a * 255));
+
+			updated_color = true;
+		}
+	}
+
+	// draw hue and alpha gradients
+	zt_fxz(2) {
+		ztVec3 center = zt_vec3(offset + item->pos, 0);
+		center.x += 1.8f + (x * .5f);
+		r32 width = .35f;
+
+		ztColor colors[] = {
+			ztColor_Red,
+			ztColor_Magenta,
+			ztColor_Blue,
+			ztColor_Cyan,
+			ztColor_Green,
+			ztColor_Yellow,
+			ztColor_Red,
+		};
+
+		int colors_count = zt_elementsOf(colors);
+
+		if (x == 1) {
+			if (!zt_bitIsSet(item->behavior_flags, ztGuiColorPickerBehaviorFlags_IncludesAlpha)) {
+				break;
+			}
+			colors[0] = ztColor_White;
+			colors[1] = ztColor_Black;
+			colors_count = 2;
+		}
+
+		r32 height_per = size.y / (colors_count - 1);
+
+		ztVec3 start = zt_vec3(center.x, center.y + ((size.y / 2) - (height_per / 2)), 0);
+
+		zt_drawListPushTexture(draw_list, ztTextureDefault);
+		zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_OneMinusDestColor);
+
+		zt_fiz(colors_count - 1) {
+			ztColor colors_this[] = {
+				colors[i], colors[i + 1], colors[i + 1], colors[i]
+			};
+
+			zt_drawListAddFilledRect2D(draw_list, start, zt_vec2(width, height_per), ztVec2::zero, ztVec2::one, colors_this);
+
+			start.y -= height_per;
+		}
+		zt_drawListPopBlendMode(draw_list);
+		zt_drawListPopTexture(draw_list);
+
+		r32 sel_y = x == 0 ? hsv_sel_y : alp_sel_y;
+
+		zt_drawListPushColor(draw_list, ztColor_White);
+		zt_drawListAddEmptyRect(draw_list, center + zt_vec3(0, size.y / -2 + sel_y, 0), zt_vec2(width + 4 / ppu, 5 / ppu));
+		zt_drawListAddEmptyRect(draw_list, center, zt_vec2(width, size.y));
+		zt_drawListPopColor(draw_list);
+
+		if (picker_data->dragging == 1 + x || (picker_data->mpos_click != ztVec2::min && zt_collisionPointInRect(picker_data->mpos_click, center.xy, zt_vec2(width, size.y)) && picker_data->dragging == -1)) {
+			picker_data->dragging = 1 + x;
+			r32 pct_y = zt_clamp((picker_data->mpos_click.y - (center.y - size.y / 2)) / size.y, 0, .9999f);
+
+			ztColor clr_new;
+			if (x == 0) {
+				clr_new = color_sel_hsv;
+				clr_new.r = 360 * pct_y;
+				clr_new = zt_colorHsvToRgb(clr_new);
+
+				color_full = zt_colorRgbToHsv(color_full);
+				color_full.r = 360 * pct_y;
+				picker_data->color_full = zt_colorHsvToRgb(color_full);
+				picker_data->recalc_tex = true;
+			}
+			else {
+				clr_new = picker_data->color_rgba_work;
+				clr_new.a = pct_y;
+			}
+
+			picker_data->color_rgba_work = clr_new;
+			picker_data->color_rgba_save = picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(clr_new.r * 255), zt_convertToi32Ceil(clr_new.g * 255), zt_convertToi32Ceil(clr_new.b * 255), zt_convertToi32Ceil(clr_new.a * 255));
+
+			updated_color = true;
+		}
+	}
+	if (updated_color && zt_bitIsSet(picker_data->cp_behavior_flags, ztGuiColorPickerBehaviorFlags_LiveEdit) && picker_data->color_val != nullptr) {
+		*picker_data->color_val = picker_data->color_rgba_work;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonOk))
+{
+	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
+	if (picker_data->color_val) {
+		*picker_data->color_val = picker_data->color_rgba_work;
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+
+	if (picker_data->callback != ztInvalidID) {
+		((zt_guiDialogColorPickerSelected_Func*)zt_functionPointer(picker_data->callback))(picker_data->color_rgba_work, picker_data->user_data);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonCancel))
+{
+	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
+	if (picker_data->color_val && zt_bitIsSet(picker_data->cp_behavior_flags, ztGuiColorPickerBehaviorFlags_LiveEdit)) {
+		*picker_data->color_val = picker_data->color_orig;
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunctionID callback, void *user_data, const char *window_title)
+{
+	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
+
+	zt_guiItemSetSize(window, zt_vec2(5.5f, 5.5f));
+
+	ztGuiColorPickerData *picker_data = zt_mallocStructArena(ztGuiColorPickerData, window->gm->arena);
+	zt_guiMakePanel(window, 0, picker_data, window->gm->arena);
+
+	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	ztGuiItem *panel_picker = zt_guiMakePanel(sizer, ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
+	zt_guiSizerAddItem(sizer, panel_picker, 1, padding);
+
+	zt_guiItemSetSize(panel_picker, zt_vec2(5, 4));
+	zt_guiItemSetMinSize(panel_picker, zt_vec2(5, 4));
+
+	panel_picker->functions.input_mouse = _zt_guiColorPickerPanelInputMouse_FunctionID;
+	panel_picker->functions.render = _zt_guiColorPickerPanelRender_FunctionID;
+	panel_picker->functions.cleanup = _zt_guiColorPickerPanelCleanup_FunctionID;
+	panel_picker->functions.user_data = picker_data;
+
+	ztGuiItem *sizer_btm = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, sizer_btm, 0, 0);
+
+	ztGuiItem *ed_rgba;
+	picker_data->color_rgba_work = *selected_color;
+	picker_data->color_rgba = zt_vec4i(zt_convertToi32Ceil(selected_color->r * 255), zt_convertToi32Ceil(selected_color->g * 255), zt_convertToi32Ceil(selected_color->b * 255), zt_convertToi32Ceil(selected_color->a * 255));
+	picker_data->color_rgba_save = picker_data->color_rgba;
+	picker_data->color_full = ztVec4::min;
+	picker_data->color_orig = *selected_color;
+	picker_data->cp_behavior_flags = behavior_flags;
+	picker_data->black_at_bottom_right = false;
+	picker_data->mpos_click = ztVec2::min;
+	picker_data->dragging = -1;
+	picker_data->color_val = selected_color;
+	picker_data->tex_details = ztInvalidID;
+	picker_data->recalc_tex = true;
+	picker_data->callback = callback;
+	picker_data->user_data = user_data;
+
+	if (zt_bitIsSet(picker_data->cp_behavior_flags, ztGuiColorPickerBehaviorFlags_IncludesAlpha)) {
+		ed_rgba = zt_guiMakeEditor(sizer, nullptr, &picker_data->color_rgba, zt_vec4i(0, 0, 0, 0), zt_vec4i(255, 255, 255, 255), 1, false, "R", "G", "B", "A");
+	}
+	else {
+		ed_rgba = zt_guiMakeEditor(sizer, nullptr, &picker_data->color_rgba.xyz, zt_vec3i(0, 0, 0), zt_vec3i(255, 255, 255), 1, false, "R", "G", "B");
+	}
+
+	zt_guiSizerAddItem(sizer_btm, ed_rgba, 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+
+	zt_guiSizerAddStretcher(sizer_btm, 0, padding);
+
+	ztGuiItem *curr_clr = zt_guiMakePanel(sizer_btm);
+	curr_clr->color = *selected_color;
+	curr_clr->functions.render = _zt_guiColorPickerPanelPreviewRender_FunctionID;
+	zt_guiSizerAddItem(sizer_btm, curr_clr, 0, 0, 0, 0);
+	curr_clr->size.x = .5f;
+	curr_clr->size.y = zt_guiThemeGetRValue(zt_guiItemGetTheme(curr_clr), ztGuiThemeValue_r32_TextEditDefaultH, curr_clr);
+
+
+	picker_data->curr_clr = curr_clr;
+
+	ztGuiItem *prev_clr = zt_guiMakePanel(sizer_btm);
+	prev_clr->color = *selected_color;
+	prev_clr->functions.render = _zt_guiColorPickerPanelPreviewRender_FunctionID;
+	zt_guiSizerAddItem(sizer_btm, prev_clr, 0, 0, 0, 0);
+	prev_clr->size.x = .5f;
+	prev_clr->size.y = curr_clr->size.y;
+
+
+	ztGuiItem *sizer_btns = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, sizer_btns, 0, 0);
+	zt_guiSizerAddStretcher(sizer_btns, 1);
+
+	ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
+	zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+	zt_guiButtonSetCallback(button_ok, _zt_guiColorPickerButtonOk_FunctionID, picker_data);
+	button_ok->size.x *= 2;
+	zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
+
+	ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
+	zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+	zt_guiButtonSetCallback(button_cancel, _zt_guiColorPickerButtonCancel_FunctionID, picker_data);
+	button_cancel->size.x *= 2;
+	zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
+
+	zt_guiSizerAddStretcher(sizer_btns, 1);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztGuiColorGradientEditor
+{
+	ztColorGradient2   gradient;
+	ztColorGradient2  *gradient_val;
+	ztColorGradient2   gradient_orig;
+
+	ztGuiItem         *panel_alpha;
+	ztGuiItem         *panel_color;
+
+	ztGuiItem         *ed_alpha_val;
+	ztGuiItem         *ed_alpha_loc;
+
+	ztGuiItem         *ed_color_val;
+	ztGuiItem         *ed_color_loc;
+
+	ztVec2             mpos_click;
+	ztVec2             mpos_click_offset;
+	int                dragging;
+
+	int                active_control;
+
+	ztTextureID        tex_background;
+
+	i32                gp_behavior_flags;
+	ztFunctionID       callback;
+	void              *user_data;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteColor, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteColor))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	if (grad_editor->active_control >= 0) {
+		if (grad_editor->active_control == 0) {
+			grad_editor->gradient.color_vals[0] = grad_editor->gradient.color_vals[1];
+		}
+		else if (grad_editor->active_control == grad_editor->gradient.color_entries - 1) {
+			grad_editor->gradient.color_vals[grad_editor->gradient.color_entries - 1] = grad_editor->gradient.color_vals[grad_editor->gradient.color_entries - 2];
+		}
+		else {
+			zt_guiColorPickerSetLiveValue(grad_editor->ed_color_val, nullptr);
+
+			for (int i = grad_editor->active_control; i < grad_editor->gradient.color_entries; ++i) {
+				grad_editor->gradient.color_vals[i] = grad_editor->gradient.color_vals[i + 1];
+				grad_editor->gradient.color_locs[i] = grad_editor->gradient.color_locs[i + 1];
+			}
+			grad_editor->gradient.color_entries -= 1;
+		}
+
+		grad_editor->active_control = -1;
+		zt_guiItemHide(grad_editor->panel_alpha);
+		zt_guiItemHide(grad_editor->panel_color);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteAlpha, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteAlpha))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	int active_control = grad_editor->active_control - 1000;
+	if (active_control >= 0) {
+		if (active_control == 0) {
+			grad_editor->gradient.alpha_vals[0] = grad_editor->gradient.alpha_vals[1];
+		}
+		else if (active_control == grad_editor->gradient.alpha_entries - 1) {
+			grad_editor->gradient.alpha_vals[grad_editor->gradient.alpha_entries - 1] = grad_editor->gradient.alpha_vals[grad_editor->gradient.alpha_entries - 2];
+		}
+		else {
+			zt_guiColorPickerSetLiveValue(grad_editor->ed_color_val, nullptr);
+
+			for (int i = active_control; i < grad_editor->gradient.alpha_entries; ++i) {
+				grad_editor->gradient.alpha_vals[i] = grad_editor->gradient.alpha_vals[i + 1];
+				grad_editor->gradient.alpha_locs[i] = grad_editor->gradient.alpha_locs[i + 1];
+			}
+			grad_editor->gradient.alpha_entries -= 1;
+		}
+
+		grad_editor->active_control = -1;
+		zt_guiItemHide(grad_editor->panel_alpha);
+		zt_guiItemHide(grad_editor->panel_color);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_colorGradientPanelInputMouse))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	if (input_mouse->leftPressed()) {
+		grad_editor->mpos_click = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+		return true;
+	}
+	else if (input_mouse->leftJustReleased()){
+		grad_editor->mpos_click = ztVec2::min;
+		grad_editor->dragging = -1;
+		return false;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_colorGradientPanelRender))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	ztVec2 center = item->pos + offset;
+	ztVec2 size = item->size;
+	size.x *= .9f;
+	size.y = .5f;
+
+	r32 height = size.y;
+
+	r32 size_controls = .15f;
+
+	ztVec3 start = zt_vec3(center.x - (size.x / 2), center.y, 0);
+	r32 controls_start_x = center.x - (size.x / 2);
+
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_drawListAddSpriteTiled(draw_list, &zt_spriteMake(grad_editor->tex_background, 0, 0, 32, 32), zt_vec3(center, 0), size);
+
+	int active_control = grad_editor->active_control;
+
+	{
+		zt_fiz(grad_editor->gradient.alpha_entries) {
+			r32 pos_x = controls_start_x + (size.x * grad_editor->gradient.alpha_locs[i]);
+			ztVec2 pos_box = zt_vec2(pos_x, start.y + .35f);
+			ztVec2 size_box = zt_vec2(size_controls, size_controls);
+			zt_drawListAddSolidOutlinedRect2D(draw_list, pos_box, size_box, zt_color(1, 1, 1, 1) * grad_editor->gradient.alpha_vals[i], ztColor_White);
+
+			if (grad_editor->dragging == i + 1000) {
+				r32 pos_move_to = grad_editor->mpos_click.x - grad_editor->mpos_click_offset.x;
+				r32 pct_move_to = zt_clamp((pos_move_to - controls_start_x) / size.x, 0, 1);
+				grad_editor->gradient.alpha_locs[i] = pct_move_to;
+			}
+			else if (grad_editor->dragging == -1 && grad_editor->mpos_click != ztVec2::min && zt_collisionPointInRect(grad_editor->mpos_click, pos_box, size_box)) {
+				grad_editor->dragging = i != 0 && i < grad_editor->gradient.alpha_entries - 1 ? i + 1000 : -1;
+				grad_editor->mpos_click_offset = grad_editor->mpos_click - pos_box;
+				grad_editor->active_control = i + 1000;
+			}
+		}
+
+		ztVec2 pos_box = zt_vec2(center.x, start.y + .35f);
+		ztVec2 size_box = zt_vec2(size.x, .25f);
+		if (grad_editor->dragging == -1 && grad_editor->mpos_click != ztVec2::min && zt_collisionPointInRect(grad_editor->mpos_click, pos_box, size_box) && grad_editor->gradient.alpha_entries < zt_elementsOf(grad_editor->gradient.alpha_locs)) {
+			r32 loc = (grad_editor->mpos_click.x - (pos_box.x - size_box.x / 2.f)) / size_box.x;
+
+			int idx = grad_editor->gradient.alpha_entries++;
+			grad_editor->gradient.alpha_vals[idx] = 1;
+			grad_editor->gradient.alpha_locs[idx] = loc;
+			grad_editor->dragging = idx + 1000;
+			grad_editor->mpos_click_offset = ztVec2::zero;
+			grad_editor->active_control = idx + 1000;
+			active_control = -1;
+		}
+	}
+
+	{
+		zt_fiz(grad_editor->gradient.color_entries) {
+			r32 pos_x = controls_start_x + (size.x * grad_editor->gradient.color_locs[i]);
+			ztVec2 pos_box = zt_vec2(pos_x, start.y - .35f);
+			ztVec2 size_box = zt_vec2(size_controls, size_controls);
+			zt_drawListAddSolidRect2D(draw_list, pos_box, size_box, grad_editor->gradient.color_vals[i]);
+
+			if (grad_editor->dragging == i) {
+				r32 pos_move_to = grad_editor->mpos_click.x - grad_editor->mpos_click_offset.x;
+				r32 pct_move_to = zt_clamp((pos_move_to - controls_start_x) / size.x, 0, 1);
+				grad_editor->gradient.color_locs[i] = pct_move_to;
+			}
+			else if (grad_editor->dragging == -1 && grad_editor->mpos_click != ztVec2::min && zt_collisionPointInRect(grad_editor->mpos_click, pos_box, size_box)) {
+				grad_editor->dragging = i != 0 && i < grad_editor->gradient.color_entries - 1 ? i : -1;
+				grad_editor->mpos_click_offset = grad_editor->mpos_click - pos_box;
+				grad_editor->active_control = i;
+			}
+		}
+
+		ztVec2 pos_box = zt_vec2(center.x, start.y - .35f);
+		ztVec2 size_box = zt_vec2(size.x, .25f);
+		if (grad_editor->dragging == -1 && grad_editor->mpos_click != ztVec2::min && zt_collisionPointInRect(grad_editor->mpos_click, pos_box, size_box) && grad_editor->gradient.color_entries < zt_elementsOf(grad_editor->gradient.color_locs)) {
+			r32 loc = (grad_editor->mpos_click.x - (pos_box.x - size_box.x / 2.f)) / size_box.x;
+
+			int idx = grad_editor->gradient.color_entries++;
+			grad_editor->gradient.color_vals[idx] = ztColor_White;
+			grad_editor->gradient.color_locs[idx] = loc;
+			grad_editor->dragging = idx;
+			grad_editor->mpos_click_offset = ztVec2::zero;
+			grad_editor->active_control = idx;
+			active_control = -1;
+		}
+	}
+
+	{
+		ztColor colors[ZT_COLOR_GRADIENT_MAX_VALUES * 2];
+		r32 locations[ZT_COLOR_GRADIENT_MAX_VALUES * 2];
+		int colors_count = zt_colorGradientGetColors(&grad_editor->gradient, colors, locations, ZT_COLOR_GRADIENT_MAX_VALUES * 2);
+
+		zt_fiz(colors_count - 1) {
+			r32 width_this = size.x * (locations[i + 1] - locations[i]);
+
+			ztColor colors_this[] = {
+				colors[i], zt_vec4(colors[i].xyz, colors[i].a), zt_vec4(colors[i + 1].xyz, colors[i + 1].a), colors[i + 1]
+			};
+
+			zt_drawListAddFilledRect2D(draw_list, start + zt_vec3(width_this / 2, 0, 0), zt_vec2(width_this, height), ztVec2::zero, ztVec2::one, colors_this);
+			start.x += width_this;
+		}
+	}
+
+	zt_drawListPopTexture(draw_list);
+
+	if (grad_editor->active_control != -1) {
+		if (grad_editor->dragging != -1) {
+			bool adjusted = true;
+			while (adjusted) {
+				adjusted = false;
+				for (int i = 1; i < grad_editor->gradient.color_entries - 1; ++i) {
+					if (grad_editor->gradient.color_locs[i] > grad_editor->gradient.color_locs[i + 1]) {
+						zt_swap(grad_editor->gradient.color_locs[i], grad_editor->gradient.color_locs[i + 1]);
+						zt_swap(grad_editor->gradient.color_vals[i], grad_editor->gradient.color_vals[i + 1]);
+
+						if (i == grad_editor->dragging) {
+							grad_editor->dragging += 1;
+						}
+						else if (i == grad_editor->dragging - 1) {
+							grad_editor->dragging -= 1;
+						}
+
+						adjusted = true;
+					}
+				}
+			}
+			adjusted = true;
+			while (adjusted) {
+				adjusted = false;
+				for (int i = 1; i < grad_editor->gradient.alpha_entries - 1; ++i) {
+					if (grad_editor->gradient.alpha_locs[i] > grad_editor->gradient.alpha_locs[i + 1]) {
+						zt_swap(grad_editor->gradient.alpha_locs[i], grad_editor->gradient.alpha_locs[i + 1]);
+						zt_swap(grad_editor->gradient.alpha_vals[i], grad_editor->gradient.alpha_vals[i + 1]);
+
+						if (i + 1000 == grad_editor->dragging) {
+							grad_editor->dragging += 1;
+						}
+						else if (i + 1000 == grad_editor->dragging - 1) {
+							grad_editor->dragging -= 1;
+						}
+
+						adjusted = true;
+					}
+				}
+			}
+
+			grad_editor->active_control = grad_editor->dragging;
+			active_control = -1;
+		}
+
+		if (grad_editor->active_control != active_control) {
+			zt_guiItemHide(grad_editor->panel_alpha);
+			zt_guiItemHide(grad_editor->panel_color);
+
+			if (grad_editor->active_control < 1000) {
+				zt_guiEditorReassign(grad_editor->ed_color_loc, &grad_editor->gradient.color_locs[grad_editor->active_control]);
+				zt_guiColorPickerSetLiveValue(grad_editor->ed_color_val, &grad_editor->gradient.color_vals[grad_editor->active_control]);
+				zt_guiItemShow(grad_editor->panel_color);
+			}
+			else {
+				zt_guiEditorReassign(grad_editor->ed_alpha_loc, &grad_editor->gradient.alpha_locs[grad_editor->active_control - 1000]);
+				zt_guiEditorReassign(grad_editor->ed_alpha_val, &grad_editor->gradient.alpha_vals[grad_editor->active_control - 1000]);
+				zt_guiItemShow(grad_editor->panel_alpha);
+			}
+
+			zt_guiSizerRecalc(item->parent ? item->parent : item);
+		}
+	}
+
+	if (grad_editor->gradient_val && zt_bitIsSet(grad_editor->gp_behavior_flags, ztGuiGradientPickerBehaviorFlags_LiveEdit) && !zt_colorGradientIsEqual(grad_editor->gradient_val, &grad_editor->gradient)) {
+		zt_memCpy(grad_editor->gradient_val, zt_sizeof(ztColorGradient2), &grad_editor->gradient, zt_sizeof(ztColorGradient2));
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_colorGradientPanelCleanup))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	if (grad_editor->tex_background != ztInvalidID) {
+		zt_textureFree(grad_editor->tex_background);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonOk))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	if (grad_editor->gradient_val) {
+		zt_memCpy(grad_editor->gradient_val, zt_sizeof(ztColorGradient2), &grad_editor->gradient, zt_sizeof(ztColorGradient2));
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+
+	if (grad_editor->callback != ztInvalidID) {
+		((zt_guiDialogColorGradientEditorComplete_Func*)zt_functionPointer(grad_editor->callback))(&grad_editor->gradient, grad_editor->user_data);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonCancel))
+{
+	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
+
+	if (grad_editor->gradient_val && zt_bitIsSet(grad_editor->gp_behavior_flags, ztGuiGradientPickerBehaviorFlags_LiveEdit)) {
+		zt_memCpy(grad_editor->gradient_val, zt_sizeof(ztColorGradient2), &grad_editor->gradient_orig, zt_sizeof(ztColorGradient2));
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ztFunctionID callback, void *user_data, const char *window_title)
+{
+	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle /*| ztGuiWindowBehaviorFlags_Modal*/);
+	zt_guiItemSetSize(window, zt_vec2(8, 3));
+
+	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	ztGuiColorGradientEditor *grad_editor = zt_mallocStructArena(ztGuiColorGradientEditor, window->gm->arena);
+
+	grad_editor->mpos_click = ztVec2::min;
+	grad_editor->dragging = -1;
+	grad_editor->active_control = -1;
+	grad_editor->callback = callback;
+	grad_editor->gp_behavior_flags = behavior_flags;
+	grad_editor->user_data = user_data;
+	grad_editor->gradient_val = gradient;
+	grad_editor->tex_background = ztInvalidID;
+
+	if (gradient == nullptr) {
+		grad_editor->gradient.alpha_vals[grad_editor->gradient.alpha_entries  ] = 1;
+		grad_editor->gradient.alpha_locs[grad_editor->gradient.alpha_entries++] = 0;
+		grad_editor->gradient.alpha_vals[grad_editor->gradient.alpha_entries  ] = 1;
+		grad_editor->gradient.alpha_locs[grad_editor->gradient.alpha_entries++] = 1;
+
+		grad_editor->gradient.color_vals[grad_editor->gradient.color_entries  ] = ztColor_Black;
+		grad_editor->gradient.color_locs[grad_editor->gradient.color_entries++] = 0;
+		grad_editor->gradient.color_vals[grad_editor->gradient.color_entries  ] = ztColor_White;
+		grad_editor->gradient.color_locs[grad_editor->gradient.color_entries++] = 1;
+	}
+	else {
+		zt_memCpy(&grad_editor->gradient, zt_sizeof(ztColorGradient2), gradient, zt_sizeof(ztColorGradient2));
+	}
+
+	{
+		int w = 32;
+		int h = 32;
+		byte *grid_tex = zt_mallocStructArray(byte, w * h * 4);
+
+		zt_fyz(h) {
+			zt_fxz(w) {
+				int idx = ((y * w) + x) * 4;
+
+				i32 color = ((zt_convertToi32Floor(y / 4.f) % 2) + zt_convertToi32Floor(x / 4.f)) % 2 == 0 ? 128 : 190;
+				grid_tex[idx + 0] = color;
+				grid_tex[idx + 1] = color;
+				grid_tex[idx + 2] = color;
+				grid_tex[idx + 3] = 255;
+			}
+		}
+
+		ztTextureID tex = zt_textureMakeFromPixelData(grid_tex, w, h, ztTextureFlags_PixelPerfect);
+		grad_editor->tex_background = tex;
+
+		zt_free(grid_tex);
+	}
+
+	ztGuiItem *grad_panel = zt_guiMakePanel(sizer, 0, grad_editor, window->gm->arena);
+	zt_guiSizerAddItem(sizer, grad_panel, 1, padding);
+
+	grad_panel->functions.input_mouse = _zt_colorGradientPanelInputMouse_FunctionID;
+	grad_panel->functions.render = _zt_colorGradientPanelRender_FunctionID;
+	grad_panel->functions.cleanup = _zt_colorGradientPanelCleanup_FunctionID;
+	grad_panel->functions.user_data = grad_editor;
+
+
+	ztGuiItem *alpha_panel = zt_guiMakePanel(sizer);
+	zt_guiSizerAddItem(sizer, alpha_panel, 0, padding);
+	grad_editor->panel_alpha = alpha_panel;
+	{
+		ztGuiItem *panel_sizer = zt_guiMakeSizer(alpha_panel, ztGuiItemOrient_Horz, false);
+		zt_guiSizerSizeParent(panel_sizer, true, true);
+
+		ztGuiItem *ed_alpha = zt_guiMakeEditor(panel_sizer, "Opacity: ", &grad_editor->gradient.alpha_vals[0], 0, 1, .1f);
+		grad_editor->ed_alpha_val = ed_alpha;
+
+		ztGuiItem *ed_location = zt_guiMakeEditor(panel_sizer, "Location: ", &grad_editor->gradient.alpha_locs[0], 0, 1, .1f);
+		grad_editor->ed_alpha_loc = ed_location;
+
+		ztGuiItem *btn_delete = zt_guiMakeButton(panel_sizer, "Delete");
+		zt_guiButtonSetCallback(btn_delete, _zt_colorGradientButtonDeleteAlpha_FunctionID, grad_editor);
+
+		zt_guiSizerAddItem(panel_sizer, ed_alpha, 0, padding);
+		zt_guiSizerAddItem(panel_sizer, ed_location, 1, padding);
+		zt_guiSizerAddItem(panel_sizer, btn_delete, 0, padding);
+	}
+	zt_guiItemHide(grad_editor->panel_alpha);
+
+	ztGuiItem *color_panel = zt_guiMakePanel(sizer);
+	zt_guiSizerAddItem(sizer, color_panel, 0, padding);
+	grad_editor->panel_color = color_panel;
+	{
+		ztGuiItem *panel_sizer = zt_guiMakeSizer(color_panel, ztGuiItemOrient_Horz, false);
+		zt_guiSizerSizeParent(panel_sizer, true, true);
+
+		ztGuiItem *lbl_color = zt_guiMakeStaticText(panel_sizer, "Color: ");
+
+		ztGuiItem *ed_color = zt_guiMakeColorPicker(panel_sizer, ztColor_White, ztGuiColorPickerBehaviorFlags_LiveEdit);
+		grad_editor->ed_color_val = ed_color;
+		zt_guiColorPickerSetLiveValue(grad_editor->ed_color_val, &grad_editor->gradient.color_vals[0]);
+
+		ztGuiItem *ed_location = zt_guiMakeEditor(panel_sizer, "Location: ", &grad_editor->gradient.color_locs[0], 0, 1, .1f);
+		grad_editor->ed_color_loc = ed_location;
+
+		ztGuiItem *btn_delete = zt_guiMakeButton(panel_sizer, "Delete");
+		zt_guiButtonSetCallback(btn_delete, _zt_colorGradientButtonDeleteColor_FunctionID, grad_editor);
+
+		zt_guiSizerAddItem(panel_sizer, lbl_color, 0, padding);
+		zt_guiSizerAddItem(panel_sizer, ed_color, 0, padding);
+		zt_guiSizerAddItem(panel_sizer, ed_location, 1, padding);
+		zt_guiSizerAddItem(panel_sizer, btn_delete, 0, padding);
+	}
+	grad_editor->active_control = 0;
+
+	{
+		ztGuiItem *sizer_btns = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_btns, 0, 0);
+		zt_guiSizerAddStretcher(sizer_btns, 1);
+
+		ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
+		zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+		zt_guiButtonSetCallback(button_ok, _zt_colorGradientButtonOk_FunctionID, grad_editor);
+		button_ok->size.x *= 2;
+		zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
+
+		ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
+		zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+		zt_guiButtonSetCallback(button_cancel, _zt_colorGradientButtonCancel_FunctionID, grad_editor);
+		button_cancel->size.x *= 2;
+		zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
+
+		zt_guiSizerAddStretcher(sizer_btns, 1);
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 void zt_guiItemFree(ztGuiItem *item)
 {
@@ -12055,6 +12731,14 @@ void zt_guiItemSetTheme(ztGuiItem *item, ztGuiTheme *theme)
 {
 	zt_returnOnNull(item);
 	item->theme = theme;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiItemSetColor(ztGuiItem *item, const ztVec4& color)
+{
+	zt_returnOnNull(item);
+	item->color = color;
 }
 
 // ================================================================================================================================================================================================
