@@ -2281,6 +2281,7 @@ void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const
 
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
 void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
+void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec2& area);
 
 // the fast versions do not align to pixel (useful if the positions are already pixel aligned)
 void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
@@ -3148,7 +3149,39 @@ struct ztColorGradient
 ztColor zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent);
 void    zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent, ztColor *color);
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
+#ifndef ZT_COLOR_GRADIENT_MAX_VALUES
+#define ZT_COLOR_GRADIENT_MAX_VALUES   32
+#endif
+
+// ================================================================================================================================================================================================
+
+struct ztColorGradient2
+{
+	r32    alpha_vals[ZT_COLOR_GRADIENT_MAX_VALUES];
+	r32    alpha_locs[ZT_COLOR_GRADIENT_MAX_VALUES];
+	i32    alpha_entries;
+
+	ztVec4 color_vals[ZT_COLOR_GRADIENT_MAX_VALUES];
+	r32    color_locs[ZT_COLOR_GRADIENT_MAX_VALUES];
+	i32    color_entries;
+};
+
+// ================================================================================================================================================================================================
+
+ztColor zt_colorGradientColorAtLocation(ztColorGradient2 *gradient, r32 location);
+r32     zt_colorGradientAlphaAtLocation(ztColorGradient2 *gradient, r32 location);
+
+ztColor zt_colorGradientGetValue(ztColorGradient2 *gradient, r32 location);
+void    zt_colorGradientGetValue(ztColorGradient2 *gradient, r32 location, ztColor *color);
+
+int     zt_colorGradientGetColors(ztColorGradient2 *gradient, ztColor *colors, r32 *locations, int colors_count);
+
+bool    zt_colorGradientIsEqual(ztColorGradient2 *grad1, ztColorGradient2 *grad2);
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 struct ztValueGradient
@@ -18415,6 +18448,70 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 	zt_drawListPopTexture(draw_list);
 }
 
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec2& area)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteTiled");
+
+	ztVec2 size_per = sprite->half_size * 2;
+
+	int tiles_x = zt_convertToi32Floor(area.x / size_per.x) + 1;
+	int tiles_y = zt_convertToi32Floor(area.y / size_per.y) + 1;
+
+	ztVec2 max_ext =  zt_vec2(pos.x + area.x / 2, pos.y - area.y / 2);
+
+	ztVec3 start_pos = zt_vec3((pos.x - (area.x / 2)) + sprite->half_size.x, (pos.y + (area.y / 2)) - sprite->half_size.y, 0);
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_fyz(tiles_y) {
+		zt_fxz(tiles_x) {
+			ztVec3 pos = start_pos + zt_vec3(x * size_per.x, -y * size_per.y, 0);
+
+			ztVec3 spos[6];
+			ztVec2 suvs[6];
+
+			zt_spriteGetTriangles(sprite, pos, spos, suvs);
+
+			if(spos[2].x > max_ext.x) {
+				r32 diff_x = spos[2].x - max_ext.x;
+				r32 diff_x_pct = diff_x / size_per.x;
+
+				r32 uv_x = suvs[2].x - suvs[0].x;
+				suvs[2].x -= uv_x * (diff_x_pct);
+				suvs[4].x = suvs[2].x;
+				suvs[5].x = suvs[2].x;
+
+				spos[2].x -= diff_x;
+				spos[4].x -= diff_x;
+				spos[5].x -= diff_x;
+			}
+			if(spos[1].y < max_ext.y) {
+				r32 diff_y = max_ext.y - spos[1].y;
+				r32 diff_y_pct = diff_y / size_per.y;
+
+				r32 uv_y = suvs[1].y - suvs[0].y;
+				suvs[1].y -= uv_y * (diff_y_pct);
+				suvs[2].y = suvs[1].y;
+				suvs[4].y = suvs[1].y;
+				spos[1].y += diff_y;
+				spos[2].y += diff_y;
+				spos[4].y += diff_y;
+			}
+
+			ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+			ztVec3 pos1[3] = { spos[0], spos[1], spos[2] };
+			ztVec2 uvs1[3] = { suvs[0], suvs[1], suvs[2] };
+			zt_drawListAddFilledTriangle(draw_list, pos1, uvs1, nml);
+
+			ztVec3 pos2[3] = { spos[3], spos[4], spos[5] };
+			ztVec2 uvs2[3] = { suvs[3], suvs[4], suvs[5] };
+			zt_drawListAddFilledTriangle(draw_list, pos2, uvs2, nml);
+		}
+	}
+	zt_drawListPopTexture(draw_list);
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -24387,6 +24484,176 @@ void zt_colorGradientGetValue(ztColorGradient *color_gradient, r32 percent, ztCo
 	}
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztColor zt_colorGradientColorAtLocation(ztColorGradient2 *gradient, r32 location)
+{
+	zt_returnValOnNull(gradient, ztColor_White);
+
+	if (location < 0 || location > 1) {
+		location = zt_clamp(location, 0, 1);
+	}
+
+	ztColor result = gradient->color_vals[0];
+	r32 current_loc = 0;
+	zt_fiz(gradient->color_entries) {
+		if (location <= gradient->color_locs[i]) {
+			if (gradient->color_locs[i] == 0) {
+				return result;
+			}
+
+			r32 pct_of_sec = (location - current_loc) / (gradient->color_locs[i] - current_loc);
+			return ztVec4::lerp(result, gradient->color_vals[i], pct_of_sec);
+		}
+		current_loc = gradient->color_locs[i];
+		result = gradient->color_vals[i];
+	}
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_colorGradientAlphaAtLocation(ztColorGradient2 *gradient, r32 location)
+{
+	zt_returnValOnNull(gradient, 1);
+
+	if (location < 0 || location > 1) {
+		location = zt_clamp(location, 0, 1);
+	}
+
+	r32 result = gradient->alpha_vals[0];
+	r32 current_loc = 0;
+	zt_fiz(gradient->alpha_entries) {
+		if (location <= gradient->alpha_locs[i]) {
+			if (gradient->alpha_locs[i] == 0) {
+				return result;
+			}
+
+			r32 pct_of_sec = (location - current_loc) / (gradient->alpha_locs[i] - current_loc);
+			return zt_lerp(result, gradient->alpha_vals[i], pct_of_sec);
+		}
+		current_loc = gradient->alpha_locs[i];
+		result = gradient->alpha_vals[i];
+	}
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztColor zt_colorGradientGetValue(ztColorGradient2 *gradient, r32 location)
+{
+	return zt_vec4(zt_colorGradientColorAtLocation(gradient, location).xyz, zt_colorGradientAlphaAtLocation(gradient, location));
+}
+
+// ================================================================================================================================================================================================
+
+void zt_colorGradientGetValue(ztColorGradient2 *gradient, r32 location, ztColor *color)
+{
+	color->xyz = zt_colorGradientColorAtLocation(gradient, location).xyz;
+	color->a   = zt_colorGradientAlphaAtLocation(gradient, location);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_colorGradientGetColors(ztColorGradient2 *gradient, ztColor *colors, r32 *locations, int colors_count)
+{
+	zt_returnValOnNull(gradient, 0);
+	zt_returnValOnNull(colors, 0);
+	zt_returnValOnNull(locations, 0);
+
+	struct Entry
+	{
+		r32    location;
+		ztVec3 color;
+		r32    alpha;
+
+		static int compare(const void *vone, const void *vtwo)
+		{
+			Entry *e1 = (Entry*)vone;
+			Entry *e2 = (Entry*)vtwo;
+
+			if (e1->location < e2->location) return -1;
+			if (e1->location > e2->location) return  1;
+			return 0;
+		}
+	};
+
+	Entry entries[ZT_COLOR_GRADIENT_MAX_VALUES * 2];
+	int entries_idx = 0;
+
+	zt_fiz(gradient->alpha_entries) {
+		// see if this location exists in color, if so, skip
+		bool exists_in_color = false;
+		zt_fjz(gradient->color_entries) {
+			if (zt_real32Eq(gradient->alpha_locs[i], gradient->color_locs[j])) {
+				exists_in_color = true;
+				break;
+			}
+		}
+		if (!exists_in_color) {
+			Entry *entry = &entries[entries_idx++];
+			entry->alpha = gradient->alpha_vals[i];
+			entry->color = zt_colorGradientColorAtLocation(gradient, gradient->alpha_locs[i]).xyz;
+			entry->location = gradient->alpha_locs[i];
+		}
+	}
+
+	zt_fiz(gradient->color_entries) {
+		Entry *entry = &entries[entries_idx++];
+		entry->alpha = zt_colorGradientAlphaAtLocation(gradient, gradient->color_locs[i]);
+		entry->color = gradient->color_vals[i].xyz;
+		entry->location = gradient->color_locs[i];
+	}
+
+	qsort(entries, entries_idx, sizeof(Entry), Entry::compare);
+
+	zt_fiz(zt_min(entries_idx, colors_count)) {
+		colors[i] = zt_color(entries[i].color, entries[i].alpha);
+		locations[i] = entries[i].location;
+	}
+
+	return entries_idx;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_colorGradientIsEqual(ztColorGradient2 *grad1, ztColorGradient2 *grad2)
+{
+	zt_returnValOnNull(grad1, false);
+	zt_returnValOnNull(grad2, false);
+
+	if (grad1->color_entries != grad2->color_entries || grad1->alpha_entries != grad2->alpha_entries) {
+		return false;
+	}
+
+	zt_fiz(grad1->color_entries) {
+		if (grad1->color_vals[i] != grad2->color_vals[i]) {
+			return false;
+		}
+		if (!zt_real32Eq(grad1->color_locs[i], grad2->color_locs[i])) {
+			return false;
+		}
+	}
+
+	zt_fiz(grad1->alpha_entries) {
+		if (grad1->alpha_vals[i] != grad2->alpha_vals[i]) {
+			return false;
+		}
+		if (!zt_real32Eq(grad1->alpha_locs[i], grad2->alpha_locs[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
