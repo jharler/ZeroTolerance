@@ -324,7 +324,7 @@ struct ztProfilerRenderState
 void               zt_profilerPause              ();
 void               zt_profilerResume             ();
 bool               zt_profilerIsPaused           ();
-void               zt_profilerRender             (ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size, const ztVec2& mouse_pos = ztVec2::min, bool mouse_clicked = false, ztProfilerRenderState *render_state = nullptr);
+void               zt_profilerRender             (ztDrawList *draw_list, const ztVec2 &pos, const ztVec2 &size, const ztVec2 &mouse_pos = ztVec2::min, bool mouse_clicked = false, ztProfilerRenderState *render_state = nullptr);
 void               zt_profilerFrameBegin         ();
 void               zt_profilerFrameEnd           ();
 
@@ -1034,9 +1034,9 @@ void zt_shaderApplyVariables(ztShaderID shader_id);
 bool zt_shaderHasVariable(ztShaderID shader_id, const char *variable, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderID shader_id, const char *variable, r32 value, bool apply_immediately = false);
 void zt_shaderSetVariableInt(ztShaderID shader_id, const char *variable, i32 value, bool apply_immediately = false);
-void zt_shaderSetVariableVec2(ztShaderID shader_id, const char *variable, const ztVec2& value, bool apply_immediately = false);
-void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const ztVec3& value, bool apply_immediately = false);
-void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec2(ztShaderID shader_id, const char *variable, const ztVec2 &value, bool apply_immediately = false);
+void zt_shaderSetVariableVec3(ztShaderID shader_id, const char *variable, const ztVec3 &value, bool apply_immediately = false);
+void zt_shaderSetVariableVec4(ztShaderID shader_id, const char *variable, const ztVec4 &value, bool apply_immediately = false);
 void zt_shaderSetVariableMat4(ztShaderID shader_id, const char *variable, const ztMat4& value, bool apply_immediately = false);
 void zt_shaderSetVariableMat3(ztShaderID shader_id, const char *variable, r32 value[12], bool apply_immediately = false);
 void zt_shaderSetVariableTex(ztShaderID shader_id, const char *variable, i32 texture_id, bool apply_immediately = false);
@@ -1045,9 +1045,9 @@ void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32
 bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVariable_Enum *type);
 void zt_shaderSetVariableFloat(ztShaderID shader_id, u32 variable_hash, r32 value, bool apply_immediately = false);
 void zt_shaderSetVariableInt(ztShaderID shader_id, u32 variable_hash, i32 value, bool apply_immediately = false);
-void zt_shaderSetVariableVec2(ztShaderID shader_id, u32 variable_hash, const ztVec2& value, bool apply_immediately = false);
-void zt_shaderSetVariableVec3(ztShaderID shader_id, u32 variable_hash, const ztVec3& value, bool apply_immediately = false);
-void zt_shaderSetVariableVec4(ztShaderID shader_id, u32 variable_hash, const ztVec4& value, bool apply_immediately = false);
+void zt_shaderSetVariableVec2(ztShaderID shader_id, u32 variable_hash, const ztVec2 &value, bool apply_immediately = false);
+void zt_shaderSetVariableVec3(ztShaderID shader_id, u32 variable_hash, const ztVec3 &value, bool apply_immediately = false);
+void zt_shaderSetVariableVec4(ztShaderID shader_id, u32 variable_hash, const ztVec4 &value, bool apply_immediately = false);
 void zt_shaderSetVariableMat4(ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately = false);
 void zt_shaderSetVariableMat3(ztShaderID shader_id, u32 variable_hash, r32 value[12], bool apply_immediately = false);
 void zt_shaderSetVariableTex(ztShaderID shader_id, u32 variable_hash, i32 texture_id, bool apply_immediately = false);
@@ -1059,9 +1059,9 @@ void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 te
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, const char *variable, ztShaderVariable_Enum *type);
 int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, const char *variable, r32 value);
 int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, const char *variable, i32 value);
-int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value);
-int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value);
-int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value);
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, const char *variable, const ztVec2 &value);
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, const char *variable, const ztVec3 &value);
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, const char *variable, const ztVec4 &value);
 int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value);
 int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]);
 int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, const char *variable, i32 texture_id);
@@ -1070,9 +1070,9 @@ int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, const char 
 bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash, ztShaderVariable_Enum *type);
 int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value);
 int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 value);
-int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value);
-int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value);
-int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value);
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2 &value);
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3 &value);
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4 &value);
 int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztMat4& value);
 int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_hash, r32 value[12]);
 int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_hash, i32 texture_id);
@@ -1258,8 +1258,8 @@ struct ztMaterial
 };
 
 
-ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4& diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
-						   ztTextureID specular_tex = ztInvalidID, const ztVec4& specular_color = ztVec4::one, i32 specular_flags = 0,
+ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4 &diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
+						   ztTextureID specular_tex = ztInvalidID, const ztVec4 &specular_color = ztVec4::one, i32 specular_flags = 0,
 						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0, r32 shininess = 0.5f);
 
 int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size);
@@ -1339,9 +1339,9 @@ enum ztMeshPrimativeSphere_Enum
 
 ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere_Enum texture);
 
-int      zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
-int      zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
-int      zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale = ztVec3::one, const ztVec3& offset = ztVec3::zero);
+int      zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale = ztVec3::one, const ztVec3 &offset = ztVec3::zero);
+int      zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale = ztVec3::one, const ztVec3 &offset = ztVec3::zero);
+int      zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale = ztVec3::one, const ztVec3 &offset = ztVec3::zero);
 
 void     zt_meshRender(ztMeshID mesh_id);
 
@@ -1385,7 +1385,7 @@ struct ztPlane
 };
 
 
-ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2);
+ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2);
 void    zt_planeNormalize(ztPlane *plane);
 
 
@@ -1432,8 +1432,8 @@ struct ztCamera
 
 // ================================================================================================================================================================================================
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero);
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position = ztVec3::zero);
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3 &position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
 
 void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
 void zt_cameraCalcFinalMatrix(ztCamera *camera, ztMat4* final_mat);
@@ -1446,11 +1446,11 @@ ztVec2   zt_cameraOrthoGetMaxExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos);
+ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 &pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
-void     zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up = zt_vec3(0,1,0));
+void     zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up = zt_vec3(0,1,0));
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -1546,8 +1546,8 @@ struct ztFrustum
 
 // ================================================================================================================================================================================================
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
-void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, const ztVec3& world_offset = ztVec3::zero);
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, const ztVec3 &world_offset = ztVec3::zero);
+void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, const ztVec3 &world_offset = ztVec3::zero);
 
 // ================================================================================================================================================================================================
 
@@ -1885,54 +1885,56 @@ struct ztDrawList
 bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags = 0, ztMemoryArena *arena = zt_memGetGlobalArena());
 void zt_drawListFree(ztDrawList *draw_list);
 
-bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p);
-bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2);
+bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3 &p);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2]);
-bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2& p1, const ztVec2& p2);
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 &p1, const ztVec2 &p2);
 bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 p[2]);
+bool zt_drawListAddBezierCurve(ztDrawList *draw_list, ztVec2 beg, ztVec2 end, ztVec2 beg_cp, ztVec2 end_cp, int segments);
+bool zt_drawListAddBezierCurve(ztDrawList *draw_list, ztVec3 beg, ztVec3 end, ztVec3 beg_cp, ztVec3 end_cp, int segments);
 bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3]);
-bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3);
+bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3);
 bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4]); // clockwise or counter clockwise positions
-bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4);
-bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size);
-bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztVec2& size);
-bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec2& pos, r32 radius, int points);
-bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points);
-bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3& pos, const ztVec3& size);
-bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min, const ztVec3& max);
-bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points);
-bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points, const ztVec4& color_x = zt_vec4(1, 0, 0, 1), const ztVec4& color_y = zt_vec4(0, 1, 0, 1), const ztVec4& color_z = zt_vec4(0, 0, 1, 1));
-bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 size, r32 radius, r32 top);
+bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4);
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2 &pos, const ztVec2 &size);
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3 &pos, const ztVec2 &size);
+bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec2 &pos, r32 radius, int points);
+bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points);
+bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3 &pos, const ztVec3 &size);
+bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3 &min, const ztVec3 &max);
+bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points);
+bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points, const ztVec4 &color_x = zt_vec4(1, 0, 0, 1), const ztVec4 &color_y = zt_vec4(0, 1, 0, 1), const ztVec4 &color_z = zt_vec4(0, 0, 1, 1));
+bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3 &start, r32 size, r32 radius, r32 top);
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3]);
 bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], const ztVec2 uvs[3], const ztVec3 normals[3], const ztVec4 colors[3]);
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4); // points need to be ccw
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4, const ztVec4& c1, const ztVec4& c2, const ztVec4& c3, const ztVec4& c4); // points need to be ccw
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4, const ztVec3 &n1, const ztVec3 &n2, const ztVec3 &n3, const ztVec3 &n4); // points need to be ccw
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4, const ztVec3 &n1, const ztVec3 &n2, const ztVec3 &n3, const ztVec3 &n4, const ztVec4 &c1, const ztVec4 &c2, const ztVec4 &c3, const ztVec4 &c4); // points need to be ccw
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4]);
 bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const ztVec2 uvs[4], const ztVec3 normals[4], const ztVec4 colors[4]);
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4]);
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se);
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4]);
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color);
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor colors[4]);
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color);
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor color[4]);
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color);
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color);
-bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color);
-bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color);
-bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
-bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
-bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, i32 flags = ztDrawCommandBillboardFlags_AxisAll);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4]);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se);
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4]);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor colors[4]);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color);
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor color[4]);
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color);
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color);
+bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color);
+bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color);
+bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
+bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags = ztDrawCommandBillboardFlags_AxisAll);
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVec2 *uvs, const ztVec3 *normals, int count);
-bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3& offset = ztVec3::zero);
+bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3 &offset = ztVec3::zero);
 
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum);
-bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
+bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3 &center, r32 width, r32 depth, r32 grid_w = 1, r32 grid_d = 1);
 bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type);
-bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size = 1, const ztVec3& center = ztVec3::zero, const ztVec4& color_x = zt_vec4(1, 0, 0, 1), const ztVec4& color_y = zt_vec4(0, 1, 0, 1), const ztVec4& color_z = zt_vec4(0, 0, 1, 1));
-bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size = 1, const ztVec3& center = ztVec3::zero, const ztVec4& color_x = zt_vec4(1, 0, 0, 1), const ztVec4& color_y = zt_vec4(0, 1, 0, 1), const ztVec4& color_z = zt_vec4(0, 0, 1, 1));
-bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size = 1, bool color_axis = false);
+bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size = 1, const ztVec3 &center = ztVec3::zero, const ztVec4 &color_x = zt_vec4(1, 0, 0, 1), const ztVec4 &color_y = zt_vec4(0, 1, 0, 1), const ztVec4 &color_z = zt_vec4(0, 0, 1, 1));
+bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size = 1, const ztVec3 &center = ztVec3::zero, const ztVec4 &color_x = zt_vec4(1, 0, 0, 1), const ztVec4 &color_y = zt_vec4(0, 1, 0, 1), const ztVec4 &color_z = zt_vec4(0, 0, 1, 1));
+bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3 &pos, r32 size = 1, bool color_axis = false);
 
 bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, ztCamera *camera, r32 scale = 1, ztShaderID shader = ztInvalidID);
 
@@ -1947,7 +1949,7 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 bool zt_drawListPopClipRegion(ztDrawList *draw_list);
 bool zt_drawListPushDrawFlags(ztDrawList *draw_list, i32 flags);
 bool zt_drawListPopDrawFlags(ztDrawList *draw_list);
-bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset);
+bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3 &offset);
 bool zt_drawListPopOffset(ztDrawList *draw_list);
 bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform);
 bool zt_drawListPopTransform(ztDrawList *draw_list);
@@ -2002,9 +2004,9 @@ struct ztLight
 
 // ================================================================================================================================================================================================
 
-ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeDirectional(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeSpot(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 
 
 // ================================================================================================================================================================================================
@@ -2272,20 +2274,20 @@ ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x
 ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = zt_vec2i(0, 0));
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x = 0, int anchor_y = 0, int pixel_border = 0);
 ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor = zt_vec2i(0, 0), int pixel_border = 0);
-void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
-void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 pos[6], ztVec2 uvs[6]);
 
 // the fast versions do not align to pixel (useful if the positions are already pixel aligned)
-void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
-void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 pos[6], ztVec2 uvs[6]);
+void     zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 pos[6], ztVec2 uvs[6]);
 
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
-void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec2& area);
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos);
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec3 &rot, const ztVec3 &scale);
+void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec2 &area);
 
 // the fast versions do not align to pixel (useful if the positions are already pixel aligned)
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos);
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec3& rot, const ztVec3& scale);
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos);
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec3 &rot, const ztVec3 &scale);
 
 
 // ================================================================================================================================================================================================
@@ -2302,8 +2304,8 @@ struct ztSpriteNineSlice
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, int tex_w, int tex_h, int nw_interior_x, int nw_interior_y, int se_interior_x, int se_interior_y, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
 ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l = 0, int offset_t = 0, int offset_r = 0, int offset_b = 0);
 
-void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& pos, const ztVec2& size);
-void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2& at_pos, const ztVec2& size, ztVec2 pos[54], ztVec2 uvs[54]);
+void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &pos, const ztVec2 &size);
+void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos, const ztVec2 &size, ztVec2 pos[54], ztVec2 uvs[54]);
 
 // ================================================================================================================================================================================================
 
@@ -2389,9 +2391,9 @@ struct ztCollisionGeometry
 
 // ================================================================================================================================================================================================
 
-ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents);
-ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents);
-ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 radius);
+ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3 &extents);
+ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3 &center, const ztVec3 &extents);
+ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3 &center, r32 radius);
 
 bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration);
 
@@ -2456,9 +2458,9 @@ ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisio
 
 void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt);
 
-void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force);
-void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point);
-void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point);
+void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3 &force);
+void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3 &force, const ztVec3 &point);
+void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3 &force, const ztVec3 &point);
 
 
 // ================================================================================================================================================================================================
@@ -2493,7 +2495,7 @@ struct ztForceAnchor
 
 // ================================================================================================================================================================================================
 
-ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point = ztVec3::zero);
+ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3 &connection_point = ztVec3::zero);
 ztForceAnchor zt_forceAnchor(ztTransform *transform);
 ztForceAnchor zt_forceAnchor(ztVec3 *vec3_ptr);
 ztForceAnchor zt_forceAnchor(ztVec3 vec3);
@@ -2544,10 +2546,10 @@ struct ztForce
 
 // ================================================================================================================================================================================================
 
-ztForce zt_forceMakeSpring      (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
-ztForce zt_forceMakeStiffSpring (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping);
-ztForce zt_forceMakeBungee      (ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
-ztForce zt_forceMakeBuoyancy    (ztRigidBody *rigid_body, const ztVec3& connection_point, r32 max_depth, r32 volume, r32 water_height = 0, r32 liquid_density = 1000.f);
+ztForce zt_forceMakeSpring      (ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
+ztForce zt_forceMakeStiffSpring (ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping);
+ztForce zt_forceMakeBungee      (ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length);
+ztForce zt_forceMakeBuoyancy    (ztRigidBody *rigid_body, const ztVec3 &connection_point, r32 max_depth, r32 volume, r32 water_height = 0, r32 liquid_density = 1000.f);
 
 void zt_forcesUpdate(ztForce *forces, int forces_count, r32 dt);
 
@@ -2619,45 +2621,48 @@ int zt_collisionBrute(ztRigidBody *rigid_bodies, int rigid_bodies_count, ztRigid
 // rects have a center and a size
 // the LL functions use a rect with the x/y point being the lower left corner
 
-bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size);
+bool zt_collisionPointInRect(const ztVec2 &point, const ztVec2 &rect_pos, const ztVec2 &rect_size);
 bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
-bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size);
+bool zt_collisionPointInRectLL(const ztVec2 &point, const ztVec2 &rect_pos, const ztVec2 &rect_size);
 bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_w, r32 rect_h);
 
-bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point = nullptr);
-bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
+bool zt_collisionPointInCircle(const ztVec2 &point, const ztVec2 &circle_pos, r32 radius);
+bool zt_collisionPointInSphere(const ztVec3 &point, const ztVec3 &sphere_pos, r32 radius);
 
-bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents);
-bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
-bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr, ztVec3 intersection_points[2] = nullptr);
-bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2);
-bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face);
-bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last);
-bool zt_collisionAABBInPlane(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
-bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2);
-bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3]);
-int  zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
-bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2] = nullptr);
+bool zt_collisionPointInAABB(const ztVec3 &point, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
+bool zt_collisionRayInAABB(const ztVec3 &point, const ztVec3 &direction, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentInAABB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr, ztVec3 intersection_points[2] = nullptr);
+bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2);
+bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face);
+bool zt_collisionMovingAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_velocity_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, const ztVec3 &aabb_velocity_2, r32 *time_first, r32 *time_last);
+bool zt_collisionAABBInPlane(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
 
-bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far = true);
-bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_point = nullptr);
-bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents);
+bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2);
+bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztVec3 obb_axis_2[3]);
+int  zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
+bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2] = nullptr);
+
+bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3 &point, bool check_near_far = true);
+bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *intersection_point = nullptr);
+bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
 
 bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows); // check for non-zero elements in the given line
 
-bool zt_collisionMovingSphereInPlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztPlane& plane, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
-bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere1_velocity, const ztVec3& sphere2_pos, r32 sphere2_radius, const ztVec3& sphere2_velocity, r32 *intersection_time = nullptr);
-bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time = nullptr);
+bool zt_collisionMovingSphereInPlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &sphere_velocity, const ztPlane& plane, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionMovingSphereInMovingSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, const ztVec3 &sphere1_velocity, const ztVec3 &sphere2_pos, r32 sphere2_radius, const ztVec3 &sphere2_velocity, r32 *intersection_time = nullptr);
+bool zt_collisionMovingSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &sphere_velocity, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr);
 
-r32  zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_beg, const ztVec3& seg_end);
+r32  zt_collisionSquareDistPointToSegment(const ztVec3 &point, const ztVec3 &seg_beg, const ztVec3 &seg_end);
 
-bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& capsule_beg, ztVec3& capsule_end, r32 capsule_radius);
-bool zt_collisionSpherePlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztPlane& plane); bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
-bool zt_collisionSphereSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere2_pos, r32 sphere2_radius);
-bool zt_collisionSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& aabb_center, const ztVec3& aabb_extents);
-bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
-bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& capsule_beg, const ztVec3& capsule_end, r32 capsule_radius, r32 *intersection_time = nullptr);
+bool zt_collisionSphereCapsule(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &capsule_beg, ztVec3 &capsule_end, r32 capsule_radius);
+bool zt_collisionSpherePlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztPlane& plane); bool zt_collisionRaySphere(const ztVec3 &ray_pos, const ztVec3 &ray_dir, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionSphereSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, const ztVec3 &sphere2_pos, r32 sphere2_radius);
+bool zt_collisionSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
+bool zt_collisionLineSegmentSphere(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool zt_collisionLineSegmentCapsule(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &capsule_beg, const ztVec3 &capsule_end, r32 capsule_radius, r32 *intersection_time = nullptr);
 
 
 // ================================================================================================================================================================================================
@@ -2724,14 +2729,14 @@ ZT_FUNCTION_POINTER_REGISTER_EXTERN( zt_tweenEaseSine,    ZT_FUNC_TWEEN_EASE(zt_
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
-ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
-ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
+ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
+ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
-ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
-ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
+ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
+ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
-ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
-ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
+ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out);
+ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data);
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -2919,6 +2924,86 @@ bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frame
 // animation
 // ================================================================================================================================================================================================
 
+// ================================================================================================================================================================================================
+// ztAnimCurve
+// 
+// Represents a way to get from 0 to 1.
+// ================================================================================================================================================================================================
+
+enum ztAnimCurveType_Enum
+{
+	ztAnimCurveType_Linear,
+	ztAnimCurveType_EaseIn,
+	ztAnimCurveType_EaseOut,
+	ztAnimCurveType_EaseInOut,
+	ztAnimCurveType_Spline,
+
+	ztAnimCurveType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+enum ztAnimCurveEaseType_Enum
+{
+	ztAnimCurveEaseType_Linear,
+	ztAnimCurveEaseType_Back,
+	ztAnimCurveEaseType_Bounce,
+	ztAnimCurveEaseType_Circ,
+	ztAnimCurveEaseType_Cubic,
+	ztAnimCurveEaseType_Elastic,
+	ztAnimCurveEaseType_Expo,
+	ztAnimCurveEaseType_Quad,
+	ztAnimCurveEaseType_Quart,
+	ztAnimCurveEaseType_Quint,
+	ztAnimCurveEaseType_Sine,
+
+	ztAnimCurveEaseType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+#ifndef ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS
+#define ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS   8
+#endif
+
+// ================================================================================================================================================================================================
+
+struct ztAnimCurveSplineSegment
+{
+	ztVec2 pos_beg;
+	ztVec2 pos_end;
+	ztVec2 control_point_beg;
+	ztVec2 control_point_end;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztAnimCurve
+{
+	ztAnimCurveType_Enum             type;
+
+	r32                              val_max;
+	r32                              val_beg;
+	r32                              val_end;
+
+	union
+	{
+		struct {
+			ztAnimCurveEaseType_Enum ease_in;
+			ztAnimCurveEaseType_Enum ease_out;
+		};
+
+		struct {
+			ztAnimCurveSplineSegment segments[ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS];
+			int                      segments_count;
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+ztTweenEase_Func *zt_animCurveFindEaseFunction  (ztAnimCurveEaseType_Enum type);
+r32               zt_animCurveGetValue          (ztAnimCurve *curve, r32 percent);
 
 // ================================================================================================================================================================================================
 // ztAnimKey
@@ -2928,12 +3013,12 @@ bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frame
 
 struct ztAnimKey
 {
-	ztVariantPointer      target;
+	ztVariantPointer  target;
 
-	ztVariant             value_beg;
-	ztVariant             value_end;
+	ztVariant         value_beg;
+	ztVariant         value_end;
 
-	r32                   time;
+	r32               time;
 };
 
 // ================================================================================================================================================================================================
@@ -2954,6 +3039,7 @@ enum ztAnimLayerState_Enum
 	ztAnimLayerState_Playing,
 };
 
+// ================================================================================================================================================================================================
 
 struct ztAnimLayer
 {
@@ -4935,7 +5021,7 @@ void zt_profilerFrameEnd()
 
 // ================================================================================================================================================================================================
 
-void zt_profilerRender(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size, const ztVec2& mouse_pos, bool mouse_clicked, ztProfilerRenderState *render_state)
+void zt_profilerRender(ztDrawList *draw_list, const ztVec2 &pos, const ztVec2 &size, const ztVec2 &mouse_pos, bool mouse_clicked, ztProfilerRenderState *render_state)
 {
 #	if !defined(ZT_NO_PROFILE)
 
@@ -6680,7 +6766,7 @@ ztInternal i32 _zt_drawListDebugCount = 0;
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p)
+bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3 &p)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddPoint");
 	_zt_drawListCheck(draw_list);
@@ -6695,7 +6781,7 @@ bool zt_drawListAddPoint(ztDrawList *draw_list, const ztVec3& p)
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2)
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddLine");
 	_zt_drawListCheck(draw_list);
@@ -6727,7 +6813,7 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec3 p[2])
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2& p1, const ztVec2& p2)
+bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 &p1, const ztVec2 &p2)
 {
 	return zt_drawListAddLine(draw_list, zt_vec3(p1, 0), zt_vec3(p2, 0));
 }
@@ -6741,7 +6827,33 @@ bool zt_drawListAddLine(ztDrawList *draw_list, const ztVec2 p[2])
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3)
+bool zt_drawListAddBezierCurve(ztDrawList *draw_list, ztVec2 beg, ztVec2 end, ztVec2 beg_cp, ztVec2 end_cp, int segments)
+{
+	return zt_drawListAddBezierCurve(draw_list, zt_vec3(beg, 0), zt_vec3(end, 0), zt_vec3(beg_cp, 0), zt_vec3(end_cp, 0), segments);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddBezierCurve(ztDrawList *draw_list, ztVec3 beg, ztVec3 end, ztVec3 beg_cp, ztVec3 end_cp, int segments)
+{
+	ztVec3 prev_pnt = beg;
+
+	zt_fiz(segments + 1) {
+		float pct = (i + 0) / (r32)segments;
+
+		ztVec3 curr_pnt = zt_pow(1 - pct, 3) * beg + 3 * pct * zt_pow(1 - pct, 2) * beg_cp + 3 * zt_pow(pct, 2) * (1 - pct) * end_cp + zt_pow(pct, 3) * end;
+		if (!zt_drawListAddLine(draw_list, prev_pnt, curr_pnt)) {
+			return false;
+		}
+		prev_pnt = curr_pnt;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyTriangle");
 	if (!zt_drawListAddLine(draw_list, p1, p2)) return false;
@@ -6765,7 +6877,7 @@ bool zt_drawListAddEmptyTriangle(ztDrawList *draw_list, const ztVec3 p[3])
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4)
+bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyQuad");
 	if (!zt_drawListAddLine(draw_list, p1, p2)) return false;
@@ -6790,7 +6902,7 @@ bool zt_drawListAddEmptyQuad(ztDrawList *draw_list, const ztVec3 p[4])
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztVec2& size)
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2 &pos, const ztVec2 &size)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyRect");
 	return zt_drawListAddEmptyRect(draw_list, zt_vec3(pos, 0), size);
@@ -6798,7 +6910,7 @@ bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec2& pos, const ztV
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztVec2& size)
+bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3 &pos, const ztVec2 &size)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyRect");
 	r32 ppu = zt_pixelsPerUnit();
@@ -6827,14 +6939,14 @@ bool zt_drawListAddEmptyRect(ztDrawList *draw_list, const ztVec3& pos, const ztV
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec2& pos, r32 radius, int points)
+bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec2 &pos, r32 radius, int points)
 {
 	return zt_drawListAddEmptyCircle(draw_list, zt_vec3(pos, 0), radius, points);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points)
+bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyCircle");
 
@@ -6860,7 +6972,7 @@ bool zt_drawListAddEmptyCircle(ztDrawList *draw_list, const ztVec3& pos, r32 rad
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3& pos, const ztVec3& size)
+bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3 &pos, const ztVec3 &size)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyCubeFromCenterSize");
 	r32 half_x = size.x / 2.f;
@@ -6887,7 +6999,7 @@ bool zt_drawListAddEmptyCubeFromCenterSize(ztDrawList *draw_list, const ztVec3& 
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min, const ztVec3& max)
+bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3 &min, const ztVec3 &max)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddEmptyCubeFromMinMax");
 	ztVec3 size = zt_vec3((max.x - min.x), (max.y - min.y), (max.z - min.z));
@@ -6897,7 +7009,7 @@ bool zt_drawListAddEmptyCubeFromMinMax(ztDrawList *draw_list, const ztVec3& min,
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points)
+bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points)
 {
 	r32 theta = ztMathPi2 / points;
 
@@ -6923,7 +7035,7 @@ bool zt_drawListAddEmptySimpleSphere(ztDrawList *draw_list, const ztVec3& pos, r
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& pos, r32 radius, int points, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
+bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3 &pos, r32 radius, int points, const ztVec4 &color_x, const ztVec4 &color_y, const ztVec4 &color_z)
 {
 	r32 theta = ztMathPi2 / points;
 
@@ -6958,7 +7070,7 @@ bool zt_drawListAddEmptySimpleAxisSphere(ztDrawList *draw_list, const ztVec3& po
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3& start, r32 size, r32 radius, r32 top)
+bool zt_drawListAddEmptyBone(ztDrawList *draw_list, const ztVec3 &start, r32 size, r32 radius, r32 top)
 {
 	zt_drawListAddEmptySimpleSphere(draw_list, start, radius * .25f, 10);
 	zt_drawListAddEmptySimpleSphere(draw_list, start + zt_vec3(0, size, 0), radius * .125f, 10);
@@ -7011,14 +7123,14 @@ bool zt_drawListAddFilledTriangle(ztDrawList *draw_list, const ztVec3 p[3], cons
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4)
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4, const ztVec3 &n1, const ztVec3 &n2, const ztVec3 &n3, const ztVec3 &n4)
 {
 	return zt_drawListAddFilledQuad(draw_list, p1, p2, p3, p4, uv1, uv2, uv3, uv4, n1, n2, n3, n4, ztColor_White, ztColor_White, ztColor_White, ztColor_White);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3& p1, const ztVec3& p2, const ztVec3& p3, const ztVec3& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4, const ztVec3& n1, const ztVec3& n2, const ztVec3& n3, const ztVec3& n4, const ztVec4& c1, const ztVec4& c2, const ztVec4& c3, const ztVec4& c4)
+bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4, const ztVec3 &n1, const ztVec3 &n2, const ztVec3 &n3, const ztVec3 &n4, const ztVec4 &c1, const ztVec4 &c2, const ztVec4 &c3, const ztVec4 &c4)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledQuad");
 	_zt_drawListVerifyTexture(draw_list);
@@ -7114,21 +7226,21 @@ bool zt_drawListAddFilledQuad(ztDrawList *draw_list, const ztVec3 p[4], const zt
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se)
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &p, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se)
 {
 	return zt_drawListAddFilledRect2D(draw_list, zt_vec3(p.x, p.y, 0), size, uv_nw, uv_se);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4])
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &p, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4])
 {
 	return zt_drawListAddFilledRect2D(draw_list, zt_vec3(p.x, p.y, 0), size, uv_nw, uv_se, colors);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se)
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &p, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se)
 {
 	ztVec4 colors[] = { ztColor_White, ztColor_White, ztColor_White, ztColor_White };
 	return zt_drawListAddFilledRect2D(draw_list, p, size, uv_nw, uv_se, colors);
@@ -7136,7 +7248,7 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const zt
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, const ztVec4 colors[4])
+bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &p, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4])
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFilledRect2D");
 	r32 half_w = size.x / 2.f;
@@ -7161,21 +7273,21 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3& p, const zt
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color)
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color)
 {
 	return zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos_ctr, 0), size, color);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor colors[4])
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor colors[4])
 {
 	return zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos_ctr, 0), size, colors);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color)
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color)
 {
 	ztColor colors[] = { color, color, color, color };
 	return zt_drawListAddSolidRect2D(draw_list, pos_ctr, size, colors);
@@ -7183,7 +7295,7 @@ bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, con
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor colors[4])
+bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor colors[4])
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidRect2D");
 	zt_drawListPushTexture(draw_list, 0);
@@ -7194,14 +7306,14 @@ bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, con
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color)
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color)
 {
 	return zt_drawListAddSolidCircle2D(draw_list, zt_vec3(pos_ctr, 0), radius, points, color);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color)
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidCircle2D");
 
@@ -7214,28 +7326,16 @@ bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r
 
 	r32 theta = ztMathPi2 / points;
 
-	r32 start_x = zt_cos(0) * radius + pos_ctr.x;
-	r32 start_y = zt_sin(0) * radius + pos_ctr.y;
-	r32 prev_x = start_x;
-	r32 prev_y = start_y;
+	for (int i = 0; i < points; ++i) {
+		r32 x = pos_ctr.x + (zt_cos(i * theta) * radius);
+		r32 y = pos_ctr.y + (zt_sin(i * theta) * radius);
 
-	p[0] = zt_vec3(start_x, start_y, pos_ctr.z);
-	u[0] = ztVec2::one;
-	n[0] = zt_vec3(0, 0, 1);
-
-	for (int i = 1; i <= points; ++i) {
-		r32 x = i != points ? pos_ctr.x + (zt_cos(i * theta) * radius) : start_x;
-		r32 y = i != points ? pos_ctr.y + (zt_sin(i * theta) * radius) : start_y;
-
-		p[i] = zt_vec3(prev_x, prev_y, pos_ctr.z);
-		u[i] = u[0];
-		n[i] = n[0];
-
-		prev_x = x;
-		prev_y = y;
+		p[i] = zt_vec3(x, y, pos_ctr.z);
+		u[i] = ztVec2::zero;
+		n[i] = zt_vec3(0, 0, 1);
 	}
 
-	zt_drawListAddFilledPoly(draw_list, p, u, n, points + 1);
+	zt_drawListAddFilledPoly(draw_list, p, u, n, points);
 	zt_drawListPopColor(draw_list);
 	zt_drawListPopTexture(draw_list);
 
@@ -7244,14 +7344,14 @@ bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
+bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color)
 {
 	return zt_drawListAddSolidOutlinedRect2D(draw_list, zt_vec3(pos_ctr, 0), size, color, outline_color);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztColor& color, const ztColor& outline_color)
+bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidOutlinedRect2D");
 	zt_drawListAddSolidRect2D(draw_list, pos_ctr, size, color);
@@ -7264,14 +7364,14 @@ bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3& pos_
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
+bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
 {
 	return zt_drawListAddSolidOutlinedCircle2D(draw_list, zt_vec3(pos_ctr, 0), radius, points, color, outline_color);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3& pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
+bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidOutlinedCircle2D");
 	zt_drawListAddSolidCircle2D(draw_list, pos_ctr, radius, points, color);
@@ -7284,7 +7384,7 @@ bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3& po
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3& pos_ctr, const ztVec2& size, const ztVec2& uv_nw, const ztVec2& uv_se, i32 flags)
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddBillboard");
 	_zt_drawListCheck(draw_list);
@@ -7326,6 +7426,10 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVe
 		command->tri_norm[0] = normals[0];
 		command->tri_norm[1] = normals[1 + j];
 		command->tri_norm[2] = normals[2 + j];
+
+		command->tri_color[0] = ztColor_White;
+		command->tri_color[1] = ztColor_White;
+		command->tri_color[2] = ztColor_White;
 	}
 
 	return true;
@@ -7333,7 +7437,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVe
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3& offset)
+bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3 &offset)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddDrawList");
 	if (draw_list->commands_size - draw_list->commands_count >= draw_list_to_add->commands_count) {
@@ -7405,7 +7509,7 @@ bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3& center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
+bool zt_drawListAddFloorGrid(ztDrawList *draw_list, const ztVec3 &center, r32 width, r32 depth, r32 grid_w, r32 grid_d)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFloorGrid");
 
@@ -7459,7 +7563,7 @@ bool zt_drawListAddVertexArray(ztDrawList *draw_list, ztVertexArrayID vertex_arr
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size, const ztVec3& center, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
+bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size, const ztVec3 &center, const ztVec4 &color_x, const ztVec4 &color_y, const ztVec4 &color_z)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddAxis");
 	zt_drawListPushColor(draw_list, color_x);
@@ -7479,7 +7583,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, r32 size, const ztVec3& center, c
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, const ztVec3& center, const ztVec4& color_x, const ztVec4& color_y, const ztVec4& color_z)
+bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, const ztVec3 &center, const ztVec4 &color_x, const ztVec4 &color_y, const ztVec4 &color_z)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddAxis");
 	ztVec3 t_center = mat * center;
@@ -7501,7 +7605,7 @@ bool zt_drawListAddAxis(ztDrawList *draw_list, const ztMat4& mat, r32 size, cons
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3& pos, r32 size, bool color_axis)
+bool zt_drawListAddPointMarker(ztDrawList *draw_list, const ztVec3 &pos, r32 size, bool color_axis)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddPointMarker");
 	if (color_axis) {
@@ -7823,7 +7927,7 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3& offset)
+bool zt_drawListPushOffset(ztDrawList *draw_list, const ztVec3 &offset)
 {
 	ZT_PROFILE_RENDERING("zt_drawListPushOffset");
 	_zt_drawListCheck(draw_list);
@@ -8834,7 +8938,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				struct OpenGL
 				{
-					static ztInline void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4& active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
+					static ztInline void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4 &active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
 					{
 						ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand");
 						switch (last_command)
@@ -9806,7 +9910,7 @@ ztVertexArrayID zt_vertexArrayUpdateDefault(ztVertexArrayID vertex_array_id, ztV
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intensity, r32 ambient, bool casts_shadows, const ztColor& color)
+ztLight zt_lightMakeDirectional(const ztVec3 &pos, const ztVec3 &dir, r32 intensity, r32 ambient, bool casts_shadows, const ztColor& color)
 {
 	ZT_PROFILE_RENDERING("zt_lightMakeDirectional");
 	ztLight result;
@@ -9822,7 +9926,7 @@ ztLight zt_lightMakeDirectional(const ztVec3& pos, const ztVec3& dir, r32 intens
 
 // ================================================================================================================================================================================================
 
-ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity, bool casts_shadows, const ztColor& color)
+ztLight zt_lightMakeSpot(const ztVec3 &pos, const ztVec3 &dir, r32 intensity, bool casts_shadows, const ztColor& color)
 {
 	ZT_PROFILE_RENDERING("zt_lightMakeSpot");
 	ztLight result;
@@ -9838,7 +9942,7 @@ ztLight zt_lightMakeSpot(const ztVec3& pos, const ztVec3& dir, r32 intensity, bo
 
 // ================================================================================================================================================================================================
 
-ztLight zt_lightMakeArea(const ztVec3& pos, r32 intensity, bool casts_shadows, const ztColor& color)
+ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity, bool casts_shadows, const ztColor& color)
 {
 	ZT_PROFILE_RENDERING("zt_lightMakeArea");
 	ztLight result;
@@ -14516,9 +14620,9 @@ bool zt_shaderHasVariable(ztShaderVariableValues *shader_vars, u32 variable_hash
 
 int zt_shaderSetVariableFloat  (ztShaderVariableValues *shader_vars, const char *variable, r32 value          ) { return zt_shaderSetVariableFloat  (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableInt    (ztShaderVariableValues *shader_vars, const char *variable, i32 value          ) { return zt_shaderSetVariableInt    (shader_vars, zt_strHash(variable), value); }
-int zt_shaderSetVariableVec2   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2& value) { return zt_shaderSetVariableVec2   (shader_vars, zt_strHash(variable), value); }
-int zt_shaderSetVariableVec3   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3& value) { return zt_shaderSetVariableVec3   (shader_vars, zt_strHash(variable), value); }
-int zt_shaderSetVariableVec4   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4& value) { return zt_shaderSetVariableVec4   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec2   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec2 &value) { return zt_shaderSetVariableVec2   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec3   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec3 &value) { return zt_shaderSetVariableVec3   (shader_vars, zt_strHash(variable), value); }
+int zt_shaderSetVariableVec4   (ztShaderVariableValues *shader_vars, const char *variable, const ztVec4 &value) { return zt_shaderSetVariableVec4   (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableMat4   (ztShaderVariableValues *shader_vars, const char *variable, const ztMat4& value) { return zt_shaderSetVariableMat4   (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableMat3   (ztShaderVariableValues *shader_vars, const char *variable, r32 value[12]      ) { return zt_shaderSetVariableMat3   (shader_vars, zt_strHash(variable), value); }
 int zt_shaderSetVariableTex    (ztShaderVariableValues *shader_vars, const char *variable, ztTextureID value  ) { return zt_shaderSetVariableTex    (shader_vars, zt_strHash(variable), value); }
@@ -14546,7 +14650,7 @@ int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_ha
 
 // ================================================================================================================================================================================================
 
-int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2& value)
+int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec2 &value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec2");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec2);
@@ -14557,7 +14661,7 @@ int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_h
 
 // ================================================================================================================================================================================================
 
-int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3& value)
+int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec3 &value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec3);
@@ -14569,7 +14673,7 @@ int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_h
 
 // ================================================================================================================================================================================================
 
-int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4& value)
+int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_hash, const ztVec4 &value)
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec4);
@@ -14662,9 +14766,9 @@ bool zt_shaderHasVariable(ztShaderID shader_id, u32 variable_hash, ztShaderVaria
 
 void zt_shaderSetVariableFloat  (ztShaderID shader_id, const char *variable, r32 value          , bool apply_immediately) { zt_shaderSetVariableFloat  (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableInt    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableInt    (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec2   (ztShaderID shader_id, const char *variable, const ztVec2& value, bool apply_immediately) { zt_shaderSetVariableVec2   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec3   (ztShaderID shader_id, const char *variable, const ztVec3& value, bool apply_immediately) { zt_shaderSetVariableVec3   (shader_id, zt_strHash(variable), value); }
-void zt_shaderSetVariableVec4   (ztShaderID shader_id, const char *variable, const ztVec4& value, bool apply_immediately) { zt_shaderSetVariableVec4   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, const char *variable, const ztVec2 &value, bool apply_immediately) { zt_shaderSetVariableVec2   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, const char *variable, const ztVec3 &value, bool apply_immediately) { zt_shaderSetVariableVec3   (shader_id, zt_strHash(variable), value); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, const char *variable, const ztVec4 &value, bool apply_immediately) { zt_shaderSetVariableVec4   (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableMat4   (ztShaderID shader_id, const char *variable, const ztMat4& value, bool apply_immediately) { zt_shaderSetVariableMat4   (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableMat3   (ztShaderID shader_id, const char *variable, r32 value[12]      , bool apply_immediately) { zt_shaderSetVariableMat3   (shader_id, zt_strHash(variable), value); }
 void zt_shaderSetVariableTex    (ztShaderID shader_id, const char *variable, i32 value          , bool apply_immediately) { zt_shaderSetVariableTex    (shader_id, zt_strHash(variable), value); }
@@ -14674,9 +14778,9 @@ void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32
 
 void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableInt    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTex    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
@@ -15459,7 +15563,7 @@ ztInline void zt_alignToPixel(ztVec3 *val, r32 ppu)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3& position)
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position)
 {
 	ZT_PROFILE_RENDERING("zt_cameraMakeOrtho");
 	zt_returnOnNull(camera);
@@ -15487,7 +15591,7 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 
 // ================================================================================================================================================================================================
 
-void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3& position, const ztQuat& rotation)
+void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3 &position, const ztQuat& rotation)
 {
 	ZT_PROFILE_RENDERING("zt_cameraMakePersp");
 	zt_returnOnNull(camera);
@@ -15674,7 +15778,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 
 // ================================================================================================================================================================================================
 
-ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2& pos)
+ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 &pos)
 {
 	ZT_PROFILE_RENDERING("zt_cameraOrthoWorldToScreen");
 	zt_returnValOnNull(camera, zt_vec2i(0,0));
@@ -15722,7 +15826,7 @@ void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, 
 
 // ================================================================================================================================================================================================
 
-void zt_cameraLookAt(ztCamera *camera, const ztVec3& target, const ztVec3& up)
+void zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up)
 {
 	ZT_PROFILE_RENDERING("zt_cameraLookAt");
 
@@ -16132,7 +16236,7 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 // ================================================================================================================================================================================================
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3& world_offset)
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3 &world_offset)
 {
 	ztFrustum result;
 	zt_cameraCalcViewFrustum(&result, camera, far_z, world_offset);
@@ -16141,7 +16245,7 @@ ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3& wo
 
 // ================================================================================================================================================================================================
 
-void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, const ztVec3& world_offset)
+void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_cameraCalcViewFrustum");
 
@@ -18045,7 +18149,7 @@ ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec
 
 // ================================================================================================================================================================================================
 
-void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
 	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
 
@@ -18092,7 +18196,7 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6
 
 // ================================================================================================================================================================================================
 
-void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
 	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
 
@@ -18163,7 +18267,7 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3& at_pos, const ztVec3&
 
 // ================================================================================================================================================================================================
 
-void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
 	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
 
@@ -18207,7 +18311,7 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, ztVec3 _p
 
 // ================================================================================================================================================================================================
 
-void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztVec3& rotation, const ztVec3& scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
 {
 	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
 
@@ -18275,7 +18379,7 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3& at_pos, const ztV
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position)
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
 
@@ -18316,7 +18420,7 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position, const ztVec3& rot, const ztVec3& scale)
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
 	ztVec3 pos[4] = {
@@ -18367,7 +18471,7 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3&
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position)
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
 
@@ -18403,7 +18507,7 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& position, const ztVec3& rot, const ztVec3& scale)
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
 	ztVec3 pos[4] = {
@@ -18450,7 +18554,7 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3& pos, const ztVec2& area)
+void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec2 &area)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteTiled");
 
@@ -18576,7 +18680,7 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec
 
 // ================================================================================================================================================================================================
 
-void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2& cpos, const ztVec2& csize)
+void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &cpos, const ztVec2 &csize)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteNineSlice");
 	r32 ppu = zt_pixelsPerUnit();
@@ -18653,7 +18757,7 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 
 // ================================================================================================================================================================================================
 #if 1
-void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2& at_pos, const ztVec2& csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
+void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos, const ztVec2 &csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
 {
 	ZT_PROFILE_RENDERING("zt_spriteNineSliceGetTriangles");
 	r32 ppu = zt_pixelsPerUnit();
@@ -18714,7 +18818,7 @@ void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2& at_pos
 
 	struct local
 	{
-		static void process(ztVec2 *pos, ztVec2 *uvs, int &idx, const ztVec2& p1, const ztVec2& p2, const ztVec2& p3, const ztVec2& p4, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, const ztVec2& uv4)
+		static void process(ztVec2 *pos, ztVec2 *uvs, int &idx, const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4)
 		{
 			{
 				pos[idx + 0] = p1;
@@ -19109,8 +19213,8 @@ ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_ma
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4& diffuse_color, i32 diffuse_flags,
-						   ztTextureID specular_tex, const ztVec4& specular_color, i32 specular_flags,
+ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color, i32 diffuse_flags,
+						   ztTextureID specular_tex, const ztVec4 &specular_color, i32 specular_flags,
 						   ztTextureID normal_tex, i32 normal_flags, r32 shininess)
 {
 	ZT_PROFILE_RENDERING("zt_materialMake");
@@ -19978,7 +20082,7 @@ ztMeshID zt_meshMakePrimitiveSphere(r32 radius, int rings, ztMeshPrimativeSphere
 
 // ================================================================================================================================================================================================
 
-ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id, char *data, int size, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
+ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id, char *data, int size, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale, const ztVec3 &offset)
 {
 	ZT_PROFILE_RENDERING("_zt_meshLoadOBJBase");
 
@@ -20344,7 +20448,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 
 // ================================================================================================================================================================================================
 
-int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
+int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale, const ztVec3 &offset)
 {
 	ZT_PROFILE_RENDERING("zt_meshLoadOBJ(asset)");
 
@@ -20389,7 +20493,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 // ================================================================================================================================================================================================
 
-int zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
+int zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale, const ztVec3 &offset)
 {
 	ZT_PROFILE_RENDERING("zt_meshLoadOBJ(data)");
 
@@ -20401,7 +20505,7 @@ int zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, ztMeshI
 
 // ================================================================================================================================================================================================
 
-int zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3& scale, const ztVec3& offset)
+int zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale, const ztVec3 &offset)
 {
 	char file_path[ztFileMaxPath];
 	zt_fileGetFullPath(file_name, file_path, zt_elementsOf(file_path));
@@ -20623,7 +20727,7 @@ void zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztPlane zt_planeMake(const ztVec3& p0, const ztVec3& p1, const ztVec3& p2)
+ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2)
 {
 	ztPlane result;
 	result.normal = (p1 - p0).cross(p2 - p0).getNormal();
@@ -20971,7 +21075,7 @@ ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents)
+ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3 &extents)
 {
 	ztCollisionGeometry cg;
 	cg.type = ztCollisionGeometryType_AxisAlignedBox;
@@ -20981,7 +21085,7 @@ ztCollisionGeometry zt_collisionGeometryMakeAABB(const ztVec3& extents)
 
 // ================================================================================================================================================================================================
 
-ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVec3& extents)
+ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3 &center, const ztVec3 &extents)
 {
 	ztCollisionGeometry cg;
 	cg.type = ztCollisionGeometryType_OrientedBox;
@@ -20992,7 +21096,7 @@ ztCollisionGeometry zt_collisionGeometryMakeOBB(const ztVec3& center, const ztVe
 
 // ================================================================================================================================================================================================
 
-ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3& center, r32 radius)
+ztCollisionGeometry zt_collisionGeometryMakeSphere(const ztVec3 &center, r32 radius)
 {
 	ztCollisionGeometry cg;
 	cg.type = ztCollisionGeometryType_Sphere;
@@ -21162,7 +21266,7 @@ void zt_rigidBodiesUpdate(ztRigidBody *rbs, int rbs_count, r32 dt)
 
 // ================================================================================================================================================================================================
 
-void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force)
+void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3 &force)
 {
 	ZT_PROFILE_PHYSICS("zt_rigidBodyAddForce");
 	zt_returnOnNull(rigid_body);
@@ -21171,7 +21275,7 @@ void zt_rigidBodyAddForce(ztRigidBody *rigid_body, const ztVec3& force)
 
 // ================================================================================================================================================================================================
 
-void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
+void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3 &force, const ztVec3 &point)
 {
 	ZT_PROFILE_PHYSICS("zt_rigidBodyAddForceAtWorldPoint");
 	zt_returnOnNull(rigid_body);
@@ -21182,7 +21286,7 @@ void zt_rigidBodyAddForceAtWorldPoint(ztRigidBody *rigid_body, const ztVec3& for
 
 // ================================================================================================================================================================================================
 
-void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& force, const ztVec3& point)
+void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3 &force, const ztVec3 &point)
 {
 	ZT_PROFILE_PHYSICS("zt_rigidBodyAddForceAtBodyPoint");
 	zt_returnOnNull(rigid_body);
@@ -21196,7 +21300,7 @@ void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3& forc
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3& connection_point)
+ztForceAnchor zt_forceAnchor(ztRigidBody *rigid_body, const ztVec3 &connection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_forceAnchor");
 	zt_assert(rigid_body != nullptr);
@@ -21247,7 +21351,7 @@ ztForceAnchor zt_forceAnchor(ztVec3 vec3)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
+ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
 {
 	ZT_PROFILE_PHYSICS("zt_forceMakeSpring");
 	zt_assert(rigid_body != nullptr);
@@ -21265,7 +21369,7 @@ ztForce zt_forceMakeSpring(ztRigidBody *rigid_body, const ztVec3& connection_poi
 
 // ================================================================================================================================================================================================
 
-ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping)
+ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 damping)
 {
 	ZT_PROFILE_PHYSICS("zt_forceMakeStiffSpring");
 	zt_assert(rigid_body != nullptr);
@@ -21283,7 +21387,7 @@ ztForce zt_forceMakeStiffSpring(ztRigidBody *rigid_body, const ztVec3& connectio
 
 // ================================================================================================================================================================================================
 
-ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3& connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
+ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3 &connection_point, ztForceAnchor anchor, r32 spring_constant, r32 rest_length)
 {
 	ZT_PROFILE_PHYSICS("zt_forceMakeBungee");
 	zt_assert(rigid_body != nullptr);
@@ -21301,7 +21405,7 @@ ztForce zt_forceMakeBungee(ztRigidBody *rigid_body, const ztVec3& connection_poi
 
 // ================================================================================================================================================================================================
 
-ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3& connection_point, r32 max_depth, r32 volume, r32 water_height, r32 liquid_density)
+ztForce zt_forceMakeBuoyancy(ztRigidBody *rigid_body, const ztVec3 &connection_point, r32 max_depth, r32 volume, r32 water_height, r32 liquid_density)
 {
 	ZT_PROFILE_PHYSICS("zt_forceMakeBuoyancy");
 	zt_assert(rigid_body != nullptr);
@@ -21777,7 +21881,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-bool zt_collisionPointInRect(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
+bool zt_collisionPointInRect(const ztVec2 &point, const ztVec2 &rect_pos, const ztVec2 &rect_size)
 {
 	return zt_collisionPointInRect(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
 }
@@ -21791,7 +21895,7 @@ bool zt_collisionPointInRect(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rect_
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionPointInRectLL(const ztVec2& point, const ztVec2& rect_pos, const ztVec2& rect_size)
+bool zt_collisionPointInRectLL(const ztVec2 &point, const ztVec2 &rect_pos, const ztVec2 &rect_size)
 {
 	return zt_collisionPointInRectLL(point.x, point.y, rect_pos.x, rect_pos.y, rect_size.x, rect_size.y);
 }
@@ -21806,7 +21910,21 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& plane_coord, const ztVec3& plane_normal, ztVec3 *intersection_point)
+bool zt_collisionPointInCircle(const ztVec2 &point, const ztVec2 &circle_pos, r32 radius)
+{
+	return zt_abs(point.distance(circle_pos)) <= radius;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionPointInSphere(const ztVec3 &point, const ztVec3 &sphere_pos, r32 radius)
+{
+	return zt_abs(point.distance(sphere_pos)) <= radius;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
 	ztVec3 line_dir = (line_end - line_beg);
@@ -21830,7 +21948,7 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, const ztPlane& plane, ztVec3 *intersection_point)
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
 	ztVec3 line_dir = (line_end - line_beg);
@@ -21854,7 +21972,7 @@ bool zt_collisionLineInPlane(const ztVec3& line_beg, const ztVec3& line_end, con
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+bool zt_collisionPointInAABB(const ztVec3 &point, const ztVec3 &aabb_center, const ztVec3 &aabb_extents)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionPointInAABB");
 	return point.x >= aabb_center.x - aabb_extents.x / 2.f && point.x <= aabb_center.x + aabb_extents.x / 2.f &&
@@ -21864,7 +21982,7 @@ bool zt_collisionPointInAABB(const ztVec3& point, const ztVec3& aabb_center, con
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time, ztVec3 *intersection_point)
+bool zt_collisionRayInAABB(const ztVec3 &point, const ztVec3 &direction, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionRayInAABB");
 	r32 tmin = 0;
@@ -21913,7 +22031,7 @@ bool zt_collisionRayInAABB(const ztVec3& point, const ztVec3& direction, const z
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time, ztVec3 intersection_points[2])
+bool zt_collisionLineSegmentInAABB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time, ztVec3 intersection_points[2])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInAABB");
 	r32 tmin = 0;
@@ -21970,7 +22088,7 @@ bool zt_collisionLineSegmentInAABB(const ztVec3& line_0, const ztVec3& line_1, c
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2)
+bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInAABB");
 	if (aabb_center_1.x + (aabb_extents_1.x / 2.f) < aabb_center_2.x - (aabb_extents_2.x / 2.f) || aabb_center_1.x - (aabb_extents_1.x / 2.f) > aabb_center_2.x + (aabb_extents_2.x / 2.f)) return false;
@@ -21998,7 +22116,7 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face)
+bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face)
 {
 	zt_returnValOnNull(collision_normal, false);
 	zt_returnValOnNull(collision_depth, false);
@@ -22045,7 +22163,7 @@ bool zt_collisionAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_exte
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aabb_extents_1, const ztVec3& aabb_velocity_1, const ztVec3& aabb_center_2, const ztVec3& aabb_extents_2, const ztVec3& aabb_velocity_2, r32 *time_first, r32 *time_last)
+bool zt_collisionMovingAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_velocity_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, const ztVec3 &aabb_velocity_2, r32 *time_first, r32 *time_last)
 {
 	*time_first = 0;
 	*time_last = 1;
@@ -22093,7 +22211,7 @@ bool zt_collisionMovingAABBInAABB(const ztVec3& aabb_center_1, const ztVec3& aab
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
+bool zt_collisionAABBInPlane(const ztVec3 &aabb_center, const ztVec3 &aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInPlane");
 	
@@ -22107,7 +22225,7 @@ bool zt_collisionAABBInPlane(const ztVec3& aabb_center, const ztVec3& aabb_exten
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2)
+bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionOBBInOBB");
 	ztVec3 obb_axis_1[3] = {
@@ -22127,7 +22245,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztVec3 obb_axis_2[3])
+bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztVec3 obb_axis_2[3])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionOBBInOBB");
 	r32 mat_r[3][3], mat_abs_r[3][3], ra, rb, sp;
@@ -22248,7 +22366,7 @@ bool zt_collisionOBBInOBB(const ztVec3& obb_center_1, const ztVec3& obb_extents_
 
 // ================================================================================================================================================================================================
 
-int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec3& obb_extents_1, const ztQuat& obb_rot_1, const ztVec3& obb_center_2, const ztVec3& obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size)
+int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionOBBInOBBGetContactPoints");
 	ztVec3 diff = obb_center_2 - obb_center_1;
@@ -22305,7 +22423,7 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3& obb_center_1, const ztVec
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, const ztVec3& obb_center, const ztVec3& obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2])
+bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInOBB");
 	ztQuat to_local = obb_rot.getInverse();
@@ -22320,7 +22438,7 @@ bool zt_collisionLineSegmentInOBB(const ztVec3& line_0, const ztVec3& line_1, co
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, bool check_near_far)
+bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3 &point, bool check_near_far)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionPointInFrustum");
 
@@ -22336,7 +22454,7 @@ bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3& point, b
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg, const ztVec3& line_end, ztVec3 *intersection_pointer)
+bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *intersection_pointer)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInFrustum");
 
@@ -22357,7 +22475,7 @@ bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3& line_beg,
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_center, const ztVec3 &aabb_extents)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInFrustum");
 
@@ -22468,7 +22586,7 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionMovingSphereInPlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztPlane& plane, r32 *intersection_time, ztVec3 *intersection_point)
+bool zt_collisionMovingSphereInPlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &sphere_velocity, const ztPlane& plane, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInPlane");
 
@@ -22498,7 +22616,7 @@ bool zt_collisionMovingSphereInPlane(const ztVec3& sphere_pos, r32 sphere_radius
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere1_velocity, const ztVec3& sphere2_pos, r32 sphere2_radius, const ztVec3& sphere2_velocity, r32 *intersection_time)
+bool zt_collisionMovingSphereInMovingSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, const ztVec3 &sphere1_velocity, const ztVec3 &sphere2_pos, r32 sphere2_radius, const ztVec3 &sphere2_velocity, r32 *intersection_time)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInMovingSphere");
 
@@ -22527,7 +22645,7 @@ bool zt_collisionMovingSphereInMovingSphere(const ztVec3& sphere1_pos, r32 spher
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& sphere_velocity, const ztVec3& aabb_center, const ztVec3& aabb_extents, r32 *intersection_time)
+bool zt_collisionMovingSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &sphere_velocity, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionMovingSphereInAABB");
 
@@ -22541,7 +22659,7 @@ bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius,
 
 	struct local
 	{
-		static ztVec3 corner(const ztVec3& aabb_center, const ztVec3 &aabb_extents, int n)
+		static ztVec3 corner(const ztVec3 &aabb_center, const ztVec3 &aabb_extents, int n)
 		{
 			ztVec3 result;
 			result.x = aabb_center.x + aabb_extents.x / (2 * ((n & 1) ? 1 : -1));
@@ -22586,7 +22704,7 @@ bool zt_collisionMovingSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius,
 
 // ================================================================================================================================================================================================
 
-r32 zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_beg, const ztVec3& seg_end)
+r32 zt_collisionSquareDistPointToSegment(const ztVec3 &point, const ztVec3 &seg_beg, const ztVec3 &seg_end)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionSquareDistPointToSegment");
 
@@ -22605,7 +22723,7 @@ r32 zt_collisionSquareDistPointToSegment(const ztVec3& point, const ztVec3& seg_
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& capsule_beg, ztVec3& capsule_end, r32 capsule_radius)
+bool zt_collisionSphereCapsule(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &capsule_beg, ztVec3 &capsule_end, r32 capsule_radius)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionSphereCapsule");
 
@@ -22616,7 +22734,7 @@ bool zt_collisionSphereCapsule(const ztVec3& sphere_pos, r32 sphere_radius, cons
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionSpherePlane(const ztVec3& sphere_pos, r32 sphere_radius, const ztPlane& plane)
+bool zt_collisionSpherePlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztPlane& plane)
 {
 	r32 dist = sphere_pos.dot(plane.normal) - plane.distance;
 	return zt_abs(dist) <= sphere_radius;
@@ -22624,7 +22742,7 @@ bool zt_collisionSpherePlane(const ztVec3& sphere_pos, r32 sphere_radius, const 
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionSphereSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, const ztVec3& sphere2_pos, r32 sphere2_radius)
+bool zt_collisionSphereSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, const ztVec3 &sphere2_pos, r32 sphere2_radius)
 {
 	ztVec3 diff = sphere2_pos - sphere1_pos;
 	r32 rad = sphere2_radius + sphere1_radius;
@@ -22634,14 +22752,14 @@ bool zt_collisionSphereSphere(const ztVec3& sphere1_pos, r32 sphere1_radius, con
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionSphereInAABB(const ztVec3& sphere_pos, r32 sphere_radius, const ztVec3& aabb_center, const ztVec3& aabb_extents)
+bool zt_collisionSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &aabb_center, const ztVec3 &aabb_extents)
 {
 	return zt_collisionPointInAABB(sphere_pos, aabb_center, aabb_extents + zt_vec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2));
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
+bool zt_collisionRaySphere(const ztVec3 &ray_pos, const ztVec3 &ray_dir, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionRaySphere");
 
@@ -22673,7 +22791,7 @@ bool zt_collisionRaySphere(const ztVec3& ray_pos, const ztVec3& ray_dir, const z
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
+bool zt_collisionLineSegmentSphere(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentSphere");
 
@@ -22697,7 +22815,7 @@ bool zt_collisionLineSegmentSphere(const ztVec3& line_beg, const ztVec3& line_en
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentCapsule(const ztVec3& line_beg, const ztVec3& line_end, const ztVec3& capsule_beg, const ztVec3& capsule_end, r32 capsule_radius, r32 *intersection_time)
+bool zt_collisionLineSegmentCapsule(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &capsule_beg, const ztVec3 &capsule_end, r32 capsule_radius, r32 *intersection_time)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentCapsule");
 
@@ -22820,7 +22938,8 @@ ZT_FUNCTION_POINTER_REGISTER(zt_tweenEaseElastic, ZT_FUNC_TWEEN_EASE(zt_tweenEas
 {
 	ZT_PROFILE_ANIMATION("zt_tweenEaseElastic");
 	if ( value == 0 || value == 1 ) return value;
-	return zt_sin(2.f * ztMathPi2 * value) * zt_pow(2, 2.f * (value - 1));
+	//return zt_sin(2.f * ztMathPi2 * value) * zt_pow(5, 2.f * (value - 1));
+	return zt_pow(2.f, 12.f * (value - 1.f)) * zt_sin(value * (2.f * ztMathPi2) / .39f);
 }
 
 // ================================================================================================================================================================================================
@@ -22884,9 +23003,9 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 	}
 	else if (ease_in && ease_out) {
 		if (percent < .5f) {
-			percent = ease_in(2 * percent, ease_in) / 2.0f;
+			percent = ease_in(2 * percent, ease_in_user_data) / 2.0f;
 		}
-		else {
+		else if(percent > .5) {
 			percent = .5f + .5f * (1 - ease_out(1 - (percent - .5f) * 2, ease_out_user_data));
 		}
 	}
@@ -22896,7 +23015,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
+ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
@@ -22904,7 +23023,7 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 
 // ================================================================================================================================================================================================
 
-ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
+ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
@@ -22912,7 +23031,7 @@ ztVec2 zt_tweenValue(const ztVec2& val_beg, const ztVec2& val_end, r32 percent, 
 
 // ================================================================================================================================================================================================
 
-ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
+ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
@@ -22921,7 +23040,7 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 
 // ================================================================================================================================================================================================
 
-ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
+ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
@@ -22930,7 +23049,7 @@ ztVec3 zt_tweenValue(const ztVec3& val_beg, const ztVec3& val_end, r32 percent, 
 
 // ================================================================================================================================================================================================
 
-ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
+ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
 	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
@@ -22940,7 +23059,7 @@ ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, 
 
 // ================================================================================================================================================================================================
 
-ztVec4 zt_tweenValue(const ztVec4& val_beg, const ztVec4& val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
+ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
 	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
@@ -23582,6 +23701,88 @@ bool zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames)
 
 	return true;
 }
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztTweenEase_Func *zt_animCurveFindEaseFunction(ztAnimCurveEaseType_Enum type)
+{
+	switch (type)
+	{
+		case ztAnimCurveEaseType_Linear  : return zt_tweenEaseLinear;
+		case ztAnimCurveEaseType_Back    : return zt_tweenEaseBack;
+		case ztAnimCurveEaseType_Bounce  : return zt_tweenEaseBounce;
+		case ztAnimCurveEaseType_Circ    : return zt_tweenEaseCirc;
+		case ztAnimCurveEaseType_Cubic   : return zt_tweenEaseCubic;
+		case ztAnimCurveEaseType_Elastic : return zt_tweenEaseElastic;
+		case ztAnimCurveEaseType_Expo    : return zt_tweenEaseExpo;
+		case ztAnimCurveEaseType_Quad    : return zt_tweenEaseQuad;
+		case ztAnimCurveEaseType_Quart   : return zt_tweenEaseQuart;
+		case ztAnimCurveEaseType_Quint   : return zt_tweenEaseQuint;
+		case ztAnimCurveEaseType_Sine    : return zt_tweenEaseSine;
+	}
+
+	zt_assert(false);
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_animCurveGetValue(ztAnimCurve *curve, r32 percent)
+{
+	zt_returnValOnNull(curve, 0);
+	zt_assertReturnValOnFail(percent >= 0 && percent <= 1, percent);
+
+	switch (curve->type) {
+		case ztAnimCurveType_Linear: {
+			return zt_lerp(curve->val_beg, curve->val_end, percent);
+		} break;
+
+		case ztAnimCurveType_EaseIn: {
+			ztTweenEase_Func *ease_in = zt_animCurveFindEaseFunction(curve->ease_in);
+			if (ease_in) {
+				return zt_lerp(curve->val_beg, curve->val_end, ease_in(percent, nullptr));
+			}
+		} break;
+
+		case ztAnimCurveType_EaseOut: {
+			ztTweenEase_Func *ease_out = zt_animCurveFindEaseFunction(curve->ease_out);
+			if (ease_out) {
+				return zt_lerp(curve->val_end, curve->val_beg, ease_out(1 - percent, nullptr));
+			}
+		} break;
+
+		case ztAnimCurveType_EaseInOut: {
+			ztTweenEase_Func *ease_in = zt_animCurveFindEaseFunction(curve->ease_in);
+			ztTweenEase_Func *ease_out = zt_animCurveFindEaseFunction(curve->ease_out);
+
+			return zt_tweenValue(curve->val_beg, curve->val_end, percent, ease_in, ease_out);
+		} break;
+
+		case ztAnimCurveType_Spline: {
+			zt_fiz(curve->segments_count) {
+				if (percent <= curve->segments[i].pos_end.x) {
+					percent -= curve->segments[i].pos_beg.x;
+
+					percent = percent / (curve->segments[i].pos_end.x - curve->segments[i].pos_beg.x);
+
+					ztVec2 beg = curve->segments[i].pos_beg;
+					ztVec2 end = curve->segments[i].pos_end;
+					ztVec2 beg_cp = curve->segments[i].control_point_beg * zt_vec2(.5f, .25f) + beg;
+					ztVec2 end_cp = curve->segments[i].control_point_end * zt_vec2(.5f, .25f) + end;
+
+					ztVec2 curr_pnt = zt_pow(1 - percent, 3) * beg + 3 * percent * zt_pow(1 - percent, 2) * beg_cp + 3 * zt_pow(percent, 2) * (1 - percent) * end_cp + zt_pow(percent, 3) * end;
+					return curr_pnt.y;
+				}
+			}
+		} break;
+	}
+
+	zt_assert(false);
+	return 0;
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
