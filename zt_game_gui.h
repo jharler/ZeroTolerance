@@ -116,6 +116,7 @@ ztVec2 zt_guiThemeButtonSpriteGetSize     (ztGuiThemeButtonSprite *sprite);
 	_ztGIT(ztGuiItemType_Spinner        ) \
 	_ztGIT(ztGuiItemType_ListBox        ) \
 	_ztGIT(ztGuiItemType_ColorPicker    ) \
+	_ztGIT(ztGuiItemType_AnimCurve      ) \
 	_ztGIT(ztGuiItemType_GradientPicker ) \
 	_ztGIT(ztGuiItemType_Custom         )
 
@@ -578,6 +579,18 @@ enum ztGuiGradientPickerBehaviorFlags_Enum
 
 
 // ================================================================================================================================================================================================
+
+enum ztGuiAnimCurveBehaviorFlags_Enum
+{
+	ztGuiAnimCurveBehaviorFlags_LiveEdit     = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
+	ztGuiAnimCurveBehaviorFlags_AdjustValues = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
+};
+
+#define ztGuiAnimCurveBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 2)
+
+
+// ================================================================================================================================================================================================
+
 enum ztGuiItemOrient_Enum
 {
 	ztGuiItemOrient_Horz = (1 << 1),
@@ -648,6 +661,7 @@ ztGuiItem       *zt_guiMakeSpinner                     (ztGuiItem *parent, int *
 ztGuiItem       *zt_guiMakeListBox                     (ztGuiItem *parent, i32 behavior_flags = 0, i32 max_items = 128);
 ztGuiItem       *zt_guiMakeColorPicker                 (ztGuiItem *parent, ztColor color, i32 behavior_flags = 0, ztColor *live_value = nullptr);
 ztGuiItem       *zt_guiMakeGradientPicker              (ztGuiItem *parent, ztColorGradient2 *gradient, i32 behavior_flags = 0, ztColorGradient2 *live_value = nullptr);
+ztGuiItem       *zt_guiMakeAnimCurve                   (ztGuiItem *parent, ztAnimCurve *curve, i32 behavior_flags = 0, ztAnimCurve *live_value = nullptr);
 ztGuiItem       *zt_guiMakeSizer                       (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
 ztGuiItem       *zt_guiMakeColumnSizer                 (ztGuiItem *parent, int columns, ztGuiColumnSizerType_Enum type, bool size_to_parent = true);
 ztGuiItem       *zt_guiMakeWrapSizer                   (ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool size_to_parent = true);
@@ -903,6 +917,11 @@ void             zt_guiGradientPickerSetLiveValue      (ztGuiItem *gradient_pick
 
 // ================================================================================================================================================================================================
 
+void             zt_guiAnimCurveSetCallback            (ztGuiItem *anim_curve, ztFunctionID callback, void *user_data);
+void             zt_guiAnimCurveSetLiveValue           (ztGuiItem *anim_curve, ztColor *live_value);
+
+// ================================================================================================================================================================================================
+
 void             zt_guiEditorSetToMin                  (ztGuiItem *editor);
 void             zt_guiEditorSetToMax                  (ztGuiItem *editor);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, r32 value);
@@ -983,6 +1002,13 @@ void             zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_f
 typedef          ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(zt_guiDialogColorGradientEditorComplete_Func);
 
 void             zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Color Gradient");
+
+// ================================================================================================================================================================================================
+
+#define          ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE(name) void name(ztAnimCurve *curve, void *user_data)
+typedef          ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE(zt_guiDialogAnimCurveEditorComplete_Func);
+
+void             zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ztFunctionID callback = ztInvalidID, void *user_data = nullptr, const char *window_title = "Curve Editor");
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -1455,6 +1481,15 @@ struct ztGuiItem
 		} gradient_picker;
 
 		// -------------------------------------------------
+
+		struct {
+			ztFunctionID  callback;
+			void         *user_data;
+			ztAnimCurve  *curve;
+			ztAnimCurve  *live_value;
+		} anim_curve;
+
+		// -------------------------------------------------
 	};
 };
 
@@ -1633,6 +1668,10 @@ extern ztGuiGlobals *zt_gui;
 
 // ================================================================================================================================================================================================
 
+ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuiItemType_Enum type, i32 item_flags, i32 draw_list_size = 0);
+
+// ================================================================================================================================================================================================
+
 #endif // include guard
 #endif // INTERNAL DECLARATIONS
 
@@ -1649,6 +1688,7 @@ ztGuiGlobals zt_gui_local = {};
 
 ztInternal void _zt_guiDebugConsoleAddLoggingCallbacks();
 ztInternal void _zt_guiDebugConsoleRemoveLoggingCallbacks();
+
 
 // ================================================================================================================================================================================================
 
@@ -2066,7 +2106,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 			ztFontID font = zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_FontID, item);
 			zt_fiz(item->combobox.contents_count) {
 				ztVec2 ext = zt_fontGetExtents(font, item->combobox.contents[i]);
-				item->size.x = zt_max(item->size.x, base_width + ext.x);
+				item->size.x = zt_max(item->size.x, base_width + ext.x + padding * 2);
 				item->size.y = zt_max(item->size.y, ext.y + padding * 2);
 			}
 
@@ -3306,10 +3346,21 @@ ztInternal void _zt_guiManagerUpdatePre(ztGuiManager *gm, r32 dt)
 	}
 
 	// modal windows
-	zt_flinknext(child, gm->first_child, sib_next) {
-		if (child->type == ztGuiItemType_Window && zt_bitIsSet(child->behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
-			zt_guiItemBringToFront(child);
-			break;
+	{
+		bool check_modals = true;
+		zt_flinknext(child, gm->first_child, sib_next) {
+			if (child->sib_next == nullptr && child->type == ztGuiItemType_Window && zt_bitIsSet(child->behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
+				check_modals = false;
+			}
+		}
+
+		if (check_modals) {
+			zt_flinknext(child, gm->first_child, sib_next) {
+				if (child->type == ztGuiItemType_Window && zt_bitIsSet(child->behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
+					zt_guiItemBringToFront(child);
+					break;
+				}
+			}
 		}
 	}
 
@@ -3564,7 +3615,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					gm->keyboard_focus = true;
 					if (zt_bitIsSet(child->behavior_flags, ztGuiItemBehaviorFlags_BringToFront)) {
 						// need to make this particular child the last in the series
-						if (child->sib_next) {
+						if (child->sib_next && !zt_bitIsSet(child->sib_next->behavior_flags, ztGuiItemBehaviorFlags_BringToFront)) {
 							if (child->sib_prev) child->sib_prev->sib_next = child->sib_next;
 							if (child->sib_next) child->sib_next->sib_prev = child->sib_prev;
 							zt_assert(child->sib_next->sib_prev != child->sib_next);
@@ -3906,7 +3957,7 @@ ztInternal bool _zt_guiProcessDrag(ztGuiItem::ztDragState *drag_state, ztGuiMana
 
 // ================================================================================================================================================================================================
 
-ztInternal ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuiItemType_Enum type, i32 item_flags, i32 draw_list_size = 0)
+ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuiItemType_Enum type, i32 item_flags, i32 draw_list_size)
 {
 	ZT_PROFILE_GUI("_zt_guiMakeItemBase");
 
@@ -4210,6 +4261,10 @@ ztGuiItem *zt_guiMakeWindow(const char *title, i32 behavior_flags)
 
 	item->functions.input_mouse = _zt_guiWindowInputMouse_FunctionID;
 	item->functions.update = _zt_guiWindowUpdate_FunctionID;
+
+	if (zt_bitIsSet(behavior_flags, ztGuiWindowBehaviorFlags_Modal)) {
+		zt_guiItemBringToFront(item);
+	}
 
 	return item;
 }
@@ -7736,7 +7791,10 @@ void zt_guiComboBoxAppendWithIcon(ztGuiItem *combobox, const char *content, ztSp
 	combobox->combobox.contents_user_data[idx] = user_data;
 	zt_guiMenuAppend(combobox->combobox.popup, content, idx, combobox, sprite);
 	zt_guiItemAutoSize(combobox->combobox.popup);
+
+	_zt_guiComboBoxBestSize(combobox, nullptr, nullptr, &combobox->size, zt_guiItemGetTheme(combobox), nullptr);
 }
+
 
 // ================================================================================================================================================================================================
 
@@ -9419,6 +9477,116 @@ void zt_guiGradientPickerSetLiveValue(ztGuiItem *gradient_picker, ztColorGradien
 		zt_memCpy(&gradient_picker->gradient_picker.gradient, zt_sizeof(ztColorGradient2), live_value, zt_sizeof(ztColorGradient2));
 	}
 }
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiAnimCurveInputMouse))
+{
+	if (input_mouse->leftJustReleased()) {
+		zt_guiDialogAnimCurveEditor(item->anim_curve.curve, item->behavior_flags);
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiAnimCurveRender))
+{
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_drawListAddSolidOutlinedRect2D(draw_list, item->pos + offset, item->size, ztColor_DarkGray, ztColor_Gray);
+	zt_drawListPushColor(draw_list, ztColor_Green);
+
+
+	ztVec2 center = item->pos + offset;
+	r32 start = center.x - item->size.x / 2;
+
+	i32 pixels_wide = zt_convertToi32Floor(item->size.x * zt_pixelsPerUnit());
+	r32 size_per_pixel = 1 / zt_pixelsPerUnit();
+
+	zt_fiz(pixels_wide) {
+		r32 val = zt_animCurveGetValue(item->anim_curve.curve, i / (r32)pixels_wide);
+		zt_drawListAddPoint(draw_list, zt_vec3(start, center.y + val * (item->size.y / 2), 0));
+		start += size_per_pixel;
+	}
+
+	zt_drawListPopColor(draw_list);
+	zt_drawListPopTexture(draw_list);
+
+	if (item->anim_curve.live_value && 0 != zt_memCmp(item->anim_curve.live_value, item->anim_curve.curve, zt_sizeof(ztAnimCurve))) {
+		zt_memCpy(item->anim_curve.live_value, zt_sizeof(ztAnimCurve), item->anim_curve.curve, zt_sizeof(ztAnimCurve));
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiAnimCurveCleanup))
+{
+	zt_freeArena(item->anim_curve.curve, item->gm->arena);
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeAnimCurve(ztGuiItem *parent, ztAnimCurve *curve, i32 behavior_flags, ztAnimCurve *live_value)
+{
+	ZT_PROFILE_GUI("zt_guiMakeAnimCurve");
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ztGuiItemType_AnimCurve, behavior_flags | ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	item->size = zt_vec2(1.5f, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
+
+	item->anim_curve.curve = zt_mallocStructArena(ztAnimCurve, item->gm->arena);
+
+	if (curve != nullptr) {
+		zt_memCpy(item->anim_curve.curve, zt_sizeof(ztAnimCurve), curve, zt_sizeof(ztAnimCurve));
+	}
+	else {
+		ztAnimCurve lcl_curve;
+		lcl_curve.type = ztAnimCurveType_Linear;
+		lcl_curve.val_max = 1;
+		lcl_curve.val_beg = 0;
+		lcl_curve.val_end = 1;
+
+		zt_memCpy(item->anim_curve.curve, zt_sizeof(ztAnimCurve), &lcl_curve, zt_sizeof(ztAnimCurve));
+	}
+
+	item->anim_curve.callback = ztInvalidID;
+	item->anim_curve.user_data = nullptr;
+	item->anim_curve.live_value = live_value;
+
+	item->functions.input_mouse = _zt_guiAnimCurveInputMouse_FunctionID;
+	item->functions.render = _zt_guiAnimCurveRender_FunctionID;
+	item->functions.cleanup = _zt_guiAnimCurveCleanup_FunctionID;
+
+	return item;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiAnimCurveSetCallback(ztGuiItem *anim_curve, ztFunctionID callback, void *user_data)
+{
+	zt_returnOnNull(anim_curve);
+	zt_assertReturnOnFail(anim_curve->type == ztGuiItemType_AnimCurve);
+
+	anim_curve->anim_curve.callback = callback;
+	anim_curve->anim_curve.user_data = user_data;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiAnimCurveSetLiveValue(ztGuiItem *anim_curve, ztColor *live_value)
+{
+	zt_returnOnNull(anim_curve);
+	zt_assertReturnOnFail(anim_curve->type == ztGuiItemType_AnimCurve);
+
+	anim_curve->color_picker.live_value = live_value;
+
+	if (live_value) {
+		anim_curve->color = *live_value;
+	}
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -12452,7 +12620,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonCancel, ZT_FUNC_GUI_BUTTON_P
 
 void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ztFunctionID callback, void *user_data, const char *window_title)
 {
-	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle /*| ztGuiWindowBehaviorFlags_Modal*/);
+	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
 	zt_guiItemSetSize(window, zt_vec2(8, 3));
 
 	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
@@ -12484,6 +12652,8 @@ void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, z
 	else {
 		zt_memCpy(&grad_editor->gradient, zt_sizeof(ztColorGradient2), gradient, zt_sizeof(ztColorGradient2));
 	}
+
+	zt_memCpy(&grad_editor->gradient_orig, zt_sizeof(ztColorGradient2), &grad_editor->gradient, zt_sizeof(ztColorGradient2));
 
 	{
 		int w = 32;
@@ -12591,6 +12761,703 @@ void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, z
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+struct ztGuiAnimCurveEditor
+{
+	ztAnimCurve    curve;
+	ztAnimCurve   *curve_val;
+	ztAnimCurve    curve_orig;
+
+	ztGuiItem     *ease_in_label;
+	ztGuiItem     *ease_in_combo;
+	ztGuiItem     *ease_out_label;
+	ztGuiItem     *ease_out_combo;
+
+	int            active_point;
+	int            active_control_point;
+
+	ztVec2         mpos_dragging;
+	bool           just_clicked;
+	ztVec2         add_point_at;
+	ztVec2         add_point_at_clicked;
+	bool           dragging_point;
+	ztVec2         dragging_point_offset;
+
+	i32            ac_behavior_flags;
+
+	ztFunctionID   callback;
+	void          *user_data;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplayAddKeyMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_animCurveDisplayAddKeyMenu))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	curve_editor->add_point_at = curve_editor->add_point_at_clicked;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputKeyboard, ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_animCurveDisplay_InputKeyboard))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	if (curve_editor->curve.type == ztAnimCurveType_Spline && curve_editor->active_point != -1 && input_keys[ztInputKeys_Delete].justPressed()) {
+		if (curve_editor->active_point != 0 && curve_editor->active_point != curve_editor->curve.segments_count) {
+			int debug_stop = 1;
+
+			// merge segment active_point - 1 with active_point
+			curve_editor->curve.segments[curve_editor->active_point - 1].pos_end = curve_editor->curve.segments[curve_editor->active_point].pos_end;
+			curve_editor->curve.segments[curve_editor->active_point - 1].control_point_end = curve_editor->curve.segments[curve_editor->active_point].control_point_end;
+
+			for (int i = curve_editor->active_point; i < curve_editor->curve.segments_count - 1; ++i) {
+				zt_memCpy(&curve_editor->curve.segments[i], zt_sizeof(ztAnimCurveSplineSegment), &curve_editor->curve.segments[i + 1], zt_sizeof(ztAnimCurveSplineSegment));
+			}
+			curve_editor->curve.segments_count -= 1;
+		}
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_animCurveDisplay_InputMouse))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	if (input_mouse->leftPressed()) {
+		curve_editor->just_clicked = input_mouse->leftJustPressed();
+		curve_editor->mpos_dragging = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+		return true;
+	}
+	else {
+		curve_editor->mpos_dragging = ztVec2::min;
+		curve_editor->active_control_point = -1;
+		curve_editor->dragging_point = false;
+	}
+
+	if (curve_editor->curve.type == ztAnimCurveType_Spline && input_mouse->rightJustReleased()) {
+		curve_editor->add_point_at_clicked = zt_cameraOrthoScreenToWorld(item->gm->gui_camera, input_mouse->screen_x, input_mouse->screen_y);
+		ztGuiItem *popup = zt_guiMakeMenu(nullptr);
+		zt_guiMenuAppend(popup, "Add Key Here", 0, curve_editor);
+		zt_guiMenuSetCallback(popup, _zt_animCurveDisplayAddKeyMenu_FunctionID);
+		zt_guiMenuPopupAtPosition(popup, curve_editor->add_point_at_clicked);
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDER(_zt_animCurveDisplay_Render))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	ztVec2 center = item->pos + offset;
+	zt_drawListAddSolidRect2D(draw_list, center, item->size, ztColor_DarkGray);
+
+	center.x += .125f;
+	ztVec2 size = item->size - zt_vec2(1, 1);
+
+	zt_drawListPushColor(draw_list, ztColor_DarkGray * zt_vec4(.75f, .75f, .75f, 1));
+	zt_drawListAddEmptyRect(draw_list, center, size);
+
+	r32 each_y = size.y / 4;
+	r32 vals[5] = { curve_editor->curve.val_max, curve_editor->curve.val_max / 2, 0, curve_editor->curve.val_max / -2, curve_editor->curve.val_max / -1 };
+	r32 start_y = center.y + size.y / 2;
+	zt_fyz(5) {
+		if (y != 0 && y != 4) {
+			zt_drawListAddLine(draw_list, zt_vec2(center.x - size.x / 2, start_y), zt_vec2(center.x + size.x / 2, start_y));
+		}
+		start_y -= each_y;
+	}
+	r32 each_x = size.x / 20;
+	r32 start_x = center.x - size.x / 2;
+	zt_fxz(21) {
+		if (x != 0 && x != 20) {
+			zt_drawListAddLine(draw_list, zt_vec2(start_x, center.y + size.y / 2), zt_vec2(start_x, center.y - size.y / 2));
+		}
+		start_x += each_x;
+	}
+
+	start_y = center.y + size.y / 2;
+	zt_fyz(5) {
+		char *format_spec = curve_editor->curve.val_max <= 1 ? "%.1f" : "%.0f";
+		zt_strMakePrintf(valstr, 8, format_spec, vals[y]);
+		zt_drawListAddText2D(draw_list, ztFontDefault, valstr, zt_vec2(center.x - ((size.x / 2) + padding * 2), start_y), ztAlign_Right, ztAnchor_Right);
+
+		start_y -= each_y;
+	}
+
+	start_x = center.x - size.x / 2;
+	zt_fxz(21) {
+		if (x % 2 == 0) {
+			zt_strMakePrintf(valstr, 8, "%.1f", x / 20.f);
+			zt_drawListAddText2D(draw_list, ztFontDefault, valstr, zt_vec2(start_x, center.y - ((size.y / 2) + padding * 2)), ztAlign_Top, ztAnchor_Top);
+		}
+		start_x += each_x;
+	}
+
+	zt_drawListPopColor(draw_list);
+
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_drawListPushColor(draw_list, ztColor_Green);
+
+	r32 val_beg = curve_editor->curve.val_beg / curve_editor->curve.val_max;
+	r32 val_end = curve_editor->curve.val_end / curve_editor->curve.val_max;
+
+	r32 radius = .05f;
+	ztVec2 beg_pnt = zt_vec2(center.x - size.x / 2, center.y + ((size.y / 2) * val_beg));
+	ztVec2 end_pnt = zt_vec2(center.x + size.x / 2, center.y + ((size.y / 2) * val_end));
+	zt_drawListAddSolidCircle2D(draw_list, beg_pnt, radius, 8, ztColor_Green);
+	zt_drawListAddSolidCircle2D(draw_list, end_pnt, radius, 8, ztColor_Green);
+
+	if (zt_bitIsSet(curve_editor->ac_behavior_flags, ztGuiAnimCurveBehaviorFlags_AdjustValues)) {
+		if (curve_editor->mpos_dragging != ztVec2::min && curve_editor->active_control_point == -1) {
+			if (curve_editor->just_clicked) {
+				if (zt_collisionPointInCircle(curve_editor->mpos_dragging, beg_pnt, .35f)) {
+					curve_editor->active_point = 0;
+					curve_editor->dragging_point_offset = curve_editor->mpos_dragging - beg_pnt;
+				}
+				if (zt_collisionPointInCircle(curve_editor->mpos_dragging, end_pnt, .35f)) {
+					curve_editor->active_point = 1;
+					curve_editor->dragging_point_offset = curve_editor->mpos_dragging - end_pnt;
+				}
+			}
+			else if (curve_editor->active_point == 0) {
+				zt_drawListAddEmptyCircle(draw_list, zt_vec3(beg_pnt, 0), radius * 2, 8);
+
+				ztVec2 diff = curve_editor->mpos_dragging - (beg_pnt + curve_editor->dragging_point_offset);
+				r32 pct = diff.y / (size.y * .5f);
+				curve_editor->curve.val_beg = zt_clamp(curve_editor->curve.val_beg + curve_editor->curve.val_max * pct, curve_editor->curve.val_max * -1, curve_editor->curve.val_max);
+			}
+			else if ((curve_editor->curve.type != ztAnimCurveType_Spline && curve_editor->active_point == 1) || (curve_editor->curve.type == ztAnimCurveType_Spline && curve_editor->active_point == curve_editor->curve.segments_count)) {
+				zt_drawListAddEmptyCircle(draw_list, zt_vec3(end_pnt, 0), radius * 2, 8);
+
+				ztVec2 diff = curve_editor->mpos_dragging - (end_pnt + curve_editor->dragging_point_offset);
+				r32 pct = diff.y / (size.y * .5f);
+				curve_editor->curve.val_end = zt_clamp(curve_editor->curve.val_end + curve_editor->curve.val_max * pct, curve_editor->curve.val_max * -1, curve_editor->curve.val_max);
+			}
+
+			if (curve_editor->curve.type == ztAnimCurveType_Spline) {
+				curve_editor->curve.segments[0].pos_beg.y = curve_editor->curve.val_beg;
+				curve_editor->curve.segments[curve_editor->curve.segments_count - 1].pos_end.y = curve_editor->curve.val_end;
+			}
+		}
+		else if (curve_editor->curve.type != ztAnimCurveType_Spline) {
+			curve_editor->active_point = -1;
+		}
+	}
+
+	switch (curve_editor->curve.type)
+	{
+		case ztAnimCurveType_Linear: {
+			zt_drawListAddLine(draw_list, beg_pnt, end_pnt);
+		} break;
+
+		case ztAnimCurveType_EaseIn: {
+			ztTweenEase_Func *ease_in = zt_animCurveFindEaseFunction(curve_editor->curve.ease_in);
+
+			r32 seg_w = size.x / 100;
+			r32 prev_y = beg_pnt.y;
+			r32 start_x = center.x - size.x / 2;
+
+			zt_fiz(100) {
+				r32 y = zt_lerp(beg_pnt.y, end_pnt.y, ease_in((i + 1) / 100.f, nullptr));
+
+				zt_drawListAddLine(draw_list, zt_vec2(start_x + i * seg_w, prev_y), zt_vec2(start_x + (i + 1) * seg_w, y));
+				prev_y = y;
+			}
+		} break;
+
+		case ztAnimCurveType_EaseOut: {
+			ztTweenEase_Func *ease_out = zt_animCurveFindEaseFunction(curve_editor->curve.ease_out);
+
+			r32 seg_w = size.x / 100;
+			r32 prev_y = beg_pnt.y;
+			r32 start_x = center.x - size.x / 2;
+
+			zt_fiz(100) {
+				r32 y = zt_lerp(end_pnt.y, beg_pnt.y, ease_out(1 - ((i + 1) / 100.f), nullptr));
+
+				zt_drawListAddLine(draw_list, zt_vec2(start_x + i * seg_w, prev_y), zt_vec2(start_x + (i + 1) * seg_w, y));
+				prev_y = y;
+			}
+		} break;
+
+		case ztAnimCurveType_EaseInOut: {
+			ztTweenEase_Func *ease_in = zt_animCurveFindEaseFunction(curve_editor->curve.ease_in);
+			ztTweenEase_Func *ease_out = zt_animCurveFindEaseFunction(curve_editor->curve.ease_out);
+
+			r32 seg_w = size.x / 100;
+			r32 prev_y = beg_pnt.y;
+			r32 start_x = center.x - size.x / 2;
+
+			zt_fiz(100) {
+				r32 y = zt_tweenValue(beg_pnt.y, end_pnt.y, (i + 1) / 100.f, ease_in, ease_out);
+
+				zt_drawListAddLine(draw_list, zt_vec2(start_x + i * seg_w, prev_y), zt_vec2(start_x + (i + 1) * seg_w, y));
+				prev_y = y;
+			}
+		} break;
+
+		case ztAnimCurveType_Spline: {
+			if (curve_editor->add_point_at != ztVec2::min) {
+				if (curve_editor->curve.segments_count < zt_elementsOf(curve_editor->curve.segments)) {
+					r32 x = (curve_editor->add_point_at.x - (center.x - size.x / 2)) / size.x;
+					r32 y = (curve_editor->add_point_at.x - (center.x - size.x / 2)) / size.x;
+
+					zt_fiz(curve_editor->curve.segments_count) {
+						ztAnimCurveSplineSegment *segment = &curve_editor->curve.segments[i];
+						if (x < segment->pos_end.x) {
+							for (int j = curve_editor->curve.segments_count - 1; j >= i; --j) {
+								curve_editor->curve.segments[j + 1].pos_beg = curve_editor->curve.segments[j].pos_beg;
+								curve_editor->curve.segments[j + 1].pos_end = curve_editor->curve.segments[j].pos_end;
+								curve_editor->curve.segments[j + 1].control_point_beg = curve_editor->curve.segments[j].control_point_beg;
+								curve_editor->curve.segments[j + 1].control_point_end = curve_editor->curve.segments[j].control_point_end;
+							}
+
+							curve_editor->curve.segments[i].pos_end = zt_vec2(x, y);
+							curve_editor->curve.segments[i + 1].pos_beg = zt_vec2(x, y);
+
+							curve_editor->curve.segments[i].control_point_end = zt_vec2(-.5f, -2.f);
+							curve_editor->curve.segments[i + 1].control_point_beg = zt_vec2(.5f, 2.f);
+
+							curve_editor->curve.segments_count += 1;
+							break;
+						}
+					}
+				}
+				curve_editor->add_point_at = ztVec2::min;
+			}
+
+
+			if (curve_editor->mpos_dragging != ztVec2::min) {
+				curve_editor->mpos_dragging.x = zt_clamp(curve_editor->mpos_dragging.x, (offset.x + item->pos.x) - ((item->size.x / 2) - padding * 2), (offset.x + item->pos.x) + ((item->size.x / 2) - padding * 2));
+				curve_editor->mpos_dragging.y = zt_clamp(curve_editor->mpos_dragging.y, (offset.y + item->pos.y) - ((item->size.y / 2) - padding * 2), (offset.y + item->pos.y) + ((item->size.y / 2) - padding * 2));
+			}
+
+			ztAnimCurveSplineSegment segment_absolutes[zt_elementsOf(curve_editor->curve.segments)];
+
+			const r32 control_point_resize = .15f;
+
+			zt_fiz(curve_editor->curve.segments_count) {
+				ztAnimCurveSplineSegment *segment = &curve_editor->curve.segments[i];
+				segment_absolutes[i].pos_beg = zt_vec2(center.x - size.x / 2 + (segment->pos_beg.x * size.x), center.y + (segment->pos_beg.y * (size.y * .5f)));
+				segment_absolutes[i].pos_end = zt_vec2(center.x - size.x / 2 + (segment->pos_end.x * size.x), center.y + (segment->pos_end.y * (size.y * .5f)));
+
+				segment_absolutes[i].control_point_beg = segment_absolutes[i].pos_beg + (segment->control_point_beg * control_point_resize) * zt_vec2(size.x, size.y * .5f);
+				segment_absolutes[i].control_point_end = segment_absolutes[i].pos_end + (segment->control_point_end * control_point_resize) * zt_vec2(size.x, size.y * .5f);
+			}
+
+			int current_point = 0;
+			bool clicked_in_point = false;
+			zt_fiz(curve_editor->curve.segments_count) {
+				ztAnimCurveSplineSegment *segment = &curve_editor->curve.segments[i];
+				ztVec2 beg = segment_absolutes[i].pos_beg;
+				ztVec2 end = segment_absolutes[i].pos_end;
+
+				r32 radius = .035f;
+				zt_drawListAddSolidCircle2D(draw_list, beg, radius, 8, ztColor_Green);
+				if (curve_editor->active_point == current_point) {
+					zt_drawListAddEmptyCircle(draw_list, zt_vec3(beg, 0), radius * 3, 8);
+				}
+				zt_drawListAddSolidCircle2D(draw_list, end, radius, 8, ztColor_Green);
+				if (curve_editor->active_point == current_point + 1) {
+					zt_drawListAddEmptyCircle(draw_list, zt_vec3(end, 0), radius * 3, 8);
+				}
+
+				radius *= 3.f;
+				if (curve_editor->just_clicked) {
+					if (zt_collisionPointInCircle(curve_editor->mpos_dragging, beg, radius)) {
+						curve_editor->active_point = current_point;
+						curve_editor->active_control_point = -1;
+						curve_editor->dragging_point = true;
+						curve_editor->dragging_point_offset = curve_editor->mpos_dragging - beg;
+						clicked_in_point = true;
+					}
+				}
+				else if (curve_editor->mpos_dragging != ztVec2::min && curve_editor->dragging_point && curve_editor->active_point == current_point && i != 0 && zt_collisionPointInRect(curve_editor->mpos_dragging, center, size)) {
+					ztVec2 diff = (curve_editor->mpos_dragging - curve_editor->dragging_point_offset) - beg;
+
+					if (segment_absolutes[i - 1].control_point_end.x + diff.x < segment_absolutes[i - 1].control_point_beg.x) {
+						diff.x = 0;
+					}
+					if (segment_absolutes[i].control_point_beg.x + diff.x > segment_absolutes[i].control_point_end.x) {
+						diff.x = 0;
+					}
+
+					diff.x /= size.x;
+					diff.y /= size.y * .5f;
+					curve_editor->curve.segments[i].pos_beg += diff;
+					curve_editor->curve.segments[i - 1].pos_end += diff;
+				}
+				current_point += 1;
+
+				if (curve_editor->just_clicked) {
+					if (zt_collisionPointInCircle(curve_editor->mpos_dragging, end, radius)) {
+						curve_editor->active_point = current_point;
+						curve_editor->active_control_point = -1;
+						curve_editor->dragging_point = true;
+						clicked_in_point = true;
+					}
+				}
+
+				radius = .065f;
+
+				if (curve_editor->active_point == current_point - 1 && curve_editor->active_control_point == 0) {
+					ztVec2 mpos = curve_editor->mpos_dragging;
+					r32 bounds_x = segment_absolutes[i].control_point_end.x;
+
+					if (i > 0) {
+						r32 diff = beg.x - segment_absolutes[i - 1].control_point_beg.x;
+						if (diff < bounds_x - segment_absolutes[i].pos_beg.x) {
+							bounds_x = segment_absolutes[i].pos_beg.x + diff;
+						}
+					}
+
+					if (mpos.x > bounds_x) {
+						mpos.x = bounds_x;
+					}
+
+					ztVec2 diff = (mpos - beg);
+					diff.x /= size.x;
+					diff.y /= size.y * .5f;
+
+					if (diff.x < 0) {
+						diff.x = 0;
+					}
+					diff *= 1 / control_point_resize;
+					segment->control_point_beg = diff;// *dist;
+
+
+					if (i > 0) {
+						curve_editor->curve.segments[i - 1].control_point_end = diff * -1;
+					}
+				}
+				if (curve_editor->active_point == current_point - 1) {
+					ztVec2 beg_cp_vis = segment_absolutes[i].control_point_beg;
+					zt_drawListPushColor(draw_list, ztColor_White);
+					zt_drawListAddLine(draw_list, beg, beg_cp_vis);
+					zt_drawListPopColor(draw_list);
+					zt_drawListAddSolidCircle2D(draw_list, beg_cp_vis, radius, 8, ztColor_Cyan);
+
+					if (curve_editor->just_clicked && zt_collisionPointInCircle(curve_editor->mpos_dragging, beg_cp_vis, radius * 3)) {
+						curve_editor->active_control_point = 0;
+						clicked_in_point = true;
+					}
+				}
+
+				if (curve_editor->active_point == current_point - 0 && curve_editor->active_control_point == 1) {
+					ztVec2 mpos = curve_editor->mpos_dragging;
+					r32 bounds_x = segment_absolutes[i].control_point_beg.x;
+					if (i < curve_editor->curve.segments_count - 1) {
+						r32 diff = segment_absolutes[i + 1].control_point_end.x - end.x;
+						if (diff < segment_absolutes[i].pos_end.x - bounds_x) {
+							bounds_x = segment_absolutes[i].pos_end.x - diff;
+						}
+					}
+					if (mpos.x < bounds_x) {
+						mpos.x = bounds_x;
+					}
+
+					ztVec2 diff = (mpos - end);
+					diff.x /= size.x;
+					diff.y /= size.y * .5f;
+
+					if (diff.x > 0) {
+						diff.x = 0;
+					}
+					diff *= 1 / control_point_resize;
+					segment->control_point_end = diff;// *dist;
+
+					if (i < curve_editor->curve.segments_count - 1) {
+						curve_editor->curve.segments[i + 1].control_point_beg = diff * -1;
+					}
+
+				}
+				if (curve_editor->active_point == current_point - 0) {
+					ztVec2 end_cp_vis = segment_absolutes[i].control_point_end;
+					zt_drawListPushColor(draw_list, ztColor_White);
+					zt_drawListAddLine(draw_list, end, end_cp_vis);
+					zt_drawListPopColor(draw_list);
+					zt_drawListAddSolidCircle2D(draw_list, end_cp_vis, radius, 8, ztColor_Cyan);
+
+					if (curve_editor->just_clicked && zt_collisionPointInCircle(curve_editor->mpos_dragging, end_cp_vis, radius * 3)) {
+						curve_editor->active_control_point = 1;
+						clicked_in_point = true;
+					}
+				}
+
+				ztVec2 beg_cp = beg + (segment->control_point_beg * .25f) * zt_vec2(size.x, size.y * .5f);
+				ztVec2 end_cp = end + (segment->control_point_end * .25f) * zt_vec2(size.x, size.y * .5f);
+
+				zt_drawListAddBezierCurve(draw_list, beg, end, beg_cp, end_cp, 100);
+			}
+
+			if (curve_editor->just_clicked && !clicked_in_point) {
+				curve_editor->active_point = -1;
+			}
+		} break;
+	}
+
+	zt_drawListPopColor(draw_list);
+	zt_drawListPopTexture(draw_list);
+
+	curve_editor->just_clicked = false;
+
+	if (curve_editor->curve_val && zt_bitIsSet(curve_editor->ac_behavior_flags, ztGuiGradientPickerBehaviorFlags_LiveEdit) && 0 != zt_memCmp(curve_editor->curve_val, &curve_editor->curve, zt_sizeof(ztAnimCurve))) {
+		zt_memCpy(curve_editor->curve_val, zt_sizeof(ztAnimCurve), &curve_editor->curve, zt_sizeof(ztAnimCurve));
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_animCurveUpdateGui(ztGuiAnimCurveEditor *curve_editor)
+{
+	zt_guiItemShow(curve_editor->ease_in_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
+	zt_guiItemShow(curve_editor->ease_in_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
+	zt_guiItemShow(curve_editor->ease_out_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
+	zt_guiItemShow(curve_editor->ease_out_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
+
+	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn) {
+		zt_guiComboBoxSetSelected(curve_editor->ease_in_combo, curve_editor->curve.ease_in);
+	}
+	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut) {
+		zt_guiComboBoxSetSelected(curve_editor->ease_out_combo, curve_editor->curve.ease_out);
+	}
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(curve_editor->ease_in_combo));
+
+	curve_editor->active_point = -1;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveComboType))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	switch (selected)
+	{
+		case ztAnimCurveType_Linear: {
+			curve_editor->curve.type = ztAnimCurveType_Linear;
+		} break;
+
+		case ztAnimCurveType_EaseIn: {
+			curve_editor->curve.type = ztAnimCurveType_EaseIn;
+			curve_editor->curve.ease_in = ztAnimCurveEaseType_Linear;
+		} break;
+
+		case ztAnimCurveType_EaseOut: {
+			curve_editor->curve.type = ztAnimCurveType_EaseOut;
+			curve_editor->curve.ease_out = ztAnimCurveEaseType_Linear;
+		} break;
+
+		case ztAnimCurveType_EaseInOut: {
+			curve_editor->curve.type = ztAnimCurveType_EaseInOut;
+			curve_editor->curve.ease_in = ztAnimCurveEaseType_Linear;
+			curve_editor->curve.ease_out = ztAnimCurveEaseType_Linear;
+		} break;
+
+		case ztAnimCurveType_Spline: {
+			curve_editor->curve.type = ztAnimCurveType_Spline;
+
+			curve_editor->curve.segments_count = 0;
+			ztAnimCurveSplineSegment *segment = &curve_editor->curve.segments[curve_editor->curve.segments_count++];
+
+			segment->pos_beg = zt_vec2(0, curve_editor->curve.val_beg);
+			segment->pos_end = zt_vec2(1, curve_editor->curve.val_end);
+
+			segment->control_point_beg = zt_vec2(.5f, .5f).getNormal();
+			segment->control_point_end = zt_vec2(-.5f, .0f).getNormal();
+		} break;
+	}
+
+	_zt_animCurveUpdateGui(curve_editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveEaseComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveEaseComboType))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	if (combobox == curve_editor->ease_in_combo) {
+		curve_editor->curve.ease_in = (ztAnimCurveEaseType_Enum)selected;
+	}
+	else if (combobox == curve_editor->ease_out_combo) {
+		curve_editor->curve.ease_out = (ztAnimCurveEaseType_Enum)selected;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonOk))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	if (curve_editor->curve_val) {
+		zt_memCpy(curve_editor->curve_val, zt_sizeof(ztAnimCurve), &curve_editor->curve, zt_sizeof(ztAnimCurve));
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+
+	if (curve_editor->callback != ztInvalidID) {
+		((zt_guiDialogAnimCurveEditorComplete_Func*)zt_functionPointer(curve_editor->callback))(&curve_editor->curve, curve_editor->user_data);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonCancel))
+{
+	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
+
+	if (curve_editor->curve_val && zt_bitIsSet(curve_editor->ac_behavior_flags, ztGuiGradientPickerBehaviorFlags_LiveEdit)) {
+		zt_memCpy(curve_editor->curve_val, zt_sizeof(ztAnimCurve), &curve_editor->curve_orig, zt_sizeof(ztAnimCurve));
+	}
+
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ztFunctionID callback, void *user_data, const char *window_title)
+{
+	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
+
+	zt_guiItemSetSize(window, zt_vec2(8, 5));
+
+	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	ztGuiAnimCurveEditor *curve_editor = zt_mallocStructArena(ztGuiAnimCurveEditor, window->gm->arena);
+
+	curve_editor->mpos_dragging = ztVec2::min;
+	curve_editor->just_clicked = false;
+	curve_editor->add_point_at = ztVec2::min;
+	curve_editor->dragging_point = false;
+	curve_editor->curve_val = curve;
+	curve_editor->ac_behavior_flags = behavior_flags;
+	curve_editor->callback = callback;
+	curve_editor->user_data = user_data;
+
+	if (curve == nullptr) {
+		curve_editor->curve.type = ztAnimCurveType_Linear;
+		curve_editor->curve.val_max = 1;
+	}
+	else {
+		zt_memCpy(&curve_editor->curve, zt_sizeof(ztAnimCurve), curve, zt_sizeof(ztAnimCurve));
+	}
+
+	zt_memCpy(&curve_editor->curve_orig, zt_sizeof(ztAnimCurve), &curve_editor->curve, zt_sizeof(ztAnimCurve));
+
+	{
+		ztGuiItem *combo_type = zt_guiMakeComboBox(sizer, ztAnimCurveType_MAX);
+		zt_guiComboBoxAppend(combo_type, "Linear");
+		zt_guiComboBoxAppend(combo_type, "Ease In");
+		zt_guiComboBoxAppend(combo_type, "Ease Out");
+		zt_guiComboBoxAppend(combo_type, "Ease In/Out");
+		zt_guiComboBoxAppend(combo_type, "Spline");
+		zt_guiComboBoxSetCallback(combo_type, _zt_animCurveComboType_FunctionID, curve_editor);
+		zt_guiComboBoxSetSelected(combo_type, curve_editor->curve.type);
+
+		ztGuiItem *type_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, type_sizer, 0, 0);
+
+		zt_guiSizerAddItem(type_sizer, zt_guiMakeStaticText(type_sizer, "Curve Type:"), 0, padding);
+		zt_guiSizerAddItem(type_sizer, combo_type, 0, padding);
+
+		ztGuiItem *lbl_ease_in = zt_guiMakeStaticText(type_sizer, "Ease In:");
+		ztGuiItem *combo_ease_in = zt_guiMakeComboBox(type_sizer, ztAnimCurveEaseType_MAX);
+		zt_guiComboBoxSetCallback(combo_ease_in, _zt_animCurveEaseComboType_FunctionID, curve_editor);
+
+		ztGuiItem *lbl_ease_out = zt_guiMakeStaticText(type_sizer, "Ease Out:");
+		ztGuiItem *combo_ease_out = zt_guiMakeComboBox(type_sizer, ztAnimCurveEaseType_MAX);
+		zt_guiComboBoxSetCallback(combo_ease_out, _zt_animCurveEaseComboType_FunctionID, curve_editor);
+
+		const char *ease_names[] = {
+			"Linear",
+			"Back",
+			"Bounce",
+			"Circ",
+			"Cubic",
+			"Elastic",
+			"Expo",
+			"Quad",
+			"Quart",
+			"Quint",
+			"Sine",
+		};
+
+		zt_fize(ease_names) {
+			zt_guiComboBoxAppend(combo_ease_in, ease_names[i]);
+			zt_guiComboBoxAppend(combo_ease_out, ease_names[i]);
+		}
+
+		if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn) {
+			zt_guiComboBoxSetSelected(combo_ease_in, curve_editor->curve.ease_in);
+		}
+		if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut) {
+			zt_guiComboBoxSetSelected(combo_ease_out, curve_editor->curve.ease_out);
+		}
+
+		curve_editor->ease_in_label = lbl_ease_in;
+		curve_editor->ease_in_combo = combo_ease_in;
+		curve_editor->ease_out_label = lbl_ease_out;
+		curve_editor->ease_out_combo = combo_ease_out;
+
+		zt_guiSizerAddStretcher(type_sizer, 1);
+		zt_guiSizerAddItem(type_sizer, lbl_ease_in, 0, padding);
+		zt_guiSizerAddItem(type_sizer, combo_ease_in, 0, padding);
+		zt_guiSizerAddItem(type_sizer, lbl_ease_out, 0, padding);
+		zt_guiSizerAddItem(type_sizer, combo_ease_out, 0, padding);
+	}
+
+	{
+		ztGuiItem *main_panel = zt_guiMakePanel(sizer, ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_ClipContents, curve_editor, window->gm->arena);
+		zt_guiSizerAddItem(sizer, main_panel, 1, padding);
+
+		main_panel->functions.input_mouse = _zt_animCurveDisplay_InputMouse_FunctionID;
+		main_panel->functions.input_key = _zt_animCurveDisplay_InputKeyboard_FunctionID;
+		main_panel->functions.render = _zt_animCurveDisplay_Render_FunctionID;
+		main_panel->functions.user_data = curve_editor;
+	}
+
+
+	{
+		ztGuiItem *sizer_btns = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_btns, 0, 0);
+		zt_guiSizerAddStretcher(sizer_btns, 1);
+
+		ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
+		zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+		zt_guiButtonSetCallback(button_ok, _zt_animCurveButtonOk_FunctionID, curve_editor);
+		button_ok->size.x *= 2;
+		zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
+
+		ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
+		zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+		zt_guiButtonSetCallback(button_cancel, _zt_animCurveButtonCancel_FunctionID, curve_editor);
+		button_cancel->size.x *= 2;
+		zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
+
+		zt_guiSizerAddStretcher(sizer_btns, 1);
+	}
+
+	_zt_animCurveUpdateGui(curve_editor);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void zt_guiItemFree(ztGuiItem *item)
 {
