@@ -1814,9 +1814,11 @@ struct ztDrawCommand
 		};
 
 		struct {
-			ztVec2 clip_center;
-			ztVec2 clip_size;
-			int    clip_idx;
+			ztVec2         clip_center;
+			ztVec2         clip_size;
+			int            clip_idx;
+			ztDrawCommand *clip_prev;
+			bool           clip_pop;
 		};
 
 		struct {
@@ -1837,7 +1839,9 @@ struct ztDrawCommand
 			ztVec3 billboard_center;
 			ztVec2 billboard_size;
 			ztVec4 billboard_uv;
+			ztVec3 billboard_up;
 			i32    billboard_flags;
+			r32    billboard_rotation;
 		};
 
 		struct {
@@ -1871,6 +1875,8 @@ struct ztDrawList
 	i32 commands_count;
 
 	i32 flags;
+
+	ztDrawCommand *current_clip;
 
 	ztMemoryArena *arena;
 
@@ -1925,8 +1931,10 @@ bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2 &pos_
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color);
 bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
 bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
-bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags = ztDrawCommandBillboardFlags_AxisAll);
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags = ztDrawCommandBillboardFlags_AxisAll, ztVec3 up = zt_vec3(0,1,0));
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, r32 rotation, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags = ztDrawCommandBillboardFlags_AxisAll, ztVec3 up = zt_vec3(0, 1, 0));
 bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVec2 *uvs, const ztVec3 *normals, int count);
+bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVec2 *uvs, const ztVec3 *normals, ztVec4 *colors, int count);
 bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add, const ztVec3 &offset = ztVec3::zero);
 
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum);
@@ -2336,11 +2344,12 @@ struct ztSpriteManager
 };
 
 
-void               zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites);
-bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
-bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
-bool               zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial);
-void               zt_spriteManagerFree(ztSpriteManager *sprite_manager);
+void               zt_spriteManagerMake    (ztSpriteManager *sprite_manager, int max_sprites);
+bool               zt_spriteManagerLoad    (ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
+bool               zt_spriteManagerLoad    (ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
+bool               zt_spriteManagerLoadAll (ztSpriteManager *sprite_manager); // loads all .spr files from the data/textures directory
+bool               zt_spriteManagerSave    (ztSpriteManager *sprite_manager, ztSerial *serial);
+void               zt_spriteManagerFree    (ztSpriteManager *sprite_manager, bool should_free_textures = false);
 
 void               zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name);
 void               zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name);
@@ -2350,6 +2359,7 @@ ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i3
 ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, char *name);
 ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash);
 
+i32                zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite);
 
 // ================================================================================================================================================================================================
 // physics
@@ -2963,7 +2973,7 @@ enum ztAnimCurveEaseType_Enum
 // ================================================================================================================================================================================================
 
 #ifndef ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS
-#define ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS   8
+#define ZT_ANIM_CURVE_SPLINE_MAX_SEGMENTS   16
 #endif
 
 // ================================================================================================================================================================================================
@@ -3004,6 +3014,10 @@ struct ztAnimCurve
 
 ztTweenEase_Func *zt_animCurveFindEaseFunction  (ztAnimCurveEaseType_Enum type);
 r32               zt_animCurveGetValue          (ztAnimCurve *curve, r32 percent);
+
+bool              zt_serialRead                 (ztSerial *serial, ztAnimCurve *curve);
+bool              zt_serialWrite                (ztSerial *serial, ztAnimCurve *curve);
+
 
 // ================================================================================================================================================================================================
 // ztAnimKey
@@ -3266,6 +3280,10 @@ void    zt_colorGradientGetValue(ztColorGradient2 *gradient, r32 location, ztCol
 int     zt_colorGradientGetColors(ztColorGradient2 *gradient, ztColor *colors, r32 *locations, int colors_count);
 
 bool    zt_colorGradientIsEqual(ztColorGradient2 *grad1, ztColorGradient2 *grad2);
+
+bool    zt_serialRead(ztSerial *serial, ztColorGradient2 *gradient);
+bool    zt_serialWrite(ztSerial *serial, ztColorGradient2 *gradient);
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -6725,6 +6743,7 @@ bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemor
 	draw_list->commands_size = max_commands;
 	draw_list->commands_count = 0;
 	draw_list->flags = flags;
+	draw_list->current_clip = nullptr;
 	draw_list->arena = arena;
 
 	zt_debugOnly(draw_list->active_shaders = draw_list->active_textures = 0);
@@ -7384,7 +7403,14 @@ bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec3 &po
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags)
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags, ztVec3 up)
+{
+	return zt_drawListAddBillboard(draw_list, pos_ctr, size, 0, uv_nw, uv_se, flags, up);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, r32 rotation, const ztVec2 &uv_nw, const ztVec2 &uv_se, i32 flags, ztVec3 up)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddBillboard");
 	_zt_drawListCheck(draw_list);
@@ -7398,6 +7424,8 @@ bool zt_drawListAddBillboard(ztDrawList *draw_list, const ztVec3 &pos_ctr, const
 	command->billboard_size = size;
 	command->billboard_uv = zt_vec4(uv_nw, uv_se);
 	command->billboard_flags = flags;
+	command->billboard_rotation = rotation;
+	command->billboard_up = up;
 
 	return true;
 }
@@ -7411,7 +7439,7 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVe
 
 	zt_fjz(count - 2) {
 		_zt_drawListCheck(draw_list);
-		auto *command = & draw_list->commands[draw_list->commands_count++];
+		auto *command = &draw_list->commands[draw_list->commands_count++];
 
 		command->type = ztDrawCommandType_Triangle;
 
@@ -7430,6 +7458,39 @@ bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVe
 		command->tri_color[0] = ztColor_White;
 		command->tri_color[1] = ztColor_White;
 		command->tri_color[2] = ztColor_White;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledPoly(ztDrawList *draw_list, const ztVec3 *p, const ztVec2 *uvs, const ztVec3 *normals, ztVec4 *colors, int count)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddFilledPoly");
+	_zt_drawListVerifyTexture(draw_list);
+
+	zt_fjz(count - 2) {
+		_zt_drawListCheck(draw_list);
+		auto *command = &draw_list->commands[draw_list->commands_count++];
+
+		command->type = ztDrawCommandType_Triangle;
+
+		command->tri_pos[0] = p[0];
+		command->tri_pos[1] = p[1 + j];
+		command->tri_pos[2] = p[2 + j];
+
+		command->tri_uv[0] = uvs[0];
+		command->tri_uv[1] = uvs[1 + j];
+		command->tri_uv[2] = uvs[2 + j];
+
+		command->tri_norm[0] = normals[0];
+		command->tri_norm[1] = normals[1 + j];
+		command->tri_norm[2] = normals[2 + j];
+
+		command->tri_color[0] = colors[0];
+		command->tri_color[1] = colors[1 + j];
+		command->tri_color[2] = colors[2 + j];
 	}
 
 	return true;
@@ -7870,12 +7931,39 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 
 	auto *command = &draw_list->commands[draw_list->commands_count++];
 
+	if (draw_list->current_clip) {
+		// clip the given rect to the current clip area
+
+		ztVec2 curr_ext_min = zt_vec2(draw_list->current_clip->clip_center.x - draw_list->current_clip->clip_size.x / 2, draw_list->current_clip->clip_center.y - draw_list->current_clip->clip_size.y / 2);
+		ztVec2 curr_ext_max = zt_vec2(draw_list->current_clip->clip_center.x + draw_list->current_clip->clip_size.x / 2, draw_list->current_clip->clip_center.y + draw_list->current_clip->clip_size.y / 2);
+
+		r32 left = zt_max(curr_ext_min.x, center.x + size.x / -2);
+		r32 right = zt_min(curr_ext_max.x, center.x + size.x / 2);
+		r32 bottom = zt_max(curr_ext_min.y, center.y + size.y / -2);
+		r32 top = zt_min(curr_ext_max.y, center.y + size.y / 2);
+
+		size.x = right - left;
+		size.y = top - bottom;
+
+		center.x = left + size.x / 2;
+		center.y = bottom + size.y / 2;
+
+		if(size.x <= 0 || size.y <= 0) {
+			center = draw_list->current_clip->clip_center;
+			size = draw_list->current_clip->clip_size;
+		}
+	}
+
 	command->type = ztDrawCommandType_ChangeClipping;
 	command->clip_center = center;
 	command->clip_size = size;
 	command->clip_idx = 0;
+	command->clip_prev = draw_list->current_clip;
+	command->clip_pop = false;
 
 	zt_assert(command->clip_size.x > 0 && command->clip_size.y > 0);
+
+	draw_list->current_clip = command;
 
 	r32 ppu = zt_pixelsPerUnit();
 
@@ -7910,6 +7998,15 @@ bool zt_drawListPopClipRegion(ztDrawList *draw_list)
 	command->clip_center = ztVec2::zero;
 	command->clip_size = ztVec2::zero;
 	command->clip_idx = 0;
+	command->clip_prev = nullptr;
+	command->clip_pop = true;
+
+	zt_assertReturnValOnFail(draw_list->current_clip != nullptr, false);
+	if (draw_list->current_clip->clip_prev != nullptr) {
+		command->clip_center = draw_list->current_clip->clip_prev->clip_center;
+		command->clip_size = draw_list->current_clip->clip_prev->clip_size;
+	}
+	draw_list->current_clip = draw_list->current_clip->clip_prev;
 
 #	if 0
 	zt_fizr(draw_list->commands_count - 2) {
@@ -8177,7 +8274,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		ztDrawList *draw_list = draw_lists[i];
 		zt_assert(draw_list);
 		zt_fjz(draw_list->commands_count) {
-			if (draw_list->commands[j].type == ztDrawCommandType_ChangeClipping && draw_list->commands[j].clip_size != ztVec2::zero) {
+			if (draw_list->commands[j].type == ztDrawCommandType_ChangeClipping && draw_list->commands[j].clip_pop == false) {
 				clip_regions_count += 1;
 			}
 		}
@@ -8199,7 +8296,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			zt_assert(draw_list);
 			zt_fjz(draw_list->commands_count) {
 				if (draw_list->commands[j].type == ztDrawCommandType_ChangeClipping) {
-					if (draw_list->commands[j].clip_size != ztVec2::zero) {
+					if (draw_list->commands[j].clip_pop != true) {
 						clip_stack[++clip_stack_idx] = clip_regions_count;
 						clip_regions[clip_regions_count].command = &draw_list->commands[j];
 						clip_regions_count += 1;
@@ -8505,6 +8602,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	};
 
 	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+		// process non-shader commands first
+		mem = local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, mem_left, &shaders[shaders_count++], clip_regions);
+
 		zt_fiz(draw_lists_count) {
 			ztDrawList *draw_list = draw_lists[i];
 			zt_assert(draw_list != nullptr);
@@ -8523,9 +8623,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 			}
 		}
-
-		// process non-shader commands last
-		local::processForShader(camera, draw_lists, draw_lists_count, flags, ztInvalidID, mem, mem_left, &shaders[shaders_count++], clip_regions);
 	}
 	else {
 		// there's no depth testing, so we just display everything as it came in
@@ -8845,7 +8942,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
 			ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
-			ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LESS));
+			ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LEQUAL));
 		}
 		else {
 			ztgl_callAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
@@ -8884,9 +8981,14 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
 			}
 			else {
-				if (shaders[i]->texture && shaders[i]->texture->command == nullptr && shaders[i]->texture->cnt_display_items > 0) {
-					ztgl_textureBind(zt_game->textures[0].gl_texture, 0);
-				}
+				zt_game->game_details.curr_frame.shader_switches += 1;
+				ztShaderID sid = zt_shaderGetDefault(ztShaderDefault_Solid);
+				zt_shaderBegin(sid);
+				zt_shaderSetVariableMat4(sid, zt_strHash("model"), ztMat4::identity);
+				zt_shaderSetCameraMatrices(sid, camera->mat_proj, camera->mat_view);
+
+				ztgl_textureBind(zt_game->textures[0].gl_texture, 0);
+
 				glColor4fv(ztVec4::one.values);
 
 				mat2d = camera->mat_proj * camera->mat_view;
@@ -8958,7 +9060,18 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							} break;
 
-							case ztDrawCommandType_Line:
+							case ztDrawCommandType_Line: {
+								ztVertexEntryGL entries[] = {
+									{ GL_FLOAT, 3 * sizeof(GLfloat) },
+									{ GL_FLOAT, 2 * sizeof(GLfloat) },
+									{ GL_FLOAT, 3 * sizeof(GLfloat) },
+									{ GL_FLOAT, 4 * sizeof(GLfloat) },
+								};
+
+								ztgl_drawVertices(GL_LINES, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+								zt_game->game_details.curr_frame.draw_calls += 1;
+							} break;
+
 							case ztDrawCommandType_Point: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
 								zt_game->game_details.curr_frame.draw_calls += 1;
@@ -8977,19 +9090,20 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							case ztDrawCommandType_Line: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l");
-								if (cam->type == ztCameraType_Perspective) {
-									ztgl_callAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
-									ztgl_callAndReportOnErrorFast(glPushMatrix());
-									glLoadMatrixf(mat->values);
-								}
-								else {
-									ztgl_callAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
-									ztgl_callAndReportOnErrorFast(glPushMatrix());
-									ztgl_callAndReportOnErrorFast(glLoadIdentity());
-								}
-								ztgl_callAndReportOnErrorFast(glLineWidth(1));
-								glColor4fv(active_color.values);
-								glBegin(GL_LINES);
+								//if (cam->type == ztCameraType_Perspective) {
+								//	ztgl_callAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
+								//	ztgl_callAndReportOnErrorFast(glPushMatrix());
+								//	glLoadMatrixf(mat->values);
+								//}
+								//else {
+								//	ztgl_callAndReportOnErrorFast(glMatrixMode(GL_MODELVIEW));
+								//	ztgl_callAndReportOnErrorFast(glPushMatrix());
+								//	ztgl_callAndReportOnErrorFast(glLoadIdentity());
+								//}
+								//ztgl_callAndReportOnErrorFast(glLineWidth(1));
+								//glColor4fv(active_color.values);
+								//glBegin(GL_LINES);
+								buffer->vertices_count = 0;
 							} break;
 
 							case ztDrawCommandType_Point: {
@@ -9128,8 +9242,15 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisY)) pos_lookat.y = cmp_item->command->billboard_center.y;
 							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisZ)) pos_lookat.z = cmp_item->command->billboard_center.z;
 
-							ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, cmp_item->command->billboard_center).getInverse();
+							ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, cmp_item->command->billboard_center, cmp_item->command->billboard_up).getInverse();
 							mat.values[ztMat4_Col3Row0] = mat.values[ztMat4_Col3Row1] = mat.values[ztMat4_Col3Row2] = 0; // remove translation
+
+							if (cmp_item->command->billboard_rotation != 0) {
+								ztQuat quat = ztQuat::makeFromEuler(0, 0, cmp_item->command->billboard_rotation);
+								zt_fiz(4) {
+									quat.rotatePosition(&p[i]);
+								}
+							}
 
 							zt_fiz(4) {
 								p[i] = cmp_item->command->billboard_center + (mat * p[i]);
@@ -9176,16 +9297,40 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_Line: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
 							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
-							if (transform) {
-								ztVec3 line0 = (*transform) * cmp_item->command->line[0];
-								ztVec3 line1 = (*transform) * cmp_item->command->line[1];
-								glVertex3f(line0.x + offset.x, line0.y + offset.y, line0.z + offset.z);
-								glVertex3f(line1.x + offset.x, line1.y + offset.y, line1.z + offset.z);
+//							if (transform) {
+//								ztVec3 line0 = (*transform) * cmp_item->command->line[0];
+//								ztVec3 line1 = (*transform) * cmp_item->command->line[1];
+//								glVertex3f(line0.x + offset.x, line0.y + offset.y, line0.z + offset.z);
+//								glVertex3f(line1.x + offset.x, line1.y + offset.y, line1.z + offset.z);
+//							}
+//							else {
+//								glVertex3f(cmp_item->command->line[0].x + offset.x, cmp_item->command->line[0].y + offset.y, cmp_item->command->line[0].z + offset.z);
+//								glVertex3f(cmp_item->command->line[1].x + offset.x, cmp_item->command->line[1].y + offset.y, cmp_item->command->line[1].z + offset.z);
+//							}
+
+							zt_fkz(2) {
+								int idx = buffer.vertices_count++;
+								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+								if (has_offset) {
+									buffer.vertices[idx].pos = cmp_item->command->line[k] + offset;
+								}
+								else {
+									buffer.vertices[idx].pos = cmp_item->command->line[k];
+								}
+								buffer.vertices[idx].uv = ztVec2::one;
+								buffer.vertices[idx].norm = ztVec3::zero;
+								buffer.vertices[idx].color = active_color;
+
+								if (transform) {
+									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+								}
 							}
-							else {
-								glVertex3f(cmp_item->command->line[0].x + offset.x, cmp_item->command->line[0].y + offset.y, cmp_item->command->line[0].z + offset.z);
-								glVertex3f(cmp_item->command->line[1].x + offset.x, cmp_item->command->line[1].y + offset.y, cmp_item->command->line[1].z + offset.z);
+
+							if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+								OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+								last_command = cmp_item->command->type;
 							}
+
 						} break;
 
 						case ztDrawCommandType_Point: {
@@ -9467,7 +9612,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j] + offset.values[j];
 								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
 								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
-								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_item->command->tri_color[k] * active_color.values[j];
+								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_item->command->tri_color[k].values[j] * active_color.values[j];
 								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
 
 								if (transform) {
@@ -16331,12 +16476,13 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 ztInternal byte *_zt_fontLoadFontPng(i32 *size)
 {
 	// base64 is a space efficient way to store binary data inline
-	char *data = "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";
-	*size = 12937;
+	char *data = "iVBORw0KGgoAAAANSUhEUgAABAAAAACACAYAAACV4htIAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAO3BJREFUeNrsnUl2K8mVpi+fokt1IX+SSlmVqRw4J3mqTo38TWruXAKwBGAJwBKAJQBLIJZAn9eEPqw6NaEPUqlUm88VoZAUoWhQcIVd+cWldd4ABPn+7xw7BAFvrf+vXTO72u/3BAAAAAAAAAAAgBdHeggV//Oq44mNtWBm+S03v00O4f4Q7izH3B7Cynx+a47VbEyQZOb4t+YzmWe4V8c8mGdovk8c79D8voh415V5X/l+ixeUCWYqHRMTb/tAGj9Y0ofjX55/a7nfQ+D68ti9iv9bcS4H/RwL8du9uEdqOXev8mgaeP6Y+LlkchX/d6qMJCqO7xxlaGb5fmOJ25WjbMv0ySzptjfPOXOkqw6+9H3wvN+9yF8bU7fovPRWvKvt+nlEPOQmLu/VsfeinuL8njnS7s6S11Nx/Y16VlkfJ47yuQrE770qf7p8LALn6/yj7y9/f/CkL7/fvaO9Sc35tvz2Vjxb7qjjby1pze/0YL67U3mJ34fbu1kgf8rn3VviMHU8PwXO3zjyymxAmxDbPtrOS0asrxaWMhnTP7mPqMNccZsHjktMPgjFz61qP0Llmxz54l0kV/XOS+M20Id4sHy/CLSr7yxXV1fW0PxktE0TvnMI7x3C+4fw4SH8wyF89xC+dwjfN3//wfz2vjn2O+L8q29v5bwXOA/JO/COaaCdGKP+OWrDuhgAsoiEqE1wJWBt/ibSCmFe/E4IUykQmkpvfQhbUQE2L7BUne/yEF6bay8GJMC96dgl6r1mJgJfQgM1U++xMu/72sTrRv1+Z0LqiLM7E0dNjfjGYjCZmPS7clxf5pGV4/slV8YmzNX1V+a7K5O3SvNbpc57bb4v1PuTeP6JaohvxfvNzfNnzyStM5M+W/F+WnTcifS/EmXK1jG3Ge4KEb835riFir/M3PvKxKXsoMvzS3Nv2SHXaXglnpO5Ub9dq/dLzXd8fyly60BdJq/H9ynU8XPx/VYdU6u6KjHXqdX9YsvrzFI+Zo53SFT5vDHH6jpSl487FX+1J31l+uj8pe//WhhkSKTJlYpHV/xptpZ3z809tubZZFsihXdp2pZaXIPbD/5+bY7NVfw35+5EWl+pPLy19VlFWKu2xSfcC3Vu4RBPQwzVlbhOH+qR662u11uIOozzWNbj/X0d0DSiI5o52jbf+9jqs3eNhaknqhf8fpmo77aR561FvRqqJ95p9vv91SG8soh/NgB8oIwAzd+PTPjQ/G41AjTXRgw/qWHwwdH3fJQNOoYxz+9zP1sdmJ8gDm9F/P29H9TFAFB3aDwrh1CsRANaqQ5mZSrFrbnXRnXUKvN5Zj4XqnEuzXmFR6TXEZFUm05uKb4vzXcZ+a2wbwMdsJgRhHOJ/60SD7LDW6mGZu3peHK63oi42qrCeiM6vFtPR3PV0/q3EHmnYarST1cmZDrv8ruteP5CdB4z8/tSPH954oZ4Ro9HYV2sPAYVfp+piH8WLtKbRgvSqUm/1NKxDVVOhbl+LuJ2YuKvFPmhdDzz1FxjrHLC73Ej6pypyOfn7gTOzP3rHu/hE/sLcntt8Dtz+qw9x0vRm4r8YTvfld+kKM+EAY+vP1UGvCEUFrGXm+9r1ebIEUbpCifjY2bO24rry/yYCIOmq+xmorzFtKu7EeqTjbln0vNahQjPkVSkeW0E05jvwkauZeC4a3Nv0I3kBYt/WSf1fcfShAxZxS7+hSGNhf8HJnxEj0f+m/ADE74nDAIfivPeF4YAGAGertzcUjtwfA6uIkPXc2PrwduRjQC3FuPJpK8BoPb8VplQK3HP7prsgiDFMnc0d0owzsW1uRNZUzs6oytHKThKTyNeeTrnqblv5Tj3hh6PsmQqHuoLL1ATE9eVQxBPLEKvCHQcu3R4Ekc+yk3Hdek4x+dZklG8RX0iDEoybXN1vUo9b6Xe+RQNMQv/lUgjm2v5XpSpHbWeKy5DwM5htOF434kysKfW/TZV8VbRY++YkKEtF0YVUmXcVU631I7ijtXxqi0i95yw8XDpeW9ffGqBqstg7RDltve3iWZf+nU9X9fN2uBXjdjZZ8NvbnlmEoYmft7MUga2Iv8vLHUJ58dciOutpx3palxaRxrXfPUGmby17mk8YwPf1vFOb8k9RUrWHS73e1mPPVjS60H8llnqK9cULXaxz+l4OgZZjuHpLeyKrdtx1zRC+ewLR/y7ppfZDBUPgWNI9Z/uRNwsxOeEjqdfup7fNwVITv1wpV8uzn8r4kOnvZ6Gl4p7vFXXT8W196L/padYzSzpuRHxt6HHU3Qm1E5LcU2/uDPxMKPHU0DkVEfXFKG36vn3HfIAOJ1wk+L/IyH6G6H/w0P4EbWeQiwqf2R++wG10wI+shkBEMWDhWiXtkmK/2dpl+p5XhcjAHtbph3Ef9M3mfY1ALh+Y9fruRJxN9S6lV6bG7M1fS06gyuV0KXo1KxM4GO1mFiKToSvc//GIoY4wmM6bpU5ZmZpQPn5UmX0uDRrmh6dkm7QqWn4dgOf3WeEWVDrqaEb9aUj/hPVubAZYCYUniuXKMEr889EdLYqOnbR1WK4tlRKoTm0E8/vueiQ7Ew54fvPPRZFnupwY8oVd5QXnkpzZu63VkJoYs67EdfWBgD2EpkEhMRExHHaQ+xVljjvS3oBRjmuE9Y9DQ87IfAXjmusRSda37t0iPLUU0YrkQdc52eOMjahY/d9rsNPNYVKehzxPLpC1Ws5tcZkNghUlvizifudKCMzTxpyuVv3yO87GjZ1bS3eo+phoMzJ7pnCdSZPwbo2195Y6rfX1E4B2ahOSE7tFKCdyAs8MLAVfYKJur+eYibvL6fbyOkYMm42oh7lwYIrlU4r8/7X5hyZFnJqmSv/8X23EfVAQa3HXGz6XgsDID/jRD3/3PL8eooeTwFaOdLvWqQJic+lOH/iaeOuTZDeNxsRR9d0PE2zEPEmp7oUHcq+njubCcOgHBy6p2NPHul1KgU/0bHHX6I647J+0dNzlur8c7BQhrWE3FM2Xxxi9P8Vte7+LP5/IET/jw/hJ4fw00P4Lyb81ISfmPz/I2q9Aj4ieAGMKf55qm5MO/fcxf9QYowAXLcvHOXdJf7/7g37qseDVT1fhkSHUl9jKhqQTFXmsoJ1uVbKzt+0x/Oxh0FMo1OoBmduOiXcSOTimfUILltr9h0MBGNamBf0ePRbi/C1OaZvwXO5wHIjNTNxVqvOC3k6T4nogMwdlQh3MHmOsmshQ1s6V6KjkKnfOb60C3AXA5mPjSmohRD+fa5VCEMAG8MySz7f0PEUiUQIBukCrBfBZG+DreX9ZR69p+M50EmP96lVvWFb6E9zR/FzrWwVaWgRw6EGgISGuXWthTAvHB3hylIukoh6meixZ8k0kH6VI/7einpRPvuc2lHWsRv2UtTh7OEj1wDhNmUrDFjaU22njC22+J/RY281mxG5T/mVXgZdWaq60+dd48tfpaMs3ojrV+JZ9TPUdDwFjPP8xKS/NOpPhVGF6HiKWKHa9oT8U8xCbXslnn/tyHtrUdfvaHwPLyn+u05/2Yn8uiO7B82SWhdzPcVL9rFcU4CWQrSvRVs5UeW59PST5uLZbkT+qVUfcGoRyH0NtVzWJ6o92on78UhvRseefpUS6xtq15ySHq87Op6ClTvqAJeXVyqMEkMo6LFnXGbS8o157ltTB9f0sqdUSFj88+j/h0r8/9iI/X88hP96CP9Nheb7n5ljfmLi94cwAowu/mV/f/GCxb/sg/bpj2ojQOaJ11S1L2ms+O9qABhSmaSqU19bKvE31Fpz2Z1ZC0tb5zen1npfUmu57rIickrHC8fFiJNMPT93fnQHUY7gVnS8mF1MnGoLs1xsrauRIyf/6JX0nqh7pjM3oJWlg3UlGqlMNWBLzz2vRAdmS4+9MEh0MAvH7yQa4dIiHuUIh17kbErtyt9vHXl4R49HlWJ+r5QRymYg8E0BsKWBHAHRabxTZagW5TNTBjVZxtgN3NYJkXl0TseLwNU9KnI9TcS2CKDmhuLmW8lV53PH9ccevSmpHTntO8rLwnQbEHF6wcA6oi4jeryAYhlpRJDxdyM61JVF4F5T6611O2L8ctzMLAa8SrQfXD/MLM83UYLTJtClALMZPonipyLZ8khBl7nIV0bHK5jbXA610VTWRWRpt6Wh0eVhIo1n2kCXdIhXOb1i5ki/U699wJ21PvkjZrHQ0pN2ui0oHX0Y2+9ZIH1ivuepkzx9wGVUrAeU/5l6ZrmmDxvWatF2yYEo9lKaUetJoq8/UUbcwtFWF6qN5x1FigF1g6zfKxOPM/F+r4Vh7LXqL71oLKP/7PrfiPePhfhn4f9Ph/DPlvBP5hg2AjSGg2Y6AK8L8B4d7wwA+on/GCNARs975F/2QYcu8OqbVl5Z+v53seK/qwGgryHgLbVzytgFmt2hM0dlPhWdOVmRsuVaznOTKzKzGzS7TpRnSnBenXVqKuHbC8yU3LgVjvRcUGvl77MgD7udFQEBxSMVC9Vx5g7mnRBqM08e1Cu4605S4okD3fFPxTPbDAgs4Lgw72g86/raGL94ZXrduQ1NAZAi/V4YU24sz5hYykRFx6OjvMVYreItV+njSputuf9C5KOuo5ppoEPZVVjJeoRdVM9JLYx/vvlaoWu8DnQibV4ANdmnBcR2uF1lyTZix/XLJJDf5xS/5VesKCiEkXNnESXs+VPSYy80OXpP5PYAcTXGbPBa0rDpJmu6vK3QeP449RAXY029Kan/oko8aMAeQjMabwHKLvDo/KWObJ1ymhS3n1Nqt9Tt4qkUYwBgb4UZHXvxcF8hFW3cjB6PkKfqr83AOBEGxtoiaFJL3lpTO21i6MJe3Cd+M4Ix4aWIf9tWfzznPzFi/mdG/DdC/+dC9P9c/WVvgJ+auk56AXwgjADwAhgm/kNGgDWddwrNpVI5+vHMlOzre01ir9PVABA7ai15LUTflRCIV+SeS1paKj52gVuZa9ZKZPCL8hzCdQcBIRuJGKGrn5Hvx/cfsqDTKeBMsXV0TLjQ1UJMdh0R4XmGXS3PWuDeCKHm2jFAig/bImC2EYbMIYCTDqJH5sdy5II+p2P3/UWHtGWrXxHoHMjdGKRo5JXeeY7uayE2ecREG0BiFygpyD5tIgvE727Ezmd2RlHlm/KwFiLgVKzVu+7IvgJsTfFTnnJH2lWOzrL2QsgdYiPWAJE5yn/leE+bkatU71yp/MZxZ/OiCMFTM4Z2ytlAcUl7wfN0Cbk+QOowFMjPNR171eWeui9zGKhk+icDymMu6q/X9DQ7HSyFAN6c8b6lJf4ySznJHL/bVp7vs74E5+8p2T30QqNcmSN/SCPPhI7XnyHR/vg8gHjNBJ7vbzMAboWBwTaIwAMoladcD+0T5uJa4Nj1Xy/697EyAEgPAA62/6UBgL0AvquMAH+bDgAjQLDdiJmm5Vqv6iUYAYbkj5D49xkBoq/zqmOC7nt2TqRI1yNHvACabBA2qvOgF77SiwXmopMvXTm7NJJ15Dk5PZ4uIIVV7elkXJPbRXw2IH5l+kwc164cGUXOceOGMusowHhU48YhAuVoft7RwMD5YyP+1wtxbaldAC0zv289nRCbAWQlOhpagG5EB4RHx7cdy0eqruMSAG+oHUGfRVagJM7z7ZbwYBGfvG2f3H9UzpXkBd202HKNVKZCEJXi+htxTV7FObU8I3vvjLVK/47aqUFpQIz0gXdukKvMFwGD15CpACG2lrRiAx2/O3d2YwQ4j6xPVJ4rHR1R7YUwM3E/E/ljRfZRNFf6ER1vC7uw1E+FOl7X74Wq6+UuH3Lu/prsaym4yMi/MGCf/Dqhy/ECYGNoKtLeJpBk/Sl3UrCV/4UoM1uVvrnKa5yf5Mr0mw7pk5ygzA8R43MhGM/BVrTRsvzrtSo2og6T9YMuf7OOfauJ6t8log9Fln4c/75R5XUm7p97yk2t6gD22knp2AOoVHm3pnYB64WlnZZT33aWdn0d6DP1mQpny8uXvsvUOWHx/z4du/7zav+vqV3w72dG3PN8fx3kb805PzbX+JiOpwJgV4D4duw6MvgGTJ6bEWDvCWOL/5ARIHidV2eKFHa51HOvuGJdm0qUXemlmJQLX/E8pwdqXbp4pP/efM/uZl0afe74LQKVdEr2baLG6mgN6ajIBdP097PAM7PbGs/Rm1O8lTkXHVa51c+DyIRbahc/vKPHi1aFBAi7DPP5W9Xh5jnHDyYfbB0GANsCX3J7R7mI3VzFK2+DlJF7texQR2gW2fHj+dIxRpJ1h8oicQgLnrpyJ+JALqpWWCp3aTDLVbpXyhg0FUYGnns/peOtCHl9hZQeL2JmWwTwoUPZuBH5g400y8j4TdX9pCuxFJ5vTbyFrlsIg5XsZD4MeD9bnpD5m0ceufzsOjSs/Ly3wnAzIb8bNXuVyDp6o/JHrKcQH5uL80vL/bnjXziuUap3qpQBbavib0ZxI50zIZB0Hu1Tl7PgndBlsDVxx/nT5knGxhyuO/Q0sCk9dsPfCnEm03dF7UhsQsdeZW9FHVx0yD+1JX26CHC5q89qQNpy3bk218lV3Ubi+mN5CcSW/0LUYZX4XZe/rt5ZfK+VqONrS/ndijS+o2MvoSm1BnbOO6mjTXJ5OZbq90oZNObiOXbCIKLrDN2HWNDjXYpsa/QkI6XlO7GyfyRy7v+HRqR/XxkAeOV/Dj824bX43XYMbxP4Q2q9AKQBYOjc7neBKiKEDFrPyQhwFRFCGrCr+HcZAaKu08xluaQI3ChBem7uA51T30j3GNzR40VkxjC+LJ4wTsGxyCvpHVmgB7wo2COl7mA8Aa2B665Dh5GN4GtPO1FF1ukPHtEwp5c/l9jWp+BFXl+f4H63okP2HJiZOLrqWBes3kEBdC8MOH3OLQNl9sFce/tE/c/nxgcmfNeIdOny34zmS5f+5rcfGCPBB9SO4H99CF8dwueH8Jlp335/CL8+hF+Z8JtD+J357dND+PMh/NWc9xWS4SzoqT0uugraK8v5sfVal2NjGerlw56u0xgjwqsLS+T5EwtVXu2dR0AZ/i494fPxFIaxO2QVQfxfEltEAXiGsKdV7NoBwN5h4LAJ1BFrZUDo61kg1+7Q4V2oixJ6vAZI3y3nXAJaTq+ZoHy8KNgYNxnYP+OtCvtuL9l16uS7AHsANIGnATQCnxcBlOH75vvvmmOa8JH4/F113g/N3+/R8U4A37lA3fQusDvjvfaR4RQMbZcaDfuGIj0IkJEfi+U39Nj9neeMRUdszwp+Spjj9VJZkdtFGYDnYgRgV+K3iI5obFu5zs94/rsMr4sip9jwNK4xKOnYvX5LMPK+JCamrrsd2D9bUjtVVU4hC7EQeatA3vIaAuROACzqpeD/0BgJ3lfhA/PbR5bz9OJ/cPu//LzQJYx9/vOKrAubAgAAAAAAAAAALj40oRndb+b8N67+eru/ZgpAM6f/YyPqP1BCvhFAzTSALw/hL4fwR/rW4NNMAfjlIfzChP84hN/Stwag5phmygCmADw9p3DDf2d4D1EAAAAAAAAAeKbwqCzvDiDDK3KP3r5S5+jPWPH/eYv/cxkJ9pF5VBOzsCcvmAsDAAAAAAAAAADQ8Lna+ni4Rz9/8X9urjoaCJopRreRBgDflomhBfQzsuzwhjUAAAAAAAAAAM9Z+H9jAq/uL/9+I4LtHHken/O1OB5cnvh/7umyo7gFDtcB8T+jdkcXm/i/U39hAAAAAAAAAAD0olmocHIBovAbI9ybLfq+MOFz838TvlTC/msh+L9U53Hg82AIuEzx/xKmZkwDRoAlubceZfHPaCMAi/7E/J+Y/9NLNwAsyL9V0jlpIu3eUslNzPcJyqWTNPDbjPpvjQMuK50n1G6X9NR565xkqAPAC+Phgtrfl05+QXUZAF1ZUfyuBjYBw7vKrEQ7uqF2e80Y4f+1EPGN6P/zIfxJhL+Y778QBoG/CtH/uTlGnvdn890XMAJA/Hd8zq7TUFxGAJ/4d8FGgFyJ/0d0MQAk5qIbS+MlX3ThOH9iHob3ML4l99yHibmOy6WB77lSBoNbTwW1N52a1NPh2XsiNPN0/mcBQ8bDM+zspSJONoHKf+9Io7fmGjYjSWq+3ziMKzoOXc/xEJH/NuY4W2HYRBRWfta9J49xXl28wIqX5w+tHJXJysQvl+kHVTZtlaOrzNyJY+4c5ZUNcg8mj+U9r3OnQhb4PXc8x715jonnOXKR1yaeeIn9Xl534YjTXLy/r/N1L/Jw6H6ZuO7GUVZC9cZedfps3Abq7IW4zr0jD+SBZ8kjGmsZz3yt1NN2zCxtUyaeIRG/Z45n43ydiOstHPdMRB08c8RPKG/Z8uSO4kb1fNewxXM+crvVpzO+GfFZ0kAZC8F1y6LnufuA8WBjKWOJo63KIzqs+2fQnwHjkpq89rZDPpfHpwHDQVPXVKKvfG++LyLrHh75/8KI9s/o25X6PxXhj+Z7FvZ/FoLfds4n5u9n5vfPhRHg1HvBg3jxvz/BfboEG323C9RGgBjx38zp3zr0iE3vNNMIbkx56+wBMPM08mXg3NyEWoj81GNo4GvOLA31wvy2UM9W"
+	             "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"
+	             "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";
+	*size = 15310;
 	byte *result = zt_mallocStructArray(byte, *size);
-	i32 decoded_size = zt_base64Decode(data, 17253, result, *size);
-	zt_assert(decoded_size == 12937);
+	i32 decoded_size = zt_base64Decode(data, 20417, result, *size);
+	zt_assert(decoded_size == 15310);
 	return result;
 }
 
@@ -18927,6 +19073,45 @@ on_error:
 
 // ================================================================================================================================================================================================
 
+bool zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager)
+{
+	char path[ztFileMaxPath];
+	zt_fileConcatFileToPath(path, zt_elementsOf(path), zt_game->game_details.data_path, "textures");
+	char files[ztFileMaxPath];
+	zt_getDirectoryFiles(path, files, zt_elementsOf(files), false);
+
+	ztToken tokens[128];
+	int tokens_count = zt_min(zt_elementsOf(tokens), zt_strTokenize(files, "\n", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace));
+
+	zt_fiz(tokens_count) {
+		char file[ztFileMaxPath];
+		zt_strCpy(file, zt_elementsOf(file), files + tokens[i].beg, tokens[i].len);
+
+		if (zt_striEndsWith(file, ".spr")) {
+			ztTextureID tex = ztInvalidID;
+			zt_fjz(tokens_count) {
+				char tex_file[ztFileMaxPath];
+				zt_strCpy(tex_file, zt_elementsOf(tex_file), files + tokens[j].beg, tokens[j].len);
+
+				if (j != i && zt_striStartsWith(tex_file, zt_strLen(tex_file), file, zt_strLen(file) - 3)) {
+					tex = zt_textureMakeFromFile(tex_file, ztTextureFlags_PixelPerfect);
+					break;
+				}
+			}
+
+			ztSerial serial;
+			if (zt_serialMakeReader(&serial, file, ZT_SPRITE_FILE_GUID)) {
+				zt_spriteManagerLoad(sprite_manager, &serial, tex);
+				zt_serialClose(&serial);
+			}
+		}
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex)
 {
 	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
@@ -19080,11 +19265,41 @@ bool zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial)
 
 // ================================================================================================================================================================================================
 
-void zt_spriteManagerFree(ztSpriteManager *sprite_manager)
+void zt_spriteManagerFree(ztSpriteManager *sprite_manager, bool should_free_textures)
 {
 	ZT_PROFILE_RENDERING("zt_spriteManagerFree");
 	if (sprite_manager == nullptr || sprite_manager->sprites == nullptr) {
 		return;
+	}
+
+	if (should_free_textures) {
+		zt_fiz(sprite_manager->sprites_count) {
+			ztTextureID tex = ztInvalidID;
+
+			if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+				tex = sprite_manager->sprites[i].s.tex;
+			}
+			else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+				tex = sprite_manager->sprites[i].sns.tex;
+			}
+
+			if (tex != ztInvalidID) {
+				zt_textureFree(tex);
+
+				for (int j = i + 1; j < sprite_manager->sprites_count; ++j) {
+					if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+						if (sprite_manager->sprites[i].s.tex == tex) {
+							sprite_manager->sprites[i].s.tex = ztInvalidID;
+						}
+					}
+					else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+						if (sprite_manager->sprites[i].sns.tex == tex) {
+							sprite_manager->sprites[i].sns.tex = ztInvalidID;
+						}
+					}
+				}
+			}
+		}
 	}
 
 	zt_free(sprite_manager->sprites);
@@ -19173,6 +19388,10 @@ ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_
 	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
 	zt_returnValOnNull(sprite_manager, nullptr);
 
+	if (sprite_hash == 0) {
+		return nullptr;
+	}
+
 	zt_fiz(sprite_manager->sprites_count) {
 		if(sprite_manager->sprites[i].hash == sprite_hash) {
 			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_Sprite, nullptr);
@@ -19198,6 +19417,10 @@ ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_ma
 	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
 	zt_returnValOnNull(sprite_manager, nullptr);
 
+	if (sprite_hash == 0) {
+		return nullptr;
+	}
+
 	zt_fiz(sprite_manager->sprites_count) {
 		if(sprite_manager->sprites[i].hash == sprite_hash) {
 			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice, nullptr);
@@ -19208,6 +19431,26 @@ ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_ma
 	return nullptr;
 }
 
+// ================================================================================================================================================================================================
+
+i32 zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite)
+{
+	zt_returnValOnNull(sprite_manager, 0);
+	zt_returnValOnNull(sprite, 0);
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if (sprite_manager->sprites[i].type        == ztSpriteType_Sprite && 
+			sprite_manager->sprites[i].s.tex       == sprite->tex && 
+			sprite_manager->sprites[i].s.half_size == sprite->half_size && 
+			sprite_manager->sprites[i].s.tex_uv    == sprite->tex_uv && 
+			sprite_manager->sprites[i].s.anchor    == sprite->anchor) {
+
+			return sprite_manager->sprites[i].hash;
+		}
+	}
+
+	return 0;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -23773,7 +24016,7 @@ r32 zt_animCurveGetValue(ztAnimCurve *curve, r32 percent)
 					ztVec2 end_cp = curve->segments[i].control_point_end * zt_vec2(.5f, .25f) + end;
 
 					ztVec2 curr_pnt = zt_pow(1 - percent, 3) * beg + 3 * percent * zt_pow(1 - percent, 2) * beg_cp + 3 * zt_pow(percent, 2) * (1 - percent) * end_cp + zt_pow(percent, 3) * end;
-					return curr_pnt.y;
+					return curr_pnt.y * curve->val_max; // zt_lerp(curve->val_beg, curve->val_end, curr_pnt.y);
 				}
 			}
 		} break;
@@ -23783,6 +24026,95 @@ r32 zt_animCurveGetValue(ztAnimCurve *curve, r32 percent)
 	return 0;
 }
 
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztAnimCurve *curve)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 type = 0;
+		if (!zt_serialRead(serial, &type)) return false;
+		curve->type = (ztAnimCurveType_Enum)type;
+
+		if (!zt_serialRead(serial, &curve->val_max)) return false;
+		if (!zt_serialRead(serial, &curve->val_beg)) return false;
+		if (!zt_serialRead(serial, &curve->val_end)) return false;
+
+		switch (curve->type)
+		{
+			case ztAnimCurveType_Linear: {
+				// ...
+			} break;
+
+			case ztAnimCurveType_EaseIn: 
+			case ztAnimCurveType_EaseOut: 
+			case ztAnimCurveType_EaseInOut: {
+				i32 ease_in = 0, ease_out = 0;
+				if (!zt_serialRead(serial, &ease_in)) return false;
+				curve->ease_in = (ztAnimCurveEaseType_Enum)ease_in;
+
+				if (!zt_serialRead(serial, &ease_out)) return false;
+				curve->ease_out = (ztAnimCurveEaseType_Enum)ease_out;
+			} break;
+
+			case ztAnimCurveType_Spline: {
+				if (!zt_serialRead(serial, &curve->segments_count)) return false;
+
+				zt_fiz(curve->segments_count) {
+					if (!zt_serialRead(serial, &curve->segments[i].pos_beg)) return false;
+					if (!zt_serialRead(serial, &curve->segments[i].pos_end)) return false;
+					if (!zt_serialRead(serial, &curve->segments[i].control_point_beg)) return false;
+					if (!zt_serialRead(serial, &curve->segments[i].control_point_end)) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztAnimCurve *curve)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		if (!zt_serialWrite(serial, (i32)curve->type)) return false;
+
+		if (!zt_serialWrite(serial, curve->val_max)) return false;
+		if (!zt_serialWrite(serial, curve->val_beg)) return false;
+		if (!zt_serialWrite(serial, curve->val_end)) return false;
+
+		switch (curve->type)
+		{
+			case ztAnimCurveType_Linear: {
+				// ...
+			} break;
+
+			case ztAnimCurveType_EaseIn: 
+			case ztAnimCurveType_EaseOut: 
+			case ztAnimCurveType_EaseInOut: {
+				if (!zt_serialWrite(serial, curve->ease_in)) return false;
+				if (!zt_serialWrite(serial, curve->ease_out)) return false;
+			} break;
+
+			case ztAnimCurveType_Spline: {
+				if (!zt_serialWrite(serial, curve->segments_count)) return false;
+
+				zt_fiz(curve->segments_count) {
+					if (!zt_serialWrite(serial, curve->segments[i].pos_beg)) return false;
+					if (!zt_serialWrite(serial, curve->segments[i].pos_end)) return false;
+					if (!zt_serialWrite(serial, curve->segments[i].control_point_beg)) return false;
+					if (!zt_serialWrite(serial, curve->segments[i].control_point_end)) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -24849,6 +25181,50 @@ bool zt_colorGradientIsEqual(ztColorGradient2 *grad1, ztColorGradient2 *grad2)
 		}
 	}
 
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztColorGradient2 *gradient)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		if (!zt_serialRead(serial, &gradient->alpha_entries)) return false;
+		zt_fiz(gradient->alpha_entries) {
+			if (!zt_serialRead(serial, &gradient->alpha_vals[i])) return false;
+			if (!zt_serialRead(serial, &gradient->alpha_locs[i])) return false;
+		}
+
+		if (!zt_serialRead(serial, &gradient->color_entries)) return false;
+		zt_fiz(gradient->color_entries) {
+			if (!zt_serialRead(serial, &gradient->color_vals[i])) return false;
+			if (!zt_serialRead(serial, &gradient->color_locs[i])) return false;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztColorGradient2 *gradient)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		if (!zt_serialWrite(serial, gradient->alpha_entries)) return false;
+		zt_fiz(gradient->alpha_entries) {
+			if (!zt_serialWrite(serial, gradient->alpha_vals[i])) return false;
+			if (!zt_serialWrite(serial, gradient->alpha_locs[i])) return false;
+		}
+
+		if (!zt_serialWrite(serial, gradient->color_entries)) return false;
+		zt_fiz(gradient->color_entries) {
+			if (!zt_serialWrite(serial, gradient->color_vals[i])) return false;
+			if (!zt_serialWrite(serial, gradient->color_locs[i])) return false;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
 	return true;
 }
 
