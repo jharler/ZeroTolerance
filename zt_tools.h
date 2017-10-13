@@ -909,6 +909,7 @@ r32  zt_linearRemap         (r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
 r32  zt_linearRemapAndClamp (r32 val, r32 v1a, r32 v1b, r32 v2a, r32 v2b);
 r32  zt_normalize           (r32 val, r32 min, r32 max);
 r32  zt_approach            (r32 var, r32 appr, r32 by);
+i32  zt_iapproach           (i32 var, i32 appr, i32 by);
 
 r32  zt_sin                 (r32 x);
 r32  zt_asin                (r32 x);
@@ -2427,7 +2428,17 @@ ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
 
 ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 {
-	if (appr >= var) 
+	if (appr >= var)
+		return zt_min(var + by, appr);
+
+	return zt_max(var - by, appr);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline i32 zt_iapproach(i32 var, i32 appr, i32 by)
+{
+	if (appr >= var)
 		return zt_min(var + by, appr);
 
 	return zt_max(var - by, appr);
@@ -3810,6 +3821,8 @@ struct ztGlobals
 	void                *(*mem_malloc)(size_t) = _zt_call_malloc;
 	void                 (*mem_free)(void*)    = _zt_call_free;
 
+	ztMemoryArena         *mem_arena_stack = nullptr;
+
 	void *(*functionPointer)(ztFunctionID) = nullptr;
 };
 
@@ -3880,7 +3893,7 @@ ztGlobals zt_local = {};
 // ================================================================================================================================================================================================
 
 #ifndef ZT_MAX_FUNCTION_POINTER_ENTRIES
-#define ZT_MAX_FUNCTION_POINTER_ENTRIES  256
+#define ZT_MAX_FUNCTION_POINTER_ENTRIES  512
 #endif
 
 
@@ -3992,8 +4005,9 @@ void  _zt_call_free(void* mem)
 #define _zt_var_args \
 			va_list arg_ptr; \
 			va_start(arg_ptr, message); \
-			char buffer[1024 * 64]; \
-			vsnprintf_s(buffer, zt_elementsOf(buffer), message, arg_ptr);
+			if(zt->mem_arena_stack == nullptr) { zt->mem_arena_stack = zt_memMakeArena(zt_megabytes(1), nullptr, 0);} \
+			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt->mem_arena_stack); \
+			vsnprintf_s(buffer, 1024 * 64, 1024 * 64, message, arg_ptr);
 
 #else
 #	error "Unsupported compiler for zt_logMessage"
@@ -4021,48 +4035,60 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 
 void zt_logMessage(ztLogMessageLevel_Enum level, const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(level, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
 
 void zt_logVerbose(const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(ztLogMessageLevel_Verbose, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
 
 void zt_logDebug(const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(ztLogMessageLevel_Debug, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
 
 void zt_logInfo(const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(ztLogMessageLevel_Info, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
 
 void zt_logCritical(const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(ztLogMessageLevel_Critical, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
 
 void zt_logFatal(const char *message, ...)
 {
+	if (message == nullptr) return;
 	_zt_var_args;
 	_zt_logMessageRaw(ztLogMessageLevel_Fatal, (const char *)buffer);
+	zt_freeArena(buffer, zt->mem_arena_stack);
 }
 
 // ================================================================================================================================================================================================
