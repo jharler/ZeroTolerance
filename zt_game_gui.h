@@ -692,6 +692,12 @@ ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec3i *value, ztVec3i min, ztVec3i max, i32 step = 1, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z");
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec4i *value, ztVec4i min, ztVec4i max, i32 step = 1, bool label_above = true, char *label_x = "X", char *label_y = "Y", char *label_z = "Z", char *label_w = "W");
 
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableReal *variable, r32 def, r32 min, r32 max, r32 step);
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableColor *variable);
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableVec2 *variable, ztVec2 def, ztVec2 min, ztVec2 max, r32 step, bool allow_sync);
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableVec3 *variable, ztVec3 def, ztVec3 min, ztVec3 max, r32 step, bool allow_sync);
+
+
 // ================================================================================================================================================================================================
 
 void             zt_guiItemFree                        (ztGuiItem *item_id);
@@ -1631,7 +1637,8 @@ struct ztGuiGlobals
 	ztGuiItem        *console_display              = nullptr;
 	ztGuiItem        *console_command              = nullptr;
 	ztGuiItem        *menu_bar                     = nullptr;
-	ztMemoryArena    *arena = nullptr;
+	ztMemoryArena    *arena                        = nullptr;
+	ztMemoryArena    *stack_arena                  = nullptr;
 };
 
 #define ZT_GAME_GUI_GLOBALS_VERSION   1 // update this any time ztGuiGlobals is changed
@@ -3042,6 +3049,10 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 	if (zt_gui->gui_managers_count++ == 0) {
 		zt_gui->gui_manager_active = gm;
 		zt_gui->gui_manager_first = gm;
+
+		if (zt_gui->stack_arena == nullptr) {
+			zt_gui->stack_arena = zt_memMakeArena(zt_megabytes(1), arena);
+		}
 	}
 	else {
 		zt_singleLinkAddToEnd(zt_gui->gui_manager_first, gm);
@@ -3284,6 +3295,11 @@ void zt_guiManagerFree(ztGuiManager *gm)
 	zt_gui->gui_managers_count--;
 	if (zt_gui->gui_managers_count > 0) {
 		return;
+	}
+
+	if (zt_gui->stack_arena) {
+		zt_memFreeArena(zt_gui->stack_arena);
+		zt_gui->stack_arena = nullptr;
 	}
 
 	_zt_guiDebugConsoleRemoveLoggingCallbacks();
@@ -10581,6 +10597,1382 @@ void zt_guiEditorSetCallback(ztGuiItem *editor, ztFunctionID function_id, void *
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+struct ztParticleVariableRealEditor
+{
+	ztParticleVariableReal *variable;
+	ztParticleVariableReal  variable_compare;
+
+	ztGuiItem *ed_constant;
+
+	ztGuiItem *ed_random_value_panel;
+	ztGuiItem *ed_random_value_min;
+	ztGuiItem *ed_random_value_max;
+
+	ztGuiItem *ed_curve;
+
+	ztGuiItem *ed_random_curve_panel;
+	ztGuiItem *ed_random_curve_min;
+	ztGuiItem *ed_random_curve_max;
+
+	r32 min, max, def;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarRealUpdateGui(ztParticleVariableRealEditor *editor)
+{
+	zt_guiItemHide(editor->ed_constant);
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+
+	switch (editor->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			zt_guiItemShow(editor->ed_constant);
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			zt_guiItemShow(editor->ed_random_value_panel);
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			zt_guiAnimCurveSetLiveValue(editor->ed_curve, &editor->variable->curve);
+			zt_guiItemShow(editor->ed_curve);
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_min, &editor->variable->random_curve_min);
+			zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_max, &editor->variable->random_curve_max);
+			zt_guiItemShow(editor->ed_random_curve_panel);
+		} break;
+	}
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->ed_constant));
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarRealButtonCfgMenu))
+{
+	ztParticleVariableRealEditor *editor = (ztParticleVariableRealEditor*)user_data;
+
+	editor->variable->type = (ztParticleVariableRealType_Enum)menu_item;
+	switch (menu_item)
+	{
+		case ztParticleVariableRealType_Constant: {
+			editor->variable->constant = editor->def;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			editor->variable->random_value_min = editor->def;
+			editor->variable->random_value_max = editor->def;
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			zt_memSet(&editor->variable->curve, zt_sizeof(ztAnimCurve), 0);
+			editor->variable->curve.val_max = 1;
+			editor->variable->curve.val_end = 1;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			zt_memSet(&editor->variable->random_curve_min, zt_sizeof(ztAnimCurve), 0);
+			editor->variable->random_curve_min.val_max = 1;
+			editor->variable->random_curve_min.val_end = 1;
+
+			zt_memSet(&editor->variable->random_curve_max, zt_sizeof(ztAnimCurve), 0);
+			editor->variable->random_curve_max.val_max = 1;
+			editor->variable->random_curve_max.val_end = 1;
+		} break;
+	}
+
+	_zt_guiEditorPartVarRealUpdateGui(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarRealButtonCfg))
+{
+	ztParticleVariableRealEditor *editor = (ztParticleVariableRealEditor*)user_data;
+
+	ztGuiItem *menu = zt_guiMakeMenu(nullptr, ztGuiMenuBehaviorFlags_FreeOnClose);
+
+	ztSprite check_sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 995, 1, 7, 12);
+
+	zt_guiMenuAppend(menu, "Constant Value", ztParticleVariableRealType_Constant, editor, editor->variable->type == ztParticleVariableRealType_Constant ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Constants", ztParticleVariableRealType_RandomBetweenTwoConstants, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoConstants ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Curve", ztParticleVariableRealType_Curve, editor, editor->variable->type == ztParticleVariableRealType_Curve ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Curves", ztParticleVariableRealType_RandomBetweenTwoCurves, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoCurves ? &check_sprite : nullptr);
+
+	zt_guiMenuSetCallback(menu, _zt_guiEditorPartVarRealButtonCfgMenu_FunctionID);
+
+	zt_guiMenuPopupAtItem(menu, button, ztAlign_Bottom | ztAlign_Right);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarRealUpdate))
+{
+	ztParticleVariableRealEditor *editor = (ztParticleVariableRealEditor*)user_data;
+
+	if (zt_memCmp(editor->variable, &editor->variable_compare, zt_sizeof(ztParticleVariableReal))) {
+		zt_memCpy(&editor->variable_compare, zt_sizeof(ztParticleVariableReal), editor->variable, zt_sizeof(ztParticleVariableReal));
+		_zt_guiEditorPartVarRealUpdateGui(editor);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableReal *variable, r32 def, r32 min, r32 max, r32 step)
+{
+	ztGuiItem *panel = zt_guiMakePanel(parent);
+	ztParticleVariableRealEditor *editor = zt_mallocStructArena(ztParticleVariableRealEditor, panel->gm->arena);
+
+	panel->functions.update = _zt_guiEditorPartVarRealUpdate_FunctionID;
+	panel->functions.user_data = editor;
+
+	editor->variable = variable;
+	editor->min = min;
+	editor->max = max;
+	editor->def = def;
+
+	ztGuiItem *sizer_width = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz, false);
+	zt_guiSizerSizeParent(sizer_width, false, true);
+	zt_guiSizerSizeToParent(sizer_width);
+
+	ztGuiItem *sizer_main = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiSizerAddItem(sizer_width, sizer_main, 1, 0);
+
+	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
+	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_value_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_min = zt_guiMakeEditor(sizer, nullptr, &variable->random_value_min, min, max, step);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_max = zt_guiMakeEditor(sizer, nullptr, &variable->random_value_max, min, max, step);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_max, 1, 0);
+	}
+
+	editor->ed_curve = zt_guiMakeAnimCurve(panel, &variable->curve, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->curve);
+	zt_guiSizerAddItem(sizer_main, editor->ed_curve, 0, 0);
+
+	editor->ed_random_curve_panel = zt_guiMakePanel(panel, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_curve_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_curve_min = zt_guiMakeAnimCurve(sizer, &variable->random_curve_min, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_min);
+		zt_guiSizerAddItem(sizer, editor->ed_random_curve_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_curve_max = zt_guiMakeAnimCurve(sizer, &variable->random_curve_max, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_max);
+		zt_guiSizerAddItem(sizer, editor->ed_random_curve_max, 1, 0);
+	}
+
+	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
+	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	zt_guiButtonSetCallback(button, _zt_guiEditorPartVarRealButtonCfg_FunctionID, editor);
+	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
+
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+
+	return panel;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableColorEditor
+{
+	ztParticleVariableColor *variable;
+	ztParticleVariableColor  variable_compare;
+
+	ztGuiItem *ed_constant;
+
+	ztGuiItem *ed_random_value_panel;
+	ztGuiItem *ed_random_value_min;
+	ztGuiItem *ed_random_value_max;
+
+	ztGuiItem *ed_gradient;
+
+	ztGuiItem *ed_random_gradient_panel;
+	ztGuiItem *ed_random_gradient_min;
+	ztGuiItem *ed_random_gradient_max;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarColorInitGradient(ztColorGradient2 *gradient)
+{
+	zt_memSet(gradient, zt_sizeof(ztColorGradient2), 0);
+	gradient->alpha_locs[0] = 0;
+	gradient->alpha_vals[0] = 0;
+	gradient->alpha_locs[1] = .1f;
+	gradient->alpha_vals[1] = 1;
+	gradient->alpha_locs[2] = .9f;
+	gradient->alpha_vals[2] = 1;
+	gradient->alpha_locs[3] = 1;
+	gradient->alpha_vals[3] = 0;
+	gradient->alpha_entries = 4;
+
+	gradient->color_locs[0] = 0;
+	gradient->color_vals[0] = ztColor_White;
+	gradient->color_locs[1] = 1;
+	gradient->color_vals[1] = ztColor_White;
+	gradient->color_entries = 2;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarColorUpdateGui(ztParticleVariableColorEditor *editor)
+{
+	zt_guiItemHide(editor->ed_constant);
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_gradient);
+	zt_guiItemHide(editor->ed_random_gradient_panel);
+
+	switch (editor->variable->type)
+	{
+		case ztParticleVariableColorType_Constant: {
+			zt_guiItemShow(editor->ed_constant);
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
+			zt_guiItemShow(editor->ed_random_value_panel);
+		} break;
+
+		case ztParticleVariableColorType_Gradient: {
+			zt_guiGradientPickerSetLiveValue(editor->ed_gradient, &editor->variable->gradient);
+			zt_guiItemShow(editor->ed_gradient);
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoGradients: {
+			zt_guiGradientPickerSetLiveValue(editor->ed_random_gradient_min, &editor->variable->random_gradient_min);
+			zt_guiGradientPickerSetLiveValue(editor->ed_random_gradient_max, &editor->variable->random_gradient_max);
+			zt_guiItemShow(editor->ed_random_gradient_panel);
+		} break;
+	}
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->ed_constant));
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarColorButtonCfgMenu))
+{
+	ztParticleVariableColorEditor *editor = (ztParticleVariableColorEditor*)user_data;
+
+	editor->variable->type = (ztParticleVariableColorType_Enum)menu_item;
+	switch (menu_item)
+	{
+		case ztParticleVariableColorType_Constant: {
+			editor->variable->constant = ztColor_White;
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
+			editor->variable->random_value_min = ztColor_White;
+			editor->variable->random_value_max = ztColor_White;
+		} break;
+
+		case ztParticleVariableColorType_Gradient: {
+			_zt_guiEditorPartVarColorInitGradient(&editor->variable->gradient);
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoGradients: {
+			_zt_guiEditorPartVarColorInitGradient(&editor->variable->random_gradient_min);
+			_zt_guiEditorPartVarColorInitGradient(&editor->variable->random_gradient_max);
+		} break;
+	}
+
+	_zt_guiEditorPartVarColorUpdateGui(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarColorButtonCfg))
+{
+	ztParticleVariableColorEditor *editor = (ztParticleVariableColorEditor*)user_data;
+
+	ztGuiItem *menu = zt_guiMakeMenu(nullptr, ztGuiMenuBehaviorFlags_FreeOnClose);
+
+	ztSprite check_sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 995, 1, 7, 12);
+
+	zt_guiMenuAppend(menu, "Constant Color", ztParticleVariableColorType_Constant, editor, editor->variable->type == ztParticleVariableColorType_Constant ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Colors", ztParticleVariableColorType_RandomBetweenTwoConstants, editor, editor->variable->type == ztParticleVariableColorType_RandomBetweenTwoConstants ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Gradient", ztParticleVariableColorType_Gradient, editor, editor->variable->type == ztParticleVariableColorType_Gradient ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Gradients", ztParticleVariableColorType_RandomBetweenTwoGradients, editor, editor->variable->type == ztParticleVariableColorType_RandomBetweenTwoGradients ? &check_sprite : nullptr);
+
+	zt_guiMenuSetCallback(menu, _zt_guiEditorPartVarColorButtonCfgMenu_FunctionID);
+
+	zt_guiMenuPopupAtItem(menu, button, ztAlign_Bottom | ztAlign_Right);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarColorUpdate))
+{
+	ztParticleVariableColorEditor *editor = (ztParticleVariableColorEditor*)user_data;
+
+	if (zt_memCmp(editor->variable, &editor->variable_compare, zt_sizeof(ztParticleVariableColor))) {
+		zt_memCpy(&editor->variable_compare, zt_sizeof(ztParticleVariableColor), editor->variable, zt_sizeof(ztParticleVariableColor));
+		_zt_guiEditorPartVarColorUpdateGui(editor);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableColor *variable)
+{
+	ztGuiItem *panel = zt_guiMakePanel(parent);
+	ztParticleVariableColorEditor *editor = zt_mallocStructArena(ztParticleVariableColorEditor, panel->gm->arena);
+
+	panel->functions.update = _zt_guiEditorPartVarColorUpdate_FunctionID;
+	panel->functions.user_data = editor;
+
+	editor->variable = variable;
+
+	ztGuiItem *sizer_width = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz, false);
+	zt_guiSizerSizeParent(sizer_width, false, true);
+	zt_guiSizerSizeToParent(sizer_width);
+
+	ztGuiItem *sizer_main = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiSizerAddItem(sizer_width, sizer_main, 1, 0);
+
+	editor->ed_constant = zt_guiMakeColorPicker(sizer_main, ztColor_White, ztGuiColorPickerBehaviorFlags_LiveEdit | ztGuiColorPickerBehaviorFlags_IncludesAlpha, &variable->constant);
+	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_value_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_min = zt_guiMakeColorPicker(sizer, ztColor_White, ztGuiColorPickerBehaviorFlags_LiveEdit | ztGuiColorPickerBehaviorFlags_IncludesAlpha, &variable->random_value_min);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_max = zt_guiMakeColorPicker(sizer, ztColor_White, ztGuiColorPickerBehaviorFlags_LiveEdit | ztGuiColorPickerBehaviorFlags_IncludesAlpha, &variable->random_value_max);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_max, 1, 0);
+	}
+
+	editor->ed_gradient = zt_guiMakeGradientPicker(sizer_main, &variable->gradient, ztGuiGradientPickerBehaviorFlags_LiveEdit, &variable->gradient);
+	zt_guiSizerAddItem(sizer_main, editor->ed_gradient, 0, 0);
+
+	editor->ed_random_gradient_panel = zt_guiMakePanel(sizer_main, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_gradient_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_gradient_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_gradient_min = zt_guiMakeGradientPicker(sizer_main, &variable->random_gradient_min, ztGuiGradientPickerBehaviorFlags_LiveEdit, &variable->random_gradient_min);
+		zt_guiSizerAddItem(sizer, editor->ed_random_gradient_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_gradient_max = zt_guiMakeGradientPicker(sizer_main, &variable->random_gradient_max, ztGuiGradientPickerBehaviorFlags_LiveEdit, &variable->random_gradient_max);
+		zt_guiSizerAddItem(sizer, editor->ed_random_gradient_max, 1, 0);
+	}
+
+	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
+	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	zt_guiButtonSetCallback(button, _zt_guiEditorPartVarColorButtonCfg_FunctionID, editor);
+	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
+
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_gradient);
+	zt_guiItemHide(editor->ed_random_gradient_panel);
+
+	return panel;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec2Editor
+{
+	ztParticleVariableVec2 *variable;
+	ztParticleVariableVec2  variable_compare;
+	ztParticleVariableReal  unified;
+
+	ztGuiItem *ed_constant;
+
+	ztGuiItem *ed_random_value_panel;
+	ztGuiItem *ed_random_value_min;
+	ztGuiItem *ed_random_value_max;
+
+	ztGuiItem *ed_curve_panel;
+	ztGuiItem *ed_curve[2];
+
+	ztGuiItem *ed_random_curve_panel;
+	ztGuiItem *ed_random_curve_min[2];
+	ztGuiItem *ed_random_curve_max[2];
+
+	ztGuiItem *ed_unified_constant;
+
+	ztGuiItem *ed_unified_random_value_panel;
+	ztGuiItem *ed_unified_random_value_min;
+	ztGuiItem *ed_unified_random_value_max;
+
+	ztGuiItem *ed_unified_curve;
+
+	ztGuiItem *ed_unified_random_curve_panel;
+	ztGuiItem *ed_unified_random_curve_min;
+	ztGuiItem *ed_unified_random_curve_max;
+
+	ztVec2 min, max, def;
+
+	bool is_unified;
+	bool allow_sync;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarVec2UpdateGui(ztParticleVariableVec2Editor *editor)
+{
+	zt_guiItemHide(editor->ed_constant);
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve_panel);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+	zt_guiItemHide(editor->ed_unified_constant);
+	zt_guiItemHide(editor->ed_unified_random_value_panel);
+	zt_guiItemHide(editor->ed_unified_curve);
+	zt_guiItemHide(editor->ed_unified_random_curve_panel);
+
+	if (editor->is_unified) {
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->unified.constant = editor->variable->constant.x;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->unified.random_value_min = editor->variable->random_value_min.x;
+				editor->unified.random_value_max = editor->variable->random_value_max.x;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_memCpy(&editor->unified.curve, zt_sizeof(ztAnimCurve), &editor->variable->curve[0], zt_sizeof(ztAnimCurve));
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_memCpy(&editor->unified.random_curve_min, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_min[0], zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->unified.random_curve_max, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_max[0], zt_sizeof(ztAnimCurve));
+			} break;
+		}
+	}
+
+	switch (editor->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_constant);
+			}
+			else {
+				zt_guiItemShow(editor->ed_constant);
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_random_value_panel);
+			}
+			else {
+				zt_guiItemShow(editor->ed_random_value_panel);
+			}
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			if (editor->is_unified) {
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_curve, &editor->unified.curve);
+				zt_guiItemShow(editor->ed_unified_curve);
+			}
+			else {
+				zt_guiItemShow(editor->ed_curve_panel);
+
+				zt_fiz(2) {
+					zt_guiAnimCurveSetLiveValue(editor->ed_curve[i], &editor->variable->curve[i]);
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_random_curve_panel);
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_random_curve_min, &editor->unified.random_curve_min);
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_random_curve_max, &editor->unified.random_curve_max);
+			}
+			else {
+				zt_guiItemShow(editor->ed_random_curve_panel);
+
+				zt_fiz(2) {
+					zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_min[i], &editor->variable->random_curve_min[i]);
+					zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_max[i], &editor->variable->random_curve_max[i]);
+				}
+			}
+		} break;
+	}
+
+	zt_guiSizerRecalcImmediately(zt_guiItemGetTopLevelParent(editor->ed_constant));
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarVec2UpdateUnified(ztParticleVariableVec2Editor *editor)
+{
+	if (editor->is_unified) {
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->unified.constant = editor->variable->constant.x;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->unified.random_value_min = editor->variable->random_value_min.x;
+				editor->unified.random_value_max = editor->variable->random_value_max.x;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_memCpy(&editor->unified.curve, zt_sizeof(ztAnimCurve), &editor->variable->curve[0], zt_sizeof(ztAnimCurve));
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_memCpy(&editor->unified.random_curve_min, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_min[0], zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->unified.random_curve_max, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_max[0], zt_sizeof(ztAnimCurve));
+			} break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec2ButtonCfgMenu))
+{
+	ztParticleVariableVec2Editor *editor = (ztParticleVariableVec2Editor*)user_data;
+
+	if (menu_item == ztParticleVariableRealType_MAX) {
+		editor->is_unified = !editor->is_unified;
+		menu_item = editor->variable->type;
+		_zt_guiEditorPartVarVec2UpdateUnified(editor);
+	}
+
+	bool matched = editor->variable->type == (ztParticleVariableRealType_Enum)menu_item;
+	editor->variable->type = (ztParticleVariableRealType_Enum)menu_item;
+	switch (menu_item)
+	{
+		case ztParticleVariableRealType_Constant: {
+			if (editor->is_unified) {
+				if (!matched) editor->unified.constant = editor->def.x;
+			}
+			else {
+				if (!matched) {
+					editor->variable->constant = editor->def;
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			if (editor->is_unified) {
+				if (!matched) {
+					editor->unified.random_value_min = editor->def.x;
+					editor->unified.random_value_max = editor->def.x;
+				}
+			}
+			else {
+				if (!matched) {
+					editor->variable->random_value_min = editor->def;
+					editor->variable->random_value_max = editor->def;
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			if (editor->is_unified) {
+				if (!matched) {
+					zt_memSet(&editor->unified.curve, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.curve.val_max = 1;
+					editor->unified.curve.val_end = 1;
+				}
+			}
+			else {
+				if (!matched) {
+					zt_fiz(2) {
+						zt_memSet(&editor->variable->curve[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->curve[i].val_max = 1;
+						editor->variable->curve[i].val_end = 1;
+					}
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			if (editor->is_unified) {
+				if (!matched) {
+					zt_memSet(&editor->unified.random_curve_min, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.random_curve_min.val_max = 1;
+					editor->unified.random_curve_min.val_end = 1;
+
+					zt_memSet(&editor->unified.random_curve_max, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.random_curve_max.val_max = 1;
+					editor->unified.random_curve_max.val_end = 1;
+				}
+			}
+			else {
+				if (!matched) {
+					zt_fiz(2) {
+						zt_memSet(&editor->variable->random_curve_min[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->random_curve_min[i].val_max = 1;
+						editor->variable->random_curve_min[i].val_end = 1;
+
+						zt_memSet(&editor->variable->random_curve_max[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->random_curve_max[i].val_max = 1;
+						editor->variable->random_curve_max[i].val_end = 1;
+					}
+				}
+			}
+		} break;
+	}
+
+	_zt_guiEditorPartVarVec2UpdateGui(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec2ButtonCfg))
+{
+	ztParticleVariableVec2Editor *editor = (ztParticleVariableVec2Editor*)user_data;
+
+	ztGuiItem *menu = zt_guiMakeMenu(nullptr, ztGuiMenuBehaviorFlags_FreeOnClose);
+
+	ztSprite check_sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 995, 1, 7, 12);
+
+	zt_guiMenuAppend(menu, "Constant Value", ztParticleVariableRealType_Constant, editor, editor->variable->type == ztParticleVariableRealType_Constant ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Constants", ztParticleVariableRealType_RandomBetweenTwoConstants, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoConstants ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Curve", ztParticleVariableRealType_Curve, editor, editor->variable->type == ztParticleVariableRealType_Curve ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Curves", ztParticleVariableRealType_RandomBetweenTwoCurves, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoCurves ? &check_sprite : nullptr);
+
+	if (editor->allow_sync) {
+		zt_guiMenuAppendSeparator(menu);
+		zt_guiMenuAppend(menu, "Synchronize Values", ztParticleVariableRealType_MAX, editor, editor->is_unified ? &check_sprite : nullptr);
+	}
+
+	zt_guiMenuSetCallback(menu, _zt_guiEditorPartVarVec2ButtonCfgMenu_FunctionID);
+
+	zt_guiMenuPopupAtItem(menu, button, ztAlign_Bottom | ztAlign_Right);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2Update, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec2Update))
+{
+	ztParticleVariableVec2Editor *editor = (ztParticleVariableVec2Editor*)user_data;
+
+	if (zt_memCmp(editor->variable, &editor->variable_compare, zt_sizeof(ztParticleVariableVec2))) {
+		zt_memCpy(&editor->variable_compare, zt_sizeof(ztParticleVariableVec2), editor->variable, zt_sizeof(ztParticleVariableVec2));
+
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->is_unified = zt_real32Eq(editor->variable->constant.x, editor->variable->constant.y);
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->is_unified = zt_real32Eq(editor->variable->random_value_min.x, editor->variable->random_value_min.y) &&
+					zt_real32Eq(editor->variable->random_value_max.x, editor->variable->random_value_max.y);
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				editor->is_unified = zt_memCmp(&editor->variable->curve[0], &editor->variable->curve[1], zt_sizeof(ztAnimCurve)) == 0;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				editor->is_unified = zt_memCmp(&editor->variable->random_curve_min[0], &editor->variable->random_curve_min[1], zt_sizeof(ztAnimCurve)) == 0 &&
+					zt_memCmp(&editor->variable->random_curve_max[0], &editor->variable->random_curve_max[1], zt_sizeof(ztAnimCurve)) == 0;
+			} break;
+		}
+
+		_zt_guiEditorPartVarVec2UpdateUnified(editor);
+		_zt_guiEditorPartVarVec2UpdateGui(editor);
+	}
+
+	if (editor->is_unified) {
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->variable->constant.x = editor->unified.constant;
+				editor->variable->constant.y = editor->unified.constant;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->variable->random_value_min.x = editor->unified.random_value_min;
+				editor->variable->random_value_min.y = editor->unified.random_value_min;
+				editor->variable->random_value_max.x = editor->unified.random_value_max;
+				editor->variable->random_value_max.y = editor->unified.random_value_max;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_memCpy(&editor->variable->curve[0], zt_sizeof(ztAnimCurve), &editor->unified.curve, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->curve[1], zt_sizeof(ztAnimCurve), &editor->unified.curve, zt_sizeof(ztAnimCurve));
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_memCpy(&editor->variable->random_curve_min[0], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_min, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_min[1], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_min, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_max[0], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_max, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_max[1], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_max, zt_sizeof(ztAnimCurve));
+			} break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec2 *variable, ztVec2 def, ztVec2 min, ztVec2 max, r32 step, bool allow_sync)
+{
+	ztGuiItem *panel = zt_guiMakePanel(parent);
+	ztParticleVariableVec2Editor *editor = zt_mallocStructArena(ztParticleVariableVec2Editor, panel->gm->arena);
+
+	editor->variable = variable;
+	editor->min = min;
+	editor->max = max;
+	editor->def = def;
+	editor->allow_sync = allow_sync;
+
+	panel->functions.update = _zt_guiEditorPartVarVec2Update_FunctionID;
+	panel->functions.user_data = editor;
+
+	ztGuiItem *sizer_width = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz, false);
+	zt_guiSizerSizeParent(sizer_width, false, true);
+	zt_guiSizerSizeToParent(sizer_width);
+
+	ztGuiItem *sizer_main = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiSizerAddItem(sizer_width, sizer_main, 1, 0);
+
+	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
+	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_value_panel, ztGuiItemOrient_Vert);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		//zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_min = zt_guiMakeEditor(sizer, "Min:", &variable->random_value_min, min, max, step, false);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_min, 1, 0);
+
+		//zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_max = zt_guiMakeEditor(sizer, "Max:", &variable->random_value_max, min, max, step, false);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_max, 1, 0);
+	}
+
+	editor->ed_curve_panel = zt_guiMakePanel(panel);
+	zt_guiSizerAddItem(sizer_main, editor->ed_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_curve_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		char *labels[] = { "X:", "Y:", "Z:" };
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_curve[i] = zt_guiMakeAnimCurve(sizer, &variable->curve[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->curve[i]);
+			editor->ed_curve[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer, editor->ed_curve[i], 1, padding);
+		}
+	}
+
+	editor->ed_random_curve_panel = zt_guiMakePanel(panel, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_curve_panel, ztGuiItemOrient_Vert);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		ztGuiItem *sizer_min = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_min, 0, 0);
+
+		char *labels[] = { "X:", "Y:", "Z:" };
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer_min, zt_guiMakeStaticText(sizer_min, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_random_curve_min[i] = zt_guiMakeAnimCurve(sizer_min, &variable->random_curve_min[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_min[i]);
+			editor->ed_random_curve_min[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer_min, editor->ed_random_curve_min[i], 1, 0);
+		}
+
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+
+		ztGuiItem *sizer_max = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_max, 0, 0);
+
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer_max, zt_guiMakeStaticText(sizer_max, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_random_curve_max[i] = zt_guiMakeAnimCurve(sizer_max, &variable->random_curve_max[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_max[i]);
+			editor->ed_random_curve_min[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer_max, editor->ed_random_curve_max[i], 1, 0);
+		}
+	}
+
+	editor->ed_unified_constant = zt_guiMakeEditor(panel, nullptr, &editor->unified.constant, min.x, max.x, step);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_constant, 0, 0);
+
+
+	editor->ed_unified_random_value_panel = zt_guiMakePanel(panel);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_unified_random_value_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_value_min = zt_guiMakeEditor(sizer, nullptr, &editor->unified.random_value_min, min.x, max.x, step);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_value_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_value_max = zt_guiMakeEditor(sizer, nullptr, &editor->unified.random_value_max, min.x, max.x, step);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_value_max, 1, 0);
+	}
+
+	editor->ed_unified_curve = zt_guiMakeAnimCurve(panel, &editor->unified.curve, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.curve);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_curve, 0, 0);
+
+	editor->ed_unified_random_curve_panel = zt_guiMakePanel(panel, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_random_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_unified_random_curve_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_curve_min = zt_guiMakeAnimCurve(sizer, &editor->unified.random_curve_min, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.random_curve_min);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_curve_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_curve_max = zt_guiMakeAnimCurve(sizer, &editor->unified.random_curve_max, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.random_curve_max);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_curve_max, 1, 0);
+	}
+
+
+	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
+	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	zt_guiButtonSetCallback(button, _zt_guiEditorPartVarVec2ButtonCfg_FunctionID, editor);
+	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
+
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve_panel);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+	zt_guiItemHide(editor->ed_unified_constant);
+	zt_guiItemHide(editor->ed_unified_random_value_panel);
+	zt_guiItemHide(editor->ed_unified_curve);
+	zt_guiItemHide(editor->ed_unified_random_curve_panel);
+
+	return panel;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec3Editor
+{
+	ztParticleVariableVec3 *variable;
+	ztParticleVariableVec3  variable_compare;
+	ztParticleVariableReal  unified;
+
+	ztGuiItem *ed_constant;
+
+	ztGuiItem *ed_random_value_panel;
+	ztGuiItem *ed_random_value_min;
+	ztGuiItem *ed_random_value_max;
+
+	ztGuiItem *ed_curve_panel;
+	ztGuiItem *ed_curve[3];
+
+	ztGuiItem *ed_random_curve_panel;
+	ztGuiItem *ed_random_curve_min[3];
+	ztGuiItem *ed_random_curve_max[3];
+
+	ztGuiItem *ed_unified_constant;
+
+	ztGuiItem *ed_unified_random_value_panel;
+	ztGuiItem *ed_unified_random_value_min;
+	ztGuiItem *ed_unified_random_value_max;
+
+	ztGuiItem *ed_unified_curve;
+
+	ztGuiItem *ed_unified_random_curve_panel;
+	ztGuiItem *ed_unified_random_curve_min;
+	ztGuiItem *ed_unified_random_curve_max;
+
+	ztVec3 min, max, def;
+
+	bool is_unified;
+	bool allow_sync;
+};
+
+// ================================================================================================================================================================================================
+
+void _zt_guiEditorPartVarVec3UpdateGui(ztParticleVariableVec3Editor *editor)
+{
+	zt_guiItemHide(editor->ed_constant);
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve_panel);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+	zt_guiItemHide(editor->ed_unified_constant);
+	zt_guiItemHide(editor->ed_unified_random_value_panel);
+	zt_guiItemHide(editor->ed_unified_curve);
+	zt_guiItemHide(editor->ed_unified_random_curve_panel);
+
+	switch (editor->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_constant);
+			}
+			else {
+				zt_guiItemShow(editor->ed_constant);
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_random_value_panel);
+			}
+			else {
+				zt_guiItemShow(editor->ed_random_value_panel);
+			}
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			if (editor->is_unified) {
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_curve, &editor->unified.curve);
+
+				zt_guiItemShow(editor->ed_unified_curve);
+			}
+			else {
+				zt_guiItemShow(editor->ed_curve_panel);
+
+				zt_fiz(3) {
+					zt_guiAnimCurveSetLiveValue(editor->ed_curve[i], &editor->variable->curve[i]);
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			if (editor->is_unified) {
+				zt_guiItemShow(editor->ed_unified_random_curve_panel);
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_random_curve_min, &editor->unified.random_curve_min);
+				zt_guiAnimCurveSetLiveValue(editor->ed_unified_random_curve_max, &editor->unified.random_curve_max);
+			}
+			else {
+				zt_guiItemShow(editor->ed_random_curve_panel);
+
+				zt_fiz(3) {
+					zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_min[i], &editor->variable->random_curve_min[i]);
+					zt_guiAnimCurveSetLiveValue(editor->ed_random_curve_max[i], &editor->variable->random_curve_max[i]);
+				}
+			}
+		} break;
+	}
+
+	zt_guiSizerRecalcImmediately(zt_guiItemGetTopLevelParent(editor->ed_constant));
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiEditorPartVarVec3UpdateUnified(ztParticleVariableVec3Editor *editor)
+{
+	if (editor->is_unified) {
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->unified.constant = editor->variable->constant.x;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->unified.random_value_min = editor->variable->random_value_min.x;
+				editor->unified.random_value_max = editor->variable->random_value_max.x;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_memCpy(&editor->unified.curve, zt_sizeof(ztAnimCurve), &editor->variable->curve[0], zt_sizeof(ztAnimCurve));
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_memCpy(&editor->unified.random_curve_min, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_min[0], zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->unified.random_curve_max, zt_sizeof(ztAnimCurve), &editor->variable->random_curve_max[0], zt_sizeof(ztAnimCurve));
+			} break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec3ButtonCfgMenu))
+{
+	ztParticleVariableVec3Editor *editor = (ztParticleVariableVec3Editor*)user_data;
+
+	if (menu_item == ztParticleVariableRealType_MAX) {
+		editor->is_unified = !editor->is_unified;
+		menu_item = editor->variable->type;
+		_zt_guiEditorPartVarVec3UpdateUnified(editor);
+	}
+
+	bool matched = editor->variable->type == (ztParticleVariableRealType_Enum)menu_item;
+	editor->variable->type = (ztParticleVariableRealType_Enum)menu_item;
+	switch (menu_item)
+	{
+		case ztParticleVariableRealType_Constant: {
+			if (editor->is_unified) {
+				if (!matched) editor->unified.constant = editor->def.x;
+			}
+			else {
+				if (!matched) {
+					editor->variable->constant = editor->def;
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			if (editor->is_unified) {
+				if (!matched) {
+					editor->unified.random_value_min = editor->def.x;
+					editor->unified.random_value_max = editor->def.x;
+				}
+			}
+			else {
+				if (!matched) {
+					editor->variable->random_value_min = editor->def;
+					editor->variable->random_value_max = editor->def;
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			if (editor->is_unified) {
+				if (!matched) {
+					zt_memSet(&editor->unified.curve, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.curve.val_max = 1;
+					editor->unified.curve.val_end = 1;
+				}
+			}
+			else {
+				if (!matched) {
+					zt_fiz(3) {
+						zt_memSet(&editor->variable->curve[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->curve[i].val_max = 1;
+						editor->variable->curve[i].val_end = 1;
+					}
+				}
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			if (editor->is_unified) {
+				if (!matched) {
+					zt_memSet(&editor->unified.random_curve_min, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.random_curve_min.val_max = 1;
+					editor->unified.random_curve_min.val_end = 1;
+
+					zt_memSet(&editor->unified.random_curve_max, zt_sizeof(ztAnimCurve), 0);
+					editor->unified.random_curve_max.val_max = 1;
+					editor->unified.random_curve_max.val_end = 1;
+				}
+			}
+			else {
+				if (!matched) {
+					zt_fiz(3) {
+						zt_memSet(&editor->variable->random_curve_min[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->random_curve_min[i].val_max = 1;
+						editor->variable->random_curve_min[i].val_end = 1;
+
+						zt_memSet(&editor->variable->random_curve_max[i], zt_sizeof(ztAnimCurve), 0);
+						editor->variable->random_curve_max[i].val_max = 1;
+						editor->variable->random_curve_max[i].val_end = 1;
+					}
+				}
+			}
+		} break;
+	}
+
+	_zt_guiEditorPartVarVec3UpdateGui(editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec3ButtonCfg))
+{
+	ztParticleVariableVec3Editor *editor = (ztParticleVariableVec3Editor*)user_data;
+
+	ztGuiItem *menu = zt_guiMakeMenu(nullptr, ztGuiMenuBehaviorFlags_FreeOnClose);
+
+	ztSprite check_sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 995, 1, 7, 12);
+
+	zt_guiMenuAppend(menu, "Constant Value", ztParticleVariableRealType_Constant, editor, editor->variable->type == ztParticleVariableRealType_Constant ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Constants", ztParticleVariableRealType_RandomBetweenTwoConstants, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoConstants ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Curve", ztParticleVariableRealType_Curve, editor, editor->variable->type == ztParticleVariableRealType_Curve ? &check_sprite : nullptr);
+	zt_guiMenuAppend(menu, "Random Between Two Curves", ztParticleVariableRealType_RandomBetweenTwoCurves, editor, editor->variable->type == ztParticleVariableRealType_RandomBetweenTwoCurves ? &check_sprite : nullptr);
+
+	if (editor->allow_sync) {
+		zt_guiMenuAppendSeparator(menu);
+		zt_guiMenuAppend(menu, "Synchronize Values", ztParticleVariableRealType_MAX, editor, editor->is_unified ? &check_sprite : nullptr);
+	}
+
+
+	zt_guiMenuSetCallback(menu, _zt_guiEditorPartVarVec3ButtonCfgMenu_FunctionID);
+
+	zt_guiMenuPopupAtItem(menu, button, ztAlign_Bottom | ztAlign_Right);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3Update, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec3Update))
+{
+	ztParticleVariableVec3Editor *editor = (ztParticleVariableVec3Editor*)user_data;
+
+	if (zt_memCmp(editor->variable, &editor->variable_compare, zt_sizeof(ztParticleVariableVec3))) {
+		zt_memCpy(&editor->variable_compare, zt_sizeof(ztParticleVariableVec3), editor->variable, zt_sizeof(ztParticleVariableVec3));
+
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->is_unified = zt_real32Eq(editor->variable->constant.x, editor->variable->constant.y) && zt_real32Eq(editor->variable->constant.x, editor->variable->constant.z);
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->is_unified = zt_real32Eq(editor->variable->random_value_min.x, editor->variable->random_value_min.y) &&
+					zt_real32Eq(editor->variable->random_value_min.y, editor->variable->random_value_min.z) &&
+					zt_real32Eq(editor->variable->random_value_max.x, editor->variable->random_value_max.y) &&
+					zt_real32Eq(editor->variable->random_value_max.y, editor->variable->random_value_max.z);
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				editor->is_unified = zt_memCmp(&editor->variable->curve[0], &editor->variable->curve[1], zt_sizeof(ztAnimCurve)) == 0 && zt_memCmp(&editor->variable->curve[1], &editor->variable->curve[2], zt_sizeof(ztAnimCurve)) == 0;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				editor->is_unified = zt_memCmp(&editor->variable->random_curve_min[0], &editor->variable->random_curve_min[1], zt_sizeof(ztAnimCurve)) == 0 && zt_memCmp(&editor->variable->random_curve_min[1], &editor->variable->random_curve_min[2], zt_sizeof(ztAnimCurve)) == 0 &&
+					zt_memCmp(&editor->variable->random_curve_max[0], &editor->variable->random_curve_max[1], zt_sizeof(ztAnimCurve)) == 0 && zt_memCmp(&editor->variable->random_curve_max[1], &editor->variable->random_curve_max[2], zt_sizeof(ztAnimCurve)) == 0;
+			} break;
+		}
+
+		_zt_guiEditorPartVarVec3UpdateUnified(editor);
+		_zt_guiEditorPartVarVec3UpdateGui(editor);
+	}	if (editor->is_unified) {
+		switch (editor->variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				editor->variable->constant.x = editor->unified.constant;
+				editor->variable->constant.y = editor->unified.constant;
+				editor->variable->constant.z = editor->unified.constant;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				editor->variable->random_value_min.x = editor->unified.random_value_min;
+				editor->variable->random_value_min.y = editor->unified.random_value_min;
+				editor->variable->random_value_min.z = editor->unified.random_value_min;
+				editor->variable->random_value_max.x = editor->unified.random_value_max;
+				editor->variable->random_value_max.y = editor->unified.random_value_max;
+				editor->variable->random_value_max.z = editor->unified.random_value_max;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_memCpy(&editor->variable->curve[0], zt_sizeof(ztAnimCurve), &editor->unified.curve, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->curve[1], zt_sizeof(ztAnimCurve), &editor->unified.curve, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->curve[2], zt_sizeof(ztAnimCurve), &editor->unified.curve, zt_sizeof(ztAnimCurve));
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_memCpy(&editor->variable->random_curve_min[0], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_min, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_min[1], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_min, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_min[2], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_min, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_max[0], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_max, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_max[1], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_max, zt_sizeof(ztAnimCurve));
+				zt_memCpy(&editor->variable->random_curve_max[2], zt_sizeof(ztAnimCurve), &editor->unified.random_curve_max, zt_sizeof(ztAnimCurve));
+			} break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec3 *variable, ztVec3 def, ztVec3 min, ztVec3 max, r32 step, bool allow_sync)
+{
+	ztGuiItem *panel = zt_guiMakePanel(parent);
+	ztParticleVariableVec3Editor *editor = zt_mallocStructArena(ztParticleVariableVec3Editor, panel->gm->arena);
+
+	editor->variable = variable;
+	editor->min = min;
+	editor->max = max;
+	editor->def = def;
+	editor->allow_sync = allow_sync;
+
+	panel->functions.update = _zt_guiEditorPartVarVec3Update_FunctionID;
+	panel->functions.user_data = editor;
+
+	ztGuiItem *sizer_width = zt_guiMakeSizer(panel, ztGuiItemOrient_Horz, false);
+	zt_guiSizerSizeParent(sizer_width, false, true);
+	zt_guiSizerSizeToParent(sizer_width);
+
+	ztGuiItem *sizer_main = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiSizerAddItem(sizer_width, sizer_main, 1, 0);
+
+	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
+	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_value_panel, ztGuiItemOrient_Vert);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		//zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_min = zt_guiMakeEditor(sizer, "Min:", &variable->random_value_min, min, max, step, false);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_min, 1, 0);
+
+		//zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_random_value_max = zt_guiMakeEditor(sizer, "Max:", &variable->random_value_max, min, max, step, false);
+		zt_guiSizerAddItem(sizer, editor->ed_random_value_max, 1, 0);
+	}
+
+	editor->ed_curve_panel = zt_guiMakePanel(panel);
+	zt_guiSizerAddItem(sizer_main, editor->ed_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_curve_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		char *labels[] = { "X:", "Y:", "Z:" };
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_curve[i] = zt_guiMakeAnimCurve(sizer, &variable->curve[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->curve[i]);
+			editor->ed_curve[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer, editor->ed_curve[i], 1, padding);
+		}
+	}
+
+	editor->ed_random_curve_panel = zt_guiMakePanel(panel, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_random_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_random_curve_panel, ztGuiItemOrient_Vert);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		ztGuiItem *sizer_min = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_min, 0, 0);
+
+		char *labels[] = { "X:", "Y:", "Z:" };
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer_min, zt_guiMakeStaticText(sizer_min, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_random_curve_min[i] = zt_guiMakeAnimCurve(sizer_min, &variable->random_curve_min[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_min[i]);
+			editor->ed_random_curve_min[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer_min, editor->ed_random_curve_min[i], 1, 0);
+		}
+
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+
+		ztGuiItem *sizer_max = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, sizer_max, 0, 0);
+
+		zt_fiz(3) {
+			zt_guiSizerAddItem(sizer_max, zt_guiMakeStaticText(sizer_max, labels[i]), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			editor->ed_random_curve_max[i] = zt_guiMakeAnimCurve(sizer_max, &variable->random_curve_max[i], ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &variable->random_curve_max[i]);
+			editor->ed_random_curve_min[i]->size.x = .75f;
+			zt_guiSizerAddItem(sizer_max, editor->ed_random_curve_max[i], 1, 0);
+		}
+	}
+
+	editor->ed_unified_constant = zt_guiMakeEditor(panel, nullptr, &editor->unified.constant, min.x, max.x, step);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_constant, 0, 0);
+
+
+	editor->ed_unified_random_value_panel = zt_guiMakePanel(panel);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_random_value_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_unified_random_value_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_value_min = zt_guiMakeEditor(sizer, nullptr, &editor->unified.random_value_min, min.x, max.x, step);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_value_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_value_max = zt_guiMakeEditor(sizer, nullptr, &editor->unified.random_value_max, min.x, max.x, step);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_value_max, 1, 0);
+	}
+
+	editor->ed_unified_curve = zt_guiMakeAnimCurve(panel, &editor->unified.curve, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.curve);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_curve, 0, 0);
+
+	editor->ed_unified_random_curve_panel = zt_guiMakePanel(panel, 0);
+	zt_guiSizerAddItem(sizer_main, editor->ed_unified_random_curve_panel, 0, 0);
+	{
+		ztGuiItem *sizer = zt_guiMakeSizer(editor->ed_unified_random_curve_panel, ztGuiItemOrient_Horz);
+		zt_guiSizerSizeParent(sizer, false, true);
+		zt_guiSizerSizeToParent(sizer);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Min:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_curve_min = zt_guiMakeAnimCurve(sizer, &editor->unified.random_curve_min, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.random_curve_min);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_curve_min, 1, 0);
+		zt_guiSizerAddStretcher(sizer, 0, padding * 3);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Max:"), 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+		editor->ed_unified_random_curve_max = zt_guiMakeAnimCurve(sizer, &editor->unified.random_curve_max, ztGuiAnimCurveBehaviorFlags_LiveEdit | ztGuiAnimCurveBehaviorFlags_AdjustValues, &editor->unified.random_curve_max);
+		zt_guiSizerAddItem(sizer, editor->ed_unified_random_curve_max, 1, 0);
+	}
+
+
+	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
+	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	zt_guiButtonSetCallback(button, _zt_guiEditorPartVarVec3ButtonCfg_FunctionID, editor);
+	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
+
+	zt_guiItemHide(editor->ed_random_value_panel);
+	zt_guiItemHide(editor->ed_curve_panel);
+	zt_guiItemHide(editor->ed_random_curve_panel);
+	zt_guiItemHide(editor->ed_unified_constant);
+	zt_guiItemHide(editor->ed_unified_random_value_panel);
+	zt_guiItemHide(editor->ed_unified_curve);
+	zt_guiItemHide(editor->ed_unified_random_curve_panel);
+
+	return panel;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item)
 {
 	ZT_PROFILE_GUI("_zt_guiSizerMinSize");
@@ -12592,7 +13984,7 @@ void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunc
 {
 	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
 
-	zt_guiItemSetSize(window, zt_vec2(5.5f, 5.5f));
+	zt_guiItemSetSize(window, zt_vec2(5.5f, 6.f));
 
 	ztGuiColorPickerData *picker_data = zt_mallocStructArena(ztGuiColorPickerData, window->gm->arena);
 	zt_guiMakePanel(window, 0, picker_data, window->gm->arena);
@@ -12602,7 +13994,7 @@ void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunc
 	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 
 	ztGuiItem *panel_picker = zt_guiMakePanel(sizer, ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
-	zt_guiSizerAddItem(sizer, panel_picker, 1, padding);
+	zt_guiSizerAddItem(sizer, panel_picker, 1, padding, ztAlign_Center, 0);
 
 	zt_guiItemSetSize(panel_picker, zt_vec2(5, 4));
 	zt_guiItemSetMinSize(panel_picker, zt_vec2(5, 4));
@@ -12613,7 +14005,7 @@ void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunc
 	panel_picker->functions.user_data = picker_data;
 
 	ztGuiItem *sizer_btm = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
-	zt_guiSizerAddItem(sizer, sizer_btm, 0, 0);
+	zt_guiSizerAddItem(sizer, sizer_btm, 0, 0, ztAlign_Center, ztGuiItemOrient_Horz);
 
 	ztGuiItem *ed_rgba;
 	picker_data->color_rgba_work = *selected_color;
@@ -12638,7 +14030,7 @@ void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ztFunc
 		ed_rgba = zt_guiMakeEditor(sizer, nullptr, &picker_data->color_rgba.xyz, zt_vec3i(0, 0, 0), zt_vec3i(255, 255, 255), 1, false, "R", "G", "B");
 	}
 
-	zt_guiSizerAddItem(sizer_btm, ed_rgba, 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+	zt_guiSizerAddItem(sizer_btm, ed_rgba, 1, padding, ztAlign_Left | ztAlign_VertCenter, ztGuiItemOrient_Horz);
 
 	zt_guiSizerAddStretcher(sizer_btm, 0, padding);
 
@@ -13015,7 +14407,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonCancel, ZT_FUNC_GUI_BUTTON_P
 void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ztFunctionID callback, void *user_data, const char *window_title)
 {
 	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
-	zt_guiItemSetSize(window, zt_vec2(8, 3));
+	zt_guiItemSetSize(window, zt_vec2(8, 4));
 
 	r32 padding = zt_guiThemeGetRValue(zt_guiItemGetTheme(window), ztGuiThemeValue_r32_Padding, window);
 
@@ -15289,8 +16681,8 @@ void zt_debugConsoleRemoveCommand(const char *command)
 #define _zt_var_args \
 			va_list arg_ptr; \
 			va_start(arg_ptr, command); \
-			char buffer[1024 * 64]; \
-			vsnprintf_s(buffer, zt_elementsOf(buffer), command, arg_ptr);
+			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt_gui->stack_arena); \
+			vsnprintf_s(buffer, 1024 * 64, 1024 * 64, command, arg_ptr);
 
 #else
 #	error "Unsupported compiler for zt_debugConsoleLog"
@@ -15360,6 +16752,7 @@ void zt_debugConsoleLog(ztDebugConsoleLevel_Enum message_level, const char *comm
 {
 	_zt_var_args;
 	_zt_debugConsoleLogRaw(message_level, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15368,6 +16761,7 @@ void zt_debugConsoleLogUser(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_User, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15376,6 +16770,7 @@ void zt_debugConsoleLogCommand(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_Command, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15384,6 +16779,7 @@ void zt_debugConsoleLogHelp(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_Help, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15392,6 +16788,7 @@ void zt_debugConsoleLogWarning(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_Warning, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15400,6 +16797,7 @@ void zt_debugConsoleLogError(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_Error, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -15408,6 +16806,7 @@ void zt_debugConsoleLogSystem(const char *command, ...)
 {
 	_zt_var_args;
 	zt_debugConsoleLog(ztDebugConsoleLevel_System, (const char *)buffer);
+	zt_freeArena(buffer, zt_gui->stack_arena);
 }
 
 // ================================================================================================================================================================================================
@@ -19691,6 +21090,1071 @@ ztInternal void _zt_debugSpriteAnimEditor()
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+struct ztParticleEditor
+{
+	ztGuiItem                *window;
+
+	ztParticleSystem          particle_system;
+	ztParticleEmitter        *particle_emitter;
+	ztParticleSystem          display_particle_system;
+	r32                       display_reset_time;
+	ztParticleSystem          display_reset_particle_system;
+
+	ztTextureID               render_tex;
+	ztCamera                  camera;
+	ztCameraControllerArcball camera_controller;
+	ztDrawList                draw_list;
+
+	r32                       time;
+	r32                       overall_time;
+
+	ztInputMouse              input_mouse;
+	ztInputKeys               input_keys[ztInputKeys_MAX];
+
+	ztSpriteManager           sprite_manager;
+
+	ztGuiItem                *billboard_sprite_button;
+	ztGuiItem                *trail_sprite_button;
+
+	i32                       billboard_sprite_hash;
+	i32                       trail_sprite_hash;
+
+	ztGuiItem                *shape_options_sphere;
+	ztGuiItem                *shape_options_circle;
+	ztGuiItem                *shape_options_box;
+	ztGuiItem                *shape_options_square;
+
+	ztGuiItem                *combo_shape_type;
+	ztGuiItem                *combo_rendering_type;
+	ztGuiItem                *combo_rendering_blend_src;
+	ztGuiItem                *combo_rendering_blend_dst;
+
+	bool                      draw_floor_grid;
+	bool                      draw_axis;
+	bool                      draw_guides;
+	ztColor                   background_color;
+	bool                      draw_2d;
+	bool                      move_emitter;
+	bool                      paused;
+
+	char                      work_file[ztFileMaxPath];
+	bool                      should_save;
+	bool                      has_changed;
+	bool                      ignore_diff;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorUpdate))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiParticleEditorDisplayRender))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_Zero);
+	zt_drawListAddSprite(draw_list, &zt_spriteMake(editor->render_tex, 0, 0, 2048, 2048), zt_vec3(item->pos + offset, 0));
+	zt_drawListPopBlendMode(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorDisplayUpdate))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	char *work_file = "untitled";
+	if (editor->work_file[0] != 0) {
+		int pos_path_sep = zt_strFindLastPos(editor->work_file, ztFilePathSeparatorStr);
+		work_file = editor->work_file + pos_path_sep + 1;
+	}
+
+	zt_strMakePrintf(window_title, 512, "Particle System Editor - %s%s", work_file, editor->has_changed ? "*" : "");
+	zt_guiItemSetLabel(zt_guiItemGetTopLevelParent(editor->billboard_sprite_button), window_title);
+
+	zt_cameraControlUpdateArcball(&editor->camera_controller, &editor->input_mouse, editor->input_keys, dt);
+
+	zt_drawListPushShader(&editor->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+	zt_drawListPushTexture(&editor->draw_list, ztTextureDefault);
+
+	if (editor->draw_floor_grid) {
+		zt_drawListPushColor(&editor->draw_list, zt_vec4(1, 1, 1, .5f));
+		zt_drawListAddFloorGrid(&editor->draw_list, zt_vec3(0, -.001f, 0), 10, 10);
+		zt_drawListPopColor(&editor->draw_list);
+	}
+
+	if (editor->draw_axis) {
+		zt_drawListAddAxis(&editor->draw_list);
+	}
+
+	if (zt_memCmp(&editor->particle_system, &editor->display_reset_particle_system, zt_sizeof(ztParticleSystem))) {
+		zt_memCpy(&editor->display_reset_particle_system, zt_sizeof(ztParticleSystem), &editor->particle_system, zt_sizeof(ztParticleSystem));
+		editor->display_reset_time = editor->particle_emitter != nullptr && editor->particle_emitter->system == nullptr ? dt * .5f : .5f;
+	}
+
+	if (editor->display_reset_time > 0) {
+		editor->display_reset_time -= dt;
+		if (editor->display_reset_time < 0) {
+			zt_particleEmitterFree(editor->particle_emitter);
+			zt_memCpy(&editor->display_particle_system, zt_sizeof(ztParticleSystem), &editor->particle_system, zt_sizeof(ztParticleSystem));
+			editor->particle_emitter = zt_particleEmitterInit(&editor->display_particle_system, zt_game->game_details.current_frame * 10000);
+
+			r32 dt_each = 1 / 30.f;
+			r32 time = editor->time;
+			while (time > 0) {
+				zt_particleEmitterUpdate(editor->particle_emitter, dt_each);
+				time -= dt_each;
+			}
+
+			if (!editor->ignore_diff) {
+				editor->has_changed = true;
+			}
+			else {
+				editor->ignore_diff = false;
+			}
+		}
+	}
+
+	if (!editor->paused) {
+		editor->time += dt;
+		editor->overall_time += dt;
+
+		if(editor->particle_emitter != nullptr) {
+			zt_particleEmitterUpdate(editor->particle_emitter, dt);
+
+			if (editor->display_particle_system.system_duration > 0) {
+				if (editor->particle_emitter->enabled == false) {
+					editor->time = 0;
+					zt_particleEmitterFree(editor->particle_emitter);
+					editor->particle_emitter = zt_particleEmitterInit(&editor->display_particle_system, zt_game->game_details.current_frame * 10000);
+				}
+				if (editor->display_particle_system.system_loops) {
+					if (editor->time > editor->display_particle_system.system_duration) {
+						editor->time -= editor->display_particle_system.system_duration;
+					}
+				}
+			}
+			else if (editor->time > 10) {
+				editor->time = 0;
+			}
+		}
+	}
+
+	if(editor->particle_emitter != nullptr) {
+		if (editor->draw_guides) {
+			r32 emitter_life_pct = editor->display_particle_system.system_duration <= 0 ? 0 : 1 - (zt_max(0, editor->particle_emitter->life_left) / editor->display_particle_system.system_duration);
+
+			ztVec3 system_rotation_euler = zt_particleVariableVec3GetValue(&editor->particle_emitter->system_rotation, emitter_life_pct);
+			if (system_rotation_euler != ztVec3::zero) {
+				zt_drawListPushTransform(&editor->draw_list, ztQuat::makeFromEuler(system_rotation_euler).convertToMat4());
+			}
+
+			switch (editor->display_particle_system.system_shape.type)
+			{
+				case ztParticleShapeType_Sphere: {
+					r32 radius = zt_particleVariableRealGetValue(&editor->particle_emitter->system_shape_sphere.radius, emitter_life_pct);
+					zt_drawListAddEmptySimpleSphere(&editor->draw_list, ztVec3::zero, radius, zt_convertToi32Floor(16 * radius));
+				} break;
+
+				case ztParticleShapeType_Circle: {
+					r32 radius = zt_particleVariableRealGetValue(&editor->particle_emitter->system_shape_circle.radius, emitter_life_pct);
+					zt_drawListAddEmptyCircle(&editor->draw_list, ztVec3::zero, radius, zt_convertToi32Floor(16 * radius));
+				} break;
+
+				case ztParticleShapeType_Box: {
+					ztVec3 extents = zt_particleVariableVec3GetValue(&editor->particle_emitter->system_shape_box.extents, emitter_life_pct);
+					zt_drawListAddEmptyCubeFromCenterSize(&editor->draw_list, ztVec3::zero, extents);
+				} break;
+
+				case ztParticleShapeType_Square: {
+					ztVec2 extents = zt_particleVariableVec2GetValue(&editor->particle_emitter->system_shape_square.extents, emitter_life_pct);
+					zt_drawListAddEmptyRect(&editor->draw_list, ztVec3::zero, extents);
+				} break;
+			}
+
+			if (system_rotation_euler != ztVec3::zero) {
+				zt_drawListPopTransform(&editor->draw_list);
+			}
+		}
+
+		if (!editor->move_emitter) {
+			editor->particle_emitter->position = ztVec3::zero;
+		}
+		else {
+			editor->particle_emitter->position = zt_vec3(zt_sin(editor->overall_time) * 4, zt_cos(editor->overall_time) * 4, 0);
+		}
+
+		if(editor->draw_2d && editor->camera.type != ztCameraType_Orthographic) {
+			ztVec2i tex_size = zt_textureGetSize(editor->render_tex);
+			zt_cameraMakeOrtho(&editor->camera, tex_size.x, tex_size.y, tex_size.x, tex_size.y, 0.001f, 100.f);
+		}
+		else if(editor->draw_2d == false && editor->camera.type != ztCameraType_Perspective) {
+			ztVec2i tex_size = zt_textureGetSize(editor->render_tex);
+			zt_cameraMakePersp(&editor->camera, tex_size.x, tex_size.y, 90.f, 0.001f, 1000.f, zt_vec3(0, 3, 3));
+			editor->camera_controller = zt_cameraControllerMakeArcball(&editor->camera, ztVec3::zero);
+		}
+
+		zt_particleEmitterRender(editor->particle_emitter, &editor->draw_list, &editor->camera);
+	}
+
+	zt_drawListPopTexture(&editor->draw_list);
+	zt_drawListPopShader(&editor->draw_list);
+
+	zt_renderDrawList(&editor->camera, &editor->draw_list, editor->background_color, editor->draw_2d ? ztRenderDrawListFlags_NoDepthTest : 0, editor->render_tex);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiParticleEditorDisplayInputMouse))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_memCpy(&editor->input_mouse, zt_sizeof(ztInputMouse), input_mouse, zt_sizeof(ztInputMouse));
+
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputKeyboard, ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiParticleEditorDisplayInputKeyboard))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_memCpy(editor->input_keys, zt_sizeof(ztInputKeys) * zt_elementsOf(editor->input_keys), input_keys, zt_sizeof(ztInputKeys) * zt_elementsOf(editor->input_keys));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiParticleEditorDisplayCleanup))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_particleEmitterFree(editor->particle_emitter);
+	zt_textureFree(editor->render_tex);
+	zt_drawListFree(&editor->draw_list);
+	zt_spriteManagerFree(&editor->sprite_manager, true);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiParticleEditorShapeTypeHideEditors(ztParticleEditor *editor, ztParticleShapeType_Enum except_for)
+{
+	zt_guiItemShow(editor->shape_options_sphere, except_for == ztParticleShapeType_Sphere);
+	zt_guiItemShow(editor->shape_options_circle, except_for == ztParticleShapeType_Circle);
+	zt_guiItemShow(editor->shape_options_box, except_for == ztParticleShapeType_Box);
+	zt_guiItemShow(editor->shape_options_square, except_for == ztParticleShapeType_Square);
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->shape_options_sphere));
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorShapeTypeCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorShapeTypeCombo))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	_zt_guiParticleEditorShapeTypeHideEditors(editor, (ztParticleShapeType_Enum)selected);
+
+	editor->particle_system.system_shape.type = (ztParticleShapeType_Enum)selected;
+
+	switch (selected)
+	{
+		case ztParticleShapeType_Point: {
+			// ...
+		} break;
+
+		case ztParticleShapeType_Sphere: {
+			editor->particle_system.system_shape.sphere.radius.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.sphere.radius.constant = 1;
+			editor->particle_system.system_shape.sphere.volume_angle_min.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.sphere.volume_angle_min.constant = 0;
+			editor->particle_system.system_shape.sphere.volume_angle_max.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.sphere.volume_angle_max.constant = 360;
+		} break;
+
+		case ztParticleShapeType_Circle: {
+			editor->particle_system.system_shape.circle.radius.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.circle.radius.constant = 1;
+			editor->particle_system.system_shape.circle.volume_angle_min.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.circle.volume_angle_min.constant = 0;
+			editor->particle_system.system_shape.circle.volume_angle_max.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.circle.volume_angle_max.constant = 360;
+		} break;
+
+		case ztParticleShapeType_Box: {
+			editor->particle_system.system_shape.box.extents.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.box.extents.constant = zt_vec3(1, 1, 1);
+		} break;
+
+		case ztParticleShapeType_Square: {
+			editor->particle_system.system_shape.square.extents.type = ztParticleVariableRealType_Constant;
+			editor->particle_system.system_shape.square.extents.constant = zt_vec2(1, 1);
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelected, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorTrailSpriteSelected))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	if (!cancelled) {
+		ztSprite *sprite = zt_spriteManagerGetSprite(&editor->sprite_manager, sprite_name_hash);
+		if (sprite) {
+			zt_guiButtonSetIcon(editor->trail_sprite_button, sprite);
+			zt_guiItemSetLabel(editor->trail_sprite_button, nullptr);
+
+			editor->particle_system.trails_sprite = *sprite;
+			zt_guiSizerRecalc(editor->window);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelectButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorTrailSpriteSelectButton))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_guiDialogSpriteSelector(&editor->sprite_manager, _zt_guiParticleEditorTrailSpriteSelected_FunctionID, editor, "Select Sprite");
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelected, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorBillboardSpriteSelected))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	if (!cancelled) {
+		ztSprite *sprite = zt_spriteManagerGetSprite(&editor->sprite_manager, sprite_name_hash);
+		if (sprite) {
+			zt_guiButtonSetIcon(editor->billboard_sprite_button, sprite);
+			zt_guiItemSetLabel(editor->billboard_sprite_button, nullptr);
+
+			editor->particle_system.system_rendering.billboard.sprite = *sprite;
+			editor->particle_system.system_rendering.facing.sprite = *sprite;
+			zt_guiSizerRecalc(editor->window);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelectButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorBillboardSpriteSelectButton))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_guiDialogSpriteSelector(&editor->sprite_manager, _zt_guiParticleEditorBillboardSpriteSelected_FunctionID, editor, "Select Sprite");
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingTypeCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingTypeCombo))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	editor->particle_system.system_rendering.type = (ztParticleRenderingType_Enum)selected;
+
+	switch (selected)
+	{
+		case ztParticleRenderingType_BillBoard: {
+		} break;
+
+		case ztParticleRenderingType_Facing: {
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingBlendCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingBlendCombo))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	if (combobox == editor->combo_rendering_blend_src) {
+		editor->particle_system.system_rendering.blend_mode_src = (ztRendererBlendMode_Enum)selected;
+	}
+	else if (combobox == editor->combo_rendering_blend_dst) {
+		editor->particle_system.system_rendering.blend_mode_dst = (ztRendererBlendMode_Enum)selected;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiParticleEditorSave(ztParticleEditor *editor)
+{
+	char *error = nullptr;
+
+	ztSerial serial;
+	if (zt_serialMakeWriter(&serial, editor->work_file, ZT_PARTICLE_SYSTEM_FILE_GUID, ZT_SPRITE_ANIM_FILE_VERSION)) {
+		if (!zt_serialWrite(&serial, &editor->particle_system, &editor->sprite_manager)) {
+			error = "Unable to serialize particle system";
+		}
+		zt_serialClose(&serial);
+	}
+	else {
+		error = "Unable to write to file.";
+	}
+
+	if (error != nullptr) {
+		char message[ztFileMaxPath];
+		zt_strPrintf(message, zt_elementsOf(message), "%s\n\n%s", error, editor->work_file);
+		zt_guiDialogMessageBoxOk("Error Saving File", message, ztInvalidID, nullptr);
+	}
+	else {
+		char message[ztFileMaxPath];
+		zt_strPrintf(message, zt_elementsOf(message), "File saved.\n\n%s", editor->work_file);
+		zt_guiDialogMessageBoxOk("File Successfully Saved", message, ztInvalidID, nullptr);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorButtonFileSave))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	char path[ztFileMaxPath] = { 0 };
+	zt_fileGetFullPath(editor->work_file, path, zt_elementsOf(path));
+	if (!zt_directoryExists(path)) {
+		zt_guiDialogMessageBoxOk("Invalid File Name", "Select a valid file name", ztInvalidID, nullptr);
+		return;
+	}
+
+	_zt_guiParticleEditorSave(editor);
+}
+
+// ================================================================================================================================================================================================
+
+enum ztParticleEditorMenu_Enum
+{
+	ztParticleEditorMenu_New,
+	ztParticleEditorMenu_Open,
+	ztParticleEditorMenu_Save,
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_guiParticleEditorUpdateGui(ztParticleEditor *editor, ztParticleSystem *particle_system)
+{
+	zt_guiComboBoxSetSelected(editor->combo_shape_type, particle_system->system_shape.type);
+	_zt_guiParticleEditorShapeTypeCombo(editor->combo_shape_type, particle_system->system_shape.type, editor);
+
+	zt_guiComboBoxSetSelected(editor->combo_rendering_type, particle_system->system_rendering.type);
+	_zt_guiParticleEditorRenderingTypeCombo(editor->combo_rendering_type, particle_system->system_rendering.type, editor);
+
+	zt_guiComboBoxSetSelected(editor->combo_rendering_blend_src, particle_system->system_rendering.blend_mode_src);
+	_zt_guiParticleEditorRenderingBlendCombo(editor->combo_rendering_blend_src, particle_system->system_rendering.blend_mode_src, editor);
+	zt_guiComboBoxSetSelected(editor->combo_rendering_blend_dst, particle_system->system_rendering.blend_mode_dst);
+	_zt_guiParticleEditorRenderingBlendCombo(editor->combo_rendering_blend_dst, particle_system->system_rendering.blend_mode_dst, editor);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileDialogCallback, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_guiParticleEditorButtonFileDialogCallback))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	if (editor->should_save && zt_fileExists(path)) {
+		zt_guiDialogMessageBoxOk("File Already Exists", "This file already exists.\n\nPlease choose a new file.", ztInvalidID, nullptr);
+		return;
+	}
+
+	zt_strCpy(editor->work_file, zt_elementsOf(editor->work_file), path);
+
+	if (editor->should_save) {
+		_zt_guiParticleEditorSave(editor);
+		editor->should_save = false;
+	}
+	else {
+		ztSerial serial;
+
+		char *error = nullptr;
+
+		ztParticleSystem particle_system;
+		if (zt_serialMakeReader(&serial, editor->work_file, ZT_PARTICLE_SYSTEM_FILE_GUID)) {
+			if (!zt_serialRead(&serial, &particle_system, &editor->sprite_manager)) {
+				error = "Unable to serialize particle system";
+			}
+			zt_serialClose(&serial);
+		}
+		else {
+			error = "Unable to read from file.";
+		}
+
+		if (error != nullptr) {
+			zt_guiDialogMessageBoxOk("Unable to Load Particle System File", error, ztInvalidID, nullptr);
+			return;
+		}
+		else {
+			_zt_guiParticleEditorUpdateGui(editor, &particle_system);
+			zt_memCpy(&editor->particle_system, zt_sizeof(ztParticleSystem), &particle_system, zt_sizeof(ztParticleSystem));
+		}
+	}
+
+	editor->has_changed = false;
+	editor->ignore_diff = true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiParticleEditorMenu))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+
+	char path[ztFileMaxPath];
+	char *path_to_send = path;
+
+	zt_fileConcatFileToPath(path, ztFileMaxPath, zt_game->game_details.data_path, "textures");
+	if (!zt_directoryExists(path)) {
+		path_to_send = nullptr;
+	}
+
+	switch (menu_item)
+	{
+		case ztParticleEditorMenu_New: {
+			editor->work_file[0] = 0;
+
+			zt_memSet(&editor->particle_system, zt_sizeof(ztParticleSystem), 0);
+
+			editor->particle_system.system_duration = 0;
+			editor->particle_system.system_loops = true;
+			editor->particle_system.system_prewarm = 0;
+			editor->particle_system.system_local_space = true;
+			editor->particle_system.start_speed.constant = 1.f;
+			editor->particle_system.system_rate_over_time.constant = 20;
+			editor->particle_system.lifetime.constant = 3;
+			editor->particle_system.start_scale.constant = ztVec3::one;
+
+			ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 815, 1, 33, 33);
+			editor->particle_system.system_rendering.type = ztParticleRenderingType_BillBoard;
+			editor->particle_system.system_rendering.billboard.sprite = sprite;
+			editor->particle_system.system_rendering.facing.sprite = sprite;
+			editor->particle_system.system_rendering.blend_mode_src = ztRendererBlendMode_SourceAlpha;
+			editor->particle_system.system_rendering.blend_mode_dst = ztRendererBlendMode_OneMinusSourceAlpha;
+
+			ztSprite sprite_trail = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 948, 2, 12, 12);
+			editor->particle_system.trails_sprite = sprite_trail;
+
+			_zt_guiParticleEditorUpdateGui(editor, &editor->particle_system);
+			zt_guiButtonSetIcon(editor->billboard_sprite_button, nullptr);
+			zt_guiItemSetLabel(editor->billboard_sprite_button, "Select Sprite");
+			zt_guiButtonSetIcon(editor->trail_sprite_button, nullptr);
+			zt_guiItemSetLabel(editor->trail_sprite_button, "Select Sprite");
+		} break;
+
+		case ztParticleEditorMenu_Open: {
+			editor->should_save = false;
+			zt_guiDialogFileSelect("Choose Particle System File", ztGuiDialogFileSelectFlags_Open, _zt_guiParticleEditorButtonFileDialogCallback_FunctionID, editor, path_to_send);
+		} break;
+
+		case ztParticleEditorMenu_Save: {
+			if (editor->work_file[0] == 0) {
+				editor->should_save = true;
+				zt_guiDialogFileSelect("Save As", ztGuiDialogFileSelectFlags_Save, _zt_guiParticleEditorButtonFileDialogCallback_FunctionID, editor, path_to_send);
+			}
+			else {
+				_zt_guiParticleEditorSave(editor);
+			}
+
+			editor->has_changed = false;
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_guiParticleEditor()
+{
+	const char *window_name = "Particle System Editor";
+
+	{
+		ztGuiItem *window = zt_guiItemFindByName(window_name);
+		if (window != nullptr) {
+			zt_guiItemShow(window, true);
+			zt_guiItemBringToFront(window);
+			return;
+		}
+	}
+
+	ztGuiManager *gm = zt_gui->gui_manager_active;
+	ztParticleEditor *editor = zt_mallocStructArena(ztParticleEditor, gm->arena);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	ztGuiItem *window = zt_guiMakeWindow(window_name, ztGuiWindowBehaviorFlags_Default);
+	zt_guiItemSetName(window, window_name);
+	zt_guiItemSetSize(window, zt_cameraOrthoGetViewportSize(gm->gui_camera) - zt_vec2(1, 1.5f));
+	zt_guiItemSetUserData(window, editor);
+
+	ztGuiItem *menu_bar = zt_guiMakeMenuBar(window);
+
+	ztGuiItem *menu_file = zt_guiMakeMenu(menu_bar);
+	zt_guiMenuAppend(menu_file, "New Particle System", ztParticleEditorMenu_New, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 750, 42, 21, 21));
+	zt_guiMenuAppend(menu_file, "Open Particle System", ztParticleEditorMenu_Open, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 709, 43, 21, 21));
+	zt_guiMenuAppend(menu_file, "Save Particle System", ztParticleEditorMenu_Save, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 730, 44, 21, 21));
+	zt_guiMenuSetCallback(menu_file, _zt_guiParticleEditorMenu_FunctionID);
+	zt_guiMenuAppendSubmenu(menu_bar, "File", menu_file);
+
+	zt_guiWindowSetMenuBar(window, menu_bar);
+
+	ztGuiItem *panel = zt_guiMakePanel(window, 0, editor, gm->arena);
+	panel->functions.update = _zt_guiParticleEditorUpdate_FunctionID;
+	panel->functions.user_data = editor;
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	ztGuiItem *splitter = zt_guiMakeSplitter(sizer, ztGuiItemOrient_Horz, .35f);
+	zt_guiSizerAddItem(sizer, splitter, 1, 0);
+
+	ztGuiItem *panel_tools = zt_guiMakeScrollContainer(splitter, ztGuiScrollContainerBehaviorFlags_StretchHorz);
+	ztGuiItem *panel_preview = zt_guiMakePanel(splitter, ztGuiPanelBehaviorFlags_DrawBackground | ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_LateUpdate);
+
+	panel_preview->functions.render = _zt_guiParticleEditorDisplayRender_FunctionID;
+	panel_preview->functions.update = _zt_guiParticleEditorDisplayUpdate_FunctionID;
+	panel_preview->functions.input_mouse = _zt_guiParticleEditorDisplayInputMouse_FunctionID;
+	panel_preview->functions.input_key = _zt_guiParticleEditorDisplayInputKeyboard_FunctionID;
+	panel_preview->functions.cleanup = _zt_guiParticleEditorDisplayCleanup_FunctionID;
+	panel_preview->functions.user_data = editor;
+
+	editor->background_color = ztColor_DarkGray;
+	editor->draw_floor_grid = true;
+	editor->draw_axis = true;
+	editor->draw_guides = true;
+	editor->paused = false;
+	editor->move_emitter = false;
+	editor->overall_time = 0;
+
+	{
+		ztGuiItem *preview_sizer = zt_guiMakeSizer(panel_preview, ztGuiItemOrient_Vert);
+
+		ztGuiItem *controls_panel = zt_guiMakePanel(preview_sizer, ztGuiPanelBehaviorFlags_DrawBackground);
+		zt_guiSizerAddStretcher(preview_sizer, 1);
+		zt_guiSizerAddItem(preview_sizer, controls_panel, 0, padding);
+
+		ztGuiItem *controls_sizer = zt_guiMakeSizer(controls_panel, ztGuiItemOrient_Horz, false);
+		zt_guiSizerSizeParent(controls_sizer);
+
+		zt_guiSizerAddStretcher(controls_sizer, 1, 0);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeToggleButton(controls_sizer, "Pause", 0, &editor->paused), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeStaticText(controls_sizer, "Background:"), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeColorPicker(controls_sizer, editor->background_color, ztGuiColorPickerBehaviorFlags_LiveEdit, &editor->background_color), 0, padding);
+
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeCheckbox(controls_sizer, "Draw Floor Grid:", 0, &editor->draw_floor_grid), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeCheckbox(controls_sizer, "Draw Axis:", 0, &editor->draw_axis), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeCheckbox(controls_sizer, "Draw Guides:", 0, &editor->draw_guides), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeCheckbox(controls_sizer, "Draw 2D:", 0, &editor->draw_2d), 0, padding);
+		zt_guiSizerAddItem(controls_sizer, zt_guiMakeCheckbox(controls_sizer, "Move Emitter:", 0, &editor->move_emitter), 0, padding);
+
+		//zt_guiSizerAddStretcher(controls_sizer, 1, 0);
+	}
+
+	editor->window = window;
+	editor->display_reset_time = 0;
+
+	zt_drawListMake(&editor->draw_list, 1024 * 512);
+	editor->render_tex = zt_textureMakeRenderTarget(2048, 2048);
+
+	zt_spriteManagerMake(&editor->sprite_manager, 512);
+	zt_spriteManagerLoadAll(&editor->sprite_manager);
+
+
+	zt_cameraMakePersp(&editor->camera, 2048, 2048, 90, .01f, 1000.f, zt_vec3(0, 5, 5));
+	editor->camera_controller = zt_cameraControllerMakeArcball(&editor->camera);
+
+	zt_guiSplitterSetItems(splitter, panel_tools, panel_preview);
+	zt_guiSplitterSetFirstSize(splitter, 8);
+
+#	define ztEdLabelWidth	2.5f
+
+	struct local
+	{
+		static ztGuiItem *makePanelSizer(ztGuiItem *sizer_parent, const char *label, r32 padding, bool collapsed = false)
+		{
+			ztGuiItem *collapsing_panel = zt_guiMakeCollapsingPanel(sizer_parent, label);
+			zt_guiItemSetName(collapsing_panel, label);
+			zt_guiSizerAddItem(sizer_parent, collapsing_panel, 0, padding);
+
+			ztGuiItem *panel = zt_guiCollapsingPanelGetContentParent(collapsing_panel);
+
+			ztGuiItem *sizer_panel = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert, true);
+			zt_guiSizerSizeParent(sizer_panel, false, true);
+			zt_guiSizerSizeToParent(sizer_panel);
+
+			ztGuiItem *sizer = zt_guiMakeColumnSizer(sizer_panel, 2, ztGuiColumnSizerType_FillRow, false);
+			zt_guiSizerAddItem(sizer_panel, sizer, 0, padding);
+
+			zt_guiItemSetName(sizer, label);
+			zt_guiColumnSizerSetProp(sizer, 1, 1);
+
+			if (collapsed) {
+				zt_guiCollapsingPanelCollapse(collapsing_panel);
+			}
+
+			return sizer;
+		}
+
+		static ztGuiItem  *makeLabel(ztGuiItem *sizer, const char *label, r32 padding)
+		{
+			ztGuiItem *lbl = zt_guiMakeStaticText(sizer, label);
+			lbl->size.x = ztEdLabelWidth;
+			lbl->align_flags = ztAlign_Left;
+			zt_guiSizerAddItem(sizer, lbl, 0, padding, ztAlign_Left | ztAlign_VertCenter, 0);
+			return lbl;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, r32 *value, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, nullptr, value, 0, 999, step);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, i32 *value, i32 step = 1, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, nullptr, value, 0, 999, step);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, bool *value, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *check = zt_guiMakeCheckbox(sizer, " ", ztGuiCheckboxBehaviorFlags_RightText, value);
+			zt_guiSizerAddItem(sizer, check, 1, padding);
+			check->size.y = zt_guiThemeGetRValue(zt_guiItemGetTheme(check), ztGuiThemeValue_r32_TextEditDefaultH, check);
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = check;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, ztParticleVariableReal *var_real, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, var_real, 0, 0, 999, step);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, ztParticleVariableVec2 *var_vec2, bool allow_sync, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, var_vec2, ztVec2::zero, zt_vec2(-999, -999), zt_vec2(999, 999), step, allow_sync);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, ztParticleVariableVec3 *var_vec3, bool allow_sync, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, var_vec3, ztVec3::zero, zt_vec3(-999, -999, -999), zt_vec3(999, 999, 999), step, allow_sync);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, bool *using_var, ztParticleVariableVec3 *var_vec3, bool allow_sync, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+
+			ztGuiItem *editor_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+			zt_guiSizerAddItem(sizer, editor_sizer, 1, 0);
+
+			ztGuiItem *check = zt_guiMakeCheckbox(editor_sizer, nullptr, ztGuiCheckboxBehaviorFlags_RightText, using_var);
+			zt_guiSizerAddItem(editor_sizer, check, 0, padding, ztAlign_VertCenter, 0);
+
+			ztGuiItem *editor = zt_guiMakeEditor(editor_sizer, var_vec3, ztVec3::zero, zt_vec3(-999, -999, -999), zt_vec3(999, 999, 999), step, allow_sync);
+			zt_guiSizerAddItem(editor_sizer, editor, 1, 0);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, bool *using_var, ztParticleVariableReal *var_real, bool allow_sync, r32 step = .1f, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+
+			ztGuiItem *editor_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+			zt_guiSizerAddItem(sizer, editor_sizer, 1, 0);
+
+			ztGuiItem *check = zt_guiMakeCheckbox(editor_sizer, nullptr, ztGuiCheckboxBehaviorFlags_RightText, using_var);
+			zt_guiSizerAddItem(editor_sizer, check, 0, padding, ztAlign_VertCenter, 0);
+
+			ztGuiItem *editor = zt_guiMakeEditor(editor_sizer, var_real, 0, -999, 999, step);
+			zt_guiSizerAddItem(editor_sizer, editor, 1, 0);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, ztParticleVariableColor *var_color, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+			ztGuiItem *editor = zt_guiMakeEditor(sizer, var_color);
+			zt_guiSizerAddItem(sizer, editor, 1, padding);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, bool *using_var, ztParticleVariableColor *var_color, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+
+			ztGuiItem *editor_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+			zt_guiSizerAddItem(sizer, editor_sizer, 1, 0);
+
+			ztGuiItem *check = zt_guiMakeCheckbox(editor_sizer, nullptr, ztGuiCheckboxBehaviorFlags_RightText, using_var);
+			zt_guiSizerAddItem(editor_sizer, check, 0, padding, ztAlign_VertCenter, 0);
+
+			ztGuiItem *editor = zt_guiMakeEditor(editor_sizer, var_color);
+			zt_guiSizerAddItem(editor_sizer, editor, 1, padding);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item) *editor_item = editor;
+		}
+
+		static void makeEditor(ztGuiItem *sizer, const char *label, r32 padding, r32* val_one, r32 *val_two, r32 step, ztGuiItem **label_item = nullptr, ztGuiItem **editor_item_1 = nullptr, ztGuiItem **editor_item_2 = nullptr)
+		{
+			ztGuiItem *lbl = makeLabel(sizer, label, padding);
+
+			ztGuiItem *editor_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+			zt_guiSizerAddItem(sizer, editor_sizer, 1, 0);
+
+			ztGuiItem *editor_one = zt_guiMakeEditor(editor_sizer, nullptr, val_one, 0, 999, step);
+			ztGuiItem *editor_two = zt_guiMakeEditor(editor_sizer, nullptr, val_two, 0, 999, step);
+
+			zt_guiSizerAddItem(editor_sizer, editor_one, 1, 0);
+			zt_guiSizerAddStretcher(editor_sizer, 0, padding * 2);
+			zt_guiSizerAddItem(editor_sizer, editor_two, 1, 0);
+
+			if (label_item) *label_item = lbl;
+			if (editor_item_1) *editor_item_1 = editor_one;
+			if (editor_item_2) *editor_item_2 = editor_two;
+		}
+	};
+
+#	undef ztEdLabelWidth
+
+	{
+		ztGuiItem *panel = zt_guiMakePanel(panel_tools);
+		zt_guiItemSetName(panel, "panel_tools");
+		zt_guiScrollContainerSetItem(panel_tools, panel);
+
+		ztGuiItem *sizer_tools = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert, false);
+		zt_guiSizerSizeParent(sizer_tools, false, true);
+		zt_guiSizerSizeToParent(sizer_tools);
+		zt_guiItemSetName(sizer_tools, "sizer_tools");
+
+		ztGuiItem *system_panel = local::makePanelSizer(sizer_tools, "System", padding);
+		{
+			local::makeEditor(system_panel, "Duration:", padding, &editor->particle_system.system_duration);
+			local::makeEditor(system_panel, "Loops:", padding, &editor->particle_system.system_loops);
+			local::makeEditor(system_panel, "Pre-Warm:", padding, &editor->particle_system.system_prewarm);
+			local::makeEditor(system_panel, "Gravity Multiplier:", padding, &editor->particle_system.system_gravity_multiplier);
+		}
+
+		ztGuiItem *emission_panel = local::makePanelSizer(sizer_tools, "Emission", padding);
+		{
+			local::makeEditor(emission_panel, "Local Space:", padding, &editor->particle_system.system_local_space);
+			local::makeEditor(emission_panel, "Rate Over Time:", padding, &editor->particle_system.system_rate_over_time);
+
+			local::makeLabel(emission_panel, "Shape", padding);
+			ztGuiItem *shape_combo = zt_guiMakeComboBox(emission_panel, ztParticleShapeType_MAX);
+			editor->combo_shape_type = shape_combo;
+			zt_guiSizerAddItem(emission_panel, shape_combo, 1, padding);
+
+			zt_guiComboBoxAppend(shape_combo, "Point");
+			zt_guiComboBoxAppend(shape_combo, "Sphere");
+			zt_guiComboBoxAppend(shape_combo, "Circle");
+			zt_guiComboBoxAppend(shape_combo, "Box");
+			zt_guiComboBoxAppend(shape_combo, "Square");
+
+			zt_guiComboBoxSetCallback(shape_combo, _zt_guiParticleEditorShapeTypeCombo_FunctionID, editor);
+
+			local::makeEditor(emission_panel, "Spawn Volume", padding, &editor->particle_system.system_shape.spawn_volume);
+			local::makeEditor(emission_panel, "Spawn Volume Local", padding, &editor->particle_system.system_shape.spawn_volume_local);
+
+			ztGuiItem *parent_sizer = emission_panel->parent;
+			ztGuiItem *shape_options_sphere = local::makePanelSizer(parent_sizer, "Sphere Options", padding);
+			{
+				local::makeEditor(shape_options_sphere, "Radius", padding, &editor->particle_system.system_shape.sphere.radius, .1f);
+				local::makeEditor(shape_options_sphere, "Angle Min", padding, &editor->particle_system.system_shape.sphere.volume_angle_min, .1f);
+				local::makeEditor(shape_options_sphere, "Angle Max", padding, &editor->particle_system.system_shape.sphere.volume_angle_max, .1f);
+
+				while (shape_options_sphere->type != ztGuiItemType_CollapsingPanel) {
+					shape_options_sphere = shape_options_sphere->parent;
+				}
+				editor->shape_options_sphere = shape_options_sphere;
+			}
+
+			ztGuiItem *shape_options_circle = local::makePanelSizer(parent_sizer, "Circle Options", padding);
+			{
+				local::makeEditor(shape_options_circle, "Radius", padding, &editor->particle_system.system_shape.circle.radius, .1f);
+				local::makeEditor(shape_options_circle, "Angle Min", padding, &editor->particle_system.system_shape.circle.volume_angle_min, .1f);
+				local::makeEditor(shape_options_circle, "Angle Max", padding, &editor->particle_system.system_shape.circle.volume_angle_max, .1f);
+
+				while (shape_options_circle->type != ztGuiItemType_CollapsingPanel) {
+					shape_options_circle = shape_options_circle->parent;
+				}
+				editor->shape_options_circle = shape_options_circle;
+			}
+
+			ztGuiItem *shape_options_box = local::makePanelSizer(parent_sizer, "Box Options", padding);
+			{
+				local::makeEditor(shape_options_box, "Extents", padding, &editor->particle_system.system_shape.box.extents, true, .1f);
+
+				while (shape_options_box->type != ztGuiItemType_CollapsingPanel) {
+					shape_options_box = shape_options_box->parent;
+				}
+				editor->shape_options_box = shape_options_box;
+			}
+
+			ztGuiItem *shape_options_square = local::makePanelSizer(parent_sizer, "Square Options", padding);
+			{
+				local::makeEditor(shape_options_square, "Extents", padding, &editor->particle_system.system_shape.square.extents, true, .1f);
+
+				while (shape_options_square->type != ztGuiItemType_CollapsingPanel) {
+					shape_options_square = shape_options_square->parent;
+				}
+				editor->shape_options_square = shape_options_square;
+			}
+
+			_zt_guiParticleEditorShapeTypeHideEditors(editor, ztParticleShapeType_Point);
+
+			local::makeEditor(emission_panel, "Rotation:", padding, &editor->particle_system.system_rotation, true);
+			local::makeEditor(emission_panel, "Burst", padding, &editor->particle_system.system_burst);
+
+			//ztGuiItem *burst_options = local::makePanelSizer(parent_sizer, "Burst Options", padding);
+			//{
+			//	local::makeEditor(burst_options, "Time Start", padding, &editor->particle_system.system_bursts[0].time_start, .1f);
+			//	local::makeEditor(burst_options, "Min Particles", padding, &editor->particle_system.system_bursts[0].min_particles, 1);
+			//	local::makeEditor(burst_options, "Max Particles", padding, &editor->particle_system.system_bursts[0].max_particles, 1);
+			//	local::makeEditor(burst_options, "Cycles", padding, &editor->particle_system.system_bursts[0].cycles, 1);
+			//	local::makeEditor(burst_options, "Interval", padding, &editor->particle_system.system_bursts[0].interval, .1f);
+			//}
+		}
+
+		ztGuiItem *part_birth_panel = local::makePanelSizer(sizer_tools, "Particle Birth", padding);
+		{
+			local::makeEditor(part_birth_panel, "Lifetime:", padding, &editor->particle_system.lifetime);
+			local::makeEditor(part_birth_panel, "Start Speed:", padding, &editor->particle_system.start_speed);
+			local::makeEditor(part_birth_panel, "Start Scale", padding, &editor->particle_system.start_scale, true);
+			local::makeEditor(part_birth_panel, "Start Rotation", padding, &editor->particle_system.start_rotation, true);
+		}
+
+		ztGuiItem *part_movement_panel = local::makePanelSizer(sizer_tools, "Particle Movement", padding);
+		{
+			local::makeEditor(part_movement_panel, "Inherit Velocity", padding, &editor->particle_system.velocity_inherit);
+			local::makeEditor(part_movement_panel, "Velocity Over Lifetime", padding, &editor->particle_system.velocity_over_lifetime_used, &editor->particle_system.velocity_over_lifetime, true);
+			local::makeEditor(part_movement_panel, "Damping Over Lifetime", padding, &editor->particle_system.velocity_damping_over_lifetime_used, &editor->particle_system.velocity_damping_over_lifetime, true);
+			local::makeEditor(part_movement_panel, "Speed Over Lifetime", padding, &editor->particle_system.speed_over_lifetime_used, &editor->particle_system.speed_over_lifetime, true, 1);
+			local::makeEditor(part_movement_panel, "Rotate Towards Movement", padding, &editor->particle_system.rotate_towards_movement);
+			local::makeEditor(part_movement_panel, "Rotation Over Lifetime", padding, &editor->particle_system.rotation_over_lifetime_used, &editor->particle_system.rotation_over_lifetime, true, 1);
+			local::makeEditor(part_movement_panel, "Rotation Over Speed", padding, &editor->particle_system.rotation_over_speed_used, &editor->particle_system.rotation_over_speed, true, 1);
+			local::makeEditor(part_movement_panel, "+  Speed Range", padding, &editor->particle_system.rotation_over_speed_range[0], &editor->particle_system.rotation_over_speed_range[1], .1f);
+		}
+
+		ztGuiItem *part_appear_panel = local::makePanelSizer(sizer_tools, "Particle Appearance", padding);
+		{
+			local::makeEditor(part_appear_panel, "Color Over Lifetime", padding, &editor->particle_system.color_over_lifetime);
+			local::makeEditor(part_appear_panel, "Color Over Speed", padding, &editor->particle_system.color_over_speed_used, &editor->particle_system.color_over_speed);
+			local::makeEditor(part_appear_panel, "+  Speed Range", padding, &editor->particle_system.color_over_speed_range[0], &editor->particle_system.color_over_speed_range[1], .1f);
+			local::makeEditor(part_appear_panel, "Size Over Lifetime", padding, &editor->particle_system.size_over_lifetime_used, &editor->particle_system.size_over_lifetime, true, .1f);
+			local::makeEditor(part_appear_panel, "Size Over Speed", padding, &editor->particle_system.size_over_speed_used, &editor->particle_system.size_over_speed, true, .1f);
+			local::makeEditor(part_appear_panel, "+  Speed Range", padding, &editor->particle_system.size_over_speed_range[0], &editor->particle_system.size_over_speed_range[1], .1f);
+		}
+
+		ztGuiItem *part_noise_panel = local::makePanelSizer(sizer_tools, "Noise", padding, true);
+		{
+			local::makeEditor(part_noise_panel, "Use Noise", padding, &editor->particle_system.noise_use);
+			local::makeEditor(part_noise_panel, "Multiplier", padding, &editor->particle_system.noise_multiplier);
+			local::makeEditor(part_noise_panel, "Position Amount", padding, &editor->particle_system.noise_position_amount, true);
+			local::makeEditor(part_noise_panel, "Rotation Amount", padding, &editor->particle_system.noise_rotation_amount, true);
+			local::makeEditor(part_noise_panel, "Scale Amount", padding, &editor->particle_system.noise_scale_amount, true);
+		}
+
+		ztGuiItem *part_trails_panel = local::makePanelSizer(sizer_tools, "Trails", padding, true);
+		{
+			local::makeEditor(part_trails_panel, "Use Trails", padding, &editor->particle_system.trails_use);
+			local::makeEditor(part_trails_panel, "Percent of Particles", padding, &editor->particle_system.trails_percentage);
+			local::makeEditor(part_trails_panel, "Lifetime", padding, &editor->particle_system.trails_lifetime);
+			local::makeEditor(part_trails_panel, "Width is Size", padding, &editor->particle_system.trails_width_is_size);
+			local::makeEditor(part_trails_panel, "Width", padding, &editor->particle_system.trails_width);
+			local::makeEditor(part_trails_panel, "Inherit Color", padding, &editor->particle_system.trails_inherit_color);
+			local::makeEditor(part_trails_panel, "Color Over Lifetime", padding, &editor->particle_system.trails_color_over_lifetime_use, &editor->particle_system.trails_color_over_lifetime);
+			local::makeEditor(part_trails_panel, "Color Over Trail", padding, &editor->particle_system.trails_color_over_trail);
+
+			local::makeLabel(part_trails_panel, "Sprite:", padding);
+			ztGuiItem *button_sprite = zt_guiMakeButton(part_trails_panel, "Select Sprite");
+			zt_guiSizerAddItem(part_trails_panel, button_sprite, 1, padding);
+
+			zt_guiButtonSetCallback(button_sprite, _zt_guiParticleEditorTrailSpriteSelectButton_FunctionID, editor);
+			editor->trail_sprite_button = button_sprite;
+		}
+
+		ztGuiItem *rendering_panel = local::makePanelSizer(sizer_tools, "Rendering", padding);
+		{
+			local::makeLabel(rendering_panel, "Type:", padding);
+			ztGuiItem *combo_type = zt_guiMakeComboBox(rendering_panel, 2);
+			editor->combo_rendering_type = combo_type;
+			zt_guiSizerAddItem(rendering_panel, combo_type, 1, padding);
+			zt_guiComboBoxSetCallback(combo_type, _zt_guiParticleEditorRenderingTypeCombo_FunctionID, editor);
+
+			zt_guiComboBoxAppend(combo_type, "Billboard", editor);
+			zt_guiComboBoxAppend(combo_type, "Facing", editor);
+
+			local::makeLabel(rendering_panel, "Sprite:", padding);
+			ztGuiItem *button_sprite = zt_guiMakeButton(rendering_panel, "Select Sprite");
+			zt_guiSizerAddItem(rendering_panel, button_sprite, 1, padding);
+
+			zt_guiButtonSetCallback(button_sprite, _zt_guiParticleEditorBillboardSpriteSelectButton_FunctionID, editor);
+			editor->billboard_sprite_button = button_sprite;
+
+			local::makeLabel(rendering_panel, "Blend Src:", padding);
+			ztGuiItem *combo_blend_src = zt_guiMakeComboBox(rendering_panel, ztRendererBlendMode_MAX);
+			zt_guiSizerAddItem(rendering_panel, combo_blend_src, 1, padding);
+			zt_guiComboBoxSetCallback(combo_blend_src, _zt_guiParticleEditorRenderingBlendCombo_FunctionID, editor);
+			editor->combo_rendering_blend_src = combo_blend_src;
+
+			local::makeLabel(rendering_panel, "Blend Dst:", padding);
+			ztGuiItem *combo_blend_dst = zt_guiMakeComboBox(rendering_panel, ztRendererBlendMode_MAX);
+			zt_guiSizerAddItem(rendering_panel, combo_blend_dst, 1, padding);
+			zt_guiComboBoxSetCallback(combo_blend_dst, _zt_guiParticleEditorRenderingBlendCombo_FunctionID, editor);
+			editor->combo_rendering_blend_dst = combo_blend_dst;
+
+			char *blend_modes[ztRendererBlendMode_MAX] = {
+				"Zero",
+				"One",
+				"Source Color",
+				"One Minus Source Color",
+				"Dest Color",
+				"One Minus Dest Color",
+				"Source Alpha",
+				"One Minus Source Alpha",
+				"Dest Alpha",
+				"One Minus Dest Alpha",
+			};
+			zt_fiz(ztRendererBlendMode_MAX) {
+				zt_guiComboBoxAppend(combo_blend_src, blend_modes[i], editor);
+				zt_guiComboBoxAppend(combo_blend_dst, blend_modes[i], editor);
+			}
+		}
+	}
+
+	_zt_guiParticleEditorMenu(menu_file, ztParticleEditorMenu_New, editor);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 ztInternal void _zt_guiDebugVariables()
 {
@@ -19776,6 +22240,7 @@ enum
 	ztGuiDebugMenu_MemoryInspector,
 	ztGuiDebugMenu_SpriteEditor,
 	ztGuiDebugMenu_SpriteAnimEditor,
+	ztGuiDebugMenu_ParticleEditor,
 
 	ztGuiDebugMenu_Variables,
 };
@@ -19824,7 +22289,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_
 
 		case ztGuiDebugMenu_SpriteAnimEditor: {
 			_zt_debugSpriteAnimEditor();
-		}
+		} break;
+
+		case ztGuiDebugMenu_ParticleEditor: {
+			_zt_guiParticleEditor();
+		} break;
 	};
 }
 
@@ -19852,6 +22321,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 		zt_guiMenuAppend(menu_tools, "Memory Inspector", ztGuiDebugMenu_MemoryInspector);
 		zt_guiMenuAppend(menu_tools, "Sprite Editor", ztGuiDebugMenu_SpriteEditor);
 		zt_guiMenuAppend(menu_tools, "Sprite Animation Editor", ztGuiDebugMenu_SpriteAnimEditor);
+		zt_guiMenuAppend(menu_tools, "Particle Editor", ztGuiDebugMenu_ParticleEditor);
 		zt_guiMenuAppendSubmenu(menubar, "Tools", menu_tools);
 		zt_guiMenuSetCallback(menu_tools, _zt_guiInitDebugOnMenuItem_FunctionID);
 	}
