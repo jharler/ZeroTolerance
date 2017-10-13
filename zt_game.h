@@ -2928,7 +2928,7 @@ ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3    defval)
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4    defval);
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat    defval);
 
-bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames); // the maximum number of frames that can pass before resetting variable.  returns true if variable has been reset
+bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames); // the maximum number of frames that can pass before resetting variable.  returns true if variable has been reset.  make sure to call before zt_variableCacheGet
 
 // ================================================================================================================================================================================================
 // animation
@@ -3307,6 +3307,538 @@ r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent);
 
 // ================================================================================================================================================================================================
 
+#ifndef ZT_MAX_PARTICLES
+#define ZT_MAX_PARTICLES	500
+#endif
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#define ZT_PARTICLE_SYSTEM_FILE_GUID   "fb6eb861-ae3d-42a6-920c-cb42b4976700"
+#define ZT_PARTICLE_SYSTEM_FILE_VERSION 100000
+
+// ================================================================================================================================================================================================
+
+enum ztParticleVariableRealType_Enum
+{
+	ztParticleVariableRealType_Constant,                      // single value at all times
+	ztParticleVariableRealType_RandomBetweenTwoConstants,     // a random value chosen between (and including) the two constants
+	ztParticleVariableRealType_Curve,                         // value based on an animation curve based on life of particle
+	ztParticleVariableRealType_RandomBetweenTwoCurves,        // new random curve is generated based off the given curves
+
+	ztParticleVariableRealType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableReal
+{
+	ztParticleVariableRealType_Enum type;
+
+	union {
+		struct {
+			r32         constant;
+		};
+		struct {
+			r32         random_value_min;
+			r32         random_value_max;
+		};
+		struct {
+			ztAnimCurve curve;
+		};
+		struct {
+			ztAnimCurve random_curve_min;
+			ztAnimCurve random_curve_max;
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableRealValue
+{
+	ztParticleVariableReal *variable;
+
+	union {
+		struct {
+			r32 random_value;
+		};
+
+		struct {
+			r32 curve_lerp;
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+void zt_particleVariableRealInit     (ztParticleVariableRealValue *value, ztParticleVariableReal *variable, ztRandom *random);
+r32  zt_particleVariableRealGetValue (ztParticleVariableRealValue *value, r32 percent);
+
+bool zt_serialRead                   (ztSerial *serial, ztParticleVariableReal *variable);
+bool zt_serialWrite                  (ztSerial *serial, ztParticleVariableReal *variable);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec2
+{
+	ztParticleVariableRealType_Enum type;
+
+	union {
+		struct {
+			ztVec2      constant;
+		};
+		struct {
+			ztVec2      random_value_min;
+			ztVec2      random_value_max;
+		};
+		struct {
+			ztAnimCurve curve[2];
+		};
+		struct {
+			ztAnimCurve random_curve_min[2];
+			ztAnimCurve random_curve_max[2];
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec2Value
+{
+	ztParticleVariableVec2* variable;
+
+	union {
+		ztVec2 random_value;
+
+		struct {
+			r32 curve_lerp[2];
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+void   zt_particleVariableVec2Init(ztParticleVariableVec2Value *value, ztParticleVariableVec2 *variable, ztRandom *random);
+ztVec2 zt_particleVariableVec2GetValue (ztParticleVariableVec2Value *value, r32 percent);
+
+bool   zt_serialRead                   (ztSerial *serial, ztParticleVariableVec2 *variable);
+bool   zt_serialWrite                  (ztSerial *serial, ztParticleVariableVec2 *variable);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec3
+{
+	ztParticleVariableRealType_Enum type;
+
+	union {
+		struct {
+			ztVec3      constant;
+		};
+		struct {
+			ztVec3      random_value_min;
+			ztVec3      random_value_max;
+		};
+		struct {
+			ztAnimCurve curve[3];
+		};
+		struct {
+			ztAnimCurve random_curve_min[3];
+			ztAnimCurve random_curve_max[3];
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableVec3Value
+{
+	ztParticleVariableVec3* variable;
+
+	union {
+		ztVec3 random_value;
+
+		struct {
+			r32 curve_lerp[3];
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+void   zt_particleVariableVec3Init     (ztParticleVariableVec3Value *value, ztParticleVariableVec3 *variable, ztRandom *random);
+ztVec3 zt_particleVariableVec3GetValue (ztParticleVariableVec3Value *value, r32 percent);
+
+bool   zt_serialRead                   (ztSerial *serial, ztParticleVariableVec3 *variable);
+bool   zt_serialWrite                  (ztSerial *serial, ztParticleVariableVec3 *variable);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztParticleVariableColorType_Enum
+{
+	ztParticleVariableColorType_Constant,                      // single color at all times
+	ztParticleVariableColorType_RandomBetweenTwoConstants,     // a random value chosen between (and including) the two colors
+	ztParticleVariableColorType_Gradient,                      // value based on an gradient based on life of particle
+	ztParticleVariableColorType_RandomBetweenTwoGradients,     // new random gradient is generated based off the given gradient
+
+	ztParticleVariableColorType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableColor
+{
+	ztParticleVariableColorType_Enum type;
+
+	union {
+		struct {
+			ztColor constant;
+		};
+		struct {
+			ztColor random_value_min;
+			ztColor random_value_max;
+		};
+		struct {
+			ztColorGradient2 gradient;
+		};
+		struct {
+			ztColorGradient2 random_gradient_min;
+			ztColorGradient2 random_gradient_max;
+		};
+	};
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleVariableColorValue
+{
+	ztParticleVariableColor *variable;
+
+	union {
+		struct {
+			ztColor random_value;
+		};
+
+		struct {
+			r32 gradient_lerp;
+		};
+
+	};
+};
+
+// ================================================================================================================================================================================================
+
+void    zt_particleVariableColorInit     (ztParticleVariableColorValue *value, ztParticleVariableColor *variable, ztRandom *random);
+ztColor zt_particleVariableColorGetValue (ztParticleVariableColorValue *value, r32 percent);
+
+bool    zt_serialRead                    (ztSerial *serial, ztParticleVariableColor *variable);
+bool    zt_serialWrite                   (ztSerial *serial, ztParticleVariableColor *variable);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticle2
+{
+	r32                          life_span;
+	r32                          life_left;
+
+	ztVec3                       position;
+	ztVec3                       velocity;
+	ztVec3                       scale;
+	ztVec3                       rotation;
+	r32                          speed;
+	ztVec4                       color;
+
+	ztVec3                       history[32];
+
+	ztParticleVariableRealValue  speed_over_lifetime;
+	ztParticleVariableVec3Value  size_over_lifetime;
+	ztParticleVariableVec3Value  size_over_speed;
+	ztParticleVariableVec3Value  velocity_over_lifetime;
+	ztParticleVariableVec3Value  velocity_damping_over_lifetime;
+	ztParticleVariableVec3Value  rotation_over_lifetime;
+	ztParticleVariableVec3Value  rotation_over_speed;
+	ztParticleVariableColorValue color_over_lifetime;
+	ztParticleVariableColorValue color_over_speed;
+
+	r32                          dist_from_camera;
+	r32                          final_speed;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleBurst
+{
+	r32 time_start;
+	i32 min_particles;
+	i32 max_particles;
+	i32 cycles;
+	r32 interval;
+};
+
+// ================================================================================================================================================================================================
+
+#ifndef ZT_MAX_PARTICLE_BURSTS
+#define ZT_MAX_PARTICLE_BURSTS 8
+#endif
+
+// ================================================================================================================================================================================================
+
+enum ztParticleShapeType_Enum
+{
+	ztParticleShapeType_Point,
+	ztParticleShapeType_Sphere,
+	ztParticleShapeType_Circle,
+	ztParticleShapeType_Box,
+	ztParticleShapeType_Square,
+
+	ztParticleShapeType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleShape
+{
+	ztParticleShapeType_Enum type;
+	ztParticleVariableReal   spawn_volume;
+	bool                     spawn_volume_local; // determines if rotation of emitter affects shape spawn volume restrictions (if true, it does)
+
+	struct {
+		ztParticleVariableReal radius;
+		ztParticleVariableReal volume_angle_min;
+		ztParticleVariableReal volume_angle_max;
+	} sphere;
+
+	struct {
+		ztParticleVariableReal radius;
+		ztParticleVariableReal volume_angle_min;
+		ztParticleVariableReal volume_angle_max;
+	} circle;
+
+	struct {
+		ztParticleVariableVec3 extents;
+	} box;
+
+	struct {
+		ztParticleVariableVec2 extents;
+	} square;
+};
+
+// ================================================================================================================================================================================================
+
+enum ztParticleRenderingType_Enum
+{
+	ztParticleRenderingType_BillBoard,
+	ztParticleRenderingType_Facing,
+
+	ztParticleRenderingType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleRendering
+{
+	ztParticleRenderingType_Enum type;
+
+	ztRendererBlendMode_Enum blend_mode_src;
+	ztRendererBlendMode_Enum blend_mode_dst;
+
+	struct {
+		ztSprite sprite;
+	} billboard;
+
+	struct {
+		ztSprite sprite;
+	} facing;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleSystem
+{
+	// system settings
+	r32                      system_duration;
+	bool                     system_loops;
+	r32                      system_prewarm;
+	ztParticleVariableReal   system_gravity_multiplier; // amount of force applied on the Y axis
+	bool                     system_local_space;
+	ztParticleVariableReal   system_rate_over_time;
+	ztParticleVariableVec3   system_rotation;
+
+	bool                     system_burst; // this is temporary until bursts can be properly implemented
+	ztParticleBurst          system_bursts[ZT_MAX_PARTICLE_BURSTS];
+	int                      system_bursts_count;
+
+	ztParticleShape          system_shape;
+	ztParticleRendering      system_rendering;
+
+
+	// particle settings
+	ztParticleVariableReal   lifetime;
+	ztParticleVariableReal   start_speed;
+
+	ztParticleVariableVec3   start_scale;
+	ztParticleVariableVec3   start_rotation; // the initial starting rotation of the particle (not over lifetime)
+
+	bool                     velocity_inherit; // inherit velocity from emitter
+	bool                     velocity_over_lifetime_used;
+	ztParticleVariableVec3   velocity_over_lifetime;
+	bool                     velocity_damping_over_lifetime_used;
+	ztParticleVariableVec3   velocity_damping_over_lifetime;
+
+	bool                     speed_over_lifetime_used;
+	ztParticleVariableReal   speed_over_lifetime;
+
+	ztParticleVariableColor  color_over_lifetime;
+	bool                     color_over_speed_used;
+	ztParticleVariableColor  color_over_speed;
+	r32                      color_over_speed_range[2];
+
+	bool                     size_over_lifetime_used;
+	ztParticleVariableVec3   size_over_lifetime;
+
+	bool                     size_over_speed_used;
+	ztParticleVariableVec3   size_over_speed;
+	r32                      size_over_speed_range[2];
+
+	bool                     rotate_towards_movement;
+	bool                     rotation_over_lifetime_used;
+	ztParticleVariableVec3   rotation_over_lifetime;
+
+	bool                     rotation_over_speed_used;
+	ztParticleVariableVec3   rotation_over_speed;
+	r32                      rotation_over_speed_range[2];
+
+	// noise
+	bool                     noise_use;
+	ztParticleVariableReal   noise_multiplier;
+	ztParticleVariableVec3   noise_position_amount;
+	ztParticleVariableVec3   noise_rotation_amount;
+	ztParticleVariableVec3   noise_scale_amount;
+
+	// trails
+	bool                     trails_use;
+	ztParticleVariableReal   trails_percentage;
+	ztParticleVariableReal   trails_lifetime;
+	bool                     trails_width_is_size;
+	bool                     trails_inherit_color;
+	bool                     trails_color_over_lifetime_use;
+	ztParticleVariableColor  trails_color_over_lifetime;
+	ztParticleVariableReal   trails_width;
+	ztParticleVariableColor  trails_color_over_trail;
+	ztSprite                 trails_sprite;
+
+};
+
+// ================================================================================================================================================================================================
+
+bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztAssetManager *asset_manager, ztAssetID asset_id);
+
+bool zt_serialRead (ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager);
+bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztParticleEmitter
+{
+	ztParticleSystem                   *system;
+
+	bool                                enabled;
+	i32                                 seed;
+
+	ztVec3                              position;
+	ztParticle2                        *particles;
+	int                                 particles_size;
+
+	r32                                 speed;
+	r32                                 life_left;
+
+	ztParticleVariableRealValue         system_gravity_multiplier;
+	ztParticleVariableRealValue         system_rate_over_time;
+	ztParticleVariableRealValue         system_shape_spawn_volume;
+	ztParticleVariableVec3Value         system_rotation;
+
+	ztSimplexNoise                     *noise;
+	ztParticleVariableRealValue         noise_multiplier;
+	ztParticleVariableVec3Value         noise_position_amount;
+	ztParticleVariableVec3Value         noise_rotation_amount;
+	ztParticleVariableVec3Value         noise_scale_amount;
+
+	ztParticleVariableRealValue         trails_width;
+	ztParticleVariableColorValue        trails_color_over_time;
+	ztParticleVariableColorValue        trails_color;
+
+	union {
+		struct {
+			ztParticleVariableRealValue radius;
+			ztParticleVariableRealValue volume_angle_min;
+			ztParticleVariableRealValue volume_angle_max;
+		} system_shape_sphere;
+
+		struct {
+			ztParticleVariableRealValue radius;
+			ztParticleVariableRealValue volume_angle_min;
+			ztParticleVariableRealValue volume_angle_max;
+		} system_shape_circle;
+
+		struct {
+			ztParticleVariableVec3Value extents;
+		} system_shape_box;
+
+		struct {
+			ztParticleVariableVec2Value extents;
+		} system_shape_square;
+	};
+
+	ztVec3                              prev_pos;
+	r32                                 time_last_particle;
+	ztRandom                            random;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleEmitterPool
+{
+	ztParticleSystem    system;
+	ztParticleEmitter **emitters;
+	int                 emitters_count;
+};
+
+// ================================================================================================================================================================================================
+
+ztParticleEmitter *zt_particleEmitterInit            (ztParticleSystem *system, i32 seed);
+void               zt_particleEmitterFree            (ztParticleEmitter *emitter);
+void               zt_particleEmitterReset           (ztParticleEmitter *emitter);
+bool               zt_particleEmitterUpdate          (ztParticleEmitter *emitter, r32 dt);
+void               zt_particleEmitterRender          (ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera);
+int                zt_particleEmitterGetTriangles    (ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
+
+void               zt_particleEmitterPoolInit        (ztParticleEmitterPool *pool, int emitters_count, ztParticleSystem *system, i32 seed, bool random_seeds = true);
+void               zt_particleEmitterPoolFree        (ztParticleEmitterPool *pool);
+void               zt_particleEmitterPoolUpdate      (ztParticleEmitterPool *pool, r32 dt);
+void               zt_particleEmitterPoolRender      (ztParticleEmitterPool *pool, ztDrawList *draw_list, ztCamera *camera);
+int                zt_particleEmitterPoolGetTriangles(ztParticleEmitterPool *pool, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
+void               zt_particleEmitterPoolResetAll    (ztParticleEmitterPool *pool);
+ztParticleEmitter *zt_particleEmitterPoolGetAvailable(ztParticleEmitterPool *pool);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 struct ztParticleEmitterSettings
 {
 	ztVec3          origin                       = ztVec3::zero;
@@ -3363,12 +3895,6 @@ struct ztParticle
 	r32         rotation;
 	i32         sprite_idx;
 };
-
-// ================================================================================================================================================================================================
-
-#ifndef ZT_MAX_PARTICLES
-#define ZT_MAX_PARTICLES	500
-#endif
 
 // ================================================================================================================================================================================================
 
@@ -8955,6 +9481,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 		}
 
+		ztCompileItem *blend = nullptr;
+
 		ztMat4 mat2d;
 
 		if (clip_regions_count > 0) {
@@ -9032,6 +9560,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
 					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+				}
+
+				if (blend) {
+					zt_rendererSetBlendMode(blend->command->blend_src, blend->command->blend_dest);
 				}
 
 				ztCompileItem *cmp_item = cmp_tex->item;
@@ -9373,6 +9905,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						case ztDrawCommandType_ChangeBlendMode: {
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::change blend mode");
 							zt_rendererSetBlendMode(cmp_item->command->blend_src, cmp_item->command->blend_dest);
+							blend = cmp_item;
 						} break;
 
 						case ztDrawCommandType_VertexArray: {
@@ -17889,11 +18422,18 @@ ztVec2 zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, 
 		return ztVec2::zero;
 	}
 
-	i32 glyphs_idx[1024 * 64];
-	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, zt_elementsOf(glyphs_idx));
+	i32 glyphs_idx_lcl[1024];
+	i32 *glyphs_idx = text_len > zt_elementsOf(glyphs_idx_lcl) - 1 ? zt_mallocStructArray(i32, text_len) : glyphs_idx_lcl;
+
+	_zt_fontGetGlyphsFromText(font_id, text, text_len, glyphs_idx, text_len);
 
 	ztVec2 result;
 	_zt_fontGetExtentsFancy(font_id, text, text_len, -1, glyphs_idx, zt_elementsOf(glyphs_idx), &result.x, &result.y, text_anim, text_anim_user_data);
+
+	if (text_len > zt_elementsOf(glyphs_idx_lcl)) {
+		zt_free(glyphs_idx);
+	}
+
 	return result;
 }
 
@@ -19094,7 +19634,7 @@ bool zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager)
 				zt_strCpy(tex_file, zt_elementsOf(tex_file), files + tokens[j].beg, tokens[j].len);
 
 				if (j != i && zt_striStartsWith(tex_file, zt_strLen(tex_file), file, zt_strLen(file) - 3)) {
-					tex = zt_textureMakeFromFile(tex_file, ztTextureFlags_PixelPerfect);
+					tex = zt_textureMakeFromFile(tex_file);
 					break;
 				}
 			}
@@ -23747,6 +24287,14 @@ void zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt)
 			}
 		}
 	}
+
+	zt_fize(tween_manager->items) {
+		if (zt_bitIsSet(tween_manager->items_flags[i], ztTweenManagerFlags_ReclaimOnceComplete)) {
+			if (zt_tweenItemIsComplete(&tween_manager->items[i])) {
+				tween_manager->items_flags[i] = 0;
+			}
+		}
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -25260,6 +25808,2288 @@ r32 zt_valueGradientGetValue(ztValueGradient *value_gradient, r32 percent)
 	else {
 		return value_gradient->values[value_gradient->values_count - 1].value;
 	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
+void zt_particleVariableRealInit(ztParticleVariableRealValue *value, ztParticleVariableReal *variable, ztRandom *random)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableRealInit");
+	zt_returnOnNull(value);
+	zt_returnOnNull(variable);
+
+	value->variable = variable;
+
+	switch (variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			value->random_value = zt_randomVal(random, variable->random_value_min, variable->random_value_max);
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			value->curve_lerp = zt_randomVal(random);
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_particleVariableRealGetValue(ztParticleVariableRealValue *value, r32 percent)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableRealGetValue");
+	zt_returnValOnNull(value, 0);
+	zt_returnValOnNull(value->variable, 0);
+
+	switch (value->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			return value->variable->constant;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			return value->random_value;
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			return zt_animCurveGetValue(&value->variable->curve, percent);
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			return zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min, percent), zt_animCurveGetValue(&value->variable->random_curve_max, percent), value->curve_lerp);
+		} break;
+	}
+
+	zt_assert(false);
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztParticleVariableReal *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 type = 0;
+		zt_serialRead(serial, &type);
+		variable->type = (ztParticleVariableRealType_Enum)type;
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialRead(serial, &variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialRead(serial, &variable->random_value_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				if (!zt_serialRead(serial, &variable->curve)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				if (!zt_serialRead(serial, &variable->random_curve_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_curve_max)) return false;
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztParticleVariableReal *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		zt_serialWrite(serial, (i32)variable->type);
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialWrite(serial, variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialWrite(serial, variable->random_value_min)) return false;
+				if (!zt_serialWrite(serial, variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				if (!zt_serialWrite(serial, &variable->curve)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				if (!zt_serialWrite(serial, &variable->random_curve_min)) return false;
+				if (!zt_serialWrite(serial, &variable->random_curve_max)) return false;
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_particleVariableVec2Init(ztParticleVariableVec2Value *value, ztParticleVariableVec2 *variable, ztRandom *random)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableVec2Init");
+	zt_returnOnNull(value);
+	zt_returnOnNull(variable);
+
+	value->variable = variable;
+
+	switch (variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			value->random_value.x = zt_randomVal(random, variable->random_value_min.x, variable->random_value_max.x);
+			value->random_value.y = zt_randomVal(random, variable->random_value_min.y, variable->random_value_max.y);
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			zt_fiz(2) {
+				value->curve_lerp[i] = zt_randomVal(random);
+			}
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztVec2 zt_particleVariableVec2GetValue(ztParticleVariableVec2Value *value, r32 percent)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableVec3GetValue");
+	zt_returnValOnNull(value, ztVec2::zero);
+	zt_returnValOnNull(value->variable, ztVec2::zero);
+
+	switch (value->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			return value->variable->constant;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			return value->random_value;
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			return zt_vec2(zt_animCurveGetValue(&value->variable->curve[0], percent), zt_animCurveGetValue(&value->variable->curve[1], percent));
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			return zt_vec2(zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min[0], percent), zt_animCurveGetValue(&value->variable->random_curve_max[0], percent), value->curve_lerp[0]),
+			               zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min[1], percent), zt_animCurveGetValue(&value->variable->random_curve_max[1], percent), value->curve_lerp[1]));
+		} break;
+	}
+
+	zt_assert(false);
+	return ztVec2::zero;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztParticleVariableVec2 *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 type = 0;
+		zt_serialRead(serial, &type);
+		variable->type = (ztParticleVariableRealType_Enum)type;
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialRead(serial, &variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialRead(serial, &variable->random_value_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_fize(variable->curve) {
+					if (!zt_serialRead(serial, &variable->curve[i])) return false;
+				}
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_fize(variable->curve) {
+					if (!zt_serialRead(serial, &variable->random_curve_min[i])) return false;
+					if (!zt_serialRead(serial, &variable->random_curve_max[i])) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztParticleVariableVec2 *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		zt_serialWrite(serial, (i32)variable->type);
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialWrite(serial, variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialWrite(serial, variable->random_value_min)) return false;
+				if (!zt_serialWrite(serial, variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_fize(variable->curve) {
+					if (!zt_serialWrite(serial, &variable->curve[i])) return false;
+				}
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_fize(variable->curve) {
+					if (!zt_serialWrite(serial, &variable->random_curve_min[i])) return false;
+					if (!zt_serialWrite(serial, &variable->random_curve_max[i])) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_particleVariableVec3Init(ztParticleVariableVec3Value *value, ztParticleVariableVec3 *variable, ztRandom *random)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableVec3Init");
+	zt_returnOnNull(value);
+	zt_returnOnNull(variable);
+
+	value->variable = variable;
+
+	switch (variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			value->random_value.x = zt_randomVal(random, variable->random_value_min.x, variable->random_value_max.x);
+
+			if (variable->random_value_min.y == variable->random_value_min.x && variable->random_value_max.y == variable->random_value_max.x) {
+				value->random_value.y = value->random_value.x;
+			}
+			else {
+				value->random_value.y = zt_randomVal(random, variable->random_value_min.y, variable->random_value_max.y);
+			}
+
+			if (variable->random_value_min.z == variable->random_value_min.x && variable->random_value_max.z == variable->random_value_max.x) {
+				value->random_value.z = value->random_value.z;
+			}
+			else {
+				value->random_value.z = zt_randomVal(random, variable->random_value_min.z, variable->random_value_max.z);
+			}
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			zt_fiz(3) {
+				value->curve_lerp[i] = zt_randomVal(random);
+			}
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_particleVariableVec3GetValue(ztParticleVariableVec3Value *value, r32 percent)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableVec3GetValue");
+	zt_returnValOnNull(value, ztVec3::zero);
+	zt_returnValOnNull(value->variable, ztVec3::zero);
+
+	switch (value->variable->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			return value->variable->constant;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			return value->random_value;
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			return zt_vec3(zt_animCurveGetValue(&value->variable->curve[0], percent), zt_animCurveGetValue(&value->variable->curve[1], percent), zt_animCurveGetValue(&value->variable->curve[2], percent));
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			return zt_vec3(zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min[0], percent), zt_animCurveGetValue(&value->variable->random_curve_max[0], percent), value->curve_lerp[0]),
+				zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min[1], percent), zt_animCurveGetValue(&value->variable->random_curve_max[1], percent), value->curve_lerp[1]),
+				zt_lerp(zt_animCurveGetValue(&value->variable->random_curve_min[2], percent), zt_animCurveGetValue(&value->variable->random_curve_max[2], percent), value->curve_lerp[2]));
+		} break;
+	}
+
+	zt_assert(false);
+	return ztVec3::zero;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztParticleVariableVec3 *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 type = 0;
+		zt_serialRead(serial, &type);
+		variable->type = (ztParticleVariableRealType_Enum)type;
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialRead(serial, &variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialRead(serial, &variable->random_value_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_fize(variable->curve) {
+					if (!zt_serialRead(serial, &variable->curve[i])) return false;
+				}
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_fize(variable->curve) {
+					if (!zt_serialRead(serial, &variable->random_curve_min[i])) return false;
+					if (!zt_serialRead(serial, &variable->random_curve_max[i])) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztParticleVariableVec3 *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		zt_serialWrite(serial, (i32)variable->type);
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialWrite(serial, variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialWrite(serial, variable->random_value_min)) return false;
+				if (!zt_serialWrite(serial, variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				zt_fize(variable->curve) {
+					if (!zt_serialWrite(serial, &variable->curve[i])) return false;
+				}
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				zt_fize(variable->curve) {
+					if (!zt_serialWrite(serial, &variable->random_curve_min[i])) return false;
+					if (!zt_serialWrite(serial, &variable->random_curve_max[i])) return false;
+				}
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_particleVariableColorInit(ztParticleVariableColorValue *value, ztParticleVariableColor *variable, ztRandom *random)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableColorInit");
+	zt_returnOnNull(value);
+	zt_returnOnNull(variable);
+
+	value->variable = variable;
+
+	switch (variable->type)
+	{
+		case ztParticleVariableColorType_Constant: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
+			value->random_value.x = zt_randomVal(random, variable->random_value_min.x, variable->random_value_max.x);
+			value->random_value.y = zt_randomVal(random, variable->random_value_min.y, variable->random_value_max.y);
+			value->random_value.z = zt_randomVal(random, variable->random_value_min.z, variable->random_value_max.z);
+			value->random_value.w = zt_randomVal(random, variable->random_value_min.w, variable->random_value_max.w);
+		} break;
+
+		case ztParticleVariableColorType_Gradient: {
+			// ... nothing to do
+			return;
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoGradients: {
+			value->gradient_lerp = zt_randomVal(random);
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztColor zt_particleVariableColorGetValue(ztParticleVariableColorValue *value, r32 percent)
+{
+	ZT_PROFILE_PARTICLES("zt_particleVariableColorGetValue");
+	zt_returnValOnNull(value, ztColor_White);
+	zt_returnValOnNull(value->variable, ztColor_White);
+
+	switch (value->variable->type)
+	{
+		case ztParticleVariableColorType_Constant: {
+			return value->variable->constant;
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
+			return value->random_value;
+		} break;
+
+		case ztParticleVariableColorType_Gradient: {
+			return zt_colorGradientGetValue(&value->variable->gradient, percent);
+		} break;
+
+		case ztParticleVariableColorType_RandomBetweenTwoGradients: {
+			return ztVec4::lerp(zt_colorGradientGetValue(&value->variable->random_gradient_min, percent), zt_colorGradientGetValue(&value->variable->random_gradient_max, percent), value->gradient_lerp);
+		} break;
+	}
+
+	zt_assert(false);
+	return ztColor_White;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztParticleVariableColor *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 type = 0;
+		zt_serialRead(serial, &type);
+		variable->type = (ztParticleVariableColorType_Enum)type;
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialRead(serial, &variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialRead(serial, &variable->random_value_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				if (!zt_serialRead(serial, &variable->gradient)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				if (!zt_serialRead(serial, &variable->random_gradient_min)) return false;
+				if (!zt_serialRead(serial, &variable->random_gradient_max)) return false;
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztParticleVariableColor *variable)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		zt_serialWrite(serial, (i32)variable->type);
+
+		switch (variable->type)
+		{
+			case ztParticleVariableRealType_Constant: {
+				if (!zt_serialWrite(serial, variable->constant)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+				if (!zt_serialWrite(serial, variable->random_value_min)) return false;
+				if (!zt_serialWrite(serial, variable->random_value_max)) return false;
+			} break;
+
+			case ztParticleVariableRealType_Curve: {
+				if (!zt_serialWrite(serial, &variable->gradient)) return false;
+			} break;
+
+			case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+				if (!zt_serialWrite(serial, &variable->random_gradient_min)) return false;
+				if (!zt_serialWrite(serial, &variable->random_gradient_max)) return false;
+			} break;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#define ZT_PARTICLE_SYSTEM_ID	(i32)2798871238
+
+// ================================================================================================================================================================================================
+
+bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	ZT_PROFILE_RENDERING("zt_particleSystemLoad");
+	zt_returnValOnNull(system, false);
+	zt_returnValOnNull(asset_mgr, false);
+
+	char *data = nullptr;
+	const char *error = nullptr;
+
+	if (asset_id == ztInvalidID) {
+		error = "Invalid asset id";
+		goto on_error;
+	}
+	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, false);
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		error = "Unable to get asset size";
+		goto on_error;
+	}
+
+	data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		error = "Unable to allocate memory";
+		goto on_error;
+	}
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, size, ZT_PARTICLE_SYSTEM_FILE_GUID)) {
+		error = "Unable to load particle system file";
+		goto on_error;
+	}
+
+	if (!zt_serialRead(&serial, system, sprite_manager)) {
+		zt_serialClose(&serial);
+		error = "Unable to read particle system file";
+		goto on_error;
+	}
+
+	zt_serialClose(&serial);
+	zt_freeArena(data, asset_mgr->arena);
+	return true;
+
+on_error:
+	zt_logCritical(error);
+	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager)
+{
+	zt_memSet(system, zt_sizeof(ztParticleSystem), 0);
+
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		i32 id = 0;
+		if (!zt_serialRead(serial, &id)) return false;
+		if (id != ZT_PARTICLE_SYSTEM_ID) return false;
+
+		if (!zt_serialRead(serial, &system->system_duration)) return false;
+		if (!zt_serialRead(serial, &system->system_loops)) return false;
+		if (!zt_serialRead(serial, &system->system_prewarm)) return false;
+		if (!zt_serialRead(serial, &system->system_gravity_multiplier)) return false;
+		if (!zt_serialRead(serial, &system->system_local_space)) return false;
+		if (!zt_serialRead(serial, &system->system_rate_over_time)) return false;
+		if (!zt_serialRead(serial, &system->system_rotation)) return false;
+
+		if (!zt_serialRead(serial, &system->system_burst)) return false;
+		if (!zt_serialRead(serial, &system->system_bursts_count)) return false;
+
+		zt_fiz(system->system_bursts_count) {
+			if (!zt_serialGroupPush(serial)) return false;
+			{
+				if (!zt_serialRead(serial, &system->system_bursts[i].time_start)) return false;
+				if (!zt_serialRead(serial, &system->system_bursts[i].min_particles)) return false;
+				if (!zt_serialRead(serial, &system->system_bursts[i].max_particles)) return false;
+				if (!zt_serialRead(serial, &system->system_bursts[i].cycles)) return false;
+				if (!zt_serialRead(serial, &system->system_bursts[i].interval)) return false;
+			}
+			if (!zt_serialGroupPop(serial)) return false;
+		}
+
+		i32 shape_type = 0;
+		if (!zt_serialRead(serial, &shape_type)) return false;
+		system->system_shape.type = (ztParticleShapeType_Enum)shape_type;
+		if (!zt_serialRead(serial, &system->system_shape.spawn_volume)) return false;
+		if (!zt_serialRead(serial, &system->system_shape.spawn_volume_local)) return false;
+
+		switch (system->system_shape.type)
+		{
+			case ztParticleShapeType_Point: {
+			} break;
+
+			case ztParticleShapeType_Sphere: {
+				if (!zt_serialRead(serial, &system->system_shape.sphere.radius)) return false;
+				if (!zt_serialRead(serial, &system->system_shape.sphere.volume_angle_min)) return false;
+				if (!zt_serialRead(serial, &system->system_shape.sphere.volume_angle_max)) return false;
+			} break;
+
+			case ztParticleShapeType_Circle: {
+				if (!zt_serialRead(serial, &system->system_shape.circle.radius)) return false;
+				if (!zt_serialRead(serial, &system->system_shape.circle.volume_angle_min)) return false;
+				if (!zt_serialRead(serial, &system->system_shape.circle.volume_angle_max)) return false;
+			} break;
+
+			case ztParticleShapeType_Box: {
+				if (!zt_serialRead(serial, &system->system_shape.box.extents)) return false;
+			} break;
+
+			case ztParticleShapeType_Square: {
+				if (!zt_serialRead(serial, &system->system_shape.square.extents)) return false;
+			} break;
+
+			default: zt_assert(false);
+		}
+
+		i32 rendering_type = 0;
+		if (!zt_serialRead(serial, &rendering_type)) return false;
+		system->system_rendering.type = (ztParticleRenderingType_Enum)rendering_type;
+
+		switch (system->system_rendering.type)
+		{
+			case ztParticleRenderingType_BillBoard: {
+				i32 hash = 0;
+				if (!zt_serialRead(serial, &hash)) return false;
+				ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, hash);
+				if (sprite) {
+					system->system_rendering.billboard.sprite = *sprite;
+				}
+			} break;
+
+			case ztParticleRenderingType_Facing: {
+				i32 hash = 0;
+				if (!zt_serialRead(serial, &hash)) return false;
+				ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, hash);
+				if (sprite) {
+					system->system_rendering.facing.sprite = *sprite;
+				}
+			} break;
+
+			default: zt_assert(false);
+		}
+
+		i32 blend_mode_src = 0, blend_mode_dst = 0;
+		if (!zt_serialRead(serial, &blend_mode_src)) return false;
+		if (!zt_serialRead(serial, &blend_mode_dst)) return false;
+
+		system->system_rendering.blend_mode_src = (ztRendererBlendMode_Enum)blend_mode_src;
+		system->system_rendering.blend_mode_dst = (ztRendererBlendMode_Enum)blend_mode_dst;
+
+		if (!zt_serialRead(serial, &system->lifetime)) return false;
+		if (!zt_serialRead(serial, &system->start_speed)) return false;
+		if (!zt_serialRead(serial, &system->start_scale)) return false;
+		if (!zt_serialRead(serial, &system->start_rotation)) return false;
+		if (!zt_serialRead(serial, &system->velocity_inherit)) return false;
+		if (!zt_serialRead(serial, &system->velocity_over_lifetime_used)) return false;
+		if (!zt_serialRead(serial, &system->velocity_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->velocity_damping_over_lifetime_used)) return false;
+		if (!zt_serialRead(serial, &system->velocity_damping_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->speed_over_lifetime_used)) return false;
+		if (!zt_serialRead(serial, &system->speed_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->color_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->color_over_speed_used)) return false;
+		if (!zt_serialRead(serial, &system->color_over_speed)) return false;
+		if (!zt_serialRead(serial, &system->color_over_speed_range[0])) return false;
+		if (!zt_serialRead(serial, &system->color_over_speed_range[1])) return false;
+		if (!zt_serialRead(serial, &system->size_over_lifetime_used)) return false;
+		if (!zt_serialRead(serial, &system->size_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->size_over_speed_used)) return false;
+		if (!zt_serialRead(serial, &system->size_over_speed)) return false;
+		if (!zt_serialRead(serial, &system->size_over_speed_range[0])) return false;
+		if (!zt_serialRead(serial, &system->size_over_speed_range[1])) return false;
+		if (!zt_serialRead(serial, &system->rotate_towards_movement)) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_lifetime_used)) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_speed_used)) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_speed)) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_speed_range[0])) return false;
+		if (!zt_serialRead(serial, &system->rotation_over_speed_range[1])) return false;
+		if (!zt_serialRead(serial, &system->noise_use)) return false;
+		if (!zt_serialRead(serial, &system->noise_multiplier)) return false;
+		if (!zt_serialRead(serial, &system->noise_position_amount)) return false;
+		if (!zt_serialRead(serial, &system->noise_rotation_amount)) return false;
+		if (!zt_serialRead(serial, &system->noise_scale_amount)) return false;
+		if (!zt_serialRead(serial, &system->trails_use)) return false;
+		if (!zt_serialRead(serial, &system->trails_percentage)) return false;
+		if (!zt_serialRead(serial, &system->trails_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->trails_width_is_size)) return false;
+		if (!zt_serialRead(serial, &system->trails_inherit_color)) return false;
+		if (!zt_serialRead(serial, &system->trails_color_over_lifetime_use)) return false;
+		if (!zt_serialRead(serial, &system->trails_color_over_lifetime)) return false;
+		if (!zt_serialRead(serial, &system->trails_width)) return false;
+		if (!zt_serialRead(serial, &system->trails_color_over_trail)) return false;
+
+
+		i32 trails_sprite_hash = 0;
+		if (!zt_serialRead(serial, &trails_sprite_hash)) return false;
+		ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, trails_sprite_hash);
+		if (sprite) {
+			system->trails_sprite = *sprite;
+		}
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		if (!zt_serialWrite(serial, ZT_PARTICLE_SYSTEM_ID)) return false;
+
+		if (!zt_serialWrite(serial, system->system_duration)) return false;
+		if (!zt_serialWrite(serial, system->system_loops)) return false;
+		if (!zt_serialWrite(serial, system->system_prewarm)) return false;
+		if (!zt_serialWrite(serial, &system->system_gravity_multiplier)) return false;
+		if (!zt_serialWrite(serial, system->system_local_space)) return false;
+		if (!zt_serialWrite(serial, &system->system_rate_over_time)) return false;
+		if (!zt_serialWrite(serial, &system->system_rotation)) return false;
+
+		if (!zt_serialWrite(serial, system->system_burst)) return false;
+		if (!zt_serialWrite(serial, system->system_bursts_count)) return false;
+
+		zt_fiz(system->system_bursts_count) {
+			if (!zt_serialGroupPush(serial)) return false;
+			{
+				if (!zt_serialWrite(serial, system->system_bursts[i].time_start)) return false;
+				if (!zt_serialWrite(serial, system->system_bursts[i].min_particles)) return false;
+				if (!zt_serialWrite(serial, system->system_bursts[i].max_particles)) return false;
+				if (!zt_serialWrite(serial, system->system_bursts[i].cycles)) return false;
+				if (!zt_serialWrite(serial, system->system_bursts[i].interval)) return false;
+			}
+			if (!zt_serialGroupPop(serial)) return false;
+		}
+
+		if (!zt_serialWrite(serial, (i32)system->system_shape.type)) return false;
+		if (!zt_serialWrite(serial, &system->system_shape.spawn_volume)) return false;
+		if (!zt_serialWrite(serial, system->system_shape.spawn_volume_local)) return false;
+
+		switch (system->system_shape.type)
+		{
+			case ztParticleShapeType_Point: {
+			} break;
+
+			case ztParticleShapeType_Sphere: {
+				if (!zt_serialWrite(serial, &system->system_shape.sphere.radius)) return false;
+				if (!zt_serialWrite(serial, &system->system_shape.sphere.volume_angle_min)) return false;
+				if (!zt_serialWrite(serial, &system->system_shape.sphere.volume_angle_max)) return false;
+			} break;
+
+			case ztParticleShapeType_Circle: {
+				if (!zt_serialWrite(serial, &system->system_shape.circle.radius)) return false;
+				if (!zt_serialWrite(serial, &system->system_shape.circle.volume_angle_min)) return false;
+				if (!zt_serialWrite(serial, &system->system_shape.circle.volume_angle_max)) return false;
+			} break;
+
+			case ztParticleShapeType_Box: {
+				if (!zt_serialWrite(serial, &system->system_shape.box.extents)) return false;
+			} break;
+
+			case ztParticleShapeType_Square: {
+				if (!zt_serialWrite(serial, &system->system_shape.square.extents)) return false;
+			} break;
+
+			default: zt_assert(false);
+		}
+
+		i32 rendering_type = 0;
+		if (!zt_serialWrite(serial, rendering_type)) return false;
+		system->system_rendering.type = (ztParticleRenderingType_Enum)rendering_type;
+
+		switch (system->system_rendering.type)
+		{
+			case ztParticleRenderingType_BillBoard: {
+				if (!zt_serialWrite(serial, zt_spriteManagerFindSpriteHash(sprite_manager, &system->system_rendering.billboard.sprite))) return false;
+			} break;
+
+			case ztParticleRenderingType_Facing: {
+				if (!zt_serialWrite(serial, zt_spriteManagerFindSpriteHash(sprite_manager, &system->system_rendering.facing.sprite))) return false;
+			} break;
+
+			default: zt_assert(false);
+		}
+
+		if (!zt_serialWrite(serial, (i32)system->system_rendering.blend_mode_src)) return false;
+		if (!zt_serialWrite(serial, (i32)system->system_rendering.blend_mode_dst)) return false;
+
+		if (!zt_serialWrite(serial, &system->lifetime)) return false;
+		if (!zt_serialWrite(serial, &system->start_speed)) return false;
+		if (!zt_serialWrite(serial, &system->start_scale)) return false;
+		if (!zt_serialWrite(serial, &system->start_rotation)) return false;
+		if (!zt_serialWrite(serial, system->velocity_inherit)) return false;
+		if (!zt_serialWrite(serial, system->velocity_over_lifetime_used)) return false;
+		if (!zt_serialWrite(serial, &system->velocity_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->velocity_damping_over_lifetime_used)) return false;
+		if (!zt_serialWrite(serial, &system->velocity_damping_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->speed_over_lifetime_used)) return false;
+		if (!zt_serialWrite(serial, &system->speed_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, &system->color_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->color_over_speed_used)) return false;
+		if (!zt_serialWrite(serial, &system->color_over_speed)) return false;
+		if (!zt_serialWrite(serial, system->color_over_speed_range[0])) return false;
+		if (!zt_serialWrite(serial, system->color_over_speed_range[1])) return false;
+		if (!zt_serialWrite(serial, system->size_over_lifetime_used)) return false;
+		if (!zt_serialWrite(serial, &system->size_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->size_over_speed_used)) return false;
+		if (!zt_serialWrite(serial, &system->size_over_speed)) return false;
+		if (!zt_serialWrite(serial, system->size_over_speed_range[0])) return false;
+		if (!zt_serialWrite(serial, system->size_over_speed_range[1])) return false;
+		if (!zt_serialWrite(serial, system->rotate_towards_movement)) return false;
+		if (!zt_serialWrite(serial, system->rotation_over_lifetime_used)) return false;
+		if (!zt_serialWrite(serial, &system->rotation_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->rotation_over_speed_used)) return false;
+		if (!zt_serialWrite(serial, &system->rotation_over_speed)) return false;
+		if (!zt_serialWrite(serial, system->rotation_over_speed_range[0])) return false;
+		if (!zt_serialWrite(serial, system->rotation_over_speed_range[1])) return false;
+		if (!zt_serialWrite(serial, system->noise_use)) return false;
+		if (!zt_serialWrite(serial, &system->noise_multiplier)) return false;
+		if (!zt_serialWrite(serial, &system->noise_position_amount)) return false;
+		if (!zt_serialWrite(serial, &system->noise_rotation_amount)) return false;
+		if (!zt_serialWrite(serial, &system->noise_scale_amount)) return false;
+		if (!zt_serialWrite(serial, system->trails_use)) return false;
+		if (!zt_serialWrite(serial, &system->trails_percentage)) return false;
+		if (!zt_serialWrite(serial, &system->trails_lifetime)) return false;
+		if (!zt_serialWrite(serial, system->trails_width_is_size)) return false;
+		if (!zt_serialWrite(serial, system->trails_inherit_color)) return false;
+		if (!zt_serialWrite(serial, system->trails_color_over_lifetime_use)) return false;
+		if (!zt_serialWrite(serial, &system->trails_color_over_lifetime)) return false;
+		if (!zt_serialWrite(serial, &system->trails_width)) return false;
+		if (!zt_serialWrite(serial, &system->trails_color_over_trail)) return false;
+
+		if (!zt_serialWrite(serial, zt_spriteManagerFindSpriteHash(sprite_manager, &system->trails_sprite))) return false;
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void _zt_particleEmitterInit(ztParticleEmitter *emitter, ztParticleSystem *system, i32 seed)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterInit");
+	emitter->system = system;
+	emitter->enabled = true;
+	emitter->speed = 0;
+	emitter->seed = seed;
+
+	zt_memSet(emitter->particles, zt_sizeof(ztParticle2) * emitter->particles_size, 0);
+
+	emitter->speed = 1;
+	emitter->life_left = emitter->system->system_duration;
+	emitter->prev_pos = emitter->position;
+	emitter->time_last_particle = ztReal32Max;
+
+	if (emitter->life_left == 0) {
+		emitter->life_left = 1 / 1000.f;
+	}
+
+	zt_randomInit(&emitter->random, seed);
+
+	zt_particleVariableRealInit(&emitter->system_gravity_multiplier, &emitter->system->system_gravity_multiplier, &emitter->random);
+	zt_particleVariableRealInit(&emitter->system_rate_over_time, &emitter->system->system_rate_over_time, &emitter->random);
+	zt_particleVariableRealInit(&emitter->system_shape_spawn_volume, &emitter->system->system_shape.spawn_volume, &emitter->random);
+	zt_particleVariableVec3Init(&emitter->system_rotation, &emitter->system->system_rotation, &emitter->random);
+
+	if (emitter->system->noise_use) {
+		if(emitter->noise == nullptr) {
+			emitter->noise = zt_simplexNoiseMake(seed);
+		}
+		zt_particleVariableRealInit(&emitter->noise_multiplier, &emitter->system->noise_multiplier, &emitter->random);
+		zt_particleVariableVec3Init(&emitter->noise_position_amount, &emitter->system->noise_position_amount, &emitter->random);
+		zt_particleVariableVec3Init(&emitter->noise_rotation_amount, &emitter->system->noise_rotation_amount, &emitter->random);
+		zt_particleVariableVec3Init(&emitter->noise_scale_amount, &emitter->system->noise_scale_amount, &emitter->random);
+	}
+	else {
+		emitter->noise = nullptr;
+	}
+
+	zt_particleVariableRealInit(&emitter->trails_width, &emitter->system->trails_width, &emitter->random);
+	zt_particleVariableColorInit(&emitter->trails_color_over_time, &emitter->system->trails_color_over_lifetime, &emitter->random);
+	zt_particleVariableColorInit(&emitter->trails_color, &emitter->system->trails_color_over_trail, &emitter->random);
+
+	switch (emitter->system->system_shape.type)
+	{
+		case ztParticleShapeType_Point: {
+		} break;
+
+		case ztParticleShapeType_Sphere: {
+			zt_particleVariableRealInit(&emitter->system_shape_sphere.radius, &emitter->system->system_shape.sphere.radius, &emitter->random);
+			zt_particleVariableRealInit(&emitter->system_shape_sphere.volume_angle_min, &emitter->system->system_shape.sphere.volume_angle_min, &emitter->random);
+			zt_particleVariableRealInit(&emitter->system_shape_sphere.volume_angle_max, &emitter->system->system_shape.sphere.volume_angle_max, &emitter->random);
+		} break;
+
+		case ztParticleShapeType_Circle: {
+			zt_particleVariableRealInit(&emitter->system_shape_circle.radius, &emitter->system->system_shape.circle.radius, &emitter->random);
+			zt_particleVariableRealInit(&emitter->system_shape_circle.volume_angle_min, &emitter->system->system_shape.circle.volume_angle_min, &emitter->random);
+			zt_particleVariableRealInit(&emitter->system_shape_circle.volume_angle_max, &emitter->system->system_shape.circle.volume_angle_max, &emitter->random);
+		} break;
+
+		case ztParticleShapeType_Box: {
+			zt_particleVariableVec3Init(&emitter->system_shape_box.extents, &emitter->system->system_shape.box.extents, &emitter->random);
+		} break;
+
+		case ztParticleShapeType_Square: {
+			zt_particleVariableVec2Init(&emitter->system_shape_square.extents, &emitter->system->system_shape.square.extents, &emitter->random);
+		} break;
+	}
+
+	r32 prewarm_time = emitter->system->system_prewarm;
+	if (prewarm_time > 0) {
+		r32 dt = 1 / 60.f;
+		while (prewarm_time > 0) {
+			prewarm_time -= dt;
+			zt_particleEmitterUpdate(emitter, dt);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal r32 _zt_particleEmitterVarRealGetMaxValue(ztParticleVariableReal *var)
+{
+	r32 val = 0;
+
+	switch(var->type)
+	{
+		case ztParticleVariableRealType_Constant: {
+			val = var->constant;
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoConstants: {
+			val = zt_max(var->random_value_min, var->random_value_max);
+		} break;
+
+		case ztParticleVariableRealType_Curve: {
+			zt_fiz(100) {
+				val = zt_max(val, zt_animCurveGetValue(&var->curve, i / 100.f));
+			}
+		} break;
+
+		case ztParticleVariableRealType_RandomBetweenTwoCurves: {
+			zt_fiz(100) {
+				val = zt_max(val, zt_animCurveGetValue(&var->random_curve_min, i / 100.f));
+				val = zt_max(val, zt_animCurveGetValue(&var->random_curve_max, i / 100.f));
+			}
+		} break;
+	}
+
+	return val;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_particleEmitterGetEachEmitterSize(ztParticleSystem *system, i32 *max_particles_ptr)
+{
+	i32 size = zt_sizeof(ztParticleEmitter);
+
+	r32 rate_over_time = _zt_particleEmitterVarRealGetMaxValue(&system->system_rate_over_time);
+	r32 duration_multiple = _zt_particleEmitterVarRealGetMaxValue(&system->lifetime);
+	
+	int max_particles = zt_convertToi32Ceil(duration_multiple * rate_over_time);
+
+	if (max_particles_ptr) {
+		*max_particles_ptr = max_particles;
+	}
+
+	return size + max_particles * zt_sizeof(ztParticle2);
+}
+
+// ================================================================================================================================================================================================
+
+ztParticleEmitter *zt_particleEmitterInit(ztParticleSystem *system, i32 seed)
+{
+	zt_returnValOnNull(system, nullptr);
+
+	i32 max_particles = 0;
+	i32 size = _zt_particleEmitterGetEachEmitterSize(system, &max_particles);
+
+	ztParticleEmitter *emitter = (ztParticleEmitter*)zt_mallocStructArray(byte, size);
+	emitter->particles = (ztParticle2*)(((byte*)emitter) + zt_sizeof(ztParticleEmitter));
+	emitter->particles_size = max_particles;
+
+	zt_memValidateArena(zt_memGetGlobalArena());
+
+	_zt_particleEmitterInit(emitter, system, seed);
+
+	zt_memValidateArena(zt_memGetGlobalArena());
+	return emitter;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterFree(ztParticleEmitter *emitter)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterFree");
+
+	if (emitter == nullptr) {
+		return;
+	}
+
+	if (emitter->noise) {
+		zt_simplexNoiseFree(emitter->noise);
+	}
+
+	zt_free(emitter);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterReset(ztParticleEmitter *emitter)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterReset");
+
+	zt_returnOnNull(emitter);
+	_zt_particleEmitterInit(emitter, emitter->system, emitter->seed);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterUpdate");
+	zt_returnValOnNull(emitter, false);
+	if (emitter->enabled == false) {
+		return false;
+	}
+
+	r32 emitter_life_pct = emitter->system->system_duration == 0 ? 0 : 1 - (zt_max(0, emitter->life_left) / emitter->system->system_duration);
+
+	int live_particles = 0;
+	zt_fiz(emitter->particles_size) {
+		if (emitter->particles[i].life_left <= 0) {
+			continue;
+		}
+
+		live_particles += 1;
+	}
+
+	ztVec3 system_rotation_euler = zt_particleVariableVec3GetValue(&emitter->system_rotation, emitter_life_pct);
+	ztQuat system_rotation = system_rotation_euler != ztVec3::zero ? ztQuat::makeFromEuler(system_rotation_euler) : ztQuat::identity;
+
+	// emit new particles if needed
+	{
+		r32 system_rate = zt_particleVariableRealGetValue(&emitter->system_rate_over_time, emitter_life_pct);
+		r32 particles_per_second = zt_max(1, system_rate);
+		r32 time_between_particles = 1 / particles_per_second;
+
+		{
+			ZT_PROFILE_PARTICLES("zt_particleEmitterUpdate:Spawn");
+
+			r32 radius = ztReal32Min;
+			r32 angle_min = ztReal32Min, angle_max = ztReal32Min;
+			ztVec3 extents = ztVec3::min;
+			r32 spawn_volume = zt_particleVariableRealGetValue(&emitter->system_shape_spawn_volume, emitter_life_pct);
+
+			int new_particles;
+
+			if (emitter->system->system_burst) {
+				if (live_particles == 0) {
+					new_particles = live_particles = zt_convertToi32Ceil(system_rate);
+				}
+				else {
+					new_particles = 0;
+				}
+			}
+			else {
+				new_particles = zt_convertToi32Ceil(emitter->time_last_particle / time_between_particles);
+			}
+
+			if (new_particles >= 0 && !emitter->system->system_burst) {
+				emitter->time_last_particle -= time_between_particles * new_particles;
+			}
+			else if (new_particles < 0) {
+				new_particles = 1;
+			}
+
+			zt_fzz(new_particles) {
+				if(emitter_life_pct >= 1) {
+					break;
+				}
+
+				live_particles += 1;
+
+				if (emitter->time_last_particle == ztReal32Max) {
+					emitter->time_last_particle = dt;
+				}
+
+				zt_fiz(emitter->particles_size) {
+					if (emitter->particles[i].life_left > 0) {
+						continue;
+					}
+
+					ztParticle2 *particle = &emitter->particles[i];
+
+					ztParticleVariableRealValue life_left;
+					zt_particleVariableRealInit(&life_left, &emitter->system->lifetime, &emitter->random);
+					particle->life_left = particle->life_span = zt_particleVariableRealGetValue(&life_left, emitter_life_pct);
+
+					switch (emitter->system->system_shape.type)
+					{
+						case ztParticleShapeType_Point: {
+							particle->velocity.x = zt_randomVal(&emitter->random, -1, 1);
+							particle->velocity.y = zt_randomVal(&emitter->random, -1, 1);
+							particle->velocity.z = zt_randomVal(&emitter->random, -1, 1);
+							particle->velocity.normalize();
+							particle->position = emitter->position;
+
+						} break;
+
+						case ztParticleShapeType_Sphere: {
+							if (zt_real32Eq(radius, ztReal32Min)) { // only do this once per frame
+								radius = zt_particleVariableRealGetValue(&emitter->system_shape_sphere.radius, emitter_life_pct);
+								angle_min = zt_particleVariableRealGetValue(&emitter->system_shape_sphere.volume_angle_min, emitter_life_pct) * .5f;
+								angle_max = zt_particleVariableRealGetValue(&emitter->system_shape_sphere.volume_angle_max, emitter_life_pct) * .5f;
+							}
+
+							r32 vol = (1 - zt_randomVal(&emitter->random, 0, spawn_volume));
+							r32 s = zt_degreesToRadians(zt_randomVal(&emitter->random, 0, 360));
+							r32 t = zt_degreesToRadians(zt_randomVal(&emitter->random, angle_min, angle_max));
+
+							particle->position.z = (radius * vol) * zt_cos(s) * zt_sin(t);
+							particle->position.x = (radius * vol) * zt_sin(s) * zt_sin(t);
+							particle->position.y = (radius * vol) * zt_cos(t);
+
+							if (system_rotation != ztQuat::identity) {
+								system_rotation.rotatePosition(&particle->position);
+							}
+
+							particle->velocity = particle->position.getNormal();
+							particle->position += emitter->position;
+						} break;
+
+						case ztParticleShapeType_Circle: {
+							if (zt_real32Eq(radius, ztReal32Min)) { // only do this once per frame
+								radius = zt_particleVariableRealGetValue(&emitter->system_shape_circle.radius, emitter_life_pct);
+								angle_min = zt_particleVariableRealGetValue(&emitter->system_shape_circle.volume_angle_min, emitter_life_pct);
+								angle_max = zt_particleVariableRealGetValue(&emitter->system_shape_circle.volume_angle_max, emitter_life_pct);
+							}
+
+							r32 vol = (1 - zt_randomVal(&emitter->random, 0, spawn_volume));
+							r32 s = zt_degreesToRadians(zt_randomVal(&emitter->random, 0, 360));
+							r32 t = zt_degreesToRadians(zt_randomVal(&emitter->random, angle_min, angle_max));
+
+							particle->position.y = (radius * vol) * zt_cos(t);
+							particle->position.x = (radius * vol) * zt_sin(t);
+							particle->position.z = 0;
+
+							if (system_rotation != ztQuat::identity) {
+								system_rotation.rotatePosition(&particle->position);
+							}
+
+							particle->velocity = particle->position.getNormal();
+							particle->position += emitter->position;
+						} break;
+
+						case ztParticleShapeType_Box: {
+							if (extents == ztVec3::min) {
+								extents = zt_particleVariableVec3GetValue(&emitter->system_shape_box.extents, emitter_life_pct);
+							}
+
+							r32 vol = (1 - zt_randomVal(&emitter->random, 0, spawn_volume));
+
+							switch (zt_randomInt(&emitter->random, 0, 6))
+							{
+								case 0: { // top
+									particle->position.y = zt_randomVal(&emitter->random, vol, 1) * (extents.y / 2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->position.z = zt_randomVal(&emitter->random, extents.z / -2, extents.z / 2);
+									particle->velocity = zt_vec3(0, 1, 0);
+								} break;
+
+								case 1: { // bottom
+									particle->position.y = zt_randomVal(&emitter->random, vol, 1) * (extents.y / -2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->position.z = zt_randomVal(&emitter->random, extents.z / -2, extents.z / 2);
+									particle->velocity = zt_vec3(0, -1, 0);
+								} break;
+
+								case 2: { // left
+									particle->position.x = zt_randomVal(&emitter->random, vol, 1) * (extents.x / -2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.z = zt_randomVal(&emitter->random, extents.z / -2, extents.z / 2);
+									particle->velocity = zt_vec3(-1, 0, 0);
+								} break;
+
+								case 3: { // right
+									particle->position.x = zt_randomVal(&emitter->random, vol, 1) * (extents.x / 2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.z = zt_randomVal(&emitter->random, extents.z / -2, extents.z / 2);
+									particle->velocity = zt_vec3(1, 0, 0);
+								} break;
+
+								case 4: { // front
+									particle->position.z = zt_randomVal(&emitter->random, vol, 1) * (extents.z / 2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->velocity = zt_vec3(0, 0, 1);
+								} break;
+
+								case 5: { // back
+									particle->position.z = zt_randomVal(&emitter->random, vol, 1) * (extents.z / -2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->velocity = zt_vec3(0, 0, -1);
+								} break;
+
+								default: zt_assert(false);
+							}
+
+							if (system_rotation != ztQuat::identity) {
+								system_rotation.rotatePosition(&particle->position);
+								system_rotation.rotatePosition(&particle->velocity);
+							}
+
+							particle->position += emitter->position;
+						} break;
+
+						case ztParticleShapeType_Square: {
+							if (extents == ztVec3::min) {
+								extents.xy = zt_particleVariableVec2GetValue(&emitter->system_shape_square.extents, emitter_life_pct);
+							}
+
+							r32 vol = (1 - zt_randomVal(&emitter->random, 0, spawn_volume));
+
+							switch (zt_randomInt(&emitter->random, 0, 4))
+							{
+								case 0: { // top
+									particle->position.y = zt_randomVal(&emitter->random, vol, 1) * (extents.y / 2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->position.z = 0;
+									particle->velocity = zt_vec3(0, 1, 0);
+								} break;
+
+								case 1: { // bottom
+									particle->position.y = zt_randomVal(&emitter->random, vol, 1) * (extents.y / -2);
+									particle->position.x = zt_randomVal(&emitter->random, extents.x / -2, extents.x / 2);
+									particle->position.z = 0;
+									particle->velocity = zt_vec3(0, -1, 0);
+								} break;
+
+								case 2: { // left
+									particle->position.x = zt_randomVal(&emitter->random, vol, 1) * (extents.x / -2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.z = 0;
+									particle->velocity = zt_vec3(-1, 0, 0);
+								} break;
+
+								case 3: { // right
+									particle->position.x = zt_randomVal(&emitter->random, vol, 1) * (extents.x / 2);
+									particle->position.y = zt_randomVal(&emitter->random, extents.y / -2, extents.y / 2);
+									particle->position.z = 0;
+									particle->velocity = zt_vec3(1, 0, 0);
+								} break;
+
+								default: zt_assert(false);
+							}
+
+							if (system_rotation != ztQuat::identity) {
+								system_rotation.rotatePosition(&particle->position);
+								system_rotation.rotatePosition(&particle->velocity);
+							}
+
+							particle->position += emitter->position;
+
+						} break;
+					}
+
+					particle->history[0] = particle->position;
+					for (int j = 1; j < zt_elementsOf(particle->history); ++j) {
+						particle->history[j] = ztVec3::min;
+					}
+
+					ztParticleVariableVec3Value scale;
+					zt_particleVariableVec3Init(&scale, &emitter->system->start_scale, &emitter->random);
+					particle->scale = zt_particleVariableVec3GetValue(&scale, emitter_life_pct);
+
+					if (emitter->system->size_over_speed_used) {
+						zt_particleVariableVec3Init(&particle->size_over_speed, &emitter->system->size_over_speed, &emitter->random);
+					}
+
+					ztParticleVariableRealValue speed;
+					zt_particleVariableRealInit(&speed, &emitter->system->start_speed, &emitter->random);
+					particle->speed = zt_particleVariableRealGetValue(&speed, emitter_life_pct);
+
+					zt_particleVariableVec3Init(&emitter->particles[i].velocity_over_lifetime, &emitter->system->velocity_over_lifetime, &emitter->random);
+					zt_particleVariableVec3Init(&emitter->particles[i].size_over_lifetime, &emitter->system->size_over_lifetime, &emitter->random);
+
+					zt_particleVariableColorInit(&emitter->particles[i].color_over_lifetime, &emitter->system->color_over_lifetime, &emitter->random);
+
+					if (emitter->system->color_over_speed_used) {
+						zt_particleVariableColorInit(&emitter->particles[i].color_over_speed, &emitter->system->color_over_speed, &emitter->random);
+					}
+
+					ztParticleVariableVec3Value rotation;
+					zt_particleVariableVec3Init(&rotation, &emitter->system->start_rotation, &emitter->random);
+					particle->rotation = zt_particleVariableVec3GetValue(&rotation, emitter_life_pct);
+
+					if (emitter->system->rotation_over_lifetime_used) {
+						zt_particleVariableVec3Init(&particle->rotation_over_lifetime, &emitter->system->rotation_over_lifetime, &emitter->random);
+					}
+					if (emitter->system->rotation_over_speed_used) {
+						zt_particleVariableVec3Init(&particle->rotation_over_speed, &emitter->system->rotation_over_speed, &emitter->random);
+					}
+
+					if (emitter->system->speed_over_lifetime_used) {
+						zt_particleVariableRealInit(&particle->speed_over_lifetime, &emitter->system->speed_over_lifetime, &emitter->random);
+					}
+
+					if (emitter->system->velocity_damping_over_lifetime_used) {
+						zt_particleVariableVec3Init(&particle->velocity_damping_over_lifetime, &emitter->system->velocity_damping_over_lifetime, &emitter->random);
+					}
+
+					break;
+				}
+			}
+
+			if (new_particles > 0 && emitter->system->system_burst) {
+				emitter->life_left = 0;
+			}
+		}
+	}
+
+	{
+		ZT_PROFILE_PARTICLES("zt_particleEmitterUpdate:Update");
+		r32 gravity = zt_particleVariableRealGetValue(&emitter->system_gravity_multiplier, emitter_life_pct);
+
+		int trail_segments = zt_elementsOf(emitter->particles[0].history);
+
+		zt_fiz(emitter->particles_size) {
+			if (emitter->particles[i].life_left <= 0) {
+				continue;
+			}
+
+			ztParticle2 *particle = &emitter->particles[i];
+
+			particle->life_left -= dt;
+			if (particle->life_left <= 0) {
+				live_particles -= 1;
+				continue;
+			}
+
+			r32 particle_life_pct = 1 - (particle->life_left / particle->life_span);
+
+			if (!zt_real32Eq(gravity, 0)) {
+				particle->velocity.y -= (gravity * 1) * dt;
+			}
+
+			if (emitter->system->velocity_damping_over_lifetime_used) {
+				ztVec3 damping = zt_particleVariableVec3GetValue(&particle->velocity_damping_over_lifetime, particle_life_pct);
+				particle->velocity -= damping * dt;
+				if (particle->velocity.x < 0) particle->velocity.x = 0;
+				if (particle->velocity.y < 0) particle->velocity.y = 0;
+				if (particle->velocity.z < 0) particle->velocity.z = 0;
+			}
+
+			r32 particle_speed = particle->speed + (emitter->system->speed_over_lifetime_used ? zt_particleVariableRealGetValue(&particle->speed_over_lifetime, particle_life_pct) : 0);
+			ztVec3 particle_velocity;
+
+			if (emitter->system->velocity_over_lifetime_used) {
+				particle_velocity = particle->velocity * zt_particleVariableVec3GetValue(&particle->velocity_over_lifetime, particle_life_pct);
+			}
+			else {
+				particle_velocity = particle->velocity;
+			}
+
+			if (emitter->system->rotation_over_lifetime_used) {
+				ztVec3 rot = zt_particleVariableVec3GetValue(&particle->rotation_over_lifetime, particle_life_pct);
+				particle->rotation += rot * dt;
+			}
+			if (emitter->system->rotation_over_speed_used) {
+				r32 range = emitter->system->rotation_over_speed_range[1] - emitter->system->rotation_over_speed_range[0];
+				if (range > 0) {
+					r32 percent = (zt_clamp(particle->final_speed, emitter->system->rotation_over_speed_range[0], emitter->system->rotation_over_speed_range[1]) - emitter->system->rotation_over_speed_range[0]) / range;
+					ztVec3 rot = zt_particleVariableVec3GetValue(&particle->rotation_over_speed, percent);
+					particle->rotation += rot * dt;
+				}
+			}
+
+			ztVec3 position_last = particle->position;
+			particle->position += particle_velocity * particle_speed * dt;
+
+			if (emitter->system->noise_use) {
+				r32 multiplier = zt_particleVariableRealGetValue(&emitter->noise_multiplier, particle_life_pct);
+
+				ztVec3 pos = zt_particleVariableVec3GetValue(&emitter->noise_position_amount, particle_life_pct);
+				if (pos != ztVec3::zero) {
+					pos *= zt_vec3(
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 10000) * multiplier, (particle->position.y + 10000) * multiplier, (particle->position.z + 10000) * multiplier),
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 20000) * multiplier, (particle->position.y + 20000) * multiplier, (particle->position.z + 20000) * multiplier),
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 30000) * multiplier, (particle->position.y + 30000) * multiplier, (particle->position.z + 30000) * multiplier));
+
+					particle->position += pos * dt;
+				}
+
+				ztVec3 rot = zt_particleVariableVec3GetValue(&emitter->noise_rotation_amount, particle_life_pct);
+				if (rot != ztVec3::zero) {
+					rot *= zt_vec3(
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 40000) * multiplier, (particle->position.y + 40000) * multiplier, (particle->position.z + 40000) * multiplier),
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 50000) * multiplier, (particle->position.y + 50000) * multiplier, (particle->position.z + 50000) * multiplier),
+						zt_simplexNoise3D(emitter->noise, (particle->position.x + 60000) * multiplier, (particle->position.y + 60000) * multiplier, (particle->position.z + 60000) * multiplier));
+
+					particle->rotation += rot * dt;
+				}
+
+				ztVec3 sca = zt_particleVariableVec3GetValue(&emitter->noise_scale_amount, particle_life_pct);
+				if (sca != ztVec3::zero) {
+
+					if (zt_real32Eq(sca.x, sca.y) && zt_real32Eq(sca.y, sca.z)) {
+						r32 val = zt_simplexNoise3D(emitter->noise, (particle->position.x + 70000) * multiplier, (particle->position.y + 70000) * multiplier, (particle->position.z + 70000) * multiplier);
+						sca *= val;
+					}
+					else {
+						sca *= zt_vec3(
+							zt_simplexNoise3D(emitter->noise, (particle->position.x + 70000) * multiplier, (particle->position.y + 70000) * multiplier, (particle->position.z + 70000) * multiplier),
+							zt_simplexNoise3D(emitter->noise, (particle->position.x + 80000) * multiplier, (particle->position.y + 80000) * multiplier, (particle->position.z + 80000) * multiplier),
+							zt_simplexNoise3D(emitter->noise, (particle->position.x + 90000) * multiplier, (particle->position.y + 90000) * multiplier, (particle->position.z + 90000) * multiplier));
+					}
+
+					particle->scale += sca * dt;
+				}
+
+				//particle->velocity += pos * dt;
+			}
+
+
+			if (emitter->system->rotate_towards_movement) {
+				ztMat4 mat = ztMat4::identity.getLookAt(position_last, particle->position, system_rotation.rotatePosition(zt_vec3(0, 1, 0)));
+				mat.extract(nullptr, &particle->rotation, nullptr);
+			}
+
+			if (emitter->system->size_over_speed_used || emitter->system->rotation_over_speed_used || emitter->system->color_over_speed_used) {
+				particle->final_speed = zt_abs(particle->position.distance(position_last)) / dt;
+			}
+
+			r32 times_per = particle->life_span / trail_segments;
+			r32 times = particle->life_span - times_per;
+			zt_fjz(trail_segments - 1) {
+				r32 times_beg = times - times_per;
+				if (zt_between(particle->life_left, times_beg, times)) {
+					particle->history[j + 1] = particle->position;
+					break;
+				}
+				times = times_beg;
+			}
+
+			if (emitter->system->color_over_speed_used) {
+				r32 range = emitter->system->color_over_speed_range[1] - emitter->system->color_over_speed_range[0];
+				if (range > 0) {
+					r32 percent = (zt_clamp(particle->final_speed, emitter->system->color_over_speed_range[0], emitter->system->color_over_speed_range[1]) - emitter->system->color_over_speed_range[0]) / range;
+					particle->color = zt_particleVariableColorGetValue(&particle->color_over_speed, percent);
+				}
+				else {
+					particle->color = zt_particleVariableColorGetValue(&particle->color_over_lifetime, particle_life_pct);
+				}
+			}
+			else {
+				particle->color = zt_particleVariableColorGetValue(&particle->color_over_lifetime, particle_life_pct);
+			}
+		}
+	}
+
+	emitter->time_last_particle += dt;
+	if (emitter->life_left > 0) {
+		emitter->life_left -= dt;
+	}
+
+	if (live_particles == 0) {
+		// no remaining particles, see if we need to do anything to continue
+
+		bool enabled = false;
+
+		if (emitter->system->system_loops) {
+			if(emitter->system->system_duration > 0) {
+				emitter->life_left = emitter->system->system_duration;
+			}
+
+			enabled = true;
+		}
+
+		emitter->enabled = enabled;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztVec3 *ptr_pos, ztVec2 *ptr_uv, ztVec4 *ptr_colors, int size)
+{
+	ZT_PROFILE_PARTICLES("_zt_particleEmitterRender");
+
+	zt_returnValOnNull(emitter, 0);
+
+	if (emitter->enabled == false) {
+		return 0;
+	}
+
+	int index = 0;
+
+	if (camera != nullptr) {
+		if(camera->type == ztCameraType_Perspective) {
+			zt_fiz(emitter->particles_size) {
+				if (emitter->particles[i].life_left <= 0) {
+					continue;
+				}
+
+				emitter->particles[i].dist_from_camera = emitter->particles[i].position.distanceForCompare(camera->position);
+			}
+		}
+
+		struct sort
+		{
+			static int compare_z(const void *one, const void *two)
+			{
+				ztParticle2 *pone = (ztParticle2*)one;
+				ztParticle2 *ptwo = (ztParticle2*)two;
+
+				if (pone->life_left <= 0 && ptwo->life_left <= 0) return pone < ptwo ? -1 : 1;
+				if (pone->life_left <= 0) return 1;
+				if (ptwo->life_left <= 0) return -1;
+
+				if (pone->position.z < ptwo->position.z) {
+					return 1;
+				}
+				else if (ptwo->position.z < pone->position.z) {
+					return -1;
+				}
+				else return pone < ptwo ? -1 : 1;
+			}
+
+			static int compare_l(const void *one, const void *two)
+			{
+				ztParticle2 *pone = (ztParticle2*)one;
+				ztParticle2 *ptwo = (ztParticle2*)two;
+
+				if (pone->life_left <= 0 && ptwo->life_left <= 0) return pone < ptwo ? -1 : 1;
+				if (pone->life_left <= 0) return 1;
+				if (ptwo->life_left <= 0) return -1;
+
+				if (pone->life_left < ptwo->life_left) {
+					return 1;
+				}
+				else if (ptwo->life_left < pone->life_left) {
+					return -1;
+				}
+				else return pone < ptwo ? -1 : 1;
+			}
+
+			static int compare_d(const void *one, const void *two)
+			{
+				ztParticle2 *pone = (ztParticle2*)one;
+				ztParticle2 *ptwo = (ztParticle2*)two;
+
+				if (pone->life_left <= 0 && ptwo->life_left <= 0) return pone < ptwo ? -1 : 1;
+				if (pone->life_left <= 0) return 1;
+				if (ptwo->life_left <= 0) return -1;
+
+				if (pone->dist_from_camera < ptwo->dist_from_camera) {
+					return 1;
+				}
+				else if (ptwo->dist_from_camera < pone->dist_from_camera) {
+					return -1;
+				}
+				else return pone < ptwo ? -1 : 1;
+			}
+		};
+
+		qsort(emitter->particles, emitter->particles_size, zt_sizeof(ztParticle2), camera->type == ztCameraType_Perspective ? sort::compare_d : sort::compare_z);
+	}
+
+	ztVec2 facing_uvs[4];
+	ztVec3 facing_nml[4];
+
+	if (camera->type == ztCameraType_Perspective) {
+		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+	}
+
+	if (emitter->system->trails_use) {
+		if (draw_list != nullptr) {
+			zt_drawListPushTexture(draw_list, emitter->system->trails_sprite.tex);
+			zt_drawListPushBlendMode(draw_list, emitter->system->system_rendering.blend_mode_src, emitter->system->system_rendering.blend_mode_dst);
+		}
+
+		r32 trail_width = emitter->system->trails_width_is_size ? emitter->system->trails_sprite.half_size.x : 1;
+
+		ztVec3 nmls[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+		zt_fiz(emitter->particles_size) {
+			if (emitter->particles[i].life_left <= 0) {
+				continue;
+			}
+
+			ztParticle2 *particle = &emitter->particles[i];
+
+			r32 particle_life_pct = 1 - (particle->life_left / particle->life_span);
+
+			int trail_parts = 0;
+			zt_fize(particle->history) {
+				if (particle->history[i] != ztVec3::min) {
+					trail_parts += 1;
+				}
+				else break;
+			}
+
+			r32 uv_pct = (emitter->system->trails_sprite.tex_uv.w - emitter->system->trails_sprite.tex_uv.y) / (trail_parts - 0);
+			r32 uv_start = emitter->system->trails_sprite.tex_uv.y;
+
+			ztVec3 prev_pos[2] = { particle->history[0], particle->history[0] };
+			ztVec2 prev_uvs[2] = { zt_vec2(emitter->system->trails_sprite.tex_uv.z, emitter->system->trails_sprite.tex_uv.y), emitter->system->trails_sprite.tex_uv.xy };
+
+			ztVec4 over_color = emitter->system->trails_inherit_color ? particle->color : ztColor_White;
+
+			ztVec4 color = over_color * zt_particleVariableColorGetValue(&emitter->trails_color, 0);
+			if (emitter->system->trails_color_over_lifetime_use) {
+				color *= zt_particleVariableColorGetValue(&emitter->trails_color_over_time, 0);
+			}
+
+			for (int j = 0; j < trail_parts - 1; ++j) {
+				if (particle->history[j] != ztVec3::min && particle->history[j + 1] != ztVec3::min) {
+					ztQuat rotation;
+					
+					if (camera->type == ztCameraType_Perspective) {
+						rotation = ztQuat::makeFromMat4(ztMat4::identity.getLookAt(particle->history[j], camera->position, particle->history[j + 1] - particle->history[j])).getInverse();
+					}
+					else {
+						rotation = ztQuat::makeFromDirection(particle->history[j+1] - particle->history[j + 1]);
+					}
+
+					ztVec4 prev_color = color;
+					r32 percent = (j + 1) / (r32)(trail_parts);
+					color = over_color * zt_particleVariableColorGetValue(&emitter->trails_color, percent);
+					if (emitter->system->trails_color_over_lifetime_use) {
+						color *= zt_particleVariableColorGetValue(&emitter->trails_color_over_time, particle_life_pct);
+					}
+
+					r32 halfwidth_end = trail_width * zt_particleVariableRealGetValue(&emitter->trails_width, percent);
+					ztVec3 offset_end = zt_vec3(halfwidth_end, 0, 0);
+
+					if (j == 0) {
+						r32 halfwidth_beg = trail_width * zt_particleVariableRealGetValue(&emitter->trails_width, 0);
+						ztVec3 offset_beg = zt_vec3(halfwidth_beg, 0, 0);
+						prev_pos[0] = particle->history[j] + (rotation.rotatePosition(offset_beg));
+						prev_pos[1] = particle->history[j] - (rotation.rotatePosition(offset_beg));
+					}
+
+
+					bool last_seg = j == zt_elementsOf(particle->history) - 2 || particle->history[j + 2] == ztVec3::min;
+
+					ztVec3 pos[] = {
+						prev_pos[0],
+						particle->history[j + 1] + (rotation.rotatePosition(offset_end)),
+						particle->history[j + 1] - (rotation.rotatePosition(offset_end)),
+						prev_pos[1],
+					};
+
+					ztVec2 uvs[] = {
+						prev_uvs[0],
+						zt_vec2(emitter->system->trails_sprite.tex_uv.z, uv_start + uv_pct),
+						zt_vec2(emitter->system->trails_sprite.tex_uv.x, uv_start + uv_pct),
+						prev_uvs[1],
+					};
+
+					ztVec4 colors[] = {
+						prev_color,
+						color,
+						color,
+						prev_color,
+					};
+
+					prev_pos[0] = pos[1];
+					prev_pos[1] = pos[2];
+
+					prev_uvs[0] = uvs[1];
+					prev_uvs[1] = uvs[2];
+
+					if (draw_list) {
+						zt_drawListAddFilledQuad(draw_list, pos, uvs, nmls, colors);
+					}
+					else {
+						zt_fiz(2) {
+							if (index >= size - 6) {
+								zt_assert(false);
+								return index;
+							}
+
+							ptr_pos   [index  ] = pos   [0];
+							ptr_uv    [index  ] = uvs   [0];
+							ptr_colors[index++] = colors[0];
+
+							ptr_pos   [index  ] = pos   [1];
+							ptr_uv    [index  ] = uvs   [1];
+							ptr_colors[index++] = colors[1];
+
+							ptr_pos   [index  ] = pos   [2];
+							ptr_uv    [index  ] = uvs   [2];
+							ptr_colors[index++] = colors[2];
+
+							ptr_pos   [index  ] = pos   [0];
+							ptr_uv    [index  ] = uvs   [0];
+							ptr_colors[index++] = colors[0];
+
+							ptr_pos   [index  ] = pos   [2];
+							ptr_uv    [index  ] = uvs   [2];
+							ptr_colors[index++] = colors[2];
+
+							ptr_pos   [index  ] = pos   [3];
+							ptr_uv    [index  ] = uvs   [3];
+							ptr_colors[index++] = colors[3];
+						}
+					}
+
+					uv_start += uv_pct;
+				}
+			}
+		}
+
+		if (draw_list) {
+			zt_drawListPopBlendMode(draw_list);
+			zt_drawListPopTexture(draw_list);
+		}
+	}
+
+	bool need_uvs = false;
+	ztSprite *uvs_sprite = nullptr;
+	if (emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard) {
+		if (emitter->system->system_rendering.billboard.sprite.half_size == ztVec2::zero) {
+			return 0;
+		}
+		if (draw_list) {
+			zt_drawListPushTexture(draw_list, emitter->system->system_rendering.billboard.sprite.tex);
+			zt_drawListPushColor(draw_list, ztColor_White);
+		}
+
+		if(camera && camera->type == ztCameraType_Orthographic) {
+			need_uvs = true;
+			uvs_sprite = &emitter->system->system_rendering.billboard.sprite;
+		}
+	}
+	else if (emitter->system->system_rendering.type == ztParticleRenderingType_Facing) {
+		if (emitter->system->system_rendering.facing.sprite.half_size == ztVec2::zero) {
+			return 0;
+		}
+		if (draw_list) {
+			zt_drawListPushTexture(draw_list, emitter->system->system_rendering.facing.sprite.tex);
+			zt_drawListPushColor(draw_list, ztColor_White);
+		}
+		need_uvs = true;
+		uvs_sprite = &emitter->system->system_rendering.facing.sprite;
+	}
+
+	if (need_uvs) {
+		if (camera->type == ztCameraType_Perspective) {
+			facing_uvs[0] = zt_vec2(uvs_sprite->tex_uv.z, uvs_sprite->tex_uv.y);
+			facing_uvs[1] = uvs_sprite->tex_uv.xy;
+			facing_uvs[2] = zt_vec2(uvs_sprite->tex_uv.x, uvs_sprite->tex_uv.w);
+			facing_uvs[3] = uvs_sprite->tex_uv.zw;
+		}
+		else {
+			facing_uvs[0] = zt_vec2(uvs_sprite->tex_uv.x, uvs_sprite->tex_uv.y);
+			facing_uvs[1] = zt_vec2(uvs_sprite->tex_uv.x, uvs_sprite->tex_uv.w);
+			facing_uvs[2] = zt_vec2(uvs_sprite->tex_uv.z, uvs_sprite->tex_uv.w);
+			facing_uvs[3] = zt_vec2(uvs_sprite->tex_uv.z, uvs_sprite->tex_uv.y);;
+		}
+		facing_nml[0] = zt_vec3(0, 0, 1);
+		facing_nml[1] = zt_vec3(0, 0, 1);
+		facing_nml[2] = zt_vec3(0, 0, 1);
+		facing_nml[3] = zt_vec3(0, 0, 1);
+	}
+
+	if (draw_list) {
+		zt_drawListPushBlendMode(draw_list, emitter->system->system_rendering.blend_mode_src, emitter->system->system_rendering.blend_mode_dst);
+	}
+
+	zt_fiz(emitter->particles_size) {
+		if (emitter->particles[i].life_left <= 0) {
+			continue;
+		}
+
+		ztParticle2 *particle = &emitter->particles[i];
+
+		r32 particle_life_pct = 1 - (particle->life_left / particle->life_span);
+
+		ztVec3 scale = particle->scale;
+
+		if (emitter->system->size_over_lifetime_used) {
+			scale *= zt_particleVariableVec3GetValue(&particle->size_over_lifetime, particle_life_pct);
+		}
+		if (emitter->system->size_over_speed_used) {
+			r32 range = emitter->system->size_over_speed_range[1] - emitter->system->size_over_speed_range[0];
+			if (range > 0) {
+				r32 percent = (zt_clamp(particle->final_speed, emitter->system->size_over_speed_range[0], emitter->system->size_over_speed_range[1]) - emitter->system->size_over_speed_range[0]) / range;
+				ztVec3 speed_factor = zt_particleVariableVec3GetValue(&particle->size_over_speed, percent);
+				scale *= speed_factor;
+			}
+		}
+
+		if(camera->type == ztCameraType_Perspective) {
+			zt_drawListPushColor(draw_list, particle->color);
+			switch (emitter->system->system_rendering.type)
+			{
+				case ztParticleRenderingType_BillBoard: {
+					if (emitter->system->rotate_towards_movement) {
+						zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, 0, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw, ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ, particle->velocity.getNormal());
+					}
+					else {
+						zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, particle->rotation.z, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw);
+					}
+				} break;
+
+				case ztParticleRenderingType_Facing: {
+					ztVec3 pos[4];
+
+					if (particle->rotation == ztVec3::zero) {
+						pos[0] = zt_vec3(particle->position.x - emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
+						pos[1] = zt_vec3(particle->position.x - emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y - emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
+						pos[2] = zt_vec3(particle->position.x + emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y - emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
+						pos[3] = zt_vec3(particle->position.x + emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
+					}
+					else {
+						pos[0] = zt_vec3(0, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
+						pos[1] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
+						pos[2] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
+						pos[3] = zt_vec3(0, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
+
+						ztQuat quat = ztQuat::makeFromEuler(particle->rotation.x, particle->rotation.y, particle->rotation.z);
+
+						quat.rotatePosition(&pos[0]);
+						quat.rotatePosition(&pos[1]);
+						quat.rotatePosition(&pos[2]);
+						quat.rotatePosition(&pos[3]);
+
+						pos[0] += particle->position;
+						pos[1] += particle->position;
+						pos[2] += particle->position;
+						pos[3] += particle->position;
+					}
+
+					if (draw_list) {
+						zt_drawListAddFilledPoly(draw_list, pos, facing_uvs, facing_nml, 4);
+					}
+					else {
+						if (index >= size - 6) {
+							zt_assert(false);
+							return index;
+						}
+
+						ptr_pos   [index  ] = pos       [0];
+						ptr_uv    [index  ] = facing_uvs[0];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [1];
+						ptr_uv    [index  ] = facing_uvs[1];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [2];
+						ptr_uv    [index  ] = facing_uvs[2];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [0];
+						ptr_uv    [index  ] = facing_uvs[0];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [2];
+						ptr_uv    [index  ] = facing_uvs[2];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [3];
+						ptr_uv    [index  ] = facing_uvs[3];
+						ptr_colors[index++] = particle->color;
+					}
+				} break;
+			}
+			zt_drawListPopColor(draw_list);
+		}
+		else {
+			ztSprite *sprite = nullptr;
+
+			switch (emitter->system->system_rendering.type)
+			{
+				case ztParticleRenderingType_BillBoard: {
+					sprite = &emitter->system->system_rendering.billboard.sprite;
+				} break;
+
+				case ztParticleRenderingType_Facing: {
+					sprite = &emitter->system->system_rendering.facing.sprite;
+				} break;
+			}
+
+			//sprite = nullptr;
+
+			if (sprite != nullptr) {
+				ztVec3 pos[4];
+
+				if (particle->rotation == ztVec3::zero) {
+					pos[0] = zt_vec3(particle->position.x - sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
+					pos[1] = zt_vec3(particle->position.x - sprite->half_size.x * scale.x, particle->position.y - sprite->half_size.y * scale.y, particle->position.z);
+					pos[2] = zt_vec3(particle->position.x + sprite->half_size.x * scale.x, particle->position.y - sprite->half_size.y * scale.y, particle->position.z);
+					pos[3] = zt_vec3(particle->position.x + sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
+				}
+				else {
+					pos[0] = zt_vec3(-sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
+					pos[1] = zt_vec3(-sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
+					pos[2] = zt_vec3(+sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
+					pos[3] = zt_vec3(+sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
+
+					ztQuat quat = ztQuat::makeFromEuler(particle->rotation.x * 0, particle->rotation.y * 0, -90 + particle->rotation.z + (particle->velocity.x > 0 ? 180.f : 0.f));
+
+					quat.rotatePosition(&pos[0]);
+					quat.rotatePosition(&pos[1]);
+					quat.rotatePosition(&pos[2]);
+					quat.rotatePosition(&pos[3]);
+
+					pos[0] += particle->position;
+					pos[1] += particle->position;
+					pos[2] += particle->position;
+					pos[3] += particle->position;
+				}
+
+				if (draw_list) {
+					ztVec4 colors[] = {
+						particle->color,
+						particle->color,
+						particle->color,
+						particle->color,
+					};
+
+					zt_drawListAddFilledPoly(draw_list, pos, facing_uvs, facing_nml, colors, 4);
+				}
+				else {
+					if (index >= size - 6) {
+						zt_assert(false);
+						return index;
+					}
+
+					ptr_pos   [index  ] = pos       [0];
+					ptr_uv    [index  ] = facing_uvs[0];
+					ptr_colors[index++] = particle->color;
+
+					ptr_pos   [index  ] = pos       [1];
+					ptr_uv    [index  ] = facing_uvs[1];
+					ptr_colors[index++] = particle->color;
+
+					ptr_pos   [index  ] = pos       [2];
+					ptr_uv    [index  ] = facing_uvs[2];
+					ptr_colors[index++] = particle->color;
+
+					ptr_pos   [index  ] = pos       [0];
+					ptr_uv    [index  ] = facing_uvs[0];
+					ptr_colors[index++] = particle->color;
+
+					ptr_pos   [index  ] = pos       [2];
+					ptr_uv    [index  ] = facing_uvs[2];
+					ptr_colors[index++] = particle->color;
+
+					ptr_pos   [index  ] = pos       [3];
+					ptr_uv    [index  ] = facing_uvs[3];
+					ptr_colors[index++] = particle->color;
+				}
+			}
+			else {
+				if (draw_list) {
+					zt_drawListAddSolidCircle2D(draw_list, particle->position, .05f, 16, particle->color);
+				}
+			}
+		}
+	}
+
+	if (draw_list) {
+		zt_drawListPopBlendMode(draw_list);
+		if (emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard || emitter->system->system_rendering.type == ztParticleRenderingType_Facing) {
+			zt_drawListPopColor(draw_list);
+			zt_drawListPopTexture(draw_list);
+		}
+
+		if (camera->type == ztCameraType_Perspective) {
+			zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+		}
+	}
+
+#if 0
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_drawListPushColor(draw_list, ztColor_Cyan * zt_vec4(1, 1, 1, .5f));
+	zt_fiz(emitter->particles_size) {
+		if (emitter->particles[i].life_left <= 0) {
+			continue;
+		}
+		ztParticle2 *particle = &emitter->particles[i];
+
+		for (int j = 0; j < zt_elementsOf(particle->history) - 1; ++j) {
+			if (particle->history[j] != ztVec3::min && particle->history[j + 1] != ztVec3::min) {
+				zt_drawListAddLine(draw_list, particle->history[j], particle->history[j + 1]);
+			}
+		}
+	}
+	zt_drawListPopColor(draw_list);
+	zt_drawListPopTexture(draw_list);
+#endif
+
+#if 0
+	zt_drawListPushTexture(draw_list, ztTextureDefault);
+	zt_fiz(emitter->particles_size) {
+		if (emitter->particles[i].life_left <= 0) {
+			continue;
+		}
+		ztParticle2 *particle = &emitter->particles[i];
+
+		zt_drawListPushTransform(draw_list, ztMat4::identity.getTranslate(particle->position) * ztMat4::identity.getRotateEuler(particle->rotation));
+		zt_drawListAddAxis(draw_list, particle->scale.x * .5f, ztVec3::zero);
+		zt_drawListPopTransform(draw_list);
+		zt_drawListAddLine(draw_list, ztVec3::zero, particle->position);
+
+	}
+	zt_drawListPopTexture(draw_list);
+#endif
+
+	return index;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterRender(ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera)
+{
+	zt_returnOnNull(draw_list);
+	_zt_particleEmitterRender(emitter, camera, draw_list, nullptr, nullptr, nullptr, 0);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterGetTriangles(ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size)
+{
+	return _zt_particleEmitterRender(emitter, camera, nullptr, pos, uv, colors, size);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterPoolInit(ztParticleEmitterPool *pool, int emitters_count, ztParticleSystem *system, i32 seed, bool random_seeds)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolInit");
+	zt_returnOnNull(pool);
+	zt_returnOnNull(system);
+
+	ztRandom random;
+	if (random_seeds) {
+		zt_randomInit(&random, seed);
+	}
+
+	i32 max_particles = 0;
+	i32 size = _zt_particleEmitterGetEachEmitterSize(system, &max_particles);
+	i32 total_size = size * emitters_count + (zt_sizeof(ztParticleEmitter*) * emitters_count);
+
+	{
+		char mem[64];
+		zt_strBytesToString(mem, zt_elementsOf(mem), total_size);
+		zt_logDebug("particle pool memory allocated: %s", mem);
+	}
+
+	//pool->emitters = zt_mallocStructArray(ztParticleEmitter*, emitters_count);
+
+	byte *data = zt_mallocStructArray(byte, total_size);
+
+	pool->emitters = (ztParticleEmitter**)data;
+	pool->emitters_count = emitters_count;
+
+	data += zt_sizeof(ztParticleEmitter*) * emitters_count;
+
+	zt_memCpy(&pool->system, zt_sizeof(ztParticleSystem), system, zt_sizeof(ztParticleSystem));
+
+	zt_fiz(emitters_count) {
+		//ztParticleEmitter *emitter = zt_mallocStruct(ztParticleEmitter);
+		//emitter->particles = zt_mallocStructArray(ztParticle2, max_particles);
+		ztParticleEmitter *emitter = (ztParticleEmitter*)data;
+		emitter->particles = (ztParticle2*)(((byte*)emitter) + zt_sizeof(ztParticleEmitter));
+		emitter->particles_size = max_particles;
+
+		data += size;
+
+		_zt_particleEmitterInit(emitter, &pool->system, random_seeds ? zt_randomInt(&random, 0, ztInt32Max) : seed);
+
+		pool->emitters[i] = emitter;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterPoolFree(ztParticleEmitterPool *pool)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolFree");
+	if (pool == nullptr) {
+		return;
+	}
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->noise) {
+			zt_simplexNoiseFree(pool->emitters[i]->noise);
+		}
+	}
+
+	zt_free(pool->emitters);
+
+	pool->emitters_count = 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterPoolUpdate(ztParticleEmitterPool *pool, r32 dt)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolUpdate");
+	zt_returnOnNull(pool);
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->enabled) {
+			zt_particleEmitterUpdate(pool->emitters[i], dt);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterPoolRender(ztParticleEmitterPool *pool, ztDrawList *draw_list, ztCamera *camera)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolRender");
+	zt_returnOnNull(pool);
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->enabled) {
+			zt_particleEmitterRender(pool->emitters[i], draw_list, camera);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterPoolGetTriangles(ztParticleEmitterPool *pool, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolGetTriangles");
+	zt_returnValOnNull(pool, 0);
+
+	int total = 0;
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->enabled) {
+			int this_total = zt_particleEmitterGetTriangles(pool->emitters[i], camera, pos, uv, colors, size);
+
+			total += this_total;
+			pos += this_total;
+			uv += this_total;
+			colors += this_total;
+			size -= this_total;
+		}
+	}
+
+	return total;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_particleEmitterPoolResetAll(ztParticleEmitterPool *pool)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolResetAll");
+	zt_returnOnNull(pool);
+
+	zt_fiz(pool->emitters_count) {
+		pool->emitters[i]->enabled = false;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztParticleEmitter *zt_particleEmitterPoolGetAvailable(ztParticleEmitterPool *pool)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolGetAvailable");
+
+	zt_fiz(pool->emitters_count) {
+		if (!pool->emitters[i]->enabled) {
+			zt_particleEmitterReset(pool->emitters[i]);
+			pool->emitters[i]->enabled = true;
+			return pool->emitters[i];
+		}
+	}
+
+	//zt_assert(false);
+	return nullptr;
 }
 
 
@@ -27091,7 +29921,7 @@ int main(int argc, const char **argv)
 		{
 			u32 texture[] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
 
-			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8, ztTextureFlags_PixelPerfect);
+			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
 			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
 		}
 		// make the default font
