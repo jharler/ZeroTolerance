@@ -10857,6 +10857,8 @@ ztInternal void _zt_guiEditorPartVarColorUpdateGui(ztParticleVariableColorEditor
 
 		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
 			zt_guiItemShow(editor->ed_random_value_panel);
+			zt_guiColorPickerSetLiveValue(editor->ed_random_value_min, &editor->variable->random_value_min);
+			zt_guiColorPickerSetLiveValue(editor->ed_random_value_max, &editor->variable->random_value_max);
 		} break;
 
 		case ztParticleVariableColorType_Gradient: {
@@ -14553,6 +14555,7 @@ struct ztGuiAnimCurveEditor
 	ztAnimCurve   *curve_val;
 	ztAnimCurve    curve_orig;
 
+	ztGuiItem     *type_combo;
 	ztGuiItem     *ease_in_label;
 	ztGuiItem     *ease_in_combo;
 	ztGuiItem     *ease_out_label;
@@ -14573,6 +14576,30 @@ struct ztGuiAnimCurveEditor
 	ztFunctionID   callback;
 	void          *user_data;
 };
+
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_animCurveUpdateGui(ztGuiAnimCurveEditor *curve_editor)
+{
+	zt_guiComboBoxSetSelected(curve_editor->type_combo, curve_editor->curve.type);
+
+	zt_guiItemShow(curve_editor->ease_in_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
+	zt_guiItemShow(curve_editor->ease_in_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
+	zt_guiItemShow(curve_editor->ease_out_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
+	zt_guiItemShow(curve_editor->ease_out_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
+
+	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn) {
+		zt_guiComboBoxSetSelected(curve_editor->ease_in_combo, curve_editor->curve.ease_in);
+	}
+	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut) {
+		zt_guiComboBoxSetSelected(curve_editor->ease_out_combo, curve_editor->curve.ease_out);
+	}
+
+	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(curve_editor->ease_in_combo));
+
+	curve_editor->active_point = -1;
+}
 
 // ================================================================================================================================================================================================
 
@@ -14603,6 +14630,88 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputKeyboard, ZT_FUNC_GUI_ITE
 			curve_editor->curve.segments_count -= 1;
 		}
 	}
+	if (input_keys[ztInputKeys_Control].pressed()) {
+		char buffer[4096] = { 0 };
+		if (input_keys[ztInputKeys_C].justPressed()) {
+			zt_strCat(buffer, zt_elementsOf(buffer), "ztAnimCurve curve;\n");
+
+			zt_strCatf(buffer, zt_elementsOf(buffer), "curve.val_max = %.4ff;\n", curve_editor->curve.val_max);
+			zt_strCatf(buffer, zt_elementsOf(buffer), "curve.val_beg = %.4ff;\n", curve_editor->curve.val_beg);
+			zt_strCatf(buffer, zt_elementsOf(buffer), "curve.val_end = %.4ff;\n", curve_editor->curve.val_end);
+
+			char *ease_funcs[ztAnimCurveEaseType_MAX] = {
+				"ztAnimCurveEaseType_Linear",
+				"ztAnimCurveEaseType_Back",
+				"ztAnimCurveEaseType_Bounce",
+				"ztAnimCurveEaseType_Circ",
+				"ztAnimCurveEaseType_Cubic",
+				"ztAnimCurveEaseType_Elastic",
+				"ztAnimCurveEaseType_Expo",
+				"ztAnimCurveEaseType_Quad",
+				"ztAnimCurveEaseType_Quart",
+				"ztAnimCurveEaseType_Quint",
+				"ztAnimCurveEaseType_Sine",
+			};
+
+			switch (curve_editor->curve.type)
+			{
+				case ztAnimCurveType_Linear: {
+					zt_strCat(buffer, zt_elementsOf(buffer), "curve.type = ztAnimCurveType_Linear;\n");
+				} break;
+
+				case ztAnimCurveType_EaseIn: {
+					zt_strCat(buffer, zt_elementsOf(buffer), "curve.type = ztAnimCurveType_EaseIn;\n");
+					zt_strCatf(buffer, zt_elementsOf(buffer), "curve.ease_in = %s;\n", ease_funcs[curve_editor->curve.ease_in]);
+				} break;
+
+				case ztAnimCurveType_EaseOut: {
+					zt_strCat(buffer, zt_elementsOf(buffer), "curve.type = ztAnimCurveType_EaseOut;\n");
+					zt_strCatf(buffer, zt_elementsOf(buffer), "curve.ease_out = %s;\n", ease_funcs[curve_editor->curve.ease_out]);
+				} break;
+
+				case ztAnimCurveType_EaseInOut: {
+					zt_strCat(buffer, zt_elementsOf(buffer), "curve.type = ztAnimCurveType_EaseInOut;\n");
+					zt_strCatf(buffer, zt_elementsOf(buffer), "curve.ease_in = %s;\n", ease_funcs[curve_editor->curve.ease_in]);
+					zt_strCatf(buffer, zt_elementsOf(buffer), "curve.ease_out = %s;\n", ease_funcs[curve_editor->curve.ease_out]);
+				} break;
+
+				case ztAnimCurveType_Spline: {
+					zt_strCat(buffer, zt_elementsOf(buffer), "curve.type = ztAnimCurveType_Spline;\n");
+
+					zt_strCatf(buffer, zt_elementsOf(buffer), "curve.segments_count = %d;\n", curve_editor->curve.segments_count);
+					zt_fiz(curve_editor->curve.segments_count) {
+						zt_strCatf(buffer, zt_elementsOf(buffer), "curve.segments[%d].pos_beg = zt_vec2(%.4ff, %.4ff);\n", i, curve_editor->curve.segments[i].pos_beg.x, curve_editor->curve.segments[i].pos_beg.y);
+						zt_strCatf(buffer, zt_elementsOf(buffer), "curve.segments[%d].pos_end = zt_vec2(%.4ff, %.4ff);\n", i, curve_editor->curve.segments[i].pos_end.x, curve_editor->curve.segments[i].pos_end.y);
+						zt_strCatf(buffer, zt_elementsOf(buffer), "curve.segments[%d].control_point_beg = zt_vec2(%.4ff, %.4ff);\n", i, curve_editor->curve.segments[i].control_point_beg.x, curve_editor->curve.segments[i].control_point_beg.y);
+						zt_strCatf(buffer, zt_elementsOf(buffer), "curve.segments[%d].control_point_end = zt_vec2(%.4ff, %.4ff);\n", i, curve_editor->curve.segments[i].control_point_end.x, curve_editor->curve.segments[i].control_point_end.y);
+					}
+
+				} break;
+			}
+
+			char base64[zt_sizeof(ztAnimCurve) * 2];
+			zt_base64Encode((byte*)&curve_editor->curve, zt_sizeof(ztAnimCurve), base64, zt_elementsOf(base64));
+			zt_strCat(buffer, zt_elementsOf(buffer), "// ztAnimCurveData:");
+			zt_strCat(buffer, zt_elementsOf(buffer), base64);
+			zt_strCat(buffer, zt_elementsOf(buffer), "\n");
+
+			zt_clipboardSendPlainText(buffer);
+		}
+		else if(input_keys[ztInputKeys_V].justPressed()) {
+			int chars_read = 0;
+			if (zt_clipboardReadPlainText(buffer, zt_elementsOf(buffer), &chars_read)) {
+				if (zt_strStartsWith(buffer, "ztAnimCurveData:")) {
+					byte curve_data[zt_sizeof(ztAnimCurve)];
+					int size = zt_base64Decode(buffer + 16, chars_read, curve_data, zt_elementsOf(curve_data));
+					if (size == zt_sizeof(ztAnimCurve)) {
+						zt_memCpy(&curve_editor->curve, zt_sizeof(ztAnimCurve), curve_data, zt_sizeof(ztAnimCurve));
+						_zt_animCurveUpdateGui(curve_editor);
+					}
+				}
+			}
+		}
+	}
+
 
 	return false;
 }
@@ -15006,27 +15115,6 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDE
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_animCurveUpdateGui(ztGuiAnimCurveEditor *curve_editor)
-{
-	zt_guiItemShow(curve_editor->ease_in_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
-	zt_guiItemShow(curve_editor->ease_in_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn);
-	zt_guiItemShow(curve_editor->ease_out_combo, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
-	zt_guiItemShow(curve_editor->ease_out_label, curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut);
-
-	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseIn) {
-		zt_guiComboBoxSetSelected(curve_editor->ease_in_combo, curve_editor->curve.ease_in);
-	}
-	if (curve_editor->curve.type == ztAnimCurveType_EaseInOut || curve_editor->curve.type == ztAnimCurveType_EaseOut) {
-		zt_guiComboBoxSetSelected(curve_editor->ease_out_combo, curve_editor->curve.ease_out);
-	}
-
-	zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(curve_editor->ease_in_combo));
-
-	curve_editor->active_point = -1;
-}
-
-// ================================================================================================================================================================================================
-
 ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveComboType))
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
@@ -15167,6 +15255,7 @@ void zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ztFunct
 		zt_guiComboBoxAppend(combo_type, "Spline");
 		zt_guiComboBoxSetCallback(combo_type, _zt_animCurveComboType_FunctionID, curve_editor);
 		zt_guiComboBoxSetSelected(combo_type, curve_editor->curve.type);
+		curve_editor->type_combo = combo_type;
 
 		zt_guiSizerAddItem(type_sizer, zt_guiMakeStaticText(type_sizer, "Curve Type:"), 0, padding);
 		zt_guiSizerAddItem(type_sizer, combo_type, 0, padding);
@@ -21955,6 +22044,7 @@ void _zt_guiParticleEditor()
 		ztGuiItem *system_panel = local::makePanelSizer(sizer_tools, "System", padding);
 		{
 			local::makeEditor(system_panel, "Duration:", padding, &editor->particle_system.system_duration);
+			local::makeEditor(system_panel, "Delay:", padding, &editor->particle_system.system_delay);
 			local::makeEditor(system_panel, "Loops:", padding, &editor->particle_system.system_loops);
 			local::makeEditor(system_panel, "Pre-Warm:", padding, &editor->particle_system.system_prewarm);
 			local::makeEditor(system_panel, "Gravity Multiplier:", padding, &editor->particle_system.system_gravity_multiplier);
@@ -22047,6 +22137,7 @@ void _zt_guiParticleEditor()
 			local::makeEditor(part_birth_panel, "Start Speed:", padding, &editor->particle_system.start_speed);
 			local::makeEditor(part_birth_panel, "Start Scale", padding, &editor->particle_system.start_scale, true);
 			local::makeEditor(part_birth_panel, "Start Rotation", padding, &editor->particle_system.start_rotation, true);
+			local::makeEditor(part_birth_panel, "Start Color", padding, &editor->particle_system.start_color);
 		}
 
 		ztGuiItem *part_movement_panel = local::makePanelSizer(sizer_tools, "Particle Movement", padding);
