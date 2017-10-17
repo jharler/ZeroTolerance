@@ -1478,13 +1478,16 @@ struct ztCameraShake
 	ztRandom randomizer;
 
 	ztVec2   offset;
+
+	r32      ramp_up;
+	r32      ramp_up_progress;
 };
 
 // ================================================================================================================================================================================================
 
 // NOTE: Once prerender is applied, camera matrices need recalculated.  Also after postrender.
 
-ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed);
+ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed, r32 ramp_up = 0);
 void          zt_cameraShakeStart(ztCameraShake *camera_shake);
 void          zt_cameraShakeUpdate(ztCameraShake *camera_shake, r32 dt);
 bool          zt_cameraShakePreRender(ztCameraShake *camera_shake, ztCamera *camera);
@@ -2927,6 +2930,7 @@ ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2    defval)
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3    defval);
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4    defval);
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat    defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool      defval);
 
 bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames); // the maximum number of frames that can pass before resetting variable.  returns true if variable has been reset.  make sure to call before zt_variableCacheGet
 
@@ -3558,6 +3562,7 @@ struct ztParticle2
 	ztVec3                       scale;
 	ztVec3                       rotation;
 	r32                          speed;
+	ztVec4                       start_color;
 	ztVec4                       color;
 
 	ztVec3                       history[32];
@@ -3669,6 +3674,7 @@ struct ztParticleSystem
 {
 	// system settings
 	r32                      system_duration;
+	r32                      system_delay;
 	bool                     system_loops;
 	r32                      system_prewarm;
 	ztParticleVariableReal   system_gravity_multiplier; // amount of force applied on the Y axis
@@ -3690,6 +3696,7 @@ struct ztParticleSystem
 
 	ztParticleVariableVec3   start_scale;
 	ztParticleVariableVec3   start_rotation; // the initial starting rotation of the particle (not over lifetime)
+	ztParticleVariableColor  start_color;
 
 	bool                     velocity_inherit; // inherit velocity from emitter
 	bool                     velocity_over_lifetime_used;
@@ -3765,6 +3772,7 @@ struct ztParticleEmitter
 
 	r32                                 speed;
 	r32                                 life_left;
+	r32                                 delay;
 
 	ztParticleVariableRealValue         system_gravity_multiplier;
 	ztParticleVariableRealValue         system_rate_over_time;
@@ -16520,7 +16528,7 @@ void zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed)
+ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 seed, r32 ramp_up)
 {
 	ZT_PROFILE_RENDERING("zt_cameraShakeMake");
 	ztCameraShake camera_shake;
@@ -16532,6 +16540,8 @@ ztCameraShake zt_cameraShakeMake(r32 duration, r32 speed, r32 intensity, i32 see
 	camera_shake.frequency = 60 * speed; // hertz
 	camera_shake.amplitude = 16 * intensity / zt_pixelsPerUnit(); // units
 	camera_shake.sample_count = zt_min(CAMERA_SHAKE_MAX_SAMPLES - 1, (int)camera_shake.frequency);
+	camera_shake.ramp_up = ramp_up;
+	camera_shake.ramp_up_progress = ramp_up;
 
 	zt_fiz(camera_shake.sample_count) {
 		camera_shake.samples_x[i] = zt_randomVal(&camera_shake.randomizer) * 2.0f - 1.0f;
@@ -16550,6 +16560,7 @@ void zt_cameraShakeStart(ztCameraShake *camera_shake)
 	ZT_PROFILE_RENDERING("zt_cameraShakeStart");
 	zt_returnOnNull(camera_shake);
 	camera_shake->current_time = camera_shake->duration;
+	camera_shake->ramp_up_progress = camera_shake->ramp_up;
 }
 
 // ================================================================================================================================================================================================
@@ -16583,8 +16594,19 @@ void zt_cameraShakeUpdateMultiple(ztCameraShake *camera_shake, int camera_shake_
 				i32 sample_y_idx_1 = sample_y_idx_0 + 1;
 				r32 amplitude_y = (camera_shake[i].samples_y[sample_y_idx_0] + (sample_y - sample_y_idx_0) * (camera_shake[i].samples_y[sample_y_idx_1] - camera_shake[i].samples_y[sample_y_idx_0])) * (1 - percent);
 
-				camera_shake[i].offset.x = amplitude_x * camera_shake[i].amplitude;
-				camera_shake[i].offset.y = amplitude_y * camera_shake[i].amplitude;
+				r32 ramp_percent = 1;
+				if (camera_shake[i].ramp_up_progress > 0) {
+					camera_shake[i].ramp_up_progress -= dt;
+					if (camera_shake[i].ramp_up_progress <= 0) {
+						camera_shake[i].ramp_up_progress = 0;
+					}
+					else {
+						ramp_percent = 1 - (camera_shake[i].ramp_up_progress / camera_shake[i].ramp_up);
+					}
+				}
+
+				camera_shake[i].offset.x = amplitude_x * camera_shake[i].amplitude * ramp_percent;
+				camera_shake[i].offset.y = amplitude_y * camera_shake[i].amplitude * ramp_percent;
 			}
 		}
 	}
@@ -24361,118 +24383,97 @@ ztInternal ztVariant *_zt_variableCacheNew(ztVariableCache *cache, i32 id)
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval)
+ztInternal ztVariant *_zt_variableCacheFindOrNew(ztVariableCache *cache, i32 id, bool *is_new)
 {
 	zt_returnValOnNull(cache, nullptr);
 
 	ztVariant *result = _zt_variableCacheFind(cache, id);
 	if (result == nullptr) {
 		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		zt_variantAssignValue(result, defval);
+		*is_new = true;
 	}
 
 	return result;
+}
+
+// ================================================================================================================================================================================================
+
+#define _zt_variableCacheGetBody(FUNC) \
+			ztVariant *result = _zt_variableCacheFind(cache, id); \
+			if (result == nullptr) { \
+				result = _zt_variableCacheNew(cache, id); \
+				if (result == nullptr) { \
+					return nullptr; \
+				} \
+				*result = FUNC(defval); \
+			} \
+			return result;
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval)
+{
+	struct local {
+		static ztVariant workaround(ztVariant variant) {
+			return variant;
+		}
+	};
+
+	_zt_variableCacheGetBody(local::workaround);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32 defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_r32(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_r32);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32 defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_i32(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_i32);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2 defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_vec2(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_vec2);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3 defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_vec3(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_vec3);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4 defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_vec4(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_vec4);
 }
 
 // ================================================================================================================================================================================================
 
 ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat defval)
 {
-	ztVariant *result = _zt_variableCacheFind(cache, id);
-	if (result == nullptr) {
-		result = _zt_variableCacheNew(cache, id);
-		if (result == nullptr) {
-			return nullptr;
-		}
-
-		*result = zt_variantMake_quat(defval);
-	}
-	return result;
+	_zt_variableCacheGetBody(zt_variantMake_quat);
 }
+
+// ================================================================================================================================================================================================
+
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool defval)
+{
+	_zt_variableCacheGetBody(zt_variantMake_bool);
+}
+
+// ================================================================================================================================================================================================
+
+#undef 	_zt_variableCacheGetBody
 
 // ================================================================================================================================================================================================
 
@@ -26390,7 +26391,11 @@ bool zt_serialWrite(ztSerial *serial, ztParticleVariableColor *variable)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#define ZT_PARTICLE_SYSTEM_ID	(i32)2798871238
+#define ZT_PARTICLE_SYSTEM_ID	(i32)2798871240
+
+#define ZT_PARTICLE_SYSTEM_ID_V1 (i32)2798871238
+#define ZT_PARTICLE_SYSTEM_ID_V2 (i32)2798871239
+#define ZT_PARTICLE_SYSTEM_ID_V3 ZT_PARTICLE_SYSTEM_ID
 
 // ================================================================================================================================================================================================
 
@@ -26458,9 +26463,22 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 	{
 		i32 id = 0;
 		if (!zt_serialRead(serial, &id)) return false;
-		if (id != ZT_PARTICLE_SYSTEM_ID) return false;
+
+		int version = 0;
+		if (id == ZT_PARTICLE_SYSTEM_ID_V1) version = 1;
+		if (id == ZT_PARTICLE_SYSTEM_ID_V2) version = 2;
+		if (id == ZT_PARTICLE_SYSTEM_ID_V3) version = 3;
+		if (version == 0) return false;
 
 		if (!zt_serialRead(serial, &system->system_duration)) return false;
+
+		if(version >= 2) {
+			if (!zt_serialRead(serial, &system->system_delay)) return false;
+		}
+		else {
+			system->system_delay = 0;
+		}
+
 		if (!zt_serialRead(serial, &system->system_loops)) return false;
 		if (!zt_serialRead(serial, &system->system_prewarm)) return false;
 		if (!zt_serialRead(serial, &system->system_gravity_multiplier)) return false;
@@ -26555,6 +26573,15 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 		if (!zt_serialRead(serial, &system->start_speed)) return false;
 		if (!zt_serialRead(serial, &system->start_scale)) return false;
 		if (!zt_serialRead(serial, &system->start_rotation)) return false;
+
+		if (version >= 3) {
+			if (!zt_serialRead(serial, &system->start_color)) return false;
+		}
+		else {
+			system->start_color.type = ztParticleVariableColorType_Constant;
+			system->start_color.constant = ztColor_White;
+		}
+
 		if (!zt_serialRead(serial, &system->velocity_inherit)) return false;
 		if (!zt_serialRead(serial, &system->velocity_over_lifetime_used)) return false;
 		if (!zt_serialRead(serial, &system->velocity_over_lifetime)) return false;
@@ -26617,6 +26644,7 @@ bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager 
 		if (!zt_serialWrite(serial, ZT_PARTICLE_SYSTEM_ID)) return false;
 
 		if (!zt_serialWrite(serial, system->system_duration)) return false;
+		if (!zt_serialWrite(serial, system->system_delay)) return false;
 		if (!zt_serialWrite(serial, system->system_loops)) return false;
 		if (!zt_serialWrite(serial, system->system_prewarm)) return false;
 		if (!zt_serialWrite(serial, &system->system_gravity_multiplier)) return false;
@@ -26695,6 +26723,7 @@ bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager 
 		if (!zt_serialWrite(serial, &system->start_speed)) return false;
 		if (!zt_serialWrite(serial, &system->start_scale)) return false;
 		if (!zt_serialWrite(serial, &system->start_rotation)) return false;
+		if (!zt_serialWrite(serial, &system->start_color)) return false;
 		if (!zt_serialWrite(serial, system->velocity_inherit)) return false;
 		if (!zt_serialWrite(serial, system->velocity_over_lifetime_used)) return false;
 		if (!zt_serialWrite(serial, &system->velocity_over_lifetime)) return false;
@@ -26759,6 +26788,7 @@ void _zt_particleEmitterInit(ztParticleEmitter *emitter, ztParticleSystem *syste
 
 	emitter->speed = 1;
 	emitter->life_left = emitter->system->system_duration;
+	emitter->delay = emitter->system->system_delay;
 	emitter->prev_pos = emitter->position;
 	emitter->time_last_particle = ztReal32Max;
 
@@ -26933,6 +26963,14 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 	zt_returnValOnNull(emitter, false);
 	if (emitter->enabled == false) {
 		return false;
+	}
+
+	if(emitter->delay > 0) {
+		emitter->delay -= dt;
+		if (emitter->delay <= 0) {
+			emitter->delay = 0;
+		}
+		else return true;
 	}
 
 	r32 emitter_life_pct = emitter->system->system_duration == 0 ? 0 : 1 - (zt_max(0, emitter->life_left) / emitter->system->system_duration);
@@ -27184,6 +27222,10 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 					zt_particleVariableVec3Init(&scale, &emitter->system->start_scale, &emitter->random);
 					particle->scale = zt_particleVariableVec3GetValue(&scale, emitter_life_pct);
 
+					ztParticleVariableColorValue color;
+					zt_particleVariableColorInit(&color, &emitter->system->start_color, &emitter->random);
+					particle->start_color = zt_particleVariableColorGetValue(&color, emitter_life_pct);
+
 					if (emitter->system->size_over_speed_used) {
 						zt_particleVariableVec3Init(&particle->size_over_speed, &emitter->system->size_over_speed, &emitter->random);
 					}
@@ -27263,7 +27305,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 				if (particle->velocity.z < 0) particle->velocity.z = 0;
 			}
 
-			r32 particle_speed = particle->speed + (emitter->system->speed_over_lifetime_used ? zt_particleVariableRealGetValue(&particle->speed_over_lifetime, particle_life_pct) : 0);
+			r32 particle_speed = particle->speed * (emitter->system->speed_over_lifetime_used ? zt_particleVariableRealGetValue(&particle->speed_over_lifetime, particle_life_pct) : 1);
 			ztVec3 particle_velocity;
 
 			if (emitter->system->velocity_over_lifetime_used) {
@@ -27366,6 +27408,8 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 			else {
 				particle->color = zt_particleVariableColorGetValue(&particle->color_over_lifetime, particle_life_pct);
 			}
+
+			particle->color = particle->start_color * particle->color;
 		}
 	}
 
@@ -27999,15 +28043,18 @@ void zt_particleEmitterPoolFree(ztParticleEmitterPool *pool)
 		return;
 	}
 
-	zt_fiz(pool->emitters_count) {
-		if (pool->emitters[i]->noise) {
-			zt_simplexNoiseFree(pool->emitters[i]->noise);
+	if (pool->emitters != nullptr) {
+		zt_fiz(pool->emitters_count) {
+			if (pool->emitters[i]->noise) {
+				zt_simplexNoiseFree(pool->emitters[i]->noise);
+			}
 		}
+
+		zt_free(pool->emitters);
 	}
 
-	zt_free(pool->emitters);
-
 	pool->emitters_count = 0;
+	pool->emitters = nullptr;
 }
 
 // ================================================================================================================================================================================================
