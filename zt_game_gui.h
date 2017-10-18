@@ -7080,6 +7080,18 @@ void zt_guiMenuPopupAtPosition(ztGuiItem *menu, const ztVec2& pos)
 	menu->menu.just_opened = menu->gm->in_update ? 1 : 2;
 
 	ztVec2 position = pos;
+
+	ztVec2 ext_min = zt_cameraOrthoGetMinExtent(menu->gm->gui_camera);
+	ztVec2 ext_max = zt_cameraOrthoGetMaxExtent(menu->gm->gui_camera);
+
+	if (position.x + menu->size.x > ext_max.x) {
+		position.x -= (position.x + menu->size.x) - ext_max.x;
+	}
+	if (position.y - menu->size.y < ext_min.y) {
+		position.y += ext_min.y - (position.y - menu->size.y);
+	}
+
+
 	position.x += menu->size.x / 2;
 	position.y -= menu->size.y / 2;
 
