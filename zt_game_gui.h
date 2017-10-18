@@ -10853,6 +10853,7 @@ ztInternal void _zt_guiEditorPartVarColorUpdateGui(ztParticleVariableColorEditor
 	{
 		case ztParticleVariableColorType_Constant: {
 			zt_guiItemShow(editor->ed_constant);
+			zt_guiColorPickerSetLiveValue(editor->ed_constant, &editor->variable->constant);
 		} break;
 
 		case ztParticleVariableColorType_RandomBetweenTwoConstants: {
