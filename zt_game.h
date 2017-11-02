@@ -2780,6 +2780,10 @@ enum ztTweenItemFlags_Enum
 
 // ================================================================================================================================================================================================
 
+struct ztAnimCurve;
+
+// ================================================================================================================================================================================================
+
 struct ztTweenItem
 {
 	ztTweenItemType_Enum type;
@@ -2823,6 +2827,7 @@ struct ztTweenItem
 
 	ztFunctionID ease_in;
 	ztFunctionID ease_out;
+	ztAnimCurve *curve;
 };
 
 
@@ -2831,6 +2836,12 @@ void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec2 beg_val, ztVec
 void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
 void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
 void zt_tweenItemMake            (ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out);
+
+void zt_tweenItemMake            (ztTweenItem *tween_item, r32    beg_val, r32    end_val, r32    *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve);
+void zt_tweenItemMake            (ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve);
 
 r32  zt_tweenItemPercentComplete (ztTweenItem *tween_item);
 bool zt_tweenItemIsComplete      (ztTweenItem *tween_item);
@@ -2910,6 +2921,8 @@ void           zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt);
 // tween.  it helps keep all functionality for the tween local
 // ================================================================================================================================================================================================
 
+#define ztVariableCacheFrameGapNone		ztInt32Min
+
 struct ztVariableCache
 {
 	ztVariant *variables;
@@ -2923,14 +2936,14 @@ struct ztVariableCache
 void       zt_variableCacheMake(ztVariableCache *cache, int max_variables);
 void       zt_variableCacheFree(ztVariableCache *cache);
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32       defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32       defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2    defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3    defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4    defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat    defval);
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool      defval);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32       defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32       defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2    defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3    defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4    defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat    defval, i32 frame_gap = ztVariableCacheFrameGapNone);
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool      defval, i32 frame_gap = ztVariableCacheFrameGapNone);
 
 bool       zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames); // the maximum number of frames that can pass before resetting variable.  returns true if variable has been reset.  make sure to call before zt_variableCacheGet
 
@@ -4058,6 +4071,56 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 
 
 // ================================================================================================================================================================================================
+// events
+// ================================================================================================================================================================================================
+
+enum ztEventFlags_Enum
+{
+	ztEventFlags_TrackTime           = (1<<0),
+	ztEventFlags_ResetEachFrame      = (1<<1),
+	ztEventFlags_TriggerOneFrameOnly = (1<<2),
+	ztEventFlags_TriggerOnTimeEnd    = (1<<3),
+	ztEventFlags_Disabled            = (1<<4),
+	ztEventFlags_DisableOnTimeEnd    = (1<<5),
+	ztEventFlags_ResetOnTimeEnd      = (1<<6),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztEvent
+{
+	r32  time;
+	i32  flags;
+	bool triggered;
+	r32  time_set;
+};
+
+// ================================================================================================================================================================================================
+
+bool zt_eventIsTriggered            (ztEvent *evt, bool condition, i32 flags = 0, r32 timeout = 0);
+bool zt_eventIsTriggered            (ztEvent *evt);
+
+bool zt_eventIsTriggeredAndComplete (ztEvent *evt, bool condition, i32 flags = 0, r32 timeout = 0);
+bool zt_eventIsTriggeredAndComplete (ztEvent *evt);
+
+bool zt_eventTrigger                (ztEvent *evt, i32 flags = 0, r32 timeout = 0);
+
+bool zt_eventJustTriggered          (ztEvent *evt);
+
+void zt_eventDisable                (ztEvent *evt);
+
+r32  zt_eventPercentComplete        (ztEvent *evt);
+r32  zt_eventPercentCompleteClamp   (ztEvent *evt);
+bool zt_eventIsComplete             (ztEvent *evt);
+
+void zt_eventReset                  (ztEvent *evt);
+void zt_eventResetAll               (ztEvent *evts, int evts_count);
+
+void zt_eventUpdate                 (ztEvent *evt, r32 dt);
+void zt_eventUpdateAll              (ztEvent *evts, int evts_count, r32 dt);
+
+
+// ================================================================================================================================================================================================
 // audio
 // ================================================================================================================================================================================================
 
@@ -4072,6 +4135,7 @@ ztAudioClipID zt_audioClipMakeFromFile(const char *file_name, i32 audio_system);
 void zt_audioClipFree(ztAudioClipID audio_clip_id);
 
 void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
+void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 frequency = ztAudioClipDefaultFrequency);
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
 
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
@@ -4875,6 +4939,15 @@ struct ztAudioClip
 
 // ================================================================================================================================================================================================
 
+struct ztAudioDelay
+{
+	ztAudioClipID clip_id;
+	r32           frequency;
+	r32           delay;
+};
+
+// ================================================================================================================================================================================================
+
 #ifndef ZT_MAX_AUDIO_CLIPS
 #define ZT_MAX_AUDIO_CLIPS  128
 #endif
@@ -5001,8 +5074,10 @@ struct ztGameGlobals
 	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
 
 	ztAudioClip               audio_clips[ZT_MAX_AUDIO_CLIPS];
+	ztAudioDelay              audio_delays[ZT_MAX_AUDIO_CLIPS];
 	i32                       audio_clips_count = 0;
 	bool                      audio_muted = false;
+	bool                      audio_has_delay = false;
 	ztAudioSystem             audio_systems[ZT_MAX_AUDIO_SYSTEMS];
 
 	// ----------------------
@@ -23877,7 +23952,7 @@ ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+void _zt_tweenItemMakeReal(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out, ztAnimCurve *curve)
 {
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
@@ -23892,6 +23967,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *va
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+	tween_item->curve          = curve;
 
 	if (delay == 0) {
 		*value = beg_val;
@@ -23900,7 +23976,21 @@ void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *va
 
 // ================================================================================================================================================================================================
 
-void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	_zt_tweenItemMakeReal(tween_item, beg_val, end_val, value, flags, length, delay, ease_in, ease_out, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve)
+{
+	_zt_tweenItemMakeReal(tween_item, beg_val, end_val, value, flags, length, delay, ztInvalidID, ztInvalidID, curve);
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_tweenItemMakeVec2(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out, ztAnimCurve *curve)
 {
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
@@ -23915,6 +24005,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+	tween_item->curve          = curve;
 
 	if (delay == 0) {
 		*value = beg_val;
@@ -23923,7 +24014,21 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, z
 
 // ================================================================================================================================================================================================
 
-void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	_zt_tweenItemMakeVec2(tween_item, beg_val, end_val, value, flags, length, delay, ease_in, ease_out, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve)
+{
+	_zt_tweenItemMakeVec2(tween_item, beg_val, end_val, value, flags, length, delay, ztInvalidID, ztInvalidID, curve);
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_tweenItemMakeVec3(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out, ztAnimCurve *curve)
 {
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
@@ -23938,6 +24043,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+	tween_item->curve          = curve;
 
 	if (delay == 0) {
 		*value = beg_val;
@@ -23946,7 +24052,21 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, z
 
 // ================================================================================================================================================================================================
 
-void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	_zt_tweenItemMakeVec3(tween_item, beg_val, end_val, value, flags, length, delay, ease_in, ease_out, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve)
+{
+	_zt_tweenItemMakeVec3(tween_item, beg_val, end_val, value, flags, length, delay, ztInvalidID, ztInvalidID, curve);
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_tweenItemMakeVec4(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out, ztAnimCurve *curve)
 {
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
@@ -23961,6 +24081,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+	tween_item->curve          = curve;
 
 	if (delay == 0) {
 		*value = beg_val;
@@ -23969,7 +24090,21 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, z
 
 // ================================================================================================================================================================================================
 
-void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	_zt_tweenItemMakeVec4(tween_item, beg_val, end_val, value, flags, length, delay, ease_in, ease_out, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve)
+{
+	_zt_tweenItemMakeVec4(tween_item, beg_val, end_val, value, flags, length, delay, ztInvalidID, ztInvalidID, curve);
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_tweenItemMakeQuat(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out, ztAnimCurve *curve)
 {
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
@@ -23984,10 +24119,25 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, z
 	tween_item->delay          = delay;
 	tween_item->ease_in        = ease_in;
 	tween_item->ease_out       = ease_out;
+	tween_item->curve          = curve;
 
 	if (delay == 0) {
 		*value = beg_val;
 	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztFunctionID ease_in, ztFunctionID ease_out)
+{
+	_zt_tweenItemMakeQuat(tween_item, beg_val, end_val, value, flags, length, delay, ease_in, ease_out, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ztAnimCurve *curve)
+{
+	_zt_tweenItemMakeQuat(tween_item, beg_val, end_val, value, flags, length, delay, ztInvalidID, ztInvalidID, curve);
 }
 
 // ================================================================================================================================================================================================
@@ -24092,29 +24242,54 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 			}
 		}
 
-		r32 percent = tween_item[i].time < tween_item[i].delay ? 0 : (tween_item[i].time - tween_item[i].delay) / tween_item[i].length;
+		r32 percent = zt_clamp(tween_item[i].time < tween_item[i].delay ? 0 : (tween_item[i].time - tween_item[i].delay) / tween_item[i].length, 0, 1);
 
 		if (percent > 0 || tween_item[i].delay == 0) {
 			switch (tween_item[i].type)
 			{
 				case ztTweenItemType_Real: {
-					*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					if (tween_item[i].curve) {
+						*tween_item[i].real.value = zt_lerp(tween_item[i].real.value_beg, tween_item[i].real.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
+					}
+					else {
+						*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					}
 				} break;
 
 				case ztTweenItemType_Vec2: {
-					*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					if (tween_item[i].curve) {
+						*tween_item[i].vec2.value = ztVec2::lerp(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
+					}
+					else {
+						*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					}
 				} break;
 
 				case ztTweenItemType_Vec3: {
-					*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					if (tween_item[i].curve) {
+						*tween_item[i].vec3.value = ztVec3::lerp(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
+					}
+					else {
+						*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					}
 				} break;
 
 				case ztTweenItemType_Vec4: {
-					*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					if (tween_item[i].curve) {
+						*tween_item[i].vec4.value = ztVec4::lerp(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
+					}
+					else {
+						*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					}
 				} break;
 
 				case ztTweenItemType_Quat: {
-					tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					if (tween_item[i].curve) {
+						*tween_item[i].quat.value = ztQuat::lerp(tween_item[i].quat.value_beg, tween_item[i].quat.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
+					}
+					else {
+						tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_in), (ztTweenEase_Func*)zt_functionPointer(tween_item[i].ease_out));
+					}
 				} break;
 			}
 		}
@@ -24399,6 +24574,7 @@ ztInternal ztVariant *_zt_variableCacheFindOrNew(ztVariableCache *cache, i32 id,
 // ================================================================================================================================================================================================
 
 #define _zt_variableCacheGetBody(FUNC) \
+			if (frame_gap != ztVariableCacheFrameGapNone) { zt_variableCacheSetFrameGap(cache, id, frame_gap); } \
 			ztVariant *result = _zt_variableCacheFind(cache, id); \
 			if (result == nullptr) { \
 				result = _zt_variableCacheNew(cache, id); \
@@ -24411,7 +24587,7 @@ ztInternal ztVariant *_zt_variableCacheFindOrNew(ztVariableCache *cache, i32 id,
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval, i32 frame_gap)
 {
 	struct local {
 		static ztVariant workaround(ztVariant variant) {
@@ -24424,49 +24600,49 @@ ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVariant defval)
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32 defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, r32 defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_r32);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32 defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, i32 defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_i32);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2 defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec2 defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_vec2);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3 defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec3 defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_vec3);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4 defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztVec4 defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_vec4);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, ztQuat defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_quat);
 }
 
 // ================================================================================================================================================================================================
 
-ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool defval)
+ztVariant *zt_variableCacheGet(ztVariableCache *cache, i32 id, bool defval, i32 frame_gap)
 {
 	_zt_variableCacheGetBody(zt_variantMake_bool);
 }
@@ -29009,6 +29185,213 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+bool zt_eventIsTriggered(ztEvent *evt, bool condition, i32 flags, r32 timeout)
+{
+	ZT_PROFILE_GAME("zt_eventIsTriggered");
+	zt_returnValOnNull(evt, false);
+
+	if (evt->triggered) {
+		if (zt_bitIsSet(evt->flags, ztEventFlags_TriggerOneFrameOnly) && !zt_bitIsSet(evt->flags, ztEventFlags_TrackTime)) {
+			return false;
+		}
+
+		if(zt_bitIsSet(evt->flags, ztEventFlags_Disabled)) {
+			return false;
+		}
+
+		if (zt_bitIsSet(evt->flags, ztEventFlags_TrackTime) || zt_bitIsSet(evt->flags, ztEventFlags_TriggerOnTimeEnd)) {
+			if (evt->time < evt->time_set) {
+				if (zt_bitIsSet(evt->flags, ztEventFlags_TriggerOnTimeEnd)) {
+					return false;
+				}
+
+				return true;
+			}
+			else {
+				if (zt_bitIsSet(evt->flags, ztEventFlags_DisableOnTimeEnd)) {
+					evt->flags |= ztEventFlags_Disabled;
+				}
+
+				if(zt_bitIsSet(evt->flags, ztEventFlags_ResetOnTimeEnd)) {
+					evt->triggered = false;
+				}
+
+				if (zt_bitIsSet(evt->flags, ztEventFlags_TriggerOnTimeEnd)) {
+					if (zt_bitIsSet(evt->flags, ztEventFlags_TriggerOneFrameOnly)) {
+						if (zt_real32Eq(evt->time_set, ztReal32Min)) {
+							return false;
+						}
+						evt->time_set = ztReal32Min;
+					}
+					return true;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	if (condition) {
+		evt->flags     = flags;
+		evt->triggered = true;
+		evt->time      = 0;
+		evt->time_set  = timeout;
+
+		if (timeout != 0) {
+			evt->flags |= ztEventFlags_TrackTime;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventIsTriggered(ztEvent *evt)
+{
+	zt_returnValOnNull(evt, false);
+	return zt_eventIsTriggered(evt, false);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventIsTriggeredAndComplete(ztEvent *evt, bool condition, i32 flags, r32 timeout)
+{
+	ZT_PROFILE_GAME("zt_eventIsTriggeredAndComplete");
+	return zt_eventIsTriggered(evt, condition, flags, timeout) && zt_eventIsComplete(evt);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventIsTriggeredAndComplete(ztEvent *evt)
+{
+	ZT_PROFILE_GAME("zt_eventIsTriggeredAndComplete");
+	return zt_eventIsTriggered(evt) && zt_eventIsComplete(evt);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventTrigger(ztEvent *evt, i32 flags, r32 timeout)
+{
+	return zt_eventIsTriggered(evt, true, flags, timeout);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventJustTriggered(ztEvent *evt)
+{
+	zt_returnValOnNull(evt, false);
+	return evt->triggered && evt->time == 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_eventDisable(ztEvent *evt)
+{
+	zt_returnOnNull(evt);
+	evt->triggered = true;
+	evt->flags |= ztEventFlags_Disabled;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_eventPercentComplete(ztEvent *evt)
+{
+	ZT_PROFILE_GAME("zt_eventPercentComplete");
+	zt_returnValOnNull(evt, 1);
+
+	if (evt->triggered == false) {
+		return 0;
+	}
+
+	if(zt_bitIsSet(evt->flags, ztEventFlags_TrackTime)) {
+		if(evt->time_set <= 0) {
+			return 1;
+		}
+
+		return evt->time / evt->time_set;
+	}
+
+	return 1;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_eventPercentCompleteClamp(ztEvent *evt)
+{
+	ZT_PROFILE_GAME("zt_eventPercentCompleteClamp");
+	return zt_clamp(zt_eventPercentComplete(evt), 0, 1);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_eventIsComplete(ztEvent *evt)
+{
+	return zt_eventPercentComplete(evt) >= 1.f;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_eventReset(ztEvent *evt)
+{
+	ZT_PROFILE_GAME("zt_eventReset");
+	zt_returnOnNull(evt);
+	evt->triggered = false;
+	evt->flags = 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_eventResetAll(ztEvent *evts, int evts_count)
+{
+	ZT_PROFILE_GAME("zt_eventResetAll");
+	zt_returnOnNull(evts);
+	zt_assertReturnOnFail(evts_count >= 0);
+
+	zt_fiz(evts_count) {
+		evts[i].triggered = false;
+		evts[i].flags = 0;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_eventUpdate(ztEvent *evt, r32 dt)
+{
+	ZT_PROFILE_GAME("zt_eventUpdate");
+	zt_returnOnNull(evt);
+
+	if (evt->triggered) {
+		evt->time -= dt;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_eventUpdateAll(ztEvent *evts, int evts_count, r32 dt)
+{
+	ZT_PROFILE_GAME("zt_eventUpdateAll");
+	zt_returnOnNull(evts);
+	zt_assertReturnOnFail(evts_count >= 0);
+
+	zt_fiz(evts_count) {
+		if (evts[i].triggered) {
+			evts[i].time += dt;
+
+			if (zt_bitIsSet(evts[i].flags, ztEventFlags_ResetEachFrame)) {
+				evts[i].triggered = false;
+			}
+		}
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztInternal bool _zt_audioCheckContext()
 {
 	ZT_PROFILE_AUDIO("_zt_audioCheckContext");
@@ -29211,6 +29594,30 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 
 // ================================================================================================================================================================================================
 
+void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 frequency )
+{
+	ZT_PROFILE_AUDIO("zt_audioClipPlayOnceDelayed");
+	if (zt_game->audio_muted) {
+		return;
+	}
+
+	if (audio_clip_id < 0 || audio_clip_id >= zt_game->audio_clips_count) {
+		return;
+	}
+
+	zt_fize(zt_game->audio_delays) {
+		if(zt_game->audio_delays[i].clip_id <= 0) {
+			zt_game->audio_delays[i].clip_id = audio_clip_id + 1;
+			zt_game->audio_delays[i].frequency = frequency;
+			zt_game->audio_delays[i].delay = delay;
+			zt_game->audio_has_delay = true;
+			break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipPlayLooped");
@@ -29337,6 +29744,21 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 				}
 			}
 		}
+	}
+
+	if(zt_game->audio_has_delay) {
+		int delays = 0;
+		zt_fize(zt_game->audio_delays) {
+			if (zt_game->audio_delays[i].clip_id > 0) {
+				zt_game->audio_delays[i].delay -= dt;
+				if(zt_game->audio_delays[i].delay <= 0) {
+					zt_audioClipPlayOnce(zt_game->audio_delays[i].clip_id - 1, zt_game->audio_delays[i].frequency);
+					zt_game->audio_delays[i].clip_id = ztInvalidID;
+				}
+				else delays += 1;
+			}
+		}
+		zt_game->audio_has_delay = delays > 0;
 	}
 #	endif
 }
