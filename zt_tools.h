@@ -4159,6 +4159,7 @@ void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 	ZT_PROFILE_TOOLS("zt_memCpy");
 
 	int max_idx = zt_min(dst_len, src_len);
+	zt_assertReturnOnFail(max_idx >= 0);
 
 //	for (int i = 0; i < max_idx; ++i) {
 //		((byte*)dst)[i] = ((byte*)src)[i];
