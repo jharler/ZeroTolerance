@@ -19028,6 +19028,8 @@ struct ztDebugSpriteEditor
 	ztTextureID                 grid_texture;
 	ztVec2i                     grid_texture_size;
 
+	ztVec2i                     sprite_grid_values;
+
 	char                        sprite_name[1024][64];
 	int                         sprite_type[1024];
 	ztVec2                      sprite_pos[1024];
@@ -19944,6 +19946,99 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonBestFit, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk))
+{
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	if (editor->sprite_grid_values.x <= 0 || editor->sprite_grid_values.y <= 0) {
+		return;
+	}
+	if (editor->sprite_type[editor->sprite_active] != 0) {
+		return;
+	}
+
+
+	ztVec2 grid_size = editor->sprite_size[editor->sprite_active];
+	ztVec2 grid_start = editor->sprite_pos[editor->sprite_active];// -(grid_size * .5f);
+
+	grid_size.x /= editor->sprite_grid_values.x;
+	grid_size.y /= editor->sprite_grid_values.y;
+
+	ztVec2i grid_size_pix = zt_vec2i(zt_convertToi32Floor(grid_size.x * zt_pixelsPerUnit()), zt_convertToi32Floor(grid_size.y * zt_pixelsPerUnit()));
+
+	//grid_start += grid_size;
+	ztVec2 grid_curr = grid_start;
+
+	if(grid_size_pix.x <= 0 || grid_size_pix.y <= 0) {
+		return;
+	}
+
+	char sprite_prefix[64];
+	zt_strCpy(sprite_prefix, zt_elementsOf(sprite_prefix), editor->sprite_name[editor->sprite_active]);
+
+	zt_fyz(editor->sprite_grid_values.y) {
+		zt_fxz(editor->sprite_grid_values.x) {
+
+			int idx = (y * editor->sprite_grid_values.x) + x;
+			zt_strMakePrintf(sprite_name, 64, "%s_%d", sprite_prefix, idx);
+
+			zt_fize(editor->sprite_pos) {
+
+				if ((idx == 0 && i == editor->sprite_active) || (idx != 0 && editor->sprite_size[i] == ztVec2::zero)) {
+					ztVec2i top_left_pix = zt_vec2i(zt_convertToi32Floor(grid_curr.x * zt_pixelsPerUnit()), zt_convertToi32Floor(grid_curr.y * zt_pixelsPerUnit()));
+
+					editor->sprite_pos[i] = zt_vec2(top_left_pix.x / zt_pixelsPerUnit(), top_left_pix.y / zt_pixelsPerUnit());
+					editor->sprite_size[i] = grid_size;
+					editor->sprite_type[i] = 0;
+
+					zt_strCpy(editor->sprite_name[i], zt_elementsOf(editor->sprite_name[i]), sprite_name);
+
+					if(idx == 0) {
+						_zt_debugSpriteEdDisplayReadVals(editor);
+					}
+					break;
+				}
+			}
+
+			grid_curr.x += grid_size.x;
+		}
+		grid_curr.x = grid_start.x;
+		grid_curr.y += grid_size.y;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplit, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplit))
+{
+	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
+
+	ztGuiItem *window = zt_guiMakeWindow("Enter Grid Dimensions", ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_Modal);
+	zt_guiItemSetSize(window, zt_vec2(5, 2.1f));
+
+	editor->sprite_grid_values = zt_vec2i(1, 1);
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+	ztGuiItem *val_ed = zt_guiMakeEditor(sizer, nullptr, &editor->sprite_grid_values, zt_vec2i(1, 1), zt_vec2i(999, 999), 1, true, "Columns", "   Rows");
+
+	zt_guiItemSetSize(val_ed, zt_vec2(4, .75f));
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+	zt_guiSizerAddStretcher(sizer, 1, 0);
+
+	zt_guiSizerAddItem(sizer, val_ed, 2, padding, ztAlign_Center, 0);
+
+	zt_guiSizerAddStretcher(sizer, 1, 0);
+	ztGuiItem *split_button = zt_guiMakeButton(sizer, "Split Sprite Into Grid");
+	zt_guiSizerAddItem(sizer, split_button, 0, padding, ztAlign_Center, 0);
+
+	zt_guiButtonSetCallback(split_button, _zt_debugSpriteEdDisplayButtonGridSplitDialogOk_FunctionID, editor);
+}
+
+// ================================================================================================================================================================================================
+
 ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonDelete, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonDelete))
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
@@ -20198,6 +20293,12 @@ ztInternal void _zt_debugSpriteEditor()
 		ztGuiItem *button_best_fit = zt_guiMakeButton(sizer, "Best Fit");
 		zt_guiSizerAddItem(button_sizer, button_best_fit, 0, padding, ztAlign_Right, ztGuiItemOrient_Vert);
 		zt_guiButtonSetCallback(button_best_fit, _zt_debugSpriteEdDisplayButtonBestFit_FunctionID, editor);
+
+		ztGuiItem *button_grid = zt_guiMakeButton(sizer, "Grid Split");
+		zt_guiSizerAddItem(button_sizer, button_grid, 0, padding, ztAlign_Right, ztGuiItemOrient_Vert);
+		zt_guiButtonSetCallback(button_grid, _zt_debugSpriteEdDisplayButtonGridSplit_FunctionID, editor);
+
+		editor->gui_edit_sprite[idx_spr++] = button_grid;
 
 		zt_guiItemSetSize(editor->sprite_info_panel, zt_guiSizerGetMinSize(sizer) + zt_vec2(padding * 2, padding * 2));
 		zt_guiItemHide(editor->sprite_info_panel);
