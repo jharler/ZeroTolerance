@@ -556,9 +556,10 @@ enum ztGuiListBoxBehaviorFlags_Enum
 	ztGuiListBoxBehaviorFlags_MultiSelect        = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
 	ztGuiListBoxBehaviorFlags_AlternateRowColor  = (1 << (ztGuiItemBehaviorFlags_MaxBit + 2)),
 	ztGuiListBoxBehaviorFlags_AlwaysCallCallback = (1 << (ztGuiItemBehaviorFlags_MaxBit + 3)), // will call callback even when set using function (not just on user input)
+	ztGuiListBoxBehaviorFlags_UseFancyText       = (1 << (ztGuiItemBehaviorFlags_MaxBit + 4)),
 };
 
-#define ztGuiListBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 3)
+#define ztGuiListBoxBehaviorFlags_MaxBit (ztGuiItemBehaviorFlags_MaxBit + 4)
 
 
 // ================================================================================================================================================================================================
@@ -9207,7 +9208,7 @@ int zt_guiListBoxAppend(ztGuiItem *listbox, ztGuiItem *item, void *user_data, bo
 int zt_guiListBoxAppend(ztGuiItem *listbox, const char *item, void *user_data)
 {
 	ZT_PROFILE_GUI("zt_guiListBoxAppend");
-	return zt_guiListBoxAppend(listbox, zt_guiMakeStaticText(listbox, item), user_data);
+	return zt_guiListBoxAppend(listbox, zt_guiMakeStaticText(listbox, item, zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_UseFancyText) ? ztGuiStaticTextBehaviorFlags_Fancy : 0), user_data);
 }
 
 // ================================================================================================================================================================================================
@@ -16527,8 +16528,8 @@ ztInternal void _zt_guiDebugFpsDisplay()
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#ifndef ZT_DEBUG_CONSOLE_BUFFER_SIZE
-#define ZT_DEBUG_CONSOLE_BUFFER_SIZE	1024 * 16
+#ifndef ZT_DEBUG_CONSOLE_MAX_LINES
+#define ZT_DEBUG_CONSOLE_MAX_LINES      512
 #endif
 
 #ifndef ZT_DEBUG_CONSOLE_MAX_COMMANDS
@@ -16553,8 +16554,6 @@ struct ztDebugConsole
 	ztGuiItem       *display;
 	ztGuiItem       *command;
 	int              last_tab_stop;
-
-	char             working_buffer[ZT_DEBUG_CONSOLE_BUFFER_SIZE];
 
 	ztConsoleCmdStr *commands;
 	byte             command_buffer[zt_sizeof(ztConsoleCmdStr) * ZT_DEBUG_CONSOLE_MAX_COMMANDS];
@@ -16811,6 +16810,7 @@ ztInternal void _zt_guiDebugConsole()
 		ztGuiItem *window = zt_guiItemFindByName(ZT_DEBUG_CONSOLE_NAME);
 		if (window != nullptr) {
 			zt_guiItemShow(window);
+			zt_guiItemBringToFront(window);
 			zt_guiItemSetFocus(zt_guiItemFindByName(ZT_DEBUG_CONSOLE_COMMAND_NAME, window));
 			return;
 		}
@@ -16855,11 +16855,8 @@ ztInternal void _zt_guiDebugConsole()
 	zt_guiItemSetName(window, ZT_DEBUG_CONSOLE_NAME);
 
 	ztGuiItem *content = zt_guiWindowGetContentParent(window);
-	ztGuiItem *display_container = zt_gui->console_display_container = zt_guiMakeScrollContainer(content, ztGuiScrollContainerBehaviorFlags_ShowScrollVert);
-	zt_gui->console_display = dc->display = zt_guiMakeStaticText(display_container, nullptr, ztGuiStaticTextBehaviorFlags_Fancy | ztGuiStaticTextBehaviorFlags_MonoSpaced, zt_elementsOf(dc->working_buffer));
-	zt_guiScrollContainerSetItem(display_container, dc->display);
 
-	zt_guiItemSetAlign(dc->display, ztAlign_Left | ztAlign_Top);
+	zt_gui->console_display = dc->display = zt_guiMakeListBox(content, ztGuiListBoxBehaviorFlags_UseFancyText, ZT_DEBUG_CONSOLE_MAX_LINES);
 
 	zt_gui->console_command = dc->command = zt_guiMakeTextEdit(content, nullptr);
 	zt_guiItemSetName(zt_gui->console_command, ZT_DEBUG_CONSOLE_COMMAND_NAME);
@@ -16869,7 +16866,7 @@ ztInternal void _zt_guiDebugConsole()
 	ztGuiItem *main_sizer = zt_guiMakeSizer(content, ztGuiItemOrient_Vert);
 	zt_guiSizerSizeToParent(main_sizer);
 
-	zt_guiSizerAddItem(main_sizer, display_container, 1, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(main_sizer, dc->display, 1, 3 / zt_pixelsPerUnit());
 	zt_guiSizerAddItem(main_sizer, dc->command, 0, 3 / zt_pixelsPerUnit(), 0, ztGuiItemOrient_Horz);
 
 	zt_debugConsoleAddCommand("list", "Lists the available commands", _zt_guiDebugConsoleCommand_List_FunctionID     , ztInvalidID);
@@ -16960,6 +16957,20 @@ ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, c
 {
 	ZT_PROFILE_GUI("_zt_debugConsoleLogRaw");
 
+	if (zt_gui->console_display == nullptr) {
+		return;
+	}
+
+	zt_assertReturnOnFail(zt_gui->console_display->type == ztGuiItemType_ListBox);
+
+	if (zt_guiListBoxGetCount(zt_gui->console_display) >= ZT_DEBUG_CONSOLE_MAX_LINES) {
+		zt_guiListBoxRemoveItem(zt_gui->console_display, 0);
+	}
+
+	zt_guiListBoxAppend(zt_gui->console_display, command, nullptr);
+
+
+#if 0
 	zt_assertReturnOnFail(zt_gui->console_display->type == ztGuiItemType_StaticText);
 
 	ztGuiItem *item = zt_gui->console_display;
@@ -17010,6 +17021,7 @@ ztInternal void _zt_debugConsoleLogRaw(ztDebugConsoleLevel_Enum message_level, c
 	zt_freeArena(buffer, zt_gui->arena);
 
 	zt_guiScrollContainerSetScroll(zt_gui->console_display_container, ztGuiItemOrient_Vert, 1);
+#endif
 }
 
 // ================================================================================================================================================================================================
