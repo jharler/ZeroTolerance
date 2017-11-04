@@ -905,7 +905,11 @@ struct ztAssetManager
 	i32                        asset_count;
 
 	union {
-		ztSerial               packed;
+		struct {
+			ztFile             packed_file;
+			i32                packed_file_pos[ztAssetManagerMaxAssets];
+			char              *packed_file_names;
+		};
 
 		struct {
 			char              *directory;
@@ -919,8 +923,11 @@ struct ztAssetManager
 
 // ================================================================================================================================================================================================
 
+#define ZT_FUNC_ASSET_MAKE_PACKED_FILE_IGNORE(name) bool name(const char *asset_name, void *user_data)
+typedef ZT_FUNC_ASSET_MAKE_PACKED_FILE_IGNORE(ztAssetMakePackedFileIgnore_Func);
+
 //        takes the given directory and places all files in all directories (recursively) into the given packed file (not yet implemented)
-bool      zt_assetMakePackedFile         (const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr);
+bool      zt_assetMakePackedFile         (const char *directory, const char *packed_file, ztMemoryArena *arena = nullptr, ztAssetMakePackedFileIgnore_Func *ignore_func = nullptr, void *ignore_func_user_data = nullptr);
 
 bool      zt_assetManagerLoadDirectory   (ztAssetManager *asset_mgr, const char *directory, ztMemoryArena *arena = nullptr);
 bool      zt_assetManagerLoadPackedFile  (ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena = nullptr);
@@ -1132,7 +1139,7 @@ ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
 ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags = 0);
 ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 flags = 0);
-ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0);
+ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags = 0, r32 scale = 1);
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_format); // format is "data/textures/cubemap_%s.png", with lower case names matching the enum ("right", "left", etc.)
 ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztTextureCubeMapFiles_MAX]);
 ztTextureID zt_textureMakeCubeMapFromPixelData(byte *data[ztTextureCubeMapFiles_MAX], i32 width, i32 height, i32 depth);
@@ -4793,6 +4800,7 @@ struct ztTexture
 
 	i32 width, height;
 	i32 flags;
+	r32 render_texture_scale;
 
 	ztRenderer_Enum renderer;
 	ztTextureLoadType_Enum load_type;
@@ -6223,9 +6231,165 @@ void zt_debuggingSet(ztDebugVarID debug_var, bool   val) {  zt_assertReturnOnFai
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-bool zt_assetMakePackedFile(const char *directory, const char *packed_file, ztMemoryArena *arena)
+#pragma pack(push, 1)
+struct ztAssetPackedFileHeader
 {
-	return false; // not yet implemented
+	i32 magic_numbers[3];
+	i32 file_count;
+	i32 name_buffer_size;
+	i32 file_start_pos;
+};
+#pragma pack(pop)
+
+// ================================================================================================================================================================================================
+
+#define ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_0    74813956
+#define ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_1    18935478
+#define ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_2    35489754
+
+// ================================================================================================================================================================================================
+
+#pragma pack(push, 1)
+struct ztAssetPackedFileEntry
+{
+	i32 hash;
+	i32 size;
+	i32 type;
+	i32 start; // from end of entry table
+};
+#pragma pack(pop)
+
+// ================================================================================================================================================================================================
+
+ztInternal ztAssetManagerType_Enum _zt_assetGetFileType(const char *file_name)
+{
+	     if (zt_striEndsWith(file_name, ".png")) return ztAssetManagerType_ImagePNG;
+	else if (zt_striEndsWith(file_name, ".jpg")) return ztAssetManagerType_ImageJPG;
+	else if (zt_striEndsWith(file_name, ".wav")) return ztAssetManagerType_AudioWAV;
+	else if (zt_striEndsWith(file_name, ".zts")) return ztAssetManagerType_Shader;
+	else if (zt_striEndsWith(file_name, ".ttf")) return ztAssetManagerType_Font;
+	else if (zt_striEndsWith(file_name, ".fnt")) return ztAssetManagerType_Font;
+	else if (zt_striEndsWith(file_name, ".obj")) return ztAssetManagerType_MeshOBJ;
+	else if (zt_striEndsWith(file_name, ".fbx")) return ztAssetManagerType_MeshFBX;
+	else if (zt_striEndsWith(file_name, ".mtl")) return ztAssetManagerType_Material;
+	else if (zt_striEndsWith(file_name, ".xml")) return ztAssetManagerType_Xml;
+	else return ztAssetManagerType_Unknown;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_assetMakePackedFile(const char *directory, const char *packed_file_name, ztMemoryArena *arena, ztAssetMakePackedFileIgnore_Func *ignore_func, void *ignore_func_user_data)
+{
+	i32 buffer_size = zt_megabytes(8);
+	char *buffer = zt_mallocStructArrayArena(char, buffer_size, arena);
+
+	zt_getDirectoryFiles(directory, buffer, buffer_size, true);
+	
+	int tokens_count = zt_strTokenize(buffer, "\n", nullptr, 0);
+	ztToken *tokens = zt_mallocStructArrayArena(ztToken, tokens_count, arena);
+	zt_strTokenize(buffer, "\n", tokens, tokens_count);
+
+	int dir_len = zt_strLen(directory);
+	if(!zt_strEndsWith(directory, ztFilePathSeparatorStr)) {
+		dir_len += 1;
+	}
+
+	bool failed = false;
+
+	i32 name_buffer_size = zt_megabytes(1);
+	char *name_buffer = zt_mallocStructArrayArena(char, name_buffer_size, arena);
+	name_buffer[0] = 0;
+
+	ztFile packed_file;
+	if (zt_fileOpen(&packed_file, packed_file_name, ztFileOpenMethod_WriteOver, arena)) {
+		ztAssetPackedFileHeader header = {};
+		header.magic_numbers[0] = ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_0;
+		header.magic_numbers[1] = ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_1;
+		header.magic_numbers[2] = ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_2;
+		header.file_count = tokens_count;
+		header.name_buffer_size = 0;
+
+		ztAssetPackedFileEntry *entries = zt_mallocStructArrayArena(ztAssetPackedFileEntry, header.file_count, arena);
+
+		i32 start = 0;
+		zt_fiz(tokens_count) {
+			char entry_name[256];
+			zt_strCpy(entry_name, zt_elementsOf(entry_name), buffer + tokens[i].beg + dir_len, tokens[i].len - dir_len);
+
+			int pos_sl = zt_strFindPos(entry_name, "\\", 0);
+			if (pos_sl != ztStrPosNotFound) {
+				entry_name[pos_sl] = '/';
+			}
+
+			bool ignore = false;
+			if (ignore_func && ignore_func(entry_name, ignore_func_user_data)) {
+				zt_logDebug("ignoring file: %s", entry_name);
+				entry_name[0] = ' ';
+				entry_name[1] = 0;
+				ignore = true;
+			}
+			else {
+				zt_logDebug("processing file: %s", entry_name);
+			}
+
+			zt_strCat(name_buffer, name_buffer_size, entry_name);
+			zt_strCat(name_buffer, name_buffer_size, "\n");
+			header.name_buffer_size += zt_strLen(entry_name) + 1;
+
+			char file_name[ztFileMaxPath];
+			zt_strCpy(file_name, ztFileMaxPath, buffer + tokens[i].beg, tokens[i].len);
+
+			entries[i].hash = zt_strHash(entry_name);
+			entries[i].size = ignore ? 0 : zt_fileSize(file_name);
+			entries[i].type = ignore ? 0 : _zt_assetGetFileType(file_name);
+			entries[i].start = start;
+
+			start += entries[i].size;
+		}
+
+		header.file_start_pos = zt_sizeof(header) + header.name_buffer_size + (zt_sizeof(ztAssetPackedFileEntry) * header.file_count);
+
+		zt_fileWrite(&packed_file, &header, zt_sizeof(header));
+		zt_fileWrite(&packed_file, name_buffer, header.name_buffer_size);
+		zt_fileWrite(&packed_file, entries, zt_sizeof(ztAssetPackedFileEntry) * header.file_count);
+
+		zt_fiz(tokens_count) {
+			if (entries[i].size == 0) {
+				continue;
+			}
+
+			char file_name[ztFileMaxPath];
+			zt_strCpy(file_name, ztFileMaxPath, buffer + tokens[i].beg, tokens[i].len);
+
+			byte *data = zt_mallocStructArrayArena(byte, entries[i].size, arena);
+			i32 bytes_read = 0;
+
+			ztFile entry_file;
+			if (zt_fileOpen(&entry_file, file_name, ztFileOpenMethod_ReadOnly, arena)) {
+				bytes_read = zt_fileRead(&entry_file, data, entries[i].size);
+				zt_fileClose(&entry_file);
+
+				if (bytes_read == entries[i].size) {
+					zt_fileWrite(&packed_file, data, bytes_read);
+				}
+				else failed = true;
+			}
+			else failed = true;
+			
+			zt_freeArena(data, arena);
+
+			if (failed) break;
+		}
+
+		zt_freeArena(entries, arena);
+		zt_fileClose(&packed_file);
+	}
+
+	zt_freeArena(name_buffer, arena);
+	zt_freeArena(tokens, arena);
+	zt_freeArena(buffer, arena);
+
+	return !failed;
 }
 
 // ================================================================================================================================================================================================
@@ -6291,17 +6455,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 		asset_mgr->asset_size     [i] = zt_fileSize(token - dir_len);
 		asset_mgr->asset_modified [i] = 0;
 
-		if (zt_striEndsWith(token, ".png")) asset_mgr->asset_type[i] = ztAssetManagerType_ImagePNG;
-		else if (zt_striEndsWith(token, ".jpg")) asset_mgr->asset_type[i] = ztAssetManagerType_ImageJPG;
-		else if (zt_striEndsWith(token, ".wav")) asset_mgr->asset_type[i] = ztAssetManagerType_AudioWAV;
-		else if (zt_striEndsWith(token, ".zts")) asset_mgr->asset_type[i] = ztAssetManagerType_Shader;
-		else if (zt_striEndsWith(token, ".ttf")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
-		else if (zt_striEndsWith(token, ".fnt")) asset_mgr->asset_type[i] = ztAssetManagerType_Font;
-		else if (zt_striEndsWith(token, ".obj")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshOBJ;
-		else if (zt_striEndsWith(token, ".fbx")) asset_mgr->asset_type[i] = ztAssetManagerType_MeshFBX;
-		else if (zt_striEndsWith(token, ".mtl")) asset_mgr->asset_type[i] = ztAssetManagerType_Material;
-		else if (zt_striEndsWith(token, ".xml")) asset_mgr->asset_type[i] = ztAssetManagerType_Xml;
-		else asset_mgr->asset_type[i] = ztAssetManagerType_Unknown;
+		asset_mgr->asset_type[i] = _zt_assetGetFileType(token);
 
 		asset_mgr->asset_data     [i] = nullptr;
 		asset_mgr->asset_callbacks[i] = ztInvalidID;
@@ -6319,9 +6473,69 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 // ================================================================================================================================================================================================
 
-bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file, ztMemoryArena *arena)
+bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed_file_name, ztMemoryArena *arena)
 {
-	return false;
+	ZT_PROFILE_ASSETS("zt_assetManagerLoadPackedFile");
+
+	if (!zt_fileOpen(&asset_mgr->packed_file, packed_file_name, ztFileOpenMethod_ReadOnly, arena)) {
+		zt_logCritical("Invalid pack file name: %s", packed_file_name);
+		return false;
+	}
+
+	zt_logDebug("opened file");
+
+	asset_mgr->source = ztAssetManagerSource_PackedFile;
+
+	ztAssetPackedFileHeader header;
+	if (zt_fileRead(&asset_mgr->packed_file, &header, zt_sizeof(header)) != zt_sizeof(header)) {
+		zt_logCritical("Invalid pack file header: %s", packed_file_name);
+		zt_fileClose(&asset_mgr->packed_file);
+		return false;
+	}
+	zt_logDebug("read header");
+
+	if (header.magic_numbers[0] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_0 || header.magic_numbers[1] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_1 || header.magic_numbers[2] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_2) {
+		zt_logCritical("Invalid pack file: %s", packed_file_name);
+		zt_fileClose(&asset_mgr->packed_file);
+		return false;
+	}
+	zt_logDebug("magic numbers passed");
+
+	asset_mgr->packed_file_names = zt_mallocStructArrayArena(char, header.name_buffer_size, arena);
+	if (zt_fileRead(&asset_mgr->packed_file, asset_mgr->packed_file_names, header.name_buffer_size) != header.name_buffer_size) {
+		zt_logCritical("Invalid pack file (names): %s", packed_file_name);
+		zt_fileClose(&asset_mgr->packed_file);
+		return false;
+	}
+	asset_mgr->packed_file_names[header.name_buffer_size] = 0;
+
+	zt_logDebug("packed file names: %s", asset_mgr->packed_file_names);
+
+	ztToken *tokens = zt_mallocStructArrayArena(ztToken, header.file_count, arena);
+	int tokens_count = zt_strTokenize(asset_mgr->packed_file_names, "\n", tokens, header.file_count);
+
+	zt_logDebug("tokens: %d", tokens_count);
+
+	zt_fiz(header.file_count) {
+		ztAssetPackedFileEntry entry;
+		if (zt_fileRead(&asset_mgr->packed_file, &entry, zt_sizeof(entry)) != zt_sizeof(entry)) {
+			zt_logCritical("Invalid pack file entry: %s (%d)", packed_file_name, i);
+			zt_fileClose(&asset_mgr->packed_file);
+			return false;
+		}
+
+		asset_mgr->packed_file_names[tokens[i].beg + tokens[i].len] = 0;
+
+		asset_mgr->asset_name[i] = (const char*)&asset_mgr->packed_file_names[tokens[i].beg];
+		asset_mgr->asset_name_hash[i] = entry.hash;
+		asset_mgr->asset_size[i] = entry.size;
+		asset_mgr->asset_type[i] = (ztAssetManagerType_Enum)entry.type;
+		asset_mgr->packed_file_pos[i] = header.file_start_pos + entry.start;
+	}
+
+	asset_mgr->asset_count = header.file_count;
+
+	return true;
 }
 
 // ================================================================================================================================================================================================
@@ -6331,12 +6545,19 @@ void zt_assetManagerFree(ztAssetManager *asset_mgr)
 	if (asset_mgr == nullptr) {
 		return;
 	}
-	zt_fiz(asset_mgr->asset_count) {
-		if (asset_mgr->asset_data[i]) {
-			zt_freeArena(asset_mgr->asset_data[i], asset_mgr->arena);
+
+	if (asset_mgr->source == ztAssetManagerSource_Directory) {
+		zt_fiz(asset_mgr->asset_count) {
+			if (asset_mgr->asset_data[i]) {
+				zt_freeArena(asset_mgr->asset_data[i], asset_mgr->arena);
+			}
 		}
+		zt_freeArena(asset_mgr->directory, asset_mgr->arena);
 	}
-	zt_freeArena(asset_mgr->directory, asset_mgr->arena);
+	else if (asset_mgr->source == ztAssetManagerSource_PackedFile) {
+		zt_fileClose(&asset_mgr->packed_file);
+	}
+
 	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
 }
 
@@ -6398,6 +6619,20 @@ bool zt_assetFileExistsAsAsset(ztAssetManager *asset_mgr, const char *file_name,
 		return false;
 	}
 	else {
+		if (!file_name) {
+			return false;
+		}
+
+		i32 hash = zt_strHash(file_name);
+		zt_fiz(asset_mgr->asset_count) {
+			if (asset_mgr->asset_name_hash[i] == hash) {
+				if (asset_hash) {
+					*asset_hash = hash;
+				}
+				return true;
+			}
+		}
+
 		return false;
 	}
 }
@@ -6458,6 +6693,7 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset, ztAssetID s
 }
 
 // ================================================================================================================================================================================================
+
 i32 zt_assetSize(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	ZT_PROFILE_ASSETS("zt_assetSize");
@@ -6502,6 +6738,20 @@ bool zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, void *data,
 		} break;
 
 		case ztAssetManagerSource_PackedFile: {
+			if (asset_mgr->packed_file_pos[asset_id] == 0) {
+				return false;
+			}
+
+			if (data_size < asset_mgr->asset_size[asset_id]) {
+				return false;
+			}
+
+			zt_fileSetReadPos(&asset_mgr->packed_file, asset_mgr->packed_file_pos[asset_id]);
+			if (zt_fileRead(&asset_mgr->packed_file, data, asset_mgr->asset_size[asset_id]) != asset_mgr->asset_size[asset_id]) {
+				return false;
+			}
+
+			return true;
 		} break;
 
 		default: {
@@ -9431,19 +9681,28 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztVec3 offset = ztVec3::zero;
 	bool has_offset = false;
 
+	r32 ppu = zt_pixelsPerUnit();
+	r32 clip_scale = 1;
+
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
+			i32 cw = zt_convertToi32Floor(zt_game->textures[render_target_id].width * zt_game->textures[render_target_id].render_texture_scale);
+			i32 ch = zt_convertToi32Floor(zt_game->textures[render_target_id].height * zt_game->textures[render_target_id].render_texture_scale);
+
 			if (zt_bitIsSet(zt_game->textures[render_target_id].flags, ztTextureFlags_RenderTargetScreen)) {
 				r32 to_nw = camera->native_w / (r32)camera->width;
 				r32 to_nh = camera->native_h / (r32)camera->height;
-				zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_convertToi32Floor(zt_game->textures[render_target_id].width * to_nw), zt_convertToi32Floor(zt_game->textures[render_target_id].height * to_nh), camera->near_z, camera->far_z);
+				zt_cameraMakeOrtho(&rt_cam, cw, ch, zt_convertToi32Floor(cw * to_nw), zt_convertToi32Floor(ch * to_nh), camera->near_z, camera->far_z);
 			}
 			else {
-				zt_cameraMakeOrtho(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->near_z, camera->far_z);
+				zt_cameraMakeOrtho(&rt_cam, cw, ch, cw, ch, camera->near_z, camera->far_z);
 			}
 			rt_cam.zoom = camera->zoom;
 			rt_cam.position = camera->position;
+
+			//ppu *= zt_game->textures[render_target_id].render_texture_scale;
+			clip_scale /= zt_game->textures[render_target_id].render_texture_scale;
 		}
 		else {
 			zt_cameraMakePersp(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->fov, camera->near_z, camera->far_z);
@@ -9570,7 +9829,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 		if (clip_regions_count > 0) {
 			ztgl_callAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
-			ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+			ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -9616,7 +9875,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -9642,7 +9901,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 				}
 
 				if (blend) {
@@ -9749,14 +10008,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						curr_clip_region = cmp_item->clip_region;
 
 						if (curr_clip_region) {
-							r32 ppu = zt_pixelsPerUnit();
-
 							if(camera->width == camera->native_w && camera->height == camera->native_h) {
 								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
 								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
 								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
-								ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
+								ztgl_callAndReportOnErrorFast(glScissor(zt_convertToi32Floor(pos.x * clip_scale), zt_convertToi32Floor(pos.y * clip_scale), zt_convertToi32Floor(w * clip_scale), zt_convertToi32Floor(h * clip_scale)));
 							}
 							else {
 								/// need to properly adjust the clip rectangle
@@ -9774,11 +10031,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								w     = zt_convertToi32Ceil(    w * w_pct);
 								h     = zt_convertToi32Ceil(    h * w_pct);
 
-								ztgl_callAndReportOnErrorFast(glScissor(pos.x, pos.y, w, h));
+								ztgl_callAndReportOnErrorFast(glScissor(zt_convertToi32Floor(pos.x * clip_scale), zt_convertToi32Floor(pos.y * clip_scale), zt_convertToi32Floor(w * clip_scale), zt_convertToi32Floor(h * clip_scale)));
 							}
 						}
 						else {
-							ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 							//ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
 						}
 					}
@@ -10005,7 +10262,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
 					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -10019,7 +10276,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
 				//glDisable(GL_SCISSOR_TEST);
-				ztgl_callAndReportOnErrorFast(glScissor(0, 0, camera->native_w, camera->native_h));
+				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
 			}
 
 			if (shader_id != ztInvalidID) {
@@ -10182,7 +10439,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						curr_clip_region = cmp_item->clip_region;
 
 						if (curr_clip_region) {
-							r32 ppu = zt_pixelsPerUnit();
 							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, (curr_clip_region->command->clip_center * zt_vec2(1, -1)) - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
 
 							int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
@@ -15877,7 +16133,7 @@ ztTextureID zt_textureMakeFromPixelData(void *data, i32 width, i32 height, i32 f
 
 // ================================================================================================================================================================================================
 
-ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
+ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags, r32 scale)
 {
 	ZT_PROFILE_RENDERING("zt_textureMakeRenderTarget");
 	ztBlockProfiler bp_tex("zt_textureMakeRenderTarget");
@@ -15886,6 +16142,7 @@ ztTextureID zt_textureMakeRenderTarget(i32 width, i32 height, i32 flags)
 	ztTextureID texture_id = _zt_textureMakeBase(nullptr, width, height, 4, flags, &error);
 	if (texture_id != ztInvalidID) {
 		zt_game->textures[texture_id].load_type = ztTextureLoadType_RenderTarget;
+		zt_game->textures[texture_id].render_texture_scale = scale;
 	}
 
 	return texture_id;
@@ -16159,6 +16416,7 @@ void zt_textureSetName(ztTextureID texture_id, char *name)
 }
 
 // ================================================================================================================================================================================================
+
 void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetPrepare");
@@ -21683,6 +21941,7 @@ ztInternal bool _zt_rendererRequestProcess()
 					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], false)) {
 						return false;
 					}
+					zt_game->win_details[i].resize_cooldown = .25f;
 				}
 			} break;
 
@@ -21694,6 +21953,7 @@ ztInternal bool _zt_rendererRequestProcess()
 					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], true)) {
 						return false;
 					}
+					zt_game->win_details[i].resize_cooldown = .25f;
 				}
 			} break;
 
@@ -21703,6 +21963,7 @@ ztInternal bool _zt_rendererRequestProcess()
 					if (!_zt_rendererChangeResolution(&zt_game->win_details[0], &zt_game->win_game_settings[0], request->resolution.x, request->resolution.y)) {
 						return false;
 					}
+					zt_game->win_details[i].resize_cooldown = .25f;
 				}
 
 #if 0
@@ -24227,7 +24488,7 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 		else {
 			tween_item[i].time += dt;
 
-			if (tween_item[i].time - tween_item[i].delay > tween_item[i].length) {
+			if (tween_item[i].time - tween_item[i].delay >= tween_item[i].length) {
 				if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Loops)) {
 					tween_item[i].time -= tween_item[i].length + tween_item[i].delay;
 				}
@@ -30267,9 +30528,17 @@ int main(int argc, const char **argv)
 #	if defined(ZT_GAME_LOCAL_ONLY)
 	zt_fileGetCurrentPath(user_path, ztFileMaxPath);
 #	else
+#	if defined(ZT_GAME_NAME_USER_DIR)
+	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME_USER_DIR);
+#	else
 	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
 #	endif
+#	endif
 	zt_logDebug("user path: %s", user_path);
+	
+	if(!zt_directoryExists(user_path)) {
+		zt_directoryMake(user_path);
+	}
 
 	ztGameGlobals *game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
 	zt_memSet(game, zt_sizeof(ztGameGlobals), 0);
@@ -30341,6 +30610,7 @@ int main(int argc, const char **argv)
 			return 1;
 
 		zt_logDebug("main: app path: %s", zt_game->game_details.app_path);
+		zt_logDebug("main: data path: %s", zt_game->game_details.data_path);
 		zt_logDebug("main: user path: %s", zt_game->game_details.user_path);
 
 		_zt_logSystemInfo();
