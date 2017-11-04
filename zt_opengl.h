@@ -529,13 +529,14 @@ struct ztContextGL
 
 enum ztRendererFlagsGL_Enum
 {
-	ztRendererFlagsGL_Windowed        = (1<<0),
-	ztRendererFlagsGL_Fullscreen      = (1<<1),
-	ztRendererFlagsGL_Vsync           = (1<<2),
-	ztRendererFlagsGL_RotationAllowed = (1<<3), // mobile
-	ztRendererFlagsGL_VertOrientation = (1<<4), // mobile
-	ztRendererFlagsGL_LockAspect      = (1<<5),
-	ztRendererFlagsGL_HideCursor      = (1<<6),
+	ztRendererFlagsGL_Windowed           = (1<<0),
+	ztRendererFlagsGL_WindowedBorderless = (1<<1),
+	ztRendererFlagsGL_Fullscreen         = (1<<2),
+	ztRendererFlagsGL_Vsync              = (1<<3),
+	ztRendererFlagsGL_RotationAllowed    = (1<<4), // mobile
+	ztRendererFlagsGL_VertOrientation    = (1<<5), // mobile
+	ztRendererFlagsGL_LockAspect         = (1<<6),
+	ztRendererFlagsGL_HideCursor         = (1<<7),
 };
 
 
