@@ -8275,7 +8275,32 @@ bool zt_directoryMake(const char *dir)
 	ZT_PROFILE_TOOLS("zt_directoryMake");
 
 #	if defined(ZT_WINDOWS)
-	return FALSE != CreateDirectoryA(dir, NULL);
+
+	const char *delimiters[] = {"\\", "/"};
+
+	int pos = zt_strFindFirstOfPos(dir, delimiters, zt_elementsOf(delimiters));
+	while (pos != ztStrPosNotFound) {
+		char section[ztFileMaxPath];
+		zt_strCpy(section, ztFileMaxPath, dir, pos);
+		if (!zt_directoryExists(section)) {
+			if (CreateDirectoryA(section, NULL) == FALSE) {
+				return false;
+			}
+		}
+		int npos = zt_strFindFirstOfPos(dir + pos + 1, delimiters, zt_elementsOf(delimiters));
+		if (npos == ztStrPosNotFound) {
+			if (pos == zt_strLen(dir)) {
+				break;
+			}
+			pos = zt_strLen(dir);
+		}
+		else {
+			pos += npos + 1;
+		}
+	}
+
+	return true;
+
 #	else
 #	error zt_directoryMake needs an implementation for this platform
 #	endif
