@@ -29502,6 +29502,8 @@ bool zt_eventIsTriggered(ztEvent *evt, bool condition, i32 flags, r32 timeout)
 			evt->flags |= ztEventFlags_TrackTime;
 		}
 
+		if (zt_bitIsSet(flags, ztEventFlags_TriggerOnTimeEnd)) return false;
+
 		return true;
 	}
 
