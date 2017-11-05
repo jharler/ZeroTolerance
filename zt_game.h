@@ -1156,6 +1156,7 @@ void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
 void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 
 ztVec2i     zt_textureGetSize(ztTextureID texture_id);
+r32         zt_textureGetRenderTargetScale(ztTextureID texture_id);
 
 void        zt_textureGetPixels(ztTextureID texture_id, byte *pixels); // pixels needs to be w * h * 4
 
@@ -16462,6 +16463,15 @@ ztVec2i zt_textureGetSize(ztTextureID texture_id)
 	ZT_PROFILE_RENDERING("zt_textureGetSize");
 	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, zt_vec2i(0,0));
 	return zt_vec2i(zt_game->textures[texture_id].width, zt_game->textures[texture_id].height);
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_textureGetRenderTargetScale(ztTextureID texture_id)
+{
+	ZT_PROFILE_RENDERING("zt_textureGetSize");
+	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, 1);
+	return zt_game->textures[texture_id].render_texture_scale;
 }
 
 // ================================================================================================================================================================================================
