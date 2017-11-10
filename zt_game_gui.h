@@ -12202,8 +12202,8 @@ ztInternal ztVec2 _zt_guiSizerMinSize(ztGuiItem *item);
 
 ztInternal void _zt_guiSizerTypeColumnGetMinSizes(ztGuiItem *item, ztVec2 *column_sizes, ztVec2 *row_sizes)
 {
-	zt_fize(row_sizes) row_sizes[i] = ztVec2::zero;
-	zt_fize(column_sizes) column_sizes[i] = ztVec2::zero;
+	zt_fiz(ZT_GUI_SIZER_MAX_ROWS) row_sizes[i] = ztVec2::zero;
+	zt_fiz(ZT_GUI_SIZER_MAX_COLUMNS) column_sizes[i] = ztVec2::zero;
 
 	ztGuiItem::ztSizerItemEntry *entry = item->sizer.items;
 
@@ -22634,6 +22634,16 @@ ztInternal void _zt_guiDebugVariables()
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+
+ztInternal void _zt_guiDebugCurveEditor()
+{
+	zt_guiDialogAnimCurveEditor(nullptr, ztGuiAnimCurveBehaviorFlags_AdjustValues);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 enum
 {
 	ztGuiDebugMenu_FpsDisplay,
@@ -22647,6 +22657,7 @@ enum
 	ztGuiDebugMenu_SpriteEditor,
 	ztGuiDebugMenu_SpriteAnimEditor,
 	ztGuiDebugMenu_ParticleEditor,
+	ztGuiDebugMenu_CurveEditor,
 
 	ztGuiDebugMenu_Variables,
 };
@@ -22700,6 +22711,10 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_
 		case ztGuiDebugMenu_ParticleEditor: {
 			_zt_guiParticleEditor();
 		} break;
+
+		case ztGuiDebugMenu_CurveEditor: {
+			_zt_guiDebugCurveEditor();
+		}
 	};
 }
 
@@ -22728,6 +22743,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 		zt_guiMenuAppend(menu_tools, "Sprite Editor", ztGuiDebugMenu_SpriteEditor);
 		zt_guiMenuAppend(menu_tools, "Sprite Animation Editor", ztGuiDebugMenu_SpriteAnimEditor);
 		zt_guiMenuAppend(menu_tools, "Particle Editor", ztGuiDebugMenu_ParticleEditor);
+		zt_guiMenuAppend(menu_tools, "Curve Editor", ztGuiDebugMenu_CurveEditor);
 		zt_guiMenuAppendSubmenu(menubar, "Tools", menu_tools);
 		zt_guiMenuSetCallback(menu_tools, _zt_guiInitDebugOnMenuItem_FunctionID);
 	}
