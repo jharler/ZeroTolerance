@@ -17723,6 +17723,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / ppu;
 		}
 
+		zt_logDebug("bmp line spacing: %.2f", font->line_spacing); // this is to help debug a rare line spacing issue that sometimes occurs in release builds
+
 		// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
 		zt_fiz(font->glyph_count) {
 			switch(font->glyph_code_point[i])
@@ -17986,6 +17988,8 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (font->space_width == 0) {
 			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
 		}
+
+		zt_logDebug("bmp line spacing: %.2f", font->line_spacing); // this is to help debug a rare line spacing issue that sometimes occurs in release builds
 
 		if (kernings > 0) {
 			int kidx = 0;
@@ -27714,7 +27718,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 			}
 
 			if (new_particles > 0 && emitter->system->system_burst) {
-				emitter->life_left = 0;
+				//emitter->life_left = 0;
 			}
 		}
 	}
@@ -28044,7 +28048,6 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						prev_pos[1] = particle->history[j] - (rotation.rotatePosition(offset_beg));
 					}
 
-
 					bool last_seg = j == zt_elementsOf(particle->history) - 2 || particle->history[j + 2] == ztVec3::min;
 
 					ztVec3 pos[] = {
@@ -28068,11 +28071,20 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						prev_color,
 					};
 
+					bool reverse_vertices = prev_pos[0].y < offset_end.y;
+
 					prev_pos[0] = pos[1];
 					prev_pos[1] = pos[2];
 
 					prev_uvs[0] = uvs[1];
 					prev_uvs[1] = uvs[2];
+
+					if (reverse_vertices) {
+						zt_swap(pos[0], pos[3]);
+						zt_swap(pos[1], pos[2]);
+						zt_swap(uvs[0], uvs[3]);
+						zt_swap(uvs[1], uvs[2]);
+					}
 
 					if (draw_list) {
 						zt_drawListAddFilledQuad(draw_list, pos, uvs, nmls, colors);
@@ -31022,11 +31034,13 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 			}
 		} break;
 
-		case WM_MOVE:
+		case WM_MOVE: {
+		} break;
+
 		case WM_SIZE: {
 			if(!IsIconic(handle)) {
 				if(window_details) {
-					window_details->resize_cooldown = 1;
+					window_details->resize_cooldown = .05f;
 				}
 			}
 		} break;
