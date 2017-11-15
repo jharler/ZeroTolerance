@@ -21661,12 +21661,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 			{
 				case ztParticleShapeType_Sphere: {
 					r32 radius = zt_particleVariableRealGetValue(&editor->particle_emitter->system_shape_sphere.radius, emitter_life_pct);
-					zt_drawListAddEmptySimpleSphere(&editor->draw_list, ztVec3::zero, radius, zt_convertToi32Floor(16 * radius));
+					zt_drawListAddEmptySimpleSphere(&editor->draw_list, ztVec3::zero, radius, zt_max(16, zt_convertToi32Floor(16 * radius)));
 				} break;
 
 				case ztParticleShapeType_Circle: {
 					r32 radius = zt_particleVariableRealGetValue(&editor->particle_emitter->system_shape_circle.radius, emitter_life_pct);
-					zt_drawListAddEmptyCircle(&editor->draw_list, ztVec3::zero, radius, zt_convertToi32Floor(16 * radius));
+					zt_drawListAddEmptyCircle(&editor->draw_list, ztVec3::zero, radius, zt_max(16, zt_convertToi32Floor(16 * radius)));
 				} break;
 
 				case ztParticleShapeType_Box: {
