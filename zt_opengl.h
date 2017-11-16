@@ -2502,7 +2502,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		zt_assert(vertex_func_node);
 
 		int vs_len = 1024 * 256;
-		*vs = zt_stringMake(vs_len);
+		*vs = zt_stringMake(vs_len, zt_memGetGlobalArena());
 
 		zt_strCat(*vs, vs_len, "#version 330 core\n\n");
 
@@ -2606,7 +2606,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		zt_assert(fragment_func_node);
 
 		int fs_len = 1024 * 256;
-		*fs = zt_stringMake(fs_len);
+		*fs = zt_stringMake(fs_len, zt_memGetGlobalArena());
 
 		zt_strCat(*fs, fs_len, "#version 330 core\n\nout vec4 _ztfs_frag_color;\n\n");
 

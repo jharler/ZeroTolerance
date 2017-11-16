@@ -6483,8 +6483,6 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 		return false;
 	}
 
-	zt_logDebug("opened file");
-
 	asset_mgr->source = ztAssetManagerSource_PackedFile;
 
 	ztAssetPackedFileHeader header;
@@ -6493,14 +6491,12 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 		zt_fileClose(&asset_mgr->packed_file);
 		return false;
 	}
-	zt_logDebug("read header");
 
 	if (header.magic_numbers[0] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_0 || header.magic_numbers[1] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_1 || header.magic_numbers[2] != ZT_ASSET_PACKED_FILE_MAGIC_NUMBER_2) {
 		zt_logCritical("Invalid pack file: %s", packed_file_name);
 		zt_fileClose(&asset_mgr->packed_file);
 		return false;
 	}
-	zt_logDebug("magic numbers passed");
 
 	asset_mgr->packed_file_names = zt_mallocStructArrayArena(char, header.name_buffer_size, arena);
 	if (zt_fileRead(&asset_mgr->packed_file, asset_mgr->packed_file_names, header.name_buffer_size) != header.name_buffer_size) {
@@ -6510,12 +6506,8 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 	}
 	asset_mgr->packed_file_names[header.name_buffer_size] = 0;
 
-	zt_logDebug("packed file names: %s", asset_mgr->packed_file_names);
-
 	ztToken *tokens = zt_mallocStructArrayArena(ztToken, header.file_count, arena);
 	int tokens_count = zt_strTokenize(asset_mgr->packed_file_names, "\n", tokens, header.file_count);
-
-	zt_logDebug("tokens: %d", tokens_count);
 
 	zt_fiz(header.file_count) {
 		ztAssetPackedFileEntry entry;
@@ -6646,10 +6638,10 @@ ztAssetID zt_assetLoad(ztAssetManager *asset_mgr, const char *asset)
 	ztAssetID asset_id = zt_assetLoad(asset_mgr, zt_strHash(asset));
 	
 	if (asset_id == ztInvalidID) {
-		zt_logDebug("Unable to load asset: %s", asset);
+		zt_logInfo("Unable to load asset: %s", asset);
 	}
 	else {
-		zt_logDebug("Loaded asset: %s (%d)", asset, asset_id);
+		zt_logInfo("Loaded asset: %s (%d)", asset, asset_id);
 	}
 
 	return asset_id;
@@ -14971,13 +14963,13 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	ztShLangSyntaxNode *syntax_root = _zt_shaderLangGenerateSyntaxTree((char*)data_in, shader_tokens, shader_tokens_size, &error);
 
 	if (error) {
-		zt_logDebug(error);
+		zt_logCritical(error);
 		zt_stringFree(error);
 		return ztInvalidID;
 	}
 
 	if (!_zt_shaderLangVerifySyntaxTree(syntax_root, (char*)data_in, &error)) {
- 		zt_logDebug(error);
+ 		zt_logCritical(error);
 		zt_stringFree(error);
 		return ztInvalidID;
 	}
@@ -15035,7 +15027,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 					}
 
 					if (var_type == ztShaderVariable_Invalid) {
-						zt_logDebug("Unsupported shader variable type in variable %s", gl_shader->uniforms[i].name);
+						zt_logCritical("Unsupported shader variable type in variable %s", gl_shader->uniforms[i].name);
 					}
 					else {
 						shader->variables.variables[i].type = var_type;
@@ -15048,9 +15040,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (gl_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile OpenGL shader program");
 
-				if (vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
-				if (geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
-				if (frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
+				if (vert_src) zt_logCritical("Failed vertex shader:\n%s", vert_src);
+				if (geom_src) zt_logCritical("Failed geometry shader:\n%s", geom_src);
+				if (frag_src) zt_logCritical("Failed fragment shader:\n%s", frag_src);
 			}
 			else if (shader_id >= ztShaderDefault_MAX) {
 				zt_debugOnly(zt_logVerbose("OpenGL vertex shader:\n%s", vert_src));
@@ -15058,9 +15050,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 				zt_debugOnly(zt_logVerbose("OpenGL fragment shader:\n%s", frag_src));
 			}
 
-			if (vert_src) zt_stringFree(vert_src);
-			if (geom_src) zt_stringFree(geom_src);
-			if (frag_src) zt_stringFree(frag_src);
+			if (vert_src) zt_stringFree(vert_src, zt_memGetGlobalArena());
+			if (geom_src) zt_stringFree(geom_src, zt_memGetGlobalArena());
+			if (frag_src) zt_stringFree(frag_src, zt_memGetGlobalArena());
 
 #		else
 		error = "OpenGL has been disabled in the library.";
@@ -15108,7 +15100,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 					}
 
 					if (var_type == ztShaderVariable_Invalid) {
-						zt_logDebug("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
+						zt_logCritical("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
 					}
 					else {
 						shader->variables.variables[i].type = var_type;
@@ -15121,9 +15113,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (dx_shader == nullptr) {
 				error = zt_stringMakeFrom("Unable to compile DirectX shader program");
 
-				if (vert_src) zt_logDebug("Failed vertex shader:\n%s", vert_src);
-				if (geom_src) zt_logDebug("Failed geometry shader:\n%s", geom_src);
-				if (frag_src) zt_logDebug("Failed fragment shader:\n%s", frag_src);
+				if (vert_src) zt_logCritical("Failed vertex shader:\n%s", vert_src);
+				if (geom_src) zt_logCritical("Failed geometry shader:\n%s", geom_src);
+				if (frag_src) zt_logCritical("Failed fragment shader:\n%s", frag_src);
 			}
 			else if (shader_id >= ztShaderDefault_MAX)  {
 				zt_debugOnly(zt_logVerbose("OpenGL vertex shader:\n%s", vert_src));
@@ -15234,7 +15226,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			}
 
 			if (var_type == ztShaderVariable_Invalid) {
-				zt_logDebug("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
+				zt_logCritical("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
 			}
 			else {
 				shader->variables.variables[i].type = var_type;
@@ -15947,7 +15939,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		}
 	}
 
-	zt_logDebug("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
+	zt_logInfo("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
 		return ztInvalidID;
@@ -17596,6 +17588,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				font->size_pixels = local::getIntBetween(node_buff, "size=\"", "\"");
 			}
 			else if (zt_strStartsWith(node_buff, "<metrics ")) {
+				int line_height = local::getIntBetween(node_buff, "height=\"", "\"");
 				font->line_height = local::getIntBetween(node_buff, "height=\"", "\"") / zt_pixelsPerUnit();
 				ascender = local::getIntBetween(node_buff, "ascender=\"", "\"");
 				descender = local::getIntBetween(node_buff, "descender=\"", "\"");
@@ -17722,8 +17715,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (font->space_width == 0) {
 			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / ppu;
 		}
-
-		zt_logDebug("bmp line spacing: %.2f", font->line_spacing); // this is to help debug a rare line spacing issue that sometimes occurs in release builds
 
 		// make sure we don't have glyphs representing formatting characters (\r, \n, \t, ' ')
 		zt_fiz(font->glyph_count) {
@@ -17989,8 +17980,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			font->space_width = (x_adv_ttl / (r32)(glyph_idx - 1)) / zt_game->win_game_settings[0].pixels_per_unit;
 		}
 
-		zt_logDebug("bmp line spacing: %.2f", font->line_spacing); // this is to help debug a rare line spacing issue that sometimes occurs in release builds
-
 		if (kernings > 0) {
 			int kidx = 0;
 			for (int i = chars_line; i < lines; ++i) {
@@ -18215,6 +18204,7 @@ ztInternal void _zt_fontGetRowInfo(const char *text, int text_len, int row, int 
 		text = zt_strCodepoint(text, &codepoint);
 		if (codepoint == '\n') {
 			current_row += 1;
+
 			if (current_row > row) {
 				return;
 			}
@@ -18279,6 +18269,7 @@ ztInternal void _zt_fontGetExtents(ztFontID font_id, const char *text, int text_
 
 	zt_fiz(text_len) {
 		int glyph_idx = glyphs_idx[i];
+
 		if (glyph_idx < 0) {
 			if (row_height == 0) {
 				row_height = font->line_height;
@@ -18553,7 +18544,7 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			prev_glyph = glyph;
 		}
 
-		start_pos_y -= font->line_spacing * scale_y;
+		start_pos_y -= font->line_spacing * scale_y; // TODO(josh): should this be using y_adv?
 	}
 
 	if (transform) {
@@ -20471,7 +20462,7 @@ ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMat
 					else {
 						char tex_file_name[ztFileMaxPath];
 						zt_fileGetFileInOtherFileDirectory(tex_file_name, ztFileMaxPath, file, file_name);
-						zt_logDebug("Loading material image: %s", tex_file_name);
+						zt_logInfo("Loading material image: %s", tex_file_name);
 						return zt_textureMakeFromFile(tex_file_name);
 					}
 					return ztInvalidID;
@@ -21618,7 +21609,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 
-	zt_logDebug("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
+	zt_logInfo("loading obj file: %s (%d bytes)", asset_mgr->asset_name[asset_id], size);
 	if (size <= 0) {
 		return ztInvalidID;
 	}
@@ -25378,7 +25369,7 @@ void zt_animControllerFree(ztAnimController *controller)
 	}
 
 	zt_fiz(controller->sequences_count) {
-		zt_stringFree(controller->sequences_name[i]);
+		zt_stringFree(controller->sequences_name[i], zt_memGetGlobalArena());
 		zt_animSequenceFree(controller->sequences[i]);
 	}
 
@@ -25408,7 +25399,7 @@ i32 zt_animControllerAddSequence(ztAnimController *controller, const char *seque
 
 	int idx = controller->sequences_count++;
 	controller->sequences          [idx] = sequence;
-	controller->sequences_name     [idx] = zt_stringMakeFrom(sequence_name);
+	controller->sequences_name     [idx] = zt_stringMakeFrom(sequence_name, zt_memGetGlobalArena());
 	controller->sequences_name_hash[idx] = zt_strHash(sequence_name);
 
 	return controller->sequences_name_hash[idx];
@@ -29771,7 +29762,7 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i3
 	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 
-	zt_logDebug("loading audio asset: %s", asset_mgr->asset_name[asset_id]);
+	zt_logInfo("loading audio asset: %s", asset_mgr->asset_name[asset_id]);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_AudioWAV) {
 		return ztInvalidID;
@@ -30420,7 +30411,7 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 		game_settings->screen_w = screen_w;
 		game_settings->screen_h = screen_h;
 
-		zt_logDebug("screen: %d/%d; native: %d/%d", game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h);
+		zt_logInfo("screen: %d/%d; native: %d/%d", game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h);
 
 		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h, native_w, native_h));
 		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, native_w, native_h));
@@ -30457,23 +30448,23 @@ ztInternal void _zt_logSystemInfo()
 
 	switch(system_info.wProcessorArchitecture)
 	{
-		case PROCESSOR_ARCHITECTURE_AMD64  : zt_logDebug("processor architecture: x64"); break;
-		case PROCESSOR_ARCHITECTURE_ARM    : zt_logDebug("processor architecture: ARM"); break;
-		case PROCESSOR_ARCHITECTURE_IA64   : zt_logDebug("processor architecture: Intel Itanium based"); break;
-		case PROCESSOR_ARCHITECTURE_INTEL  : zt_logDebug("processor architecture: x86"); break;
-		case PROCESSOR_ARCHITECTURE_UNKNOWN: zt_logDebug("processor architecture: Unknown"); break;
+		case PROCESSOR_ARCHITECTURE_AMD64  : zt_logInfo("processor architecture: x64"); break;
+		case PROCESSOR_ARCHITECTURE_ARM    : zt_logInfo("processor architecture: ARM"); break;
+		case PROCESSOR_ARCHITECTURE_IA64   : zt_logInfo("processor architecture: Intel Itanium based"); break;
+		case PROCESSOR_ARCHITECTURE_INTEL  : zt_logInfo("processor architecture: x86"); break;
+		case PROCESSOR_ARCHITECTURE_UNKNOWN: zt_logInfo("processor architecture: Unknown"); break;
 	}
 
 	zt_logDebug("processor count: %d", system_info.dwNumberOfProcessors);
 
 	switch(system_info.dwProcessorType)
 	{
-		case PROCESSOR_INTEL_386: zt_logDebug("processor type: Intel 386"); break;
-		case PROCESSOR_INTEL_486: zt_logDebug("processor type: Intel 486"); break;
-		case PROCESSOR_INTEL_PENTIUM: zt_logDebug("processor type: Intel Pentium"); break;
-		case PROCESSOR_INTEL_IA64: zt_logDebug("processor type: IA 64"); break;
-		case PROCESSOR_AMD_X8664: zt_logDebug("processor type: x8664"); break;
-		default: zt_logDebug("processor type: Unknown (%d)", system_info.dwProcessorType); break;
+		case PROCESSOR_INTEL_386:     zt_logInfo("processor type: Intel 386"); break;
+		case PROCESSOR_INTEL_486:     zt_logInfo("processor type: Intel 486"); break;
+		case PROCESSOR_INTEL_PENTIUM: zt_logInfo("processor type: Intel Pentium"); break;
+		case PROCESSOR_INTEL_IA64:    zt_logInfo("processor type: IA 64"); break;
+		case PROCESSOR_AMD_X8664:     zt_logInfo("processor type: x8664"); break;
+		default:                      zt_logInfo("processor type: Unknown (%d)", system_info.dwProcessorType); break;
 	}
 
 	{
@@ -30483,11 +30474,11 @@ ztInternal void _zt_logSystemInfo()
 		char total[64], avail[64];
 		zt_strNumberToString(total, zt_elementsOf(total), system_info.physical_memory_total);
 		zt_strNumberToString(avail, zt_elementsOf(avail), system_info.physical_memory_avail);
-		zt_logDebug("physical memory: %s total / %s available", total, avail);
+		zt_logInfo("physical memory: %s total / %s available", total, avail);
 
 		zt_strNumberToString(total, zt_elementsOf(total), system_info.virtual_memory_total);
 		zt_strNumberToString(avail, zt_elementsOf(avail), system_info.virtual_memory_avail);
-		zt_logDebug("virtual memory: %s total / %s available", total, avail);
+		zt_logInfo("virtual memory: %s total / %s available", total, avail);
 
 		ztDrive drives[26];
 		int drives_count = zt_driveGetDetails(drives, zt_elementsOf(drives));
@@ -30501,17 +30492,17 @@ ztInternal void _zt_logSystemInfo()
 				zt_strNumberToString(space_avail_str, zt_elementsOf(space_avail_str), (i64)space_avail);
 				zt_strNumberToString(space_total_str, zt_elementsOf(space_total_str), (i64)space_total);
 
-				zt_logDebug("drive: %s (%s) %s available out of %s total", drives[i].mount, drives[i].name, space_avail_str, space_total_str);
+				zt_logInfo("drive: %s (%s) %s available out of %s total", drives[i].mount, drives[i].name, space_avail_str, space_total_str);
 			}
 			else {
-				zt_logDebug("drive: %s (%s)", drives[i].mount, drives[i].name);
+				zt_logInfo("drive: %s (%s)", drives[i].mount, drives[i].name);
 			}
 		}
 
 		ztDisplay displays[16];
 		int displays_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
 		zt_fiz(zt_min(displays_count, zt_elementsOf(displays))) {
-			zt_logDebug("display: %s (xy: %d, %d / wh: %d, %d) refresh: %d hz %s", displays[i].name, displays[i].screen_area.x, displays[i].screen_area.y, displays[i].screen_area.z, displays[i].screen_area.w, displays[i].refresh_rate_in_hz, displays[i].primary ? "primary" : "secondary");
+			zt_logInfo("display: %s (xy: %d, %d / wh: %d, %d) refresh: %d hz %s", displays[i].name, displays[i].screen_area.x, displays[i].screen_area.y, displays[i].screen_area.z, displays[i].screen_area.w, displays[i].refresh_rate_in_hz, displays[i].primary ? "primary" : "secondary");
 		}
 	}
 }
@@ -30532,17 +30523,17 @@ int main(int argc, const char **argv)
 {
 	char *app_path = (char*)malloc(ztFileMaxPath);
 	zt_fileGetAppPath(app_path, ztFileMaxPath);
-	zt_logDebug("application path: %s", app_path);
+	zt_logInfo("application path: %s", app_path);
 
 	char *data_path_temp = (char*)malloc(ztFileMaxPath);
 	char *data_path = (char*)malloc(ztFileMaxPath);
 	zt_fileGetCurrentPath(data_path_temp, ztFileMaxPath);
 	zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "data");
-	zt_logDebug("application data path: %s", data_path);
+	zt_logInfo("application data path: %s", data_path);
 
 	if(!zt_directoryExists(data_path)) {
 		zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "run" ztFilePathSeparatorStr "data");
-		zt_logDebug("adjusted application data path: %s", data_path);
+		zt_logInfo("adjusted application data path: %s", data_path);
 	}
 
 	free(data_path_temp);
@@ -30558,7 +30549,7 @@ int main(int argc, const char **argv)
 	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
 #	endif
 #	endif
-	zt_logDebug("user path: %s", user_path);
+	zt_logInfo("user path: %s", user_path);
 	
 	if(!zt_directoryExists(user_path)) {
 		zt_directoryMake(user_path);
@@ -30571,7 +30562,7 @@ int main(int argc, const char **argv)
 	{
 		char size[128];
 		zt_strBytesToString(size, zt_sizeof(size), zt_sizeof(ztGameGlobals));
-		zt_logDebug("main: initial memory: %s", size);
+		zt_logInfo("main: initial memory: %s", size);
 
 		zt_game->hinstance = _zt_hinstance;
 
@@ -30633,15 +30624,15 @@ int main(int argc, const char **argv)
 		if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
 			return 1;
 
-		zt_logDebug("main: app path: %s", zt_game->game_details.app_path);
-		zt_logDebug("main: data path: %s", zt_game->game_details.data_path);
-		zt_logDebug("main: user path: %s", zt_game->game_details.user_path);
+		zt_logInfo("main: app path: %s", zt_game->game_details.app_path);
+		zt_logInfo("main: data path: %s", zt_game->game_details.data_path);
+		zt_logInfo("main: user path: %s", zt_game->game_details.user_path);
 
 		_zt_logSystemInfo();
 
 		char app_memory_str[128];
 		zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
-		zt_logDebug("main: initializing %s of memory", app_memory_str);
+		zt_logInfo("main: initializing %s of memory", app_memory_str);
 
 		zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
 
