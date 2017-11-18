@@ -1129,14 +1129,15 @@ ztInline ztVariant        zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct
 // function pointers
 // ================================================================================================================================================================================================
 
+#if defined(ZT_DLL) || defined(ZT_LOADER)
 typedef i32                 ztFunctionID;
 
-ztFunctionID                zt_registerFunctionPointer(const char *function_name, void *function);
-void                       *zt_functionPointer(ztFunctionID function_id);
+ztFunctionID                zt_functionPointerRegister(const char *function_name, void *function);
+void                       *zt_functionPointerAccess(ztFunctionID function_id);
 
 #define                     ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
                             function_decl; \
-                            ztFunctionID function_name##_FunctionID = zt_registerFunctionPointer(#function_decl, function_name); \
+                            ztFunctionID function_name##_FunctionID = zt_functionPointerRegister(#function_decl, function_name); \
                             function_decl
 
 //                          This must be accompanied by a call to ZT_FUNCTION_POINTER_REGISTER in a source file
@@ -1144,6 +1145,58 @@ void                       *zt_functionPointer(ztFunctionID function_id);
                             function_decl; \
                             extern ztFunctionID function_name##_FunctionID; \
                             function_decl
+
+#define                     ZT_FUNCTION_POINTER_VAR(function_id_var, function_decl) \
+                            ztFunctionID function_id_var
+
+#define                     ZT_FUNCTION_POINTER_VAR_DEFNULL(function_id_var, function_decl) \
+                            ztFunctionID function_id_var = ztInvalidID
+
+#define                     ZT_FUNCTION_POINTER_IS_VALID(function_id) \
+                            (function_id != ztInvalidID)
+
+#define                     ZT_FUNCTION_POINTER_TO_VAR(function_name) \
+                            function_name##_FunctionID
+
+#define                     ZT_FUNCTION_POINTER_TO_VAR_NULL \
+                            ztInvalidID
+
+#define                     ZT_FUNCTION_POINTER_ACCESS(function_id, function_decl) \
+                            ((function_decl*)zt_functionPointerAccess(function_id))
+
+#define                     ZT_FUNCTION_POINTER_ACCESS_SAFE(function_id, function_decl) \
+                            if (function_id != ztInvalidID) ((function_decl*)zt_functionPointerAccess(function_id))
+#else
+
+#define                     ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
+                            function_decl
+
+//                          This must be accompanied by a call to ZT_FUNCTION_POINTER_REGISTER in a source file
+#define                     ZT_FUNCTION_POINTER_REGISTER_EXTERN(function_name, function_decl)	\
+                            function_decl
+
+#define                     ZT_FUNCTION_POINTER_VAR(function_id_var, function_decl) \
+                            function_decl *function_id_var
+
+#define                     ZT_FUNCTION_POINTER_VAR_DEFNULL(function_id_var, function_decl) \
+                            function_decl function_id_var = nullptr
+
+#define                     ZT_FUNCTION_POINTER_IS_VALID(function_id) \
+                            (function_id != nullptr)
+
+#define                     ZT_FUNCTION_POINTER_TO_VAR(function_name) \
+                            function_name
+
+#define                     ZT_FUNCTION_POINTER_TO_VAR_NULL \
+                            nullptr
+
+#define                     ZT_FUNCTION_POINTER_ACCESS(function_id, function_decl) \
+                            (function_id)
+
+#define                     ZT_FUNCTION_POINTER_ACCESS_SAFE(function_id, function_decl) \
+                            if (function_id != nullptr) (function_id)
+
+#endif
 
 /*
 							typedef void (myFunction_Func)(int, obj*);
@@ -1157,7 +1210,7 @@ void                       *zt_functionPointer(ztFunctionID function_id);
 						
 							void objFunction(int x, obj *o, ztFunctionID function_id)
 							{
-								((myFunction_Func*)zt_functionPointer(function_id))(x - 1, o);
+								ZT_FUNCTION_POINTER_ACCESS(function_id, myFunction_Func)(x - 1, o);
 							}
 */
 
@@ -3823,7 +3876,9 @@ struct ztGlobals
 
 	ztMemoryArena         *mem_arena_stack = nullptr;
 
+#	if defined(ZT_DLL) || defined(ZT_LOADER)
 	void *(*functionPointer)(ztFunctionID) = nullptr;
+#	endif
 };
 
 #define ZT_GLOBALS_VERSION	1 // update this any time ztGlobals is changed
@@ -3875,16 +3930,18 @@ ztGlobals zt_local = {};
 		}
 	}
 
-#else
+#elif defined(ZT_LOADER)
 	ztGlobals *zt = &zt_local;
 
 	void zt_dllSendGlobals(zt_dllSetGlobals_Func *set_globals)
 	{
 		if (set_globals) {
-			zt->functionPointer = zt_functionPointer;
+			zt->functionPointer = zt_functionPointerAccess;
 			set_globals(zt, ZT_GLOBALS_VERSION);
 		}
 	}
+#else
+	ztGlobals *zt = &zt_local;
 #endif
 
 
@@ -3935,6 +3992,8 @@ struct ztThreadMonitor
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#if defined(ZT_DLL) || defined(ZT_LOADER)
+
 //these aren't in ztGlobals because they must be process-specific:
 ztInternal void *_zt_function_pointers[ZT_MAX_FUNCTION_POINTER_ENTRIES];
 ztInternal i32   _zt_function_hashes  [ZT_MAX_FUNCTION_POINTER_ENTRIES];
@@ -3943,7 +4002,7 @@ ztInternal int   _zt_function_count = 0;
 
 // ================================================================================================================================================================================================
 
-ztFunctionID zt_registerFunctionPointer(const char *function_name, void *function)
+ztFunctionID zt_functionPointerRegister(const char *function_name, void *function)
 {
 	zt_assert(_zt_function_count < ZT_MAX_FUNCTION_POINTER_ENTRIES);
 
@@ -3964,9 +4023,9 @@ ztFunctionID zt_registerFunctionPointer(const char *function_name, void *functio
 
 // ================================================================================================================================================================================================
 
-void *zt_functionPointer(ztFunctionID function_id)
+void *zt_functionPointerAccess(ztFunctionID function_id)
 {
-	ZT_PROFILE_TOOLS("zt_functionPointer");
+	ZT_PROFILE_TOOLS("zt_functionPointerAccess");
 
 	zt_fiz(_zt_function_count) {
 		if (_zt_function_hashes[i] == function_id) {
@@ -3984,6 +4043,7 @@ void *zt_functionPointer(ztFunctionID function_id)
 	return nullptr;
 }
 
+#endif
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
