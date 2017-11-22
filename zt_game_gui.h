@@ -377,7 +377,7 @@ typedef ZT_FUNC_GUI_ITEM_CLEANUP(zt_guiItemCleanup_Func);
 #define ZT_FUNC_GUI_ITEM_BEST_SIZE(name) void name(ztGuiItem *item, ztVec2 *min_size, ztVec2 *max_size, ztVec2 *size, ztGuiTheme *theme, void *user_data)
 typedef ZT_FUNC_GUI_ITEM_BEST_SIZE(zt_guiItemBestSize_Func);
 
-#define ZT_FUNC_GUI_ITEM_INPUT_KEY(name) bool name(ztGuiItem *item, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], void *user_data)
+#define ZT_FUNC_GUI_ITEM_INPUT_KEY(name) bool name(ztGuiItem *item, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], void *user_data)
 typedef ZT_FUNC_GUI_ITEM_INPUT_KEY(zt_guiItemInputKey_Func);
 
 #define ZT_FUNC_GUI_ITEM_INPUT_MOUSE(name) bool name(ztGuiItem *item, ztInputMouse *input_mouse, bool key_ctrl, bool key_alt, bool key_shift, void *user_data)
@@ -397,7 +397,7 @@ typedef ZT_FUNC_GUI_SCROLLBAR_SCROLLED(zt_guiScrollbarScrolled_Func);
 #define ZT_FUNC_GUI_MENU_SELECTED(name) void name(ztGuiItem *menu, i32 menu_item, void *user_data)
 typedef ZT_FUNC_GUI_MENU_SELECTED(zt_guiMenuSelected_Func);
 
-#define ZT_FUNC_GUI_TEXTEDIT_KEY(name) void name(ztGuiItem *textedit, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], bool *should_process, void *user_data)
+#define ZT_FUNC_GUI_TEXTEDIT_KEY(name) void name(ztGuiItem *textedit, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], bool *should_process, void *user_data)
 typedef ZT_FUNC_GUI_TEXTEDIT_KEY(zt_guiTextEditKey_Func);
 
 #define ZT_FUNC_GUI_TREE_ITEM_SELECTED(name) void name(ztGuiItem *tree, ztGuiTreeNodeID node_id, void *user_data)
@@ -640,7 +640,7 @@ enum ztGuiManagerStringPool_Enum
 ztGuiManager   *zt_guiManagerMake                      (ztCamera *gui_camera, ztGuiTheme *theme_default, ztMemoryArena *arena, ztGuiManagerStringPool_Enum string_pool = ztGuiManagerStringPool_Standard);
 void            zt_guiManagerFree                      (ztGuiManager *gui_manager);
 
-bool            zt_guiManagerHandleInput               (ztGuiManager *gui_manager, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], ztInputMouse *input_mouse);
+bool            zt_guiManagerHandleInput               (ztGuiManager *gui_manager, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], ztInputMouse *input_mouse);
 void            zt_guiManagerRender                    (ztGuiManager *gui_manager, ztDrawList *draw_list, r32 dt);
 
 void            zt_guiSetActiveManager                 (ztGuiManager *gui_manager);
@@ -1934,16 +1934,19 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 					char *name = zt_guiItemGetName(subitem);
 
 					if (zt_strEquals(name, "Close")) {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(1007, 16), zt_vec2i(16, 16)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(1007, 16), zt_vec2i(16, 16));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						//zt_guiItemSetLabel(subitem, "X");
 					}
 					else if (zt_strEquals(name, "Collapse")) {
 						if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed))) {
-							zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12)));
+							ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12));
+							zt_guiButtonSetIcon(subitem, &sprite);
 							//zt_guiItemSetLabel(subitem, ">");
 						}
 						else {
-							zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12)));
+							ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12));
+							zt_guiButtonSetIcon(subitem, &sprite);
 							//zt_guiItemSetLabel(subitem, "v");
 						}
 					}
@@ -1960,11 +1963,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 			{
 				case ztGuiItemType_Button: {
 					if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiCollapsingPanelInternalStates_Collapsed))) {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						//zt_guiItemSetLabel(subitem, ">");
 					}
 					else {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						//zt_guiItemSetLabel(subitem, "v");
 					}
 					zt_guiItemSetSize(subitem, zt_vec2(21 / ppu, 21 / ppu));
@@ -1980,11 +1985,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 			{
 				case ztGuiItemType_Button: {
 					if (data == nullptr || *((bool*)data) == true) {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(979, 16), zt_vec2i(9, 9)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(979, 16), zt_vec2i(9, 9));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						//zt_guiItemSetLabel(subitem, "-");
 					}
 					else {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(979, 2), zt_vec2i(9, 9)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(979, 2), zt_vec2i(9, 9));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						//zt_guiItemSetLabel(subitem, "+");
 					}
 					zt_guiItemSetSize(subitem, zt_vec2(17 / ppu, 17 / ppu));
@@ -2006,11 +2013,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 					subitem->behavior_flags |= ztGuiButtonBehaviorFlags_NoBackground;
 
 					if (((ztDirection_Enum)(i32)data) == ztDirection_Left) {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(931, 1), zt_vec2i(12, 12)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(931, 1), zt_vec2i(12, 12));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						zt_guiItemSetPosition(subitem, ztAlign_Left, ztAnchor_Left, ztVec2::zero);
 					}
 					else if (((ztDirection_Enum)(i32)data) == ztDirection_Right) {
-						zt_guiButtonSetIcon(subitem, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12)));
+						ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 1), zt_vec2i(12, 12));
+						zt_guiButtonSetIcon(subitem, &sprite);
 						zt_guiItemSetPosition(subitem, ztAlign_Right, ztAnchor_Right, ztVec2::zero);
 					}
 				} break;
@@ -2826,7 +2835,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 
 			r32 button_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
-			zt_drawListAddSprite(draw_list, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12)), zt_vec3(pos.x + (item->size.x - button_w) / 2, pos.y, 0));
+			ztSprite sprite_arrow = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12));
+			zt_drawListAddSprite(draw_list, &sprite_arrow, zt_vec3(pos.x + (item->size.x - button_w) / 2, pos.y, 0));
 
 			if (item->combobox.selected >= 0 && item->combobox.selected < item->combobox.contents_count) {
 				r32 width = item->size.x;
@@ -2878,8 +2888,11 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 			ztVec3 pos_txt_p = zt_vec3(pos.x, (pos.y + (item->size.y / 2)) - (6 / ppu), 0);
 			ztVec3 pos_txt_m = zt_vec3(pos.x, (pos.y - (item->size.y / 2)) + (7 / ppu), 0);
 
-			zt_drawListAddSprite(draw_list, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 917, 1, 13, 13), pos_txt_p);
-			zt_drawListAddSprite(draw_list, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 991, 13, 13, 13), pos_txt_m);
+			ztSprite sprite_up = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 917, 1, 13, 13);
+			ztSprite sprite_dn = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 991, 13, 13, 13);
+
+			zt_drawListAddSprite(draw_list, &sprite_up, pos_txt_p);
+			zt_drawListAddSprite(draw_list, &sprite_dn, pos_txt_m);
 
 			//zt_drawListAddText2D(draw_list, ztFontDefault, "+", pos_txt_p, ztAlign_Top, ztAnchor_Top);
 			//zt_drawListAddText2D(draw_list, ztFontDefault, "-", pos_txt_m, ztAlign_Bottom, ztAnchor_Bottom);
@@ -3518,7 +3531,7 @@ ztInternal void _zt_guiManagerUpdatePost(ztGuiManager *gm, r32 dt)
 
 // ================================================================================================================================================================================================
 
-bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[16], ztInputMouse *input_mouse)
+bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], ztInputMouse *input_mouse)
 {
 	ZT_PROFILE_GUI("zt_guiManagerHandleInput");
 
@@ -3739,7 +3752,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 					gm->keyboard_focus = true;
 					if (zt_bitIsSet(child->behavior_flags, ztGuiItemBehaviorFlags_BringToFront)) {
 						// need to make this particular child the last in the series
-						if (child->sib_next && !(child->sib_next->type == ztGuiItemType_Window && (child->sib_next->behavior_flags, ztGuiWindowBehaviorFlags_Modal))) {// && (!zt_bitIsSet(child->sib_next->behavior_flags, ztGuiItemBehaviorFlags_BringToFront) || !zt_bitIsSet(child->sib_next->state_flags, zt_bit(ztGuiItemStates_Visible)))) {
+						if (child->sib_next && !(child->sib_next->type == ztGuiItemType_Window && zt_bitIsSet(child->sib_next->behavior_flags, ztGuiWindowBehaviorFlags_Modal))) {// && (!zt_bitIsSet(child->sib_next->behavior_flags, ztGuiItemBehaviorFlags_BringToFront) || !zt_bitIsSet(child->sib_next->state_flags, zt_bit(ztGuiItemStates_Visible)))) {
 							if (child->sib_prev) child->sib_prev->sib_next = child->sib_next;
 							if (child->sib_next) child->sib_next->sib_prev = child->sib_prev;
 							zt_assert(child->sib_next->sib_prev != child->sib_next);
@@ -6089,7 +6102,7 @@ ztInternal int _zt_guiTextEditPosNextWord(ztGuiItem *item, int str_len)
 
 		bool is_separator = false;
 		zt_fjz(ZT_TEXTEDIT_WORD_SEPARATORS_LEN) {
-			if (is_separator = item->textedit.text_buffer[pos] == ZT_TEXTEDIT_WORD_SEPARATORS[j]) {
+			if ((is_separator = (item->textedit.text_buffer[pos] == ZT_TEXTEDIT_WORD_SEPARATORS[j]))) {
 				break;
 			}
 		}
@@ -6114,7 +6127,7 @@ ztInternal int _zt_guiTextEditPosPrevWord(ztGuiItem *item, int str_len)
 
 		bool need_break = false;
 		zt_fjz(ZT_TEXTEDIT_WORD_SEPARATORS_LEN) {
-			if (need_break = item->textedit.text_buffer[pos - 1] == ZT_TEXTEDIT_WORD_SEPARATORS[j]) {
+			if ((need_break = (item->textedit.text_buffer[pos - 1] == ZT_TEXTEDIT_WORD_SEPARATORS[j]))) {
 				break;
 			}
 		}
@@ -9994,7 +10007,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_
 
 	ztGuiEditorValue *vptr = (ztGuiEditorValue*)user_data;
 
-	zt_fize(input_key_strokes) {
+	zt_fiz(ZT_MAX_INPUT_KEYSTROKES) {
 		if (input_key_strokes[i] == ztInputKeys_Invalid) {
 			break;
 		}
@@ -10982,7 +10995,8 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableReal *variable,
 	}
 
 	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
-	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	ztSprite sprite_cfg = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9);
+	zt_guiButtonSetIcon(button, &sprite_cfg);
 	zt_guiButtonSetCallback(button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorPartVarRealButtonCfg), editor);
 	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
 
@@ -11204,7 +11218,8 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableColor *variable
 	}
 
 	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
-	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	ztSprite sprite_cfg = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9);
+	zt_guiButtonSetIcon(button, &sprite_cfg);
 	zt_guiButtonSetCallback(button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorPartVarColorButtonCfg), editor);
 	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
 
@@ -11696,7 +11711,8 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec2 *variable,
 
 
 	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
-	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	ztSprite sprite_cfg = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9);
+	zt_guiButtonSetIcon(button, &sprite_cfg);
 	zt_guiButtonSetCallback(button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorPartVarVec2ButtonCfg), editor);
 	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
 
@@ -12177,7 +12193,8 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec3 *variable,
 
 
 	ztGuiItem *button = zt_guiMakeButton(panel, nullptr, ztGuiButtonBehaviorFlags_NoBackground);
-	zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9));
+	ztSprite sprite_cfg = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 979, 2, 9, 9);
+	zt_guiButtonSetIcon(button, &sprite_cfg);
 	zt_guiButtonSetCallback(button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorPartVarVec3ButtonCfg), editor);
 	zt_guiSizerAddItem(sizer_width, button, 0, 0, ztAlign_Top, ztAnchor_Top);
 
@@ -14044,7 +14061,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_REN
 
 		center.x -= .5f;
 
-		zt_drawListAddSprite(draw_list, &zt_spriteMake(picker_data->tex_details, 0, 0, 256, 256), center);
+		ztSprite sprite = zt_spriteMake(picker_data->tex_details, 0, 0, 256, 256);
+		zt_drawListAddSprite(draw_list, &sprite, center);
 
 		zt_drawListPushColor(draw_list, ztColor_White);
 		zt_drawListAddEmptyCircle(draw_list, center + zt_vec3(size.x / -2 + color_sel_x, size.y / -2 + color_sel_y, 0), 5 / ppu, 10);
@@ -14261,13 +14279,15 @@ void zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ZT_FUN
 	zt_guiSizerAddStretcher(sizer_btns, 1);
 
 	ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
-	zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+	ztSprite sprite_ok = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16);
+	zt_guiButtonSetIcon(button_ok, &sprite_ok);
 	zt_guiButtonSetCallback(button_ok, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiColorPickerButtonOk), picker_data);
 	button_ok->size.x *= 2;
 	zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
 
 	ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
-	zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+	ztSprite sprite_cancel = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16);
+	zt_guiButtonSetIcon(button_cancel, &sprite_cancel);
 	zt_guiButtonSetCallback(button_cancel, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiColorPickerButtonCancel), picker_data);
 	button_cancel->size.x *= 2;
 	zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
@@ -14405,7 +14425,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelRender, ZT_FUNC_GUI_ITEM_REND
 	r32 controls_start_x = center.x - (size.x / 2);
 
 	zt_drawListPushTexture(draw_list, ztTextureDefault);
-	zt_drawListAddSpriteTiled(draw_list, &zt_spriteMake(grad_editor->tex_background, 0, 0, 32, 32), zt_vec3(center, 0), size);
+	ztSprite sprite_back = zt_spriteMake(grad_editor->tex_background, 0, 0, 32, 32);
+	zt_drawListAddSpriteTiled(draw_list, &sprite_back, zt_vec3(center, 0), size);
 
 	int active_control = grad_editor->active_control;
 
@@ -14731,13 +14752,15 @@ void zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, Z
 		zt_guiSizerAddStretcher(sizer_btns, 1);
 
 		ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
-		zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+		ztSprite sprite_ok = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16);
+		zt_guiButtonSetIcon(button_ok, &sprite_ok);
 		zt_guiButtonSetCallback(button_ok, ZT_FUNCTION_POINTER_TO_VAR(_zt_colorGradientButtonOk), grad_editor);
 		button_ok->size.x *= 2;
 		zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
 
 		ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
-		zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+		ztSprite sprite_cancel = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16);
+		zt_guiButtonSetIcon(button_cancel, &sprite_cancel);
 		zt_guiButtonSetCallback(button_cancel, ZT_FUNCTION_POINTER_TO_VAR(_zt_colorGradientButtonCancel), grad_editor);
 		button_cancel->size.x *= 2;
 		zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
@@ -14983,7 +15006,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDE
 
 	start_y = center.y + size.y / 2;
 	zt_fyz(5) {
-		char *format_spec = curve_editor->curve.val_max <= 1 ? "%.1f" : "%.0f";
+		const char *format_spec = curve_editor->curve.val_max <= 1 ? "%.1f" : "%.0f";
 		zt_strMakePrintf(valstr, 8, format_spec, vals[y]);
 		zt_drawListAddText2D(draw_list, ztFontDefault, valstr, zt_vec2(center.x - ((size.x / 2) + padding * 2), start_y), ztAlign_Right, ztAnchor_Right);
 
@@ -15525,13 +15548,15 @@ void zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ZT_FUNC
 		zt_guiSizerAddStretcher(sizer_btns, 1);
 
 		ztGuiItem *button_ok = zt_guiMakeButton(sizer_btns, nullptr);
-		zt_guiButtonSetIcon(button_ok, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16));
+		ztSprite sprite_ok = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 0, 16, 16);
+		zt_guiButtonSetIcon(button_ok, &sprite_ok);
 		zt_guiButtonSetCallback(button_ok, ZT_FUNCTION_POINTER_TO_VAR(_zt_animCurveButtonOk), curve_editor);
 		button_ok->size.x *= 2;
 		zt_guiSizerAddItem(sizer_btns, button_ok, 0, padding);
 
 		ztGuiItem *button_cancel = zt_guiMakeButton(sizer_btns, nullptr);
-		zt_guiButtonSetIcon(button_cancel, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16));
+		ztSprite sprite_cancel = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 1007, 16, 16, 16);
+		zt_guiButtonSetIcon(button_cancel, &sprite_cancel);
 		zt_guiButtonSetCallback(button_cancel, ZT_FUNCTION_POINTER_TO_VAR(_zt_animCurveButtonCancel), curve_editor);
 		button_cancel->size.x *= 2;
 		zt_guiSizerAddItem(sizer_btns, button_cancel, 0, padding);
@@ -16708,7 +16733,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleInputKey, ztInternal ZT_FUNC_GUI
 		return;
 	}
 
-	zt_fiz(zt_elementsOf(input_key_strokes)) {
+	zt_fiz(ZT_MAX_INPUT_KEYSTROKES) {
 		if (input_key_strokes[i] == ztInputKeys_Invalid) {
 			break;
 		}
@@ -16970,6 +16995,14 @@ void zt_debugConsoleRemoveCommand(const char *command)
 			va_start(arg_ptr, command); \
 			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt_gui->stack_arena); \
 			vsnprintf_s(buffer, 1024 * 64, 1024 * 64, command, arg_ptr);
+
+#elif defined(ZT_COMPILER_LLVM)
+#define _zt_var_args \
+			va_list arg_ptr; \
+			va_start(arg_ptr, command); \
+			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt_gui->stack_arena); \
+			vsnprintf(buffer, 1024 * 64, command, arg_ptr);
+
 
 #else
 #	error "Unsupported compiler for zt_debugConsoleLog"
@@ -18247,7 +18280,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewRender, ztInternal ZT_F
 		zt_drawListPopColor(draw_list);
 		as_pos.x += 22 / ppu;
 
-		char *frame = mouse_over_system == -1 ? "selected frame" : "hovered frame";
+		const char *frame = mouse_over_system == -1 ? "selected frame" : "hovered frame";
 
 		zt_strMakePrintf(system_name, 128, "%s (%s):", (dpo->active_system == -1 ? "Active Frame" : dpo->systems[dpo->active_system]), frame);
 		ztVec2 text_ext;
@@ -19270,7 +19303,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayRender, ZT_FUNC_GUI_ITEM_RE
 	}
 
 
-	zt_drawListAddSprite(draw_list, &zt_spriteMake(editor->active_tex, zt_vec2i(0, 0), editor->active_tex_size), zt_vec3(offset + item->pos - zt_vec2(editor->sprite_info_panel->size.x / 2, 0), 0), ztVec3::zero, scale);
+	ztSprite sprite = zt_spriteMake(editor->active_tex, zt_vec2i(0, 0), editor->active_tex_size);
+	zt_drawListAddSprite(draw_list, &sprite, zt_vec3(offset + item->pos - zt_vec2(editor->sprite_info_panel->size.x / 2, 0), 0), ztVec3::zero, scale);
 
 	zt_drawListPushTexture(draw_list, ztTextureDefault);
 	ztVec2 image_pos = offset + item->pos - zt_vec2(editor->sprite_info_panel->size.x / 2.f, 0);
@@ -20753,17 +20787,20 @@ ztInternal int _zt_debugSpriteAnimEdAddSpriteEntry(ztSpriteAnimEditor *editor, i
 	ed_entry->editor = edit;
 
 	ztGuiItem *button_up = zt_guiMakeButton(entry, nullptr);
-	zt_guiButtonSetIcon(button_up, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 917, 1, 13, 13));
+	ztSprite sprite_up = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 917, 1, 13, 13);
+	zt_guiButtonSetIcon(button_up, &sprite_up);
 	zt_guiButtonSetCallback(button_up, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonEntryMoveUp), (void*)idx);
 	zt_guiItemAutoSize(button_up);
 
 	ztGuiItem *button_dn = zt_guiMakeButton(entry, nullptr);
-	zt_guiButtonSetIcon(button_dn, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 991, 13, 13, 13));
+	ztSprite sprite_dn = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 991, 13, 13, 13);
+	zt_guiButtonSetIcon(button_dn, &sprite_dn);
 	zt_guiButtonSetCallback(button_dn, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonEntryMoveDn), (void*)idx);
 	zt_guiItemAutoSize(button_dn);
 
 	ztGuiItem *button_rm = zt_guiMakeButton(entry, nullptr);
-	zt_guiButtonSetIcon(button_rm, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 633, 43, 19, 19));
+	ztSprite sprite_rm = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 633, 43, 19, 19);
+	zt_guiButtonSetIcon(button_rm, &sprite_rm);
 	zt_guiButtonSetCallback(button_rm, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonEntryDelete), (void*)idx);
 	zt_guiItemAutoSize(button_rm);
 
@@ -21080,10 +21117,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonPlay, ZT_FUNC_GUI_BUTTON
 	ztVec2 size = button->size;
 	if (editor->active_playing) {
 		editor->active_time = 0;
-		zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 968, 43, 19, 19));
+		ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 968, 43, 19, 19);
+		zt_guiButtonSetIcon(button, &sprite);
 	}
 	else {
-		zt_guiButtonSetIcon(button, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 988, 43, 18, 18));
+		ztSprite sprite = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 988, 43, 18, 18);
+		zt_guiButtonSetIcon(button, &sprite);
 	}
 
 	button->size = size;
@@ -21379,19 +21418,22 @@ ztInternal void _zt_debugSpriteAnimEditor()
 			editor->lbl_file = lbl_file_name;
 
 			ztGuiItem *button_new = zt_guiMakeButton(file_sizer, nullptr);
-			zt_guiButtonSetIcon(button_new, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 750, 42, 21, 21));
+			ztSprite sprite_new = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 750, 42, 21, 21);
+			zt_guiButtonSetIcon(button_new, &sprite_new);
 			zt_guiButtonSetCallback(button_new, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonFileNew), editor);
 			zt_guiItemAutoSize(button_new);
 			zt_guiSizerAddItem(file_sizer, button_new, 0, padding);
 
 			ztGuiItem *button_edit = zt_guiMakeButton(file_sizer, nullptr);
-			zt_guiButtonSetIcon(button_edit, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 709, 43, 21, 21));
+			ztSprite sprite_edit = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 709, 43, 21, 21);
+			zt_guiButtonSetIcon(button_edit, &sprite_edit);
 			zt_guiButtonSetCallback(button_edit, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonFileOpen), editor);
 			zt_guiItemAutoSize(button_edit);
 			zt_guiSizerAddItem(file_sizer, button_edit, 0, padding);
 
 			ztGuiItem *button_save = zt_guiMakeButton(file_sizer, nullptr);
-			zt_guiButtonSetIcon(button_save, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 730, 44, 21, 21));
+			ztSprite sprite_save = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 730, 44, 21, 21);
+			zt_guiButtonSetIcon(button_save, &sprite_save);
 			zt_guiButtonSetCallback(button_save, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonFileSave), editor);
 			zt_guiItemAutoSize(button_save);
 			zt_guiSizerAddItem(file_sizer, button_save, 0, padding);
@@ -21412,13 +21454,15 @@ ztInternal void _zt_debugSpriteAnimEditor()
 		zt_guiSizerAddItem(tools_sizer_top, seq_sizer, 0, 0, ztAlign_Right, 0);
 		{
 			ztGuiItem *button_open = zt_guiMakeButton(tools_sizer_top, nullptr);
-			zt_guiButtonSetIcon(button_open, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 651, 43, 19, 19));
+			ztSprite sprite_open = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 651, 43, 19, 19);
+			zt_guiButtonSetIcon(button_open, &sprite_open);
 			zt_guiButtonSetCallback(button_open, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonSeqRename), editor);
 			zt_guiItemAutoSize(button_open);
 			zt_guiSizerAddItem(seq_sizer, button_open, 0, padding);
 
 			ztGuiItem *button_dele = zt_guiMakeButton(tools_sizer_top, nullptr);
-			zt_guiButtonSetIcon(button_dele, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 633, 43, 19, 19));
+			ztSprite sprite_dele = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 633, 43, 19, 19);
+			zt_guiButtonSetIcon(button_dele, &sprite_dele);
 			zt_guiButtonSetCallback(button_dele, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonSeqDelete), editor);
 			zt_guiItemAutoSize(button_dele);
 			zt_guiSizerAddItem(seq_sizer, button_dele, 0, padding);
@@ -21464,7 +21508,8 @@ ztInternal void _zt_debugSpriteAnimEditor()
 			zt_guiSizerSizeParent(play_sizer, false, true);
 
 			ztGuiItem *button_play = zt_guiMakeButton(play_sizer, nullptr);
-			zt_guiButtonSetIcon(button_play, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 988, 43, 18, 18));
+			ztSprite sprite_play = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 988, 43, 18, 18);
+			zt_guiButtonSetIcon(button_play, &sprite_play);
 			zt_guiItemAutoSize(button_play);
 			zt_guiButtonSetCallback(button_play, ZT_FUNCTION_POINTER_TO_VAR(_zt_debugSpriteAnimEdButtonPlay), editor);
 			button_play->size.x *= 2;
@@ -21560,7 +21605,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayRender, ZT_FUNC_GUI_ITE
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_Zero);
-	zt_drawListAddSprite(draw_list, &zt_spriteMake(editor->render_tex, 0, 0, 2048, 2048), zt_vec3(item->pos + offset, 0));
+	ztSprite sprite = zt_spriteMake(editor->render_tex, 0, 0, 2048, 2048);
+	zt_drawListAddSprite(draw_list, &sprite, zt_vec3(item->pos + offset, 0));
 	zt_drawListPopBlendMode(draw_list);
 }
 
@@ -22092,9 +22138,12 @@ void _zt_guiParticleEditor()
 	ztGuiItem *menu_bar = zt_guiMakeMenuBar(window);
 
 	ztGuiItem *menu_file = zt_guiMakeMenu(menu_bar);
-	zt_guiMenuAppend(menu_file, "New Particle System", ztParticleEditorMenu_New, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 750, 42, 21, 21));
-	zt_guiMenuAppend(menu_file, "Open Particle System", ztParticleEditorMenu_Open, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 709, 43, 21, 21));
-	zt_guiMenuAppend(menu_file, "Save Particle System", ztParticleEditorMenu_Save, editor, &zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 730, 44, 21, 21));
+	ztSprite sprite_new = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 750, 42, 21, 21);
+	ztSprite sprite_open = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 709, 43, 21, 21);
+	ztSprite sprite_save = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, 730, 44, 21, 21);
+	zt_guiMenuAppend(menu_file, "New Particle System", ztParticleEditorMenu_New, editor, &sprite_new);
+	zt_guiMenuAppend(menu_file, "Open Particle System", ztParticleEditorMenu_Open, editor, &sprite_open);
+	zt_guiMenuAppend(menu_file, "Save Particle System", ztParticleEditorMenu_Save, editor, &sprite_save);
 	zt_guiMenuSetCallback(menu_file, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorMenu));
 	zt_guiMenuAppendSubmenu(menu_bar, "File", menu_file);
 
@@ -22831,7 +22880,7 @@ void zt_debugLogGuiHierarchy(ztGuiItem *item)
 				default: type = "Unknown"; break;
 			}
 
-			char *name = item->name ? item->name : "unnamed";
+			const char *name = item->name ? item->name : "unnamed";
 
 			char prefix_buffer[128] = { 0 };
 			char *prefix = prefix_buffer;
