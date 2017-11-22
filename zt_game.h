@@ -94,7 +94,10 @@
 
 #if !defined(ZT_NO_DSOUND)
 #	include "zt_dsound.h"
+#elif !defined(ZT_NO_OPENAL)
+#	include "zt_openal.h"
 #endif
+
 
 
 #define ztInvalidID -1
@@ -370,7 +373,7 @@ struct ztProfileBlock
 #	define ZT_PROFILE_GAME(section)              ZT_PROFILE((section), ZT_SYSTEM_GAME)
 
 #else
-#	define ZT_PROFILE(section)
+#	define ZT_PROFILE(section, system)
 #	define ZT_PROFILE_PLATFORM(section)
 #	define ZT_PROFILE_RENDERING(section)
 #	define ZT_PROFILE_AUDIO(section)
@@ -1212,6 +1215,7 @@ int             zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type);
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ #pragma pack(push, 1)
 struct ztVertexDefault
 {
 	ztVec3 position;
@@ -1219,6 +1223,7 @@ struct ztVertexDefault
 	ztVec3 normal;
 	ztVec4 color;
 };
+ #pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -1454,7 +1459,7 @@ ztVec2   zt_cameraOrthoGetMaxExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetMinExtent(ztCamera *camera);
 ztVec2   zt_cameraOrthoGetViewportSize(ztCamera *camera);
 ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
-ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 &pos);
+ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
 
@@ -1988,7 +1993,7 @@ enum ztRenderDrawListFlags_Enum
 	ztRenderDrawListFlags_Wireframe = (1<<1),
 	ztRenderDrawListFlags_NoDepthTest = (1<<2),
 
-	zt_debugOnly(ztRenderDrawListFlags_DebugDump = (1<<31))
+	ztRenderDrawListFlags_DebugDump = (1<<31),
 };
 
 void zt_renderDrawList(ztCamera *camera, ztDrawList *draw_list, const ztColor& clear, i32 flags, ztTextureID render_target_id = ztInvalidID);
@@ -4495,6 +4500,14 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #	define zt_noDsoundSupport(code) code
 #endif
 
+#if defined(ZT_OPENAL)
+#	define zt_openALSupport(code) code
+#	define zt_noOpenALSupport(code)
+#else
+#	define zt_openALSupport(code)
+#	define zt_noOpenALSupport(code) code
+#endif
+
 
 // ================================================================================================================================================================================================
 // Windows implementation
@@ -4513,7 +4526,10 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #include <windowsx.h>
 #include <xinput.h>
 
-#endif // ZT_WINDOWS
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+#include <emscripten.h>
+
+#endif // ZT_EMSCRIPTEN
 
 #if !defined(ZT_NO_OPENGL)
 #define ZT_OPENGL_IMPLEMENTATION
@@ -4529,6 +4545,12 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #define ZT_DSOUND_IMPLEMENTATION
 #include "zt_dsound.h"
 #endif
+
+#if defined(ZT_OPENAL)
+#define ZT_OPENAL_IMPLEMENTATION
+#include "zt_openal.h"
+#endif
+
 
 
 // ================================================================================================================================================================================================
@@ -4546,8 +4568,27 @@ struct ztWindowDetails
 	r32 resize_cooldown;
 
 	zt_openGLSupport(ztContextGL *gl_context);
+	zt_openGLSupport(ztVertexArrayGL gl_tri_verts_array);
+
 	zt_directxSupport(ztContextDX *dx_context);
 	zt_directxSupport(ztVertexArrayDX *dx_tri_verts_array);
+};
+
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+
+
+struct ztWindowDetails
+{
+	ztVec4i client_rect;
+	ztVec4 client_rect_buffer;
+	void *handle; // unused
+
+	int screen_w, screen_h;
+	r32 aspect_ratio;
+	r32 resize_cooldown;
+
+	zt_openGLSupport(ztContextGL *gl_context);
+	zt_openGLSupport(ztVertexArrayGL gl_tri_verts_array);
 };
 
 #endif // ZT_WINDOWS
@@ -4785,6 +4826,8 @@ struct ztShader
 
 enum ztTextureLoadType_Enum
 {
+	ztTextureLoadType_Invalid,
+
 	ztTextureLoadType_Asset,
 	ztTextureLoadType_Data,
 	ztTextureLoadType_RenderTarget,
@@ -4937,6 +4980,7 @@ enum ztAudioClipFlags_Enum
 struct ztAudioClip
 {
 	zt_dsoundSupport(ztDirectSoundBuffer *ds_buffer);
+	zt_openALSupport(ztOpenALBuffer *al_buffer);
 
 	i32 flags;
 
@@ -5016,8 +5060,8 @@ struct ztGameGlobals
 	xinput_getState_Func      xinput_getState = nullptr;
 	xinput_setState_Func      xinput_setState = nullptr;
 	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
-	bool                      app_has_focus = true;
 #	endif
+	bool                      app_has_focus = true;
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
 
@@ -5081,6 +5125,7 @@ struct ztGameGlobals
 	// ----------------------
 
 	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
+	zt_openALSupport(ztOpenALContext      *al_context = nullptr);
 
 	ztAudioClip               audio_clips[ZT_MAX_AUDIO_CLIPS];
 	ztAudioDelay              audio_delays[ZT_MAX_AUDIO_CLIPS];
@@ -5148,6 +5193,7 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 	if (version == ZT_GAME_GLOBALS_VERSION) {
 		zt_game = (ztGameGlobals *)memory;
 
+#		if !defined(ZT_NO_PROFILE)
 		// fix profiler strings
 		zt_fize(zt_game->profiler->threads) {
 			zt_fjz(ZT_PROFILER_FRAMES_KEPT) {
@@ -5157,6 +5203,7 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 				}
 			}
 		}
+#		endif
 	}
 }
 
@@ -6520,7 +6567,7 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 		asset_mgr->packed_file_names[tokens[i].beg + tokens[i].len] = 0;
 
 		asset_mgr->asset_name[i] = (const char*)&asset_mgr->packed_file_names[tokens[i].beg];
-		asset_mgr->asset_name_hash[i] = entry.hash;
+		asset_mgr->asset_name_hash[i] = zt_strHash(asset_mgr->asset_name[i]);
 		asset_mgr->asset_size[i] = entry.size;
 		asset_mgr->asset_type[i] = (ztAssetManagerType_Enum)entry.type;
 		asset_mgr->packed_file_pos[i] = header.file_start_pos + entry.start;
@@ -6948,11 +6995,10 @@ ztInternal const char *_zt_default_shaders_names[] = {
 };
 
 ztInternal const char *_zt_default_shaders[] = {
-	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
+	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
-	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1 && normal.y == 1 && normal.z == 1) {\n		return _input.normal;\n	}\n	normal = normalize((_input.normal * 2.0) - vec3(1.0, 1.0, 1.0));\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0 || proj_coords.x > 1 || proj_coords.y < 0 || proj_coords.y > 1) {\n		return 0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0f;\n		}\n	}\n	shadow /= (samples * 2 + 1) * (samples * 2 + 1);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < uniforms.point_lights_count; ++i) {\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n}",
-	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
+	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1.0);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize((_input.normal * 2.0) - vec3(1.0, 1.0, 1.0));\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n}",	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
 };
@@ -7005,9 +7051,28 @@ ztInternal void _ztdx_rendererSwapBuffers(ztWindowDetails *win_details);
 ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails *win_details, ztGameSettings *game_settings, bool);
 ztInternal bool _ztdx_rendererChangeResolution(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 w, i32 h); 
 
+// ================================================================================================================================================================================================
+
+#if defined(ZT_WINDOWS)
 bool _zt_winCreateWindow(ztGameSettings *game_settings, ztWindowDetails *window_details);
 bool _zt_winCleanupWindow(ztWindowDetails *win_details, ztGameSettings *settings);
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details);
+
+void _zt_winProcessMessages();
+void _zt_winHandleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings);
+void _zt_winLogSystemInfo();
+void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high);
+void _zt_winControllerInputUpdate(r32 dt);
+void _zt_winControllerInputCleanup();
+void _zt_winControllerInputInit();
+
+#elif defined(ZT_EMSCRIPTEN)
+void _zt_emsProcessMessages();
+void _zt_emsControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high);
+void _zt_emsControllerInputUpdate(r32 dt);
+void _zt_emsControllerInputCleanup();
+void _zt_emsControllerInputInit();
+#endif
 
 // ================================================================================================================================================================================================
 
@@ -7031,13 +7096,15 @@ ztInternal void _zt_setKeyDataActl(ztInputKeys *input_keys, ztInputKeys_Enum cod
 ztInternal void _zt_inputSetupKeys()
 {
 	int idx = 0;
+
+#if defined(ZT_WINDOWS)
 	_zt_setKeyData(ztInputKeys_Invalid,            "Invalid",              0,    0, 0);
-	_zt_setKeyData(ztInputKeys_LeftButton,         "LeftButton",           0,    0, VK_LBUTTON);
-	_zt_setKeyData(ztInputKeys_RightButton,        "RightButton",          0,    0, VK_RBUTTON);
-	_zt_setKeyData(ztInputKeys_Cancel,             "Cancel",               0,    0, VK_CANCEL);
-	_zt_setKeyData(ztInputKeys_MiddleButton,       "MiddleButton",         0,    0, VK_MBUTTON);
-	_zt_setKeyData(ztInputKeys_XButton1,           "XButton1",             0,    0, VK_XBUTTON1);
-	_zt_setKeyData(ztInputKeys_XButton2,           "XButton2",             0,    0, VK_XBUTTON2);
+	_zt_setKeyData(ztInputKeys_LeftButton,         "LeftButton",           0,    0, VK_F24);
+	_zt_setKeyData(ztInputKeys_RightButton,        "RightButton",          0,    0, VK_F24);
+	_zt_setKeyData(ztInputKeys_Cancel,             "Cancel",               0,    0, VK_F24);
+	_zt_setKeyData(ztInputKeys_MiddleButton,       "MiddleButton",         0,    0, VK_F24);
+	_zt_setKeyData(ztInputKeys_XButton1,           "XButton1",             0,    0, VK_F24);
+	_zt_setKeyData(ztInputKeys_XButton2,           "XButton2",             0,    0, VK_F24);
 	_zt_setKeyData(ztInputKeys_Back,               "Back",                 0,    0, VK_BACK);
 	_zt_setKeyData(ztInputKeys_Tab,                "Tab",               '\t',    0, VK_TAB);
 	_zt_setKeyData(ztInputKeys_Clear,              "Clear",                0,    0, VK_CLEAR);
@@ -7203,6 +7270,181 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Zoom,               "Zoom",                 0,    0, VK_ZOOM);
 	_zt_setKeyData(ztInputKeys_Pa1,                "Pa1",                  0,    0, VK_PA1);
 	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, VK_OEM_CLEAR);
+
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+	_zt_setKeyData(ztInputKeys_Invalid,            "Invalid",              0,    0, 0);
+	_zt_setKeyData(ztInputKeys_LeftButton,         "LeftButton",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_RightButton,        "RightButton",          0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Cancel,             "Cancel",               0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_MiddleButton,       "MiddleButton",         0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_XButton1,           "XButton1",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_XButton2,           "XButton2",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Back,               "Back",                 0,    0, SDLK_BACKSPACE);
+	_zt_setKeyData(ztInputKeys_Tab,                "Tab",               '\t',    0, SDLK_TAB);
+	_zt_setKeyData(ztInputKeys_Clear,              "Clear",                0,    0, SDLK_CLEAR);
+	_zt_setKeyData(ztInputKeys_Return,             "Return",            '\n',    0, SDLK_RETURN);
+	_zt_setKeyData(ztInputKeys_Shift,              "Shift",                0,    0, SDLK_LSHIFT);
+	_zt_setKeyData(ztInputKeys_Control,            "Control",              0,    0, SDLK_LCTRL);
+	_zt_setKeyData(ztInputKeys_Menu,               "Menu",                 0,    0, SDLK_LALT);
+	_zt_setKeyData(ztInputKeys_Pause,              "Pause",                0,    0, SDLK_PAUSE);
+	_zt_setKeyData(ztInputKeys_Capital,            "Capital",              0,    0, SDLK_CAPSLOCK);
+	_zt_setKeyData(ztInputKeys_Kana,               "Kana",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Hangul,             "Hangul",               0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Junja,              "Junja",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Final,              "Final",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Hanja,              "Hanja",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Kanji,              "Kanji",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Escape,             "Escape",               0,    0, SDLK_ESCAPE);
+	_zt_setKeyData(ztInputKeys_Convert,            "Convert",              0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Nonconvert,         "Nonconvert",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Accept,             "Accept",               0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_ModeChange,         "ModeChange",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Space,              "Space",             ' ',   ' ', SDLK_SPACE);
+	_zt_setKeyData(ztInputKeys_Prior,              "Prior",                0,    0, SDLK_PRIOR);
+	_zt_setKeyData(ztInputKeys_Next,               "Next",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_End,                "End",                  0,    0, SDLK_END);
+	_zt_setKeyData(ztInputKeys_Home,               "Home",                 0,    0, SDLK_HOME);
+	_zt_setKeyData(ztInputKeys_Left,               "Left",                 0,    0, SDLK_LEFT);
+	_zt_setKeyData(ztInputKeys_Up,                 "Up",                   0,    0, SDLK_UP);
+	_zt_setKeyData(ztInputKeys_Right,              "Right",                0,    0, SDLK_RIGHT);
+	_zt_setKeyData(ztInputKeys_Down,               "Down",                 0,    0, SDLK_DOWN);
+	_zt_setKeyData(ztInputKeys_Select,             "Select",               0,    0, SDLK_SELECT);
+	_zt_setKeyData(ztInputKeys_Print,              "Print",                0,    0, SDLK_PRINT);
+	_zt_setKeyData(ztInputKeys_Execute,            "Execute",              0,    0, SDLK_EXECUTE);
+	_zt_setKeyData(ztInputKeys_Snapshot,           "Snapshot",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Insert,             "Insert",               0,    0, SDLK_INSERT);
+	_zt_setKeyData(ztInputKeys_Delete,             "Delete",               0,    0, SDLK_DELETE);
+	_zt_setKeyData(ztInputKeys_Help,               "Help",                 0,    0, SDLK_HELP);
+	_zt_setKeyData(ztInputKeys_0,                  "0",                  '0',  ')', '0');
+	_zt_setKeyData(ztInputKeys_1,                  "1",                  '1',  '!', '1');
+	_zt_setKeyData(ztInputKeys_2,                  "2",                  '2',  '@', '2');
+	_zt_setKeyData(ztInputKeys_3,                  "3",                  '3',  '#', '3');
+	_zt_setKeyData(ztInputKeys_4,                  "4",                  '4',  '$', '4');
+	_zt_setKeyData(ztInputKeys_5,                  "5",                  '5',  '%', '5');
+	_zt_setKeyData(ztInputKeys_6,                  "6",                  '6',  '^', '6');
+	_zt_setKeyData(ztInputKeys_7,                  "7",                  '7',  '&', '7');
+	_zt_setKeyData(ztInputKeys_8,                  "8",                  '8',  '*', '8');
+	_zt_setKeyData(ztInputKeys_9,                  "9",                  '9',  '(', '9');
+	_zt_setKeyData(ztInputKeys_A,                  "A",                  'a',  'A', 'A');
+	_zt_setKeyData(ztInputKeys_B,                  "B",                  'b',  'B', 'B');
+	_zt_setKeyData(ztInputKeys_C,                  "C",                  'c',  'C', 'C');
+	_zt_setKeyData(ztInputKeys_D,                  "D",                  'd',  'D', 'D');
+	_zt_setKeyData(ztInputKeys_E,                  "E",                  'e',  'E', 'E');
+	_zt_setKeyData(ztInputKeys_F,                  "F",                  'f',  'F', 'F');
+	_zt_setKeyData(ztInputKeys_G,                  "G",                  'g',  'G', 'G');
+	_zt_setKeyData(ztInputKeys_H,                  "H",                  'h',  'H', 'H');
+	_zt_setKeyData(ztInputKeys_I,                  "I",                  'i',  'I', 'I');
+	_zt_setKeyData(ztInputKeys_J,                  "J",                  'j',  'J', 'J');
+	_zt_setKeyData(ztInputKeys_K,                  "K",                  'k',  'K', 'K');
+	_zt_setKeyData(ztInputKeys_L,                  "L",                  'l',  'L', 'L');
+	_zt_setKeyData(ztInputKeys_M,                  "M",                  'm',  'M', 'M');
+	_zt_setKeyData(ztInputKeys_N,                  "N",                  'n',  'N', 'N');
+	_zt_setKeyData(ztInputKeys_O,                  "O",                  'o',  'O', 'O');
+	_zt_setKeyData(ztInputKeys_P,                  "P",                  'p',  'P', 'P');
+	_zt_setKeyData(ztInputKeys_Q,                  "Q",                  'q',  'Q', 'Q');
+	_zt_setKeyData(ztInputKeys_R,                  "R",                  'r',  'R', 'R');
+	_zt_setKeyData(ztInputKeys_S,                  "S",                  's',  'S', 'S');
+	_zt_setKeyData(ztInputKeys_T,                  "T",                  't',  'T', 'T');
+	_zt_setKeyData(ztInputKeys_U,                  "U",                  'u',  'U', 'U');
+	_zt_setKeyData(ztInputKeys_V,                  "V",                  'v',  'V', 'V');
+	_zt_setKeyData(ztInputKeys_W,                  "W",                  'w',  'W', 'W');
+	_zt_setKeyData(ztInputKeys_X,                  "X",                  'x',  'X', 'X');
+	_zt_setKeyData(ztInputKeys_Y,                  "Y",                  'y',  'Y', 'Y');
+	_zt_setKeyData(ztInputKeys_Z,                  "Z",                  'z',  'Z', 'Z');
+	_zt_setKeyData(ztInputKeys_LeftWin,            "LeftWin",              0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_RightWin,           "RightWin",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Apps,               "Apps",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Sleep,              "Sleep",                0,    0, SDLK_SLEEP);
+	_zt_setKeyData(ztInputKeys_Numpad0,            "Numpad0",            '0',    0, SDLK_KP_0);
+	_zt_setKeyData(ztInputKeys_Numpad1,            "Numpad1",            '1',    0, SDLK_KP_1);
+	_zt_setKeyData(ztInputKeys_Numpad2,            "Numpad2",            '2',    0, SDLK_KP_2);
+	_zt_setKeyData(ztInputKeys_Numpad3,            "Numpad3",            '3',    0, SDLK_KP_3);
+	_zt_setKeyData(ztInputKeys_Numpad4,            "Numpad4",            '4',    0, SDLK_KP_4);
+	_zt_setKeyData(ztInputKeys_Numpad5,            "Numpad5",            '5',    0, SDLK_KP_5);
+	_zt_setKeyData(ztInputKeys_Numpad6,            "Numpad6",            '6',    0, SDLK_KP_6);
+	_zt_setKeyData(ztInputKeys_Numpad7,            "Numpad7",            '7',    0, SDLK_KP_7);
+	_zt_setKeyData(ztInputKeys_Numpad8,            "Numpad8",            '8',    0, SDLK_KP_8);
+	_zt_setKeyData(ztInputKeys_Numpad9,            "Numpad9",            '9',    0, SDLK_KP_9);
+	_zt_setKeyData(ztInputKeys_Multiply,           "Multiply",           '*',    0, SDLK_KP_MULTIPLY);
+	_zt_setKeyData(ztInputKeys_Add,                "Add",                '+',    0, SDLK_KP_PLUS);
+	_zt_setKeyData(ztInputKeys_Separator,          "Separator",            0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Substract,          "Substract",          '-',    0, SDLK_KP_MINUS);
+	_zt_setKeyData(ztInputKeys_Decimal,            "Decimal",            '.',    0, SDLK_KP_DECIMAL);
+	_zt_setKeyData(ztInputKeys_Divide,             "Divide",             '/',    0, SDLK_KP_DIVIDE);
+	_zt_setKeyData(ztInputKeys_F1,                 "F1",                   0,    0, SDLK_F1);
+	_zt_setKeyData(ztInputKeys_F2,                 "F2",                   0,    0, SDLK_F2);
+	_zt_setKeyData(ztInputKeys_F3,                 "F3",                   0,    0, SDLK_F3);
+	_zt_setKeyData(ztInputKeys_F4,                 "F4",                   0,    0, SDLK_F4);
+	_zt_setKeyData(ztInputKeys_F5,                 "F5",                   0,    0, SDLK_F5);
+	_zt_setKeyData(ztInputKeys_F6,                 "F6",                   0,    0, SDLK_F6);
+	_zt_setKeyData(ztInputKeys_F7,                 "F7",                   0,    0, SDLK_F7);
+	_zt_setKeyData(ztInputKeys_F8,                 "F8",                   0,    0, SDLK_F8);
+	_zt_setKeyData(ztInputKeys_F9,                 "F9",                   0,    0, SDLK_F9);
+	_zt_setKeyData(ztInputKeys_F10,                "F10",                  0,    0, SDLK_F10);
+	_zt_setKeyData(ztInputKeys_F11,                "F11",                  0,    0, SDLK_F11);
+	_zt_setKeyData(ztInputKeys_F12,                "F12",                  0,    0, SDLK_F12);
+	_zt_setKeyData(ztInputKeys_F13,                "F13",                  0,    0, SDLK_F13);
+	_zt_setKeyData(ztInputKeys_F14,                "F14",                  0,    0, SDLK_F14);
+	_zt_setKeyData(ztInputKeys_F15,                "F15",                  0,    0, SDLK_F15);
+	_zt_setKeyData(ztInputKeys_F16,                "F16",                  0,    0, SDLK_F16);
+	_zt_setKeyData(ztInputKeys_F17,                "F17",                  0,    0, SDLK_F17);
+	_zt_setKeyData(ztInputKeys_F18,                "F18",                  0,    0, SDLK_F18);
+	_zt_setKeyData(ztInputKeys_F19,                "F19",                  0,    0, SDLK_F19);
+	_zt_setKeyData(ztInputKeys_F20,                "F20",                  0,    0, SDLK_F20);
+	_zt_setKeyData(ztInputKeys_F21,                "F21",                  0,    0, SDLK_F21);
+	_zt_setKeyData(ztInputKeys_F22,                "F22",                  0,    0, SDLK_F22);
+	_zt_setKeyData(ztInputKeys_F23,                "F23",                  0,    0, SDLK_F23);
+	_zt_setKeyData(ztInputKeys_F24,                "F24",                  0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_NumLock,            "NumLock",              0,    0, SDLK_NUMLOCK);
+	_zt_setKeyData(ztInputKeys_Scroll,             "Scroll",               0,    0, SDLK_SCROLLLOCK);
+	_zt_setKeyData(ztInputKeys_LeftShift,          "LeftShift",            0,    0, SDLK_LSHIFT);
+	_zt_setKeyData(ztInputKeys_RightShift,         "RightShift",           0,    0, SDLK_RSHIFT);
+	_zt_setKeyData(ztInputKeys_LeftControl,        "LeftControl",          0,    0, SDLK_LCTRL);
+	_zt_setKeyData(ztInputKeys_RightControl,       "RightControl",         0,    0, SDLK_RCTRL);
+	_zt_setKeyData(ztInputKeys_LeftMenu,           "LeftMenu",             0,    0, SDLK_LALT);
+	_zt_setKeyData(ztInputKeys_RightMenu,          "RightMenu",            0,    0, SDLK_RALT);
+	_zt_setKeyData(ztInputKeys_BrowserBack,        "BrowserBack",          0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserForward,     "BrowserForward",       0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserRefresh,     "BrowserRefresh",       0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserStop,        "BrowserStop",          0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserSearch,      "BrowserSearch",        0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserFavorites,   "BrowserFavorites",     0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BrowserHome,        "BrowserHome",          0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_VolumeMute,         "VolumeMute",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_VolumeDown,         "VolumeDown",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_VolumeUp,           "VolumeUp",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_MediaNextTrack,     "MediaNextTrack",       0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_MediaPrevTrack,     "MediaPrevTrack",       0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_MediaStop,          "MediaStop",            0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_MediaPlayPause,     "MediaPlayPause",       0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_LaunchMail,         "LaunchMail",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_LaunchMediaSelect,  "LaunchMediaSelect",    0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_LaunchApp1,         "LaunchApp1",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_LaunchApp2,         "LaunchApp2",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Semicolon,          "Semicolon",          ';',  ':', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Plus,               "Plus",               '=',  '+', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Comma,              "Comma",              ',',  '<', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Minus,              "Minus",              '-',  '_', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Period,             "Period",             '.',  '>', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_ForwardSlash,       "ForwardSlash",       '/',  '?', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Tilda,              "Tilda",              '`',  '~', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_OpenBrace,          "OpenBrace",          '[',  '{', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_BackSlash,          "BackSlash",         '\\',  '|', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_CloseBrace,         "CloseBrace",         ']',  '}', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Apos,               "Apos",              '\'', '\"', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Oem_8,              "Oem_8",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Oem_102,            "Oem_102",              0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_ProcessKey,         "ProcessKey",           0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Packet,             "Packet",               0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Attn,               "Attn",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Crsel,              "Crsel",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Exsel,              "Exsel",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Ereof,              "Ereof",                0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Play,               "Play",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Zoom,               "Zoom",                 0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Pa1,                "Pa1",                  0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, SDLK_F24);
+#endif // end ZT_EMSCRIPTEN
 };
 
 // ================================================================================================================================================================================================
@@ -7271,6 +7513,7 @@ bool zt_inputMouseIsLook()
 void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 {
 	ZT_PROFILE_INPUT("zt_inputMouseSetCursor");
+#	if defined(ZT_WINDOWS)
 	switch (cursor)
 	{
 	case ztInputMouseCursor_None:       SetCursor(NULL); break;
@@ -7286,6 +7529,33 @@ void zt_inputMouseSetCursor(ztInputMouseCursor_Enum cursor)
 	case ztInputMouseCursor_Hand:       SetCursor(LoadCursor(NULL, IDC_HAND)); break;
 	case ztInputMouseCursor_Help:       SetCursor(LoadCursor(NULL, IDC_HELP)); break;
 	}
+#elif defined(ZT_EMSCRIPTEN)
+//	switch (cursor)
+//	{
+//		case ztInputMouseCursor_None:       SDL_SetCursor(NULL); break;
+//		case ztInputMouseCursor_Arrow:      SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW)); break;
+//		case ztInputMouseCursor_ResizeNS:   SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENS)); break;
+//		case ztInputMouseCursor_ResizeEW:   SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEWE)); break;
+//		case ztInputMouseCursor_ResizeNWSE:	SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE)); break;
+//		case ztInputMouseCursor_ResizeSWNE:	SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENESW)); break;
+//		case ztInputMouseCursor_IBeam:      SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM)); break;
+//		case ztInputMouseCursor_Wait:       SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_WAIT)); break;
+//		case ztInputMouseCursor_Cross:      SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR)); break;
+//		case ztInputMouseCursor_Stop:       SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NO)); break;
+//		case ztInputMouseCursor_Hand:       SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND)); break;
+//		case ztInputMouseCursor_Help:       SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW)); break;
+//	}
+
+	SDL_ShowCursor(cursor != ztInputMouseCursor_None ? SDL_ENABLE : SDL_DISABLE);
+
+	if (cursor == ztInputMouseCursor_None) {
+		SDL_WM_GrabInput(SDL_GRAB_ON);
+	}
+	else {
+		SDL_WM_GrabInput(SDL_GRAB_OFF);
+	}
+
+#endif
 
 	zt_game->input_mouse.cursor = cursor;
 }
@@ -7306,10 +7576,6 @@ void zt_inputControllerCopyState(ztInputController *input_controller, int idx)
 	zt_assertReturnOnFail(idx >= 0 && idx < ZT_MAX_INPUT_CONTROLLERS);
 	zt_memCpy(input_controller, zt_sizeof(ztInputController), &zt_game->input_controllers[idx], zt_sizeof(ztInputController));
 }
-
-// ================================================================================================================================================================================================
-
-zt_winOnly(void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high));
 
 // ================================================================================================================================================================================================
 
@@ -7366,7 +7632,7 @@ void zt_inputReplayFree(ztInputReplayData *replay_data)
 
 // ================================================================================================================================================================================================
 
-bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16])
+bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[ZT_MAX_INPUT_KEYSTROKES])
 {
 	ZT_PROFILE_INPUT("zt_inputReplayProcessFrame")
 
@@ -9680,6 +9946,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
+			bool first_frame = zt_game->game_details.current_frame == 1;
+
 			i32 cw = zt_convertToi32Floor(zt_game->textures[render_target_id].width * zt_game->textures[render_target_id].render_texture_scale);
 			i32 ch = zt_convertToi32Floor(zt_game->textures[render_target_id].height * zt_game->textures[render_target_id].render_texture_scale);
 
@@ -9691,6 +9959,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			else {
 				zt_cameraMakeOrtho(&rt_cam, cw, ch, cw, ch, camera->near_z, camera->far_z);
 			}
+
 			rt_cam.zoom = camera->zoom;
 			rt_cam.position = camera->position;
 
@@ -9710,11 +9979,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 #if defined(ZT_DEBUG)
 	if (zt_bitIsSet(flags, ztRenderDrawListFlags_DebugDump)) {
-		zt_logVerbose("DrawList debug dump for frame %d:", zt_game->game_details.current_frame);
-		zt_logVerbose("  Total shaders accessed: %d", shaders_count);
+		zt_logDebug("DrawList debug dump for frame %d:", zt_game->game_details.current_frame);
+		zt_logDebug("  Total shaders accessed: %d", shaders_count);
 
 		zt_fiz(shaders_count) {
-			zt_logVerbose("  Shader %d.  ID: %d", i + 1, shaders[i]->shader);
+			zt_logDebug("  Shader %d.  ID: %d", i + 1, shaders[i]->shader);
 
 			{
 				int tex_count = 0;
@@ -9723,16 +9992,16 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					tex_count += 1;
 					cmp_tex = cmp_tex->next;
 				}
-				zt_logVerbose("    Total textures for this shader: %d", tex_count);
+				zt_logDebug("    Total textures for this shader: %d", tex_count);
 			}
 			{
 				int tex_count = 0;
 				ztCompileTexture *cmp_tex = shaders[i]->texture;
 				while (cmp_tex) {
-					zt_logVerbose("    Texture %d. Count: %d", ++tex_count, cmp_tex->command ? cmp_tex->command->texture_count : 0);
+					zt_logDebug("    Texture %d. Count: %d", ++tex_count, cmp_tex->command ? cmp_tex->command->texture_count : 0);
 					if (cmp_tex->command) {
 						zt_fjz(cmp_tex->command->texture_count) {
-							zt_logVerbose("      ID: %d (%d x %d)", cmp_tex->command->texture[j], zt_game->textures[cmp_tex->command->texture[j]].width, zt_game->textures[cmp_tex->command->texture[j]].height);
+							zt_logDebug("      ID: %d (%d x %d)", cmp_tex->command->texture[j], zt_game->textures[cmp_tex->command->texture[j]].width, zt_game->textures[cmp_tex->command->texture[j]].height);
 						}
 					}
 
@@ -9743,7 +10012,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							item_count += 1;
 							item = item->next;
 						}
-						zt_logVerbose("      Texture has %d items", item_count);
+						zt_logDebug("      Texture has %d items", item_count);
 					}
 
 					{
@@ -9781,7 +10050,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								case ztDrawCommandType_ChangeOffset:   if (!item->command->offset_pop) tab_count += 1; break;
 							}
 
-							zt_logVerbose("        Item %d: %s %s", ++item_count, tabs, info);
+							zt_logDebug("        Item %d: %s %s", ++item_count, tabs, info);
 							item = item->next;
 						}
 					}
@@ -9802,18 +10071,17 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
-			ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LEQUAL));
+			ztgl_depthTestLessEqual();
 		}
 		else {
-			ztgl_callAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
+			ztgl_depthTestOff();
 		}
 
 		if (zt_game->textures_active_render_target) {
-			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+			ztgl_blendMode(ztGLBlendMode_SourceAlpha, ztGLBlendMode_OneMinusSourceAlpha);
 		}
 		else {
-			ztgl_callAndReportOnErrorFast(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+			ztgl_blendMode(ztGLBlendMode_SourceAlpha, ztGLBlendMode_OneMinusSourceAlpha);
 		}
 
 		ztCompileItem *blend = nullptr;
@@ -9837,22 +10105,25 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			GLuint model_loc = -1;
 
+			static u32 model_hash = zt_strHash("model");
+
 			if (shaders[i]->shader != ztInvalidID) {
 				zt_game->game_details.curr_frame.shader_switches += 1;
 				zt_shaderBegin(shader_id);
-				zt_shaderSetVariableMat4(shader_id, zt_strHash("model"), ztMat4::identity);
+				zt_shaderSetVariableMat4(shader_id, model_hash, ztMat4::identity);
 				zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
 			}
 			else {
 				zt_game->game_details.curr_frame.shader_switches += 1;
 				ztShaderID sid = zt_shaderGetDefault(ztShaderDefault_Solid);
 				zt_shaderBegin(sid);
-				zt_shaderSetVariableMat4(sid, zt_strHash("model"), ztMat4::identity);
+				zt_shaderSetVariableMat4(sid, model_hash, ztMat4::identity);
 				zt_shaderSetCameraMatrices(sid, camera->mat_proj, camera->mat_view);
-
 				ztgl_textureBind(zt_game->textures[0].gl_texture, 0);
 
+#				if !defined(ZT_GLES2)
 				glColor4fv(ztVec4::one.values);
+#				endif
 
 				mat2d = camera->mat_proj * camera->mat_view;
 			}
@@ -9877,9 +10148,10 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					//ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
 					zt_game->game_details.curr_frame.texture_switches += 1;
 					zt_fiz(cmp_tex->command->texture_count) {
-						zt_shaderSetVariableTex(shader_id, zt_strHash("diffuse_tex"), cmp_tex->command->texture[i]);
+						static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+						zt_shaderSetVariableTex(shader_id, diffuse_tex_hash, cmp_tex->command->texture[i]);
 //						if (zt_game->textures[cmp_tex->command->texture[i]].renderer == ztRenderer_OpenGL) {
-//							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, zt_strHash("diffuse_tex"), zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
+//							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, diffuse_tex_hash, zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
 //						}
 					}
 					if (cmp_tex->command->texture_count > 0) {
@@ -9888,7 +10160,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+#					if !defined(ZT_GLES2)
 					glColor4fv(active_color.values);
+#					endif
 				}
 
 				if (curr_clip_region) {
@@ -9915,35 +10189,46 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							case ztDrawCommandType_Billboard:
 							case ztDrawCommandType_Triangle: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::v");
-								ztVertexEntryGL entries[] = {
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 2 * sizeof(GLfloat) },
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 4 * sizeof(GLfloat) },
-								};
+								if (buffer->vertices_count > 0) {
+									ztVertexEntryGL entries[] = {
+										{ GL_FLOAT, 3 * sizeof(GLfloat) },
+										{ GL_FLOAT, 2 * sizeof(GLfloat) },
+										{ GL_FLOAT, 3 * sizeof(GLfloat) },
+										{ GL_FLOAT, 4 * sizeof(GLfloat) },
+									};
 
-								ztgl_drawVertices(GL_TRIANGLES, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-								zt_game->game_details.curr_frame.draw_calls += 1;
+									ztgl_vertexArrayUpdate(&zt_game->win_details[0].gl_tri_verts_array, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+									ztgl_vertexArrayDraw(&zt_game->win_details[0].gl_tri_verts_array, GL_TRIANGLES);
+									//zt_game->win_details[0].gl_tri_verts_array.vert_count = 0;
 
+									zt_game->game_details.curr_frame.draw_calls += 1;
+								}
 							} break;
 
 							case ztDrawCommandType_Line: {
-								ztVertexEntryGL entries[] = {
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 2 * sizeof(GLfloat) },
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 4 * sizeof(GLfloat) },
-								};
+								if (buffer->vertices_count > 0) {
+									ztVertexEntryGL entries[] = {
+										{ GL_FLOAT, 3 * sizeof(GLfloat) },
+										{ GL_FLOAT, 2 * sizeof(GLfloat) },
+										{ GL_FLOAT, 3 * sizeof(GLfloat) },
+										{ GL_FLOAT, 4 * sizeof(GLfloat) },
+									};
 
-								ztgl_drawVertices(GL_LINES, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-								zt_game->game_details.curr_frame.draw_calls += 1;
+									ztgl_vertexArrayUpdate(&zt_game->win_details[0].gl_tri_verts_array, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+									ztgl_vertexArrayDraw(&zt_game->win_details[0].gl_tri_verts_array, GL_LINES);
+									//zt_game->win_details[0].gl_tri_verts_array.vert_count = 0;
+
+									zt_game->game_details.curr_frame.draw_calls += 1;
+								}
 							} break;
 
 							case ztDrawCommandType_Point: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
+#								if !defined(ZT_GLES2)
 								zt_game->game_details.curr_frame.draw_calls += 1;
 								glEnd();
 								ztgl_callAndReportOnErrorFast(glPopMatrix());
+#								endif
 							} break;
 						}
 
@@ -9975,6 +10260,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							case ztDrawCommandType_Point: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::p");
+#								if !defined(ZT_GLES2)
 								if (cam->type == ztCameraType_Perspective) {
 									ztgl_callAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
 									ztgl_callAndReportOnErrorFast(glPushMatrix());
@@ -9987,6 +10273,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								}
 								glColor4fv(active_color.values);
 								glBegin(GL_POINTS);
+#								endif
 							} break;
 						}
 					}
@@ -10199,6 +10486,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Point: {
+#							if !defined(ZT_GLES2)
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
 							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
 							if (transform) {
@@ -10208,6 +10496,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							else {
 								glVertex3f(cmp_item->command->point.x+ offset.x, cmp_item->command->point.y + offset.y, cmp_item->command->point.z + offset.z);
 							}
+#							endif
 						} break;
 
 						case ztDrawCommandType_ChangeColor: {
@@ -10215,7 +10504,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							active_color = cmp_item->command->color;
 
 							if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+#								if !defined(ZT_GLES2)
 								glColor4fv(active_color.values);
+#								endif
 							}
 						} break;
 
@@ -10276,12 +10567,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderEnd(shader_id);
 			}
 			else {
-				glBindTexture(GL_TEXTURE_2D, 0);
+				ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
 			}
 		}
 
 		if (clip_regions_count > 0) {
-			glDisable(GL_SCISSOR_TEST);
+			ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
 		}
 
 		if (render_target_id != ztInvalidID) {
@@ -11097,13 +11388,13 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 
 		// ================================================================================================================================================================================================
 
-		static void calculateModel(ztModel *model, const ztMat4 *parent_mat)
+		static void calculateModel(ztModel *model, const ztMat4 &parent_mat)
 		{
 			zt_transformToMat4(&model->transform, &model->calculated_mat);
-			model->calculated_mat = (*parent_mat) * model->calculated_mat;
+			model->calculated_mat = parent_mat * model->calculated_mat;
 
 			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
-				calculateModel(child, &model->calculated_mat);
+				calculateModel(child, model->calculated_mat);
 			}
 
 			if (model->calculated_mat != model->prev_mat){
@@ -11126,10 +11417,10 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 	}
 
 	if (world_offset != ztVec3::zero) {
-		local::calculateModel(model, &ztMat4::identity.getTranslate(world_offset));
+		local::calculateModel(model, ztMat4::identity.getTranslate(world_offset));
 	}
 	else {
-		local::calculateModel(model, &ztMat4::identity);
+		local::calculateModel(model, ztMat4::identity);
 	}
 }
 
@@ -11241,6 +11532,11 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
+
+	if(scene->tex_directional_shadow_map == ztInvalidID) {
+		zt_freeArena(scene, arena);
+		return nullptr;
+	}
 
 	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
 		scene->lights[i].light = nullptr;
@@ -11926,11 +12222,9 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 			if (!depth_test) {
-				glDisable(GL_DEPTH_TEST);
+				ztgl_depthTestOff();
 			}
 			else {
-				glEnable(GL_DEPTH_TEST);
-
 				switch (function)
 				{
 					case ztRendererDepthTestFunction_Never       : ztgl_depthTestNever();        break;
@@ -12617,13 +12911,18 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 // ================================================================================================================================================================================================
 #include <stdio.h> 
 
-ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *global_node, ztShLangToken *token, ztString *error, char *file_data, char *message, ...)
+ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *global_node, ztShLangToken *token, ztString *error, char *file_data, const char *message, ...)
 {
 #	if defined(ZT_COMPILER_MSVC)
 	va_list arg_ptr; \
 		va_start(arg_ptr, message); \
 		char message_buffer[1024 * 16]; \
 		vsnprintf_s(message_buffer, zt_elementsOf(message_buffer), message, arg_ptr);
+#	elif defined(ZT_COMPILER_LLVM)
+	va_list arg_ptr; \
+		va_start(arg_ptr, message); \
+		char message_buffer[1024 * 16]; \
+		vsnprintf(message_buffer, zt_elementsOf(message_buffer), message, arg_ptr);
 #	else
 #		error "Unsupported compiler"
 #	endif
@@ -14725,7 +15024,7 @@ ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, ch
 
 					bool found = false;
 					zt_fiz(*functions_checked_size) {
-						if (found = (functions_checked[i] == child2)) {
+						if ((found = (functions_checked[i] == child2))) {
 							break;
 						}
 					}
@@ -14787,7 +15086,7 @@ ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, cha
 
 					bool found = false;
 					zt_fiz(*functions_checked_size) {
-						if (found = (functions_checked[i] == child2)) {
+						if ((found = (functions_checked[i] == child2))) {
 							break;
 						}
 					}
@@ -14849,7 +15148,7 @@ ztInternal bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztS
 
 					bool found = false;
 					zt_fiz(*functions_checked_size) {
-						if (found = (functions_checked[i] == child2)) {
+						if ((found = (functions_checked[i] == child2))) {
 							break;
 						}
 					}
@@ -14919,13 +15218,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 	}
 
 	const char *error = nullptr;
+	ztShaderID result_shader_id = ztInvalidID;
 
 	if (!zt_assetLoadData(asset_manager, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	ztShaderID result_shader_id = _zt_shaderMakeBase(asset_manager->asset_name[asset_id], data, size, shader_id);
+	result_shader_id = _zt_shaderMakeBase(asset_manager->asset_name[asset_id], data, size, shader_id);
 	if (result_shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -15288,13 +15588,14 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	}
 
 	const char *error = nullptr;
+	ztShaderID shader_id = ztInvalidID;
 
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	ztShaderID shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size);
+	shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size);
 	if (shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -15932,14 +16233,14 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, ztInvalidID);
 
+	zt_logInfo("loading texture asset: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
+
 	zt_fize(zt_game->textures) {
 		if (zt_game->textures[i].load_type == ztTextureLoadType_Asset && zt_game->textures[i].asset_id == asset_id) {
-			zt_logDebug("returning preloaded texture asset: %s (texture id: %d)", asset_mgr->asset_name[asset_id], i);
+			zt_logDebug("returning preloaded texture asset: %s (asset id: %d; texture id: %d)", asset_mgr->asset_name[asset_id], asset_id, i);
 			return i;
 		}
 	}
-
-	zt_logInfo("loading texture asset: %s", asset_mgr->asset_name[asset_id]);
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
 		return ztInvalidID;
@@ -15957,13 +16258,14 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 
 	const char *error = nullptr;
 	byte *pixel_data = nullptr;
+	int width, height, depth;
+	ztTextureID texture_id = ztInvalidID;
 
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	int width, height, depth;
 	{
 		ztBlockProfiler bp_tex("stbi_load_from_memory");
 		pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, &width, &height, &depth, 4);
@@ -15974,7 +16276,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		goto on_error;
 	}
 
-	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
+	texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 
 	if (texture_id != ztInvalidID) {
 		ztTexture *texture = &zt_game->textures[texture_id];
@@ -16073,13 +16375,14 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 
 	int width, height, depth;
 	byte *pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, &width, &height, &depth, 4);
+	ztTextureID texture_id = ztInvalidID;
 
 	if (pixel_data == nullptr) {
 		error = stbi_failure_reason();
 		goto on_error;
 	}
 
-	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
+	texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
 		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
@@ -16799,7 +17102,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 
 // ================================================================================================================================================================================================
 
-ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 &pos)
+ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 pos)
 {
 	ZT_PROFILE_RENDERING("zt_cameraOrthoWorldToScreen");
 	zt_returnValOnNull(camera, zt_vec2i(0,0));
@@ -19936,27 +20239,31 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
+		zt_logCritical("sprite manager: cannot load empty asset");
 		return false;
 	}
 
 	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
+		zt_logCritical("sprite manager unable to allocate memory");
 		return false;
 	}
 
 	const char *error = nullptr;
 
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
-		error = "Unable to load asset contents";
+		error = "sprite manager: unable to load asset contents";
 		goto on_error;
 	}
 
 	ztSerial serial;
 	if (!zt_serialMakeReader(&serial, data, size, ZT_SPRITE_FILE_GUID)) {
+		error = "sprite manager: unable to serialize file";
 		goto on_error;
 	}
 
 	if (!zt_spriteManagerLoad(sprite_manager, &serial, tex)) {
+		error = "sprite manager: unable to load file data";
 		zt_serialClose(&serial);
 		goto on_error;
 	}
@@ -20018,7 +20325,7 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztT
 	zt_returnValOnNull(sprite_manager, false);
 	zt_returnValOnNull(serial, false);
 
-#	define _serialCheck(CODE) if(!CODE) return false;
+#	define _serialCheck(CODE) if(!CODE) { zt_logCritical("call failed: " #CODE); return false; }
 
 	_serialCheck(zt_serialGroupPush(serial));
 	{
@@ -20045,9 +20352,9 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztT
 					break;
 				}
 
-				sprite_manager->sprites[idx].hash = hash;
-
 				_serialCheck(zt_serialRead(serial, sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), nullptr));
+				sprite_manager->sprites[idx].hash = zt_strHash(sprite_manager->sprites[idx].name);
+				//sprite_manager->sprites[idx].hash = hash;
 
 				i32 type = 0;
 				_serialCheck(zt_serialRead(serial, &type));
@@ -21233,7 +21540,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 
 	{
 		bool has_cr = zt_strFindPos(data, zt_min(1024, size), "\r", 1) != ztStrPosNotFound;
-		char *end_search = has_cr ? "\\\r" : "\\n";
+		const char *end_search = has_cr ? "\\\r" : "\\n";
 		int replace_chars = has_cr ? 3 : 2;
 
 		zt_fiz(size - replace_chars) {
@@ -21352,7 +21659,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 		static int parseInt(const char* src, ztToken& token)
 		{
 			static char buffer[128];
-			strncpy_s(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
+			zt_strCpy(buffer, zt_elementsOf(buffer), src + token.beg, token.len);
 
 			return zt_strToInt(src + token.beg, token.len, 0);
 		}
@@ -21939,6 +22246,7 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_Windowed: {
+				zt_logInfo("Switching to windowed mode");
 				zt_fiz(zt_game->win_count) {
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Fullscreen);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Windowed;
@@ -21951,6 +22259,7 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_Fullscreen: {
+				zt_logInfo("Switching to fullscreen mode");
 				zt_fiz(zt_game->win_count) {
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Windowed);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Fullscreen;
@@ -21963,6 +22272,7 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_Resolution: {
+				zt_logInfo("Switching resolution to %d x %d", request->resolution.x, request->resolution.y);
 
 				zt_fiz(zt_game->win_count) {
 					if (!_zt_rendererChangeResolution(&zt_game->win_details[0], &zt_game->win_game_settings[0], request->resolution.x, request->resolution.y)) {
@@ -22023,6 +22333,7 @@ ztInternal bool _zt_rendererRequestProcess()
 
 			case ztRendererRequest_UpdatePixelsPerUnit: {
 				zt_game->win_game_settings[0].pixels_per_unit = zt_convertToi32Floor(request->ppu);
+				zt_logInfo("Switching ppu to %d", zt_game->win_game_settings[0].pixels_per_unit);
 				_zt_rendererSetViewport(&zt_game->win_details[0], &zt_game->win_game_settings[0], true);
 			} break;
 		}
@@ -22145,11 +22456,22 @@ ztInternal bool _ztgl_rendererMakeContext(ztWindowDetails* wd, ztGameSettings* g
 {
 	ZT_PROFILE_RENDERING("_ztgl_rendererMakeContext");
 	wd->gl_context = ztgl_contextMake(zt_memGetGlobalArena(), wd->handle, gs->native_w, gs->native_h, gs->pixels_per_unit, flags);
-#if !defined(ZT_DLL)
+#if !defined(ZT_DLL) && defined(ZT_LOADER)
 	if (wd->gl_context && zt_game->zt_dllSetOpenGLGlobals) {
 		zt_dllSendOpenGLGlobals(zt_game->zt_dllSetOpenGLGlobals);
 	}
 #endif
+	ztVertexEntryGL entries[] = {
+		{GL_FLOAT, 3 * zt_sizeof(r32)}, // pos
+		{GL_FLOAT, 2 * zt_sizeof(r32)}, // uv
+		{GL_FLOAT, 3 * zt_sizeof(r32)}, // normals
+		{GL_FLOAT, 4 * zt_sizeof(r32)}, // color
+	};
+
+	if (!ztgl_vertexArrayMake(&wd->gl_tri_verts_array, entries, zt_elementsOf(entries), nullptr, ztRenderDrawListVertexArraySize)) {
+		return false;
+	}
+
 	return wd->gl_context != nullptr;
 }
 
@@ -25780,13 +26102,12 @@ bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztSerial *seria
 					break;
 				}
 
-				anim_manager->sequences[idx].hash = hash;
-
 				_serialCheck(zt_serialRead(serial, anim_manager->sequences[idx].name, zt_elementsOf(anim_manager->sequences[idx].name), nullptr));
 				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].sprite_count));
 				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].length));
 				_serialCheck(zt_serialRead(serial, &anim_manager->sequences[idx].loops));
 
+				anim_manager->sequences[idx].hash = zt_strHash(anim_manager->sequences[idx].name);
 
 				_serialCheck(zt_serialGroupPush(serial));
 				{
@@ -26849,6 +27170,8 @@ bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_man
 
 	char *data = nullptr;
 	const char *error = nullptr;
+	i32 size = 0;
+	ztSerial serial;
 
 	if (asset_id == ztInvalidID) {
 		error = "Invalid asset id";
@@ -26856,7 +27179,7 @@ bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_man
 	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, false);
 
-	i32 size = zt_assetSize(asset_mgr, asset_id);
+	size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
 		error = "Unable to get asset size";
 		goto on_error;
@@ -26873,7 +27196,6 @@ bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_man
 		goto on_error;
 	}
 
-	ztSerial serial;
 	if (!zt_serialMakeReader(&serial, data, size, ZT_PARTICLE_SYSTEM_FILE_GUID)) {
 		error = "Unable to load particle system file";
 		goto on_error;
@@ -29681,6 +30003,20 @@ ztInternal bool _zt_audioCheckContext()
 	}
 
 	return zt_game->ds_context != nullptr;
+
+#	elif defined(ZT_OPENAL)
+	if (zt_game->al_context == nullptr) {
+		zt_game->al_context = ztal_contextMake();
+
+		zt_fize(zt_game->audio_systems) {
+			zt_game->audio_systems[i].volume = 1;
+		}
+	}
+
+	return zt_game->al_context != nullptr;
+#	else
+
+	return false;
 #	endif
 }
 
@@ -29694,6 +30030,15 @@ ztInternal void _zt_audioApplySystemSettings(ztAudioClip *clip)
 	}
 
 	ztds_bufferSetVolume(clip->ds_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+
+#	elif defined(ZT_OPENAL)
+	if (clip == nullptr || clip->al_buffer == nullptr) {
+		return;
+	}
+
+	ztal_bufferSetVolume(clip->al_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+
+#	else
 #	endif
 }
 
@@ -29746,6 +30091,51 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size, i3
 	_zt_audioApplySystemSettings(audio_clip);
 
 	return audio_clip_id;
+
+#	elif defined(ZT_OPENAL)
+
+	ztOpenALBuffer *buffer = ztal_bufferMake(zt_game->al_context, (byte*)data, data_size);
+	if (buffer == nullptr) {
+		return ztInvalidID;
+	}
+
+	zt_assert(zt_game->audio_clips_count < zt_elementsOf(zt_game->audio_clips));
+
+	i32 channels = 0, bits_per_sample = 0, samples_per_second = 0;
+	r32 length = 0;
+	ztal_bufferGetDetails(buffer, &channels, &bits_per_sample, &samples_per_second, &length);
+
+	ztAudioClipID audio_clip_id = ztInvalidID;
+
+	zt_fiz(zt_game->audio_clips_count) {
+		if (zt_game->audio_clips[i].al_buffer == nullptr) {
+			audio_clip_id = i;
+			break;
+		}
+	}
+
+	if (audio_clip_id == ztInvalidID) {
+		audio_clip_id = zt_game->audio_clips_count++;
+	}
+	if (audio_clip_id == ztInvalidID) {
+		zt_assert(false);
+		return ztInvalidID;
+	}
+
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+	audio_clip->al_buffer = buffer;
+	audio_clip->length = length;
+	audio_clip->play_time = 0;
+	audio_clip->flags = 0;
+	audio_clip->system = audio_system;
+
+
+	_zt_audioApplySystemSettings(audio_clip);
+
+	return audio_clip_id;
+
+#	else
+	return ztInvalidID;
 #	endif
 }
 
@@ -29778,13 +30168,14 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i3
 		return ztInvalidID;
 	}
 
+	ztAudioClipID audio_clip_id = ztInvalidID;
 	const char *error = nullptr;
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	ztAudioClipID audio_clip_id = _zt_audioClipMakeFromData(data, size, audio_system);
+	audio_clip_id = _zt_audioClipMakeFromData(data, size, audio_system);
 	if (audio_clip_id == ztInvalidID) {
 		error = "Unable to process audio data";
 		goto on_error;
@@ -29838,11 +30229,23 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 
+	zt_fize(zt_game->audio_delays) {
+		if (zt_game->audio_delays[i].clip_id == audio_clip_id) {
+			zt_game->audio_delays[i].clip_id = ztInvalidID;
+		}
+	}
+
 #	if defined(ZT_DSOUND)
 	if (audio_clip->ds_buffer) {
 		ztds_bufferFree(audio_clip->ds_buffer);
 		audio_clip->ds_buffer = nullptr;
 	}
+
+#	elif defined(ZT_OPENAL)
+	if (audio_clip->al_buffer) {
+		ztal_bufferFree(audio_clip->al_buffer);
+		audio_clip->al_buffer = nullptr;
+}
 #	endif
 }
 
@@ -29864,6 +30267,10 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 #	if defined(ZT_DSOUND)
 	ztds_bufferSetFrequency(audio_clip->ds_buffer, frequency);
 	ztds_bufferPlay(audio_clip->ds_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing;
+#	elif defined(ZT_OPENAL)
+	ztal_bufferSetFrequency(audio_clip->al_buffer, frequency);
+	ztal_bufferPlay(audio_clip->al_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing;
 #	endif
 }
@@ -29911,6 +30318,12 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 	ztds_bufferSetFrequency(audio_clip->ds_buffer, frequency);
 	ztds_bufferPlayLooping(audio_clip->ds_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
+
+#	elif defined(ZT_OPENAL)
+	ztal_bufferSetFrequency(audio_clip->al_buffer, frequency);
+	ztal_bufferPlayLooping(audio_clip->al_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
+
 #	endif
 }
 
@@ -29935,6 +30348,11 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id)
 #	if defined(ZT_DSOUND)
 	zt_assertReturnValOnFail(audio_clip->ds_buffer != nullptr, false);
 	ztds_bufferStop(audio_clip->ds_buffer);
+
+#	elif defined(ZT_OPENAL)
+	zt_assertReturnValOnFail(audio_clip->al_buffer != nullptr, false);
+	ztal_bufferStop(audio_clip->al_buffer);
+
 #	endif
 
 	zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Playing);
@@ -30003,10 +30421,16 @@ r32 zt_audioSystemGetVolume(i32 audio_system)
 ztInternal void _zt_audioUpdateFrame(r32 dt)
 {
 	ZT_PROFILE_AUDIO("_zt_audioUpdateFrame");
+
 #	if defined(ZT_DSOUND)
 	if (!zt_game->ds_context) {
 		return;
 	}
+#	elif defined(ZT_OPENAL)
+	if (!zt_game->al_context) {
+		return;
+	}
+#	endif
 
 	zt_fiz(zt_game->audio_clips_count) {
 		if (zt_bitIsSet(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing)) {
@@ -30036,7 +30460,6 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 		}
 		zt_game->audio_has_delay = delays > 0;
 	}
-#	endif
 }
 
 
@@ -30167,10 +30590,6 @@ void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_d
 }
 
 #endif // !ZT_DLL
-
-// ================================================================================================================================================================================================
-
-void _zt_winControllerInputUpdate(r32 dt);
 
 // ================================================================================================================================================================================================
 
@@ -30326,9 +30745,9 @@ void _zt_winControllerInputHapticFeedback(int idx, r32 strength_low, r32 strengt
 
 // ================================================================================================================================================================================================
 
-void _zt_win_processMessages()
+void _zt_winProcessMessages()
 {
-	ZT_PROFILE_PLATFORM("_zt_win_processMessages");
+	ZT_PROFILE_PLATFORM("_zt_winProcessMessages");
 	MSG msg;
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 		TranslateMessage(&msg);
@@ -30344,7 +30763,7 @@ void _zt_win_processMessages()
 
 #if !defined(ZT_DLL)
 
-void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings)
+void _zt_winHandleWindowSize(ztWindowDetails *window_details, ztGameSettings *game_settings)
 {
 	if (window_details) {
 		GetClientRect(window_details->handle, &window_details->client_rect);
@@ -30434,7 +30853,7 @@ void _zt_win_handleWindowSize(ztWindowDetails *window_details, ztGameSettings *g
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_logSystemInfo()
+ztInternal void _zt_winLogSystemInfo()
 {
 	SYSTEM_INFO system_info;
 
@@ -30513,7 +30932,39 @@ ztInternal void _zt_logSystemInfo()
 
 ztInternal HINSTANCE _zt_hinstance;
 
-#endif // ZT_WINDOWS
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+
+void _zt_emsProcessMessages()
+{
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_emsControllerInputHapticFeedback(int idx, r32 strength_low, r32 strength_high)
+{
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_emsControllerInputUpdate(r32 dt)
+{
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_emsControllerInputCleanup()
+{
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_emsControllerInputInit()
+{
+}
+
+// ================================================================================================================================================================================================
+
+#endif // ZT_EMSCRIPTEN
 
 // ================================================================================================================================================================================================
 
@@ -30525,7 +30976,9 @@ bool mainLoopCall(r64 *time_last)
 	ZT_PROFILE_PLATFORM("Game Loop");
 
 	static bool mouse_look = zt_game->input_mouse_look;
+#	if defined(ZT_WINDOWS)
 	static POINT mouse_prev_frame = { 0, 0 };
+#	endif
 
 	{
 		ZT_PROFILE_INPUT("Mouse Handling");
@@ -30533,25 +30986,28 @@ bool mainLoopCall(r64 *time_last)
 		if (mouse_look != zt_game->input_mouse_look) {
 			mouse_look = zt_game->input_mouse_look;
 			if (mouse_look) {
-				GetCursorPos(&mouse_prev_frame);
+				zt_winOnly(GetCursorPos(&mouse_prev_frame));
 			}
 		}
 		if (zt_game->input_mouse_look) {
-			POINT mouse_this_frame;
-			GetCursorPos(&mouse_this_frame);
+			zt_winOnly(POINT mouse_this_frame);
+			zt_winOnly(GetCursorPos(&mouse_this_frame));
 
 			ztWindowDetails *win_details = &zt_game->win_details[0];
-			if (GetFocus() == win_details->handle) {
+			if (zt_winOnly(GetFocus() == win_details->handle) zt_emscriptenOnly(zt_game->app_has_focus)) {
 				zt_game->input_mouse.screen_x = 0;
 				zt_game->input_mouse.screen_y = 0;
 
+#				if defined(ZT_WINDOWS)
 				zt_game->input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
 				zt_game->input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
 
-				mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2);
-				mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2);
-
+				mouse_prev_frame.x = zt_winOnly(win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2));
+				mouse_prev_frame.y = zt_winOnly(win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2));
 				SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
+#				endif
+
+				zt_emscriptenOnly(SDL_WarpMouse(0, 0));
 			}
 			else {
 				zt_game->input_mouse.screen_x = 0;
@@ -30580,29 +31036,124 @@ bool mainLoopCall(r64 *time_last)
 		}
 	}
 
+#	if defined(ZT_WINDOWS)
 	zt_fiz(zt_game->win_count) {
 		if(zt_game->win_details[i].resize_cooldown > 0) {
 			zt_game->win_details[i].resize_cooldown -= dt;
 			if(zt_game->win_details[i].resize_cooldown < 0) {
-				_zt_win_handleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
+				_zt_winHandleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
 			}
 			zt_rendererClear(ztColor_Black);
 		}
 
 		_zt_rendererSwapBuffers(&zt_game->win_details[i]);
 	}
+#	endif
 
 	_zt_inputClearState(false);
-	_zt_win_processMessages();
-	_zt_winControllerInputUpdate(dt);
+	zt_winOnly(_zt_winProcessMessages());
+	zt_winOnly(_zt_winControllerInputUpdate(dt));
+	zt_winOnly(_zt_threadJobQueueUpdate());
 
-	_zt_threadJobQueueUpdate();
+	zt_emscriptenOnly(_zt_emsProcessMessages());
+	zt_emscriptenOnly(_zt_emsControllerInputUpdate(dt));
 
 	++zt_game->game_details.current_frame;
 
 	zt_profilerFrameEnd();
 	return true;
 }
+
+// ================================================================================================================================================================================================
+
+#if defined(ZT_EMSCRIPTEN)
+
+void mainLoopEmscripten()
+{
+	static r64 time = zt_getTime();
+	if (!mainLoopCall(&time)) {
+		zt_game->quit_requested = true;
+	}
+
+	SDL_Event sdl_evt;
+	while (SDL_PollEvent(&sdl_evt)) {
+		switch (sdl_evt.type)
+		{
+			case SDL_ACTIVEEVENT: {
+				zt_game->app_has_focus = sdl_evt.active.gain == 1;
+			} break;
+
+			case SDL_KEYDOWN: {
+			} break;
+
+			case SDL_KEYUP: {
+			} break;
+
+			case SDL_MOUSEMOTION: {
+				zt_game->input_mouse.screen_x = sdl_evt.motion.x;
+				zt_game->input_mouse.screen_y = sdl_evt.motion.y;
+				zt_game->input_mouse.delta_x = sdl_evt.motion.xrel;
+				zt_game->input_mouse.delta_y = sdl_evt.motion.yrel;
+			} break;
+
+			case SDL_MOUSEBUTTONDOWN: {
+				switch(sdl_evt.button.button)
+				{
+					case SDL_BUTTON_LEFT  : zt_game->input_mouse.button_state_left   = ztInputMouseFlags_JustPressed | ztInputMouseFlags_Pressed; break;
+					case SDL_BUTTON_MIDDLE: zt_game->input_mouse.button_state_middle = ztInputMouseFlags_JustPressed | ztInputMouseFlags_Pressed; break;
+					case SDL_BUTTON_RIGHT : zt_game->input_mouse.button_state_right  = ztInputMouseFlags_JustPressed | ztInputMouseFlags_Pressed; break;
+				}
+			} break;
+
+			case SDL_MOUSEBUTTONUP: {
+				switch(sdl_evt.button.button)
+				{
+					case SDL_BUTTON_LEFT  : zt_game->input_mouse.button_state_left   = ztInputMouseFlags_JustReleased; break;
+					case SDL_BUTTON_MIDDLE: zt_game->input_mouse.button_state_middle = ztInputMouseFlags_JustReleased; break;
+					case SDL_BUTTON_RIGHT : zt_game->input_mouse.button_state_right  = ztInputMouseFlags_JustReleased; break;
+				}
+			} break;
+
+			case SDL_JOYAXISMOTION: {
+			} break;
+
+			case SDL_JOYBALLMOTION: {
+			} break;
+
+			case SDL_JOYHATMOTION: {
+			} break;
+
+			case SDL_JOYBUTTONDOWN: {
+			} break;
+
+			case SDL_JOYBUTTONUP: {
+			} break;
+
+			case SDL_QUIT: {
+			} break;
+
+			case SDL_SYSWMEVENT: {
+			} break;
+
+			case SDL_VIDEORESIZE: {
+			} break;
+
+			case SDL_VIDEOEXPOSE: {
+			} break;
+
+			case SDL_USEREVENT: {
+			} break;
+
+		}
+	}
+
+	if(zt_game->quit_requested) {
+		zt_logDebug("quit requested");
+		emscripten_cancel_main_loop();
+	}
+}
+
+#endif
 
 // ================================================================================================================================================================================================
 
@@ -30614,7 +31165,12 @@ int main(int argc, const char **argv)
 
 	char *data_path_temp = (char*)malloc(ztFileMaxPath);
 	char *data_path = (char*)malloc(ztFileMaxPath);
+#	if defined(ZT_EMSCRIPTEN)
+	data_path_temp[0] = 0;
+#	else
 	zt_fileGetCurrentPath(data_path_temp, ztFileMaxPath);
+#	endif
+	zt_logInfo("application data path temp: %s", data_path_temp);
 	zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "data");
 	zt_logInfo("application data path: %s", data_path);
 
@@ -30641,6 +31197,7 @@ int main(int argc, const char **argv)
 	if(!zt_directoryExists(user_path)) {
 		zt_directoryMake(user_path);
 	}
+	zt_logInfo("test");
 
 	ztGameGlobals *game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
 	zt_memSet(game, zt_sizeof(ztGameGlobals), 0);
@@ -30651,11 +31208,12 @@ int main(int argc, const char **argv)
 		zt_strBytesToString(size, zt_sizeof(size), zt_sizeof(ztGameGlobals));
 		zt_logInfo("main: initial memory: %s", size);
 
-		zt_game->hinstance = _zt_hinstance;
+		zt_winOnly(zt_game->hinstance = _zt_hinstance);
 
 		char exe_name[ztFileMaxPath];
-		GetModuleFileNameA(NULL, exe_name, zt_elementsOf(exe_name));
-		zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0);
+		zt_winOnly(GetModuleFileNameA(NULL, exe_name, zt_elementsOf(exe_name)));
+		zt_emscriptenOnly(zt_strCpy(exe_name, zt_elementsOf(exe_name), argv[0]));
+		zt_winOnly(zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0));
 	}
 
 	zt_game->main_thread_id = zt_threadGetCurrentID();
@@ -30715,7 +31273,7 @@ int main(int argc, const char **argv)
 		zt_logInfo("main: data path: %s", zt_game->game_details.data_path);
 		zt_logInfo("main: user path: %s", zt_game->game_details.user_path);
 
-		_zt_logSystemInfo();
+		zt_winOnly(_zt_winLogSystemInfo());
 
 		char app_memory_str[128];
 		zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
@@ -30724,6 +31282,8 @@ int main(int argc, const char **argv)
 		zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
 
 		win_details = &zt_game->win_details[0];
+
+#		if defined(ZT_WINDOWS)
 		if (!_zt_winCreateWindow(game_settings, win_details))
 			return 1;
 
@@ -30736,7 +31296,11 @@ int main(int argc, const char **argv)
 
 			_zt_winControllerInputInit();
 		}
-		
+#		elif defined(ZT_EMSCRIPTEN)
+		zt_logDebug("main: initializing SDL");
+		SDL_Init(SDL_INIT_EVERYTHING);
+		zt_game->app_has_focus = true;
+#		endif
 
 		zt_game->renderer_memory_size = game_settings->renderer_memory;
 		zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
@@ -30760,7 +31324,7 @@ int main(int argc, const char **argv)
 
 		// make a simple white texture to use as a default
 		{
-			u32 texture[] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
+			u32 texture[] = { 0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff };
 
 			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
 			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
@@ -30774,10 +31338,12 @@ int main(int argc, const char **argv)
 			return 1;
 		}
 
+#		if !defined(ZT_EMSCRIPTEN)
 		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
+#		endif
 
 		_zt_callFuncScreenChange(game_settings);
-		_zt_win_handleWindowSize(win_details, game_settings);
+		zt_winOnly(_zt_winHandleWindowSize(win_details, game_settings));
 
 		if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
 			zt_bitRemove(game_settings->renderer_flags, ztRendererFlags_Fullscreen); // if we don't remove, it assumes we haven't done it yet
@@ -30792,17 +31358,27 @@ int main(int argc, const char **argv)
 	r64 time_last = zt_getTime();
 
 	if (zt_game->input_mouse_look) {
-		SetCursorPos(0, 0);
+		zt_winOnly(SetCursorPos(0, 0));
+		zt_emscriptenOnly(SDL_WarpMouse(0, 0));
 	}
 
+
+#	if defined(ZT_WINDOWS)
 	do {
 		if(!mainLoopCall(&time_last)) {
 			break;
 		}
 	} while (!zt_game->quit_requested);
 
+#	elif defined(ZT_EMSCRIPTEN)
+	emscripten_set_main_loop(mainLoopEmscripten, 0, true);
+	return 0;
+
+#	endif
+
 	zt_profilerFrameBegin();
 	{
+		zt_logInfo("initiating cleanup");
 		ZT_PROFILE_PLATFORM("main(cleanup)");
 		zt_textureFree(0); // free the white tex
 
@@ -30819,7 +31395,12 @@ int main(int argc, const char **argv)
 		if (zt_game->ds_context != nullptr) {
 			ztds_contextFree(zt_game->ds_context);
 		}
-	#	endif
+#		elif defined(ZT_OPENAL)
+		if (zt_game->al_context != nullptr) {
+			ztal_contextFree(zt_game->al_context);
+		}
+
+#		endif
 
 		zt_fiz(zt_game->shaders_count) {
 			zt_game->shaders[i].asset_mgr = nullptr;
@@ -30831,8 +31412,9 @@ int main(int argc, const char **argv)
 
 		zt_memFree(zt_memGetGlobalArena(), zt_game->renderer_memory);
 
-		_zt_winControllerInputCleanup();
-		_zt_winCleanupWindow(&zt_game->win_details[0], &zt_game->win_game_settings[0]);
+		zt_winOnly(_zt_winControllerInputCleanup());
+		zt_winOnly(_zt_winCleanupWindow(&zt_game->win_details[0], &zt_game->win_game_settings[0]));
+		zt_emscriptenOnly(_zt_emsControllerInputCleanup());
 
 		_zt_debuggingCleanup();
 
