@@ -31,23 +31,33 @@ Implimentation Options: (only used with ZT_OPENGL_IMPLEMENTATION #include)
 #ifndef __zt_opengl_h_included__
 #define __zt_opengl_h_included__
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZT_OPENGL
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #include "zt_tools.h"
 
 #if defined(ZT_WINDOWS)
 #include <windows.h>
-#endif
-
 #include <gl/GL.h>
 
+//#define ZT_GLES2
 
-// ------------------------------------------------------------------------------------------------
+#elif defined(ZT_EMSCRIPTEN)
+#include <SDL/SDL.h>
+#include <SDL/SDL_opengl.h>
+#include <gl/GLU.h>
+
+#define ZT_GLES2
+
+#endif
+
+
+
+// ================================================================================================================================================================================================
 
 typedef unsigned int   GLenum;
 typedef unsigned char  GLboolean;
@@ -79,7 +89,7 @@ typedef char           GLchar;
 
 typedef ptrdiff_t GLsizeiptr;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
 #define GL_FRAGMENT_SHADER 0x8B30
@@ -109,6 +119,7 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8515
 #define GL_TEXTURE_WRAP_R 0x8072
 #define GL_ACTIVE_UNIFORMS 0x8B86
+#define GL_ACTIVE_ATTRIBUTES 0x8B89
 #define GL_FLOAT_VEC2 0x8B50
 #define GL_FLOAT_VEC3 0x8B51
 #define GL_FLOAT_VEC4 0x8B52
@@ -119,8 +130,12 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_SAMPLER_2D 0x8B5E
 #define GL_SAMPLER_CUBE 0x8B60
 #define GL_MIRRORED_REPEAT 0x8370
+#define GL_DEPTH_COMPONENT16 0x81A5
+#define GL_DEPTH_COMPONENT24 0x81A6
+#define GL_DEPTH_COMPONENT32 0x81A7
 
-// ------------------------------------------------------------------------------------------------
+
+// ================================================================================================================================================================================================
 
 struct ztContextGL;
 
@@ -136,7 +151,7 @@ bool         ztgl_contextIsFullscreen(ztContextGL *context);
 bool         ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen);
 bool         ztgl_contextChangeResolution(ztContextGL *context, i32 w, i32 h);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_clearColor(ztVec4 color);
 void ztgl_clearColor(r32 r, r32 g, r32 b, r32 a);
@@ -161,7 +176,7 @@ void ztgl_depthTestNotEqual();
 void ztgl_depthTestGreaterEqual();
 void ztgl_depthTestAlways();
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztGLBlendMode_Enum
 {
@@ -181,23 +196,39 @@ enum ztGLBlendMode_Enum
 
 void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool    ztgl_checkAndReportError(const char *function);
 int     ztgl_clearErrors();
 
-#define ztgl_callAndReturnOnError(function) function; if (ztgl_checkAndReportError(#function)) return;
-#define ztgl_callAndReturnValOnError(function, retval) function; if (ztgl_checkAndReportError(#function)) return retval;
-#define ztgl_callAndReportOnError(function) function; ztgl_checkAndReportError(#function);
+#if defined(ZT_OPENGL_DEBUGGING_LOGALL)
+#	define ztgl_callAndReturnOnError(function) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; if (ztgl_checkAndReportError(#function)) return;
+#	define ztgl_callAndReturnValOnError(function, retval) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; if (ztgl_checkAndReportError(#function)) return retval;
+#	define ztgl_callAndReportOnError(function) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; ztgl_checkAndReportError(#function);
+#else
+#	if defined(ZT_EMSCRIPTEN) && !defined(ZT_OPENGL_DEBUGGING) // checking errors is too expensive here
+#		define ztgl_callAndReturnOnError(function) function;
+#		define ztgl_callAndReturnValOnError(function, retval) function;
+#		define ztgl_callAndReportOnError(function) function;
+#	else
+#		define ztgl_callAndReturnOnError(function) function; if (ztgl_checkAndReportError(#function)) return;
+#		define ztgl_callAndReturnValOnError(function, retval) function; if (ztgl_checkAndReportError(#function)) return retval;
+#		define ztgl_callAndReportOnError(function) function; ztgl_checkAndReportError(#function);
+#	endif
+#endif
 
 #if defined(ZT_OPENGL_DEBUGGING)
+#if defined(ZT_OPENGL_DEBUGGING_LOGALL)
+#	define ztgl_callAndReportOnErrorFast(function) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; ztgl_checkAndReportError(#function);
+#else
 #	define ztgl_callAndReportOnErrorFast(function) function; ztgl_checkAndReportError(#function);
+#endif
 #else
 #	define ztgl_callAndReportOnErrorFast(function) function;
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztShaderGL
 {
@@ -217,14 +248,16 @@ struct ztShaderGL
 
 	int      textures_bound;
 
+	bool     in_use;
+
 	ztMemoryArena *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztTextureGL;
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderGL *ztgl_shaderMake(const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
 ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
@@ -245,7 +278,7 @@ void        ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value
 void        ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztTextureGLFlags_Enum
 {
@@ -255,7 +288,7 @@ enum ztTextureGLFlags_Enum
 	ztTextureGLFlags_CubeMap      = (1<<3),
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztTextureGLCubeMapFiles_Enum
 {
@@ -269,7 +302,7 @@ enum ztTextureGLCubeMapFiles_Enum
 	ztTextureGLCubeMapFiles_MAX,
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztTextureGL
 {
@@ -280,14 +313,14 @@ struct ztTextureGL
 	GLuint rt;	// render texture
 	GLuint rb;	// resolve buffer
 
-	int w, h, d;
+	int w, h, d, wa, ha;
 
 	i32 flags;
 
 	ztMemoryArena *arena;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeFromPixelData(byte *pixels, int w, int h, int d, i32 flags);
 ztTextureGL *ztgl_textureMakeFromPixelData(ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags);
@@ -311,7 +344,7 @@ bool         ztgl_textureIsRenderTarget(ztTextureGL *texture);
 void         ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pixels); // pixels = w * h * 4
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVertexEntryGL
 {
@@ -319,30 +352,32 @@ struct ztVertexEntryGL
 	int size;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count, void *vertices, int vert_count);
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 struct ztVertexArrayGL
 {
 	GLuint vao;
 	GLuint vbo;
 	int    vert_count;
+	int    vert_count_active;
 };
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_vertexArrayMake  (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
 void ztgl_vertexArrayFree  (ztVertexArrayGL *vertex_array);
 bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
 void ztgl_vertexArrayDraw  (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-#define ZTGL_WINAPI	__stdcall
+#if defined(ZT_WINDOWS)
+#	define ZTGL_WINAPI	__stdcall
 
 typedef int       (ZTGL_WINAPI *ztgl_wglSwapIntervalEXT_Func) (int interval);
 typedef GLuint    (ZTGL_WINAPI *ztgl_glCreateShader_Func) (GLenum type);
@@ -364,6 +399,7 @@ typedef void      (ZTGL_WINAPI *ztgl_glVertexAttribPointer_Func) (GLuint index, 
 typedef void      (ZTGL_WINAPI *ztgl_glVertexAttribIPointer_Func) (GLuint index, GLint size, GLenum type, GLsizei stride, const void* pointer);
 typedef void      (ZTGL_WINAPI *ztgl_glEnableVertexAttribArray_Func) (GLuint index);
 typedef GLint     (ZTGL_WINAPI *ztgl_glGetUniformLocation_Func) (GLuint program, const GLchar* name);
+typedef GLint     (ZTGL_WINAPI *ztgl_glGetAttribLocation_Func) (GLuint program, const GLchar* name);
 typedef void      (ZTGL_WINAPI *ztgl_glUniformMatrix4fv_Func) (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
 typedef void      (ZTGL_WINAPI *ztgl_glUniformMatrix3fv_Func) (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
 typedef void      (ZTGL_WINAPI *ztgl_glUniform1fv_Func) (GLint location, GLsizei count, const GLfloat* value);
@@ -389,14 +425,18 @@ typedef void      (ZTGL_WINAPI *ztgl_glGenRenderbuffers_Func) (GLsizei n, GLuint
 typedef void      (ZTGL_WINAPI *ztgl_glBindRenderbuffer_Func) (GLenum target, GLuint renderbuffer);
 typedef GLenum    (ZTGL_WINAPI *ztgl_glCheckFramebufferStatus_Func) (GLenum target);
 typedef void      (ZTGL_WINAPI *ztgl_glRenderbufferStorageMultisample_Func) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+typedef void      (ZTGL_WINAPI *ztgl_glRenderbufferStorage_Func) (GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 typedef void      (ZTGL_WINAPI *ztgl_glFramebufferRenderbuffer_Func) (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 typedef void      (ZTGL_WINAPI *ztgl_glTexImage2DMultisample_Func) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
 typedef void      (ZTGL_WINAPI *ztgl_glBlitFramebuffer_Func) (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
 typedef void      (ZTGL_WINAPI *ztgl_glGetActiveUniform_Func) (GLuint program, GLuint index, GLsizei maxLength, GLsizei* length, GLint* size, GLenum* type, GLchar* name);
+typedef void      (ZTGL_WINAPI *ztgl_glGetActiveAttrib_Func) (GLuint program, GLuint index, GLsizei maxLength, GLsizei* length, GLint* size, GLenum* type, GLchar* name);
 typedef void      (ZTGL_WINAPI *ztgl_glGetUniformfv_Func) (GLuint program, GLint location, GLfloat* params);
 typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint location, GLint* params);
+typedef void      (ZTGL_WINAPI *ztgl_glBindAttribLocation_Func) (GLuint program, GLuint index, const GLchar* name);
+typedef void      (ZTGL_WINAPI *ztgl_glDrawBuffers_Func) (GLsizei n, const GLenum* bufs);
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #define ZTGL_FUNCTIONS	\
 	ZTGL_FUNC_OP(wglSwapIntervalEXT) \
@@ -419,6 +459,7 @@ typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint
 	ZTGL_FUNC_OP(glVertexAttribIPointer) \
 	ZTGL_FUNC_OP(glEnableVertexAttribArray) \
 	ZTGL_FUNC_OP(glGetUniformLocation) \
+	ZTGL_FUNC_OP(glGetAttribLocation) \
 	ZTGL_FUNC_OP(glUniformMatrix4fv) \
 	ZTGL_FUNC_OP(glUniformMatrix3fv) \
 	ZTGL_FUNC_OP(glUniform1fv) \
@@ -444,21 +485,27 @@ typedef void      (ZTGL_WINAPI *ztgl_glGetUniformiv_Func) (GLuint program, GLint
 	ZTGL_FUNC_OP(glBindRenderbuffer) \
 	ZTGL_FUNC_OP(glCheckFramebufferStatus) \
 	ZTGL_FUNC_OP(glRenderbufferStorageMultisample) \
+	ZTGL_FUNC_OP(glRenderbufferStorage) \
 	ZTGL_FUNC_OP(glFramebufferRenderbuffer) \
 	ZTGL_FUNC_OP(glTexImage2DMultisample) \
 	ZTGL_FUNC_OP(glBlitFramebuffer) \
 	ZTGL_FUNC_OP(glGetActiveUniform) \
+	ZTGL_FUNC_OP(glGetActiveAttrib) \
 	ZTGL_FUNC_OP(glGetUniformfv) \
 	ZTGL_FUNC_OP(glGetUniformiv) \
+	ZTGL_FUNC_OP(glBindAttribLocation) \
+	ZTGL_FUNC_OP(glDrawBuffers) \
 
 
 #define ZTGL_FUNC_OP(func)	extern ztgl_##func##_Func func;
 ZTGL_FUNCTIONS
 #undef ZTGL_FUNC_OP
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+#endif // ZT_WINDOWS
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #define ZT_FUNC_DLL_SET_OPENGL_GLOBALS(name) void name(void *memory, int version)
 typedef ZT_FUNC_DLL_SET_OPENGL_GLOBALS(zt_dllSetOpenGLGlobals_Func);
@@ -469,25 +516,25 @@ void zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals_Func *set_globals);
 
 #endif
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 #endif // include guard
 
@@ -519,6 +566,24 @@ struct ztContextGL
 	ztMemoryArena *arena;
 };
 
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+
+struct ztContextGL
+{
+	SDL_Surface *sdl_screen;
+
+	ztVec2i size;
+	ztVec2i native_size;
+
+	i32 pixels_per_unit;
+	i32 flags;
+
+	ztVec4i screen_area;
+
+	ztMemoryArena *arena;
+};
+
+
 #endif // ZT_WINDOWS
 
 #endif // include guard
@@ -526,6 +591,11 @@ struct ztContextGL
 
 #if defined(ZT_OPENGL_IMPLEMENTATION)
 
+#if defined(ZT_PROFILE)
+#define ZT_PROFILE_OPENGL(section) ZT_PROFILE(section, "OpenGL")
+#else
+#define ZT_PROFILE_OPENGL(section)
+#endif
 
 enum ztRendererFlagsGL_Enum
 {
@@ -540,7 +610,9 @@ enum ztRendererFlagsGL_Enum
 };
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+
+#if defined(ZT_WINDOWS)
 
 struct ztOpenGLFunctions
 {
@@ -551,7 +623,7 @@ struct ztOpenGLFunctions
 
 #define ZT_OPENGL_FUNCTIONS_VERSION   1 // update this any time ztOpenGLFunctions is changed
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_loadFunctions(ztOpenGLFunctions *functions)
 {
@@ -560,7 +632,7 @@ void ztgl_loadFunctions(ztOpenGLFunctions *functions)
 #	undef ZTGL_FUNC_OP
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_saveFunctions(ztOpenGLFunctions *functions)
 {
@@ -569,7 +641,7 @@ void ztgl_saveFunctions(ztOpenGLFunctions *functions)
 #	undef ZTGL_FUNC_OP
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 #if defined(ZT_DLL)
 
@@ -581,6 +653,7 @@ ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetOpenGLGlobals)
 }
 
 #else
+
 void zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals_Func *set_globals)
 {
 	if (set_globals) {
@@ -589,16 +662,15 @@ void zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals_Func *set_globals)
 		set_globals(&functions, ZT_OPENGL_FUNCTIONS_VERSION);
 	}
 }
+
 #endif
 
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
-
-#if defined(ZT_WINDOWS)
 #pragma comment(lib, "opengl32.lib")
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _ztgl_win_loadFunctions()
 {
@@ -607,18 +679,22 @@ ztInternal void _ztgl_win_loadFunctions()
 #	undef ZTGL_FUNC_OP
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_win_contextDisplay(ztContextGL *context)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextDisplay");
+
 	SwapBuffers(context->hdc);
 	glFinish();
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextMake");
+
 	PIXELFORMATDESCRIPTOR pfd =
 	{
 		sizeof(PIXELFORMATDESCRIPTOR),
@@ -717,19 +793,23 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 	return result;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_win_contextFree(ztContextGL *context)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextFree");
+
 	wglMakeCurrent(GetDC(context->handle), NULL);
 	wglDeleteContext(context->context);
 	ReleaseDC(context->handle, context->hdc);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_win_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextSetSize");
+
 	context->size.x = w;
 	context->size.y = h;
 	context->native_size.x = nw;
@@ -737,10 +817,12 @@ bool ztgl_win_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
 	return ztgl_setViewport(context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextToggleFullscreen");
+
 	if (fullscreen) {
 		GetWindowRect(context->handle, &context->screen_area);
 
@@ -783,10 +865,12 @@ bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 	return ztgl_setViewport(context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_win_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_contextChangeResolution");
+
 	RECT client_rect = { 0, 0, w, h };
 
 	int screen_x = GetSystemMetrics(SM_CXSCREEN);
@@ -816,10 +900,12 @@ bool ztgl_win_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
 	return ztgl_setViewport(context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_win_setViewport(ztContextGL *context)
 {
+	ZT_PROFILE_OPENGL("ztgl_win_setViewport");
+
 	zt_returnValOnNull(context, false);
 
 	struct local
@@ -861,18 +947,183 @@ bool ztgl_win_setViewport(ztContextGL *context)
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
-
-#endif // ZT_WINDOWS
+// ================================================================================================================================================================================================
 
 #define ZTGL_FUNC_OP(func)	ztgl_##func##_Func func = nullptr;
 ZTGL_FUNCTIONS
 #undef ZTGL_FUNC_OP
 
-// ------------------------------------------------------------------------------------------------
+
+#elif defined(ZT_EMSCRIPTEN)
+// ================================================================================================================================================================================================
+
+void ztgl_ems_contextDisplay(ztContextGL *context)
+{
+	ZT_PROFILE_OPENGL("ztgl_ems_contextDisplay");
+
+	if (SDL_MUSTLOCK(context->sdl_screen)) SDL_UnlockSurface(context->sdl_screen);
+	SDL_Flip(context->sdl_screen);
+	if (SDL_MUSTLOCK(context->sdl_screen)) SDL_LockSurface(context->sdl_screen);
+}
+
+// ================================================================================================================================================================================================
+
+ztContextGL *ztgl_ems_contextMake(ztMemoryArena *arena, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
+{
+	ZT_PROFILE_OPENGL("ztgl_ems_contextMake");
+
+	zt_logDebug("OpenGL: initializing SDL");
+
+	SDL_GL_SetAttribute(SDL_GL_RED_SIZE,     5);
+	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,   5);
+	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,    5);
+	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,  16);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+	zt_logDebug("OpenGL: creating SDL screen");
+
+	i32 sdl_flags = SDL_OPENGL;
+
+	if (zt_bitIsSet(flags, ztRendererFlagsGL_Fullscreen)) {
+		zt_logDebug("OpenGL: Going fullscreen");
+		sdl_flags |= SDL_FULLSCREEN;
+	}
+
+	SDL_Surface *screen = SDL_SetVideoMode(client_w, client_h, 32, sdl_flags);
+
+	ztgl_callAndReportOnErrorFast(glEnable(GL_CULL_FACE)); // NOTE(josh): should this be here?
+	//glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+	// this turns off wait for vsync:
+	//if (!zt_bitIsSet(flags, ztRendererFlagsGL_Vsync)) {
+	//	zt_logDebug("OpenGL: Vsync: true");
+	//	ztgl_callAndReturnValOnError(wglSwapIntervalEXT(0), false);
+	//}
+	//else {
+	//	zt_logDebug("OpenGL: Vsync: false");
+	//}
+
+	SDL_GL_SetSwapInterval(1);
+
+	ztContextGL *result = zt_mallocStructArena(ztContextGL, arena);
+	result->sdl_screen = screen;
+	result->size.x = client_w;
+	result->size.y = client_h;
+	result->native_size.x = client_w;
+	result->native_size.y = client_h;
+	result->pixels_per_unit = pixels_per_unit;
+	result->flags = flags;
+	result->arena = arena;
+
+	zt_logDebug("OpenGL: setting viewport");
+	ztgl_setViewport(result);
+
+	zt_logDebug("OpenGL: version %s", glGetString(GL_VERSION));
+	zt_logDebug("OpenGL: vendor %s", glGetString(GL_VENDOR));
+	zt_logDebug("OpenGL: renderer %s", glGetString(GL_RENDERER));
+	zt_logDebug("OpenGL: shader version %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	zt_logDebug("OpenGL: extensions %s", glGetString(GL_EXTENSIONS));
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+void ztgl_ems_contextFree(ztContextGL *context)
+{
+	ZT_PROFILE_OPENGL("ztgl_ems_contextFree");
+
+	SDL_Quit();
+}
+
+// ================================================================================================================================================================================================
+
+bool ztgl_ems_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
+{
+	ZT_PROFILE_OPENGL("ztgl_ems_contextSetSize");
+
+	context->size.x = w;
+	context->size.y = h;
+	context->native_size.x = nw;
+	context->native_size.y = nh;
+	return ztgl_setViewport(context);
+}
+
+// ================================================================================================================================================================================================
+
+bool ztgl_ems_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
+{
+//	if (fullscreen) {
+//		SDL_SetWindowFullscreen(SDL_WINDOW_FULLSCREEN);
+//		context->flags |= ztRendererFlagsGL_Fullscreen;
+//	}
+//	else {
+//		if(zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
+//			SDL_SetWindowFullscreen(0);
+//			zt_bitRemove(context->flags, ztRendererFlagsGL_Fullscreen);
+//		}
+//	}
+//
+//	return ztgl_setViewport(context);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool ztgl_ems_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
+{
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool ztgl_ems_setViewport(ztContextGL *context)
+{
+	ZT_PROFILE_OPENGL("ztgl_ems_setViewport");
+
+	zt_returnValOnNull(context, false);
+
+	struct local
+	{
+		static bool opengl_calls(int w, int h, r32 realw, r32 realh)
+		{
+			ztgl_callAndReturnValOnError(glViewport(0, 0, w, h), false); // Sets up clipping
+			ztgl_callAndReturnValOnError(glClearColor(0.0f, 0.0f, 0.0f, 0.0f), false);
+			ztgl_callAndReturnValOnError(glEnable(GL_BLEND), false);
+			ztgl_callAndReturnValOnError(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA), false);
+			return true;
+		}
+	};
+
+	r32 realw = (context->native_size.x / (r32)context->pixels_per_unit) / 2.f;
+	r32 realh = (context->native_size.y / (r32)context->pixels_per_unit) / 2.f;
+
+	if (zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
+		int screen_x = context->native_size.x;
+		int screen_y = context->native_size.y;
+
+		if (!local::opengl_calls(screen_x, screen_y, realw, realh)) {
+			return false;
+		}
+	}
+	else {
+		if (!local::opengl_calls(context->size.x, context->size.y, realw, realh)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+#endif // ZT_WINDOWS
+
+// ================================================================================================================================================================================================
 
 ztInternal void _ztgl_loadFunctions()
 {
+	ZT_PROFILE_OPENGL("_ztgl_loadFunctions");
+
 	static bool called = false;
 	if(called) return;
 	called = true;
@@ -886,21 +1137,36 @@ ztInternal void _ztgl_loadFunctions()
 	zt_logInfo("OpenGL: extensions %s", glGetString(GL_EXTENSIONS));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztContextGL *ztgl_contextMake(void *window, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
 {
+#if defined(ZT_WINDOWS)
 	return ztgl_contextMake(zt_memGetGlobalArena(), (HWND)window, client_w, client_h, pixels_per_unit, flags);
+
+#elif defined(ZT_EMSCRIPTEN)
+	return ztgl_contextMake(zt_memGetGlobalArena(), nullptr, client_w, client_h, pixels_per_unit, flags);
+
+#else
+#error "ztgl_contextMake needs a body for this platform"
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztContextGL *ztgl_contextMake(ztMemoryArena *arena, void *window, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
 {
-	zt_winOnly(return ztgl_win_contextMake(arena, (HWND)window, client_w, client_h, pixels_per_unit, flags));
+#if defined(ZT_WINDOWS)
+	return ztgl_win_contextMake(arena, (HWND)window, client_w, client_h, pixels_per_unit, flags);
+
+#elif defined(ZT_EMSCRIPTEN)
+	return ztgl_ems_contextMake(arena, client_w, client_h, pixels_per_unit, flags);
+
+#else
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_contextFree(ztContextGL *context)
 {
@@ -908,14 +1174,13 @@ void ztgl_contextFree(ztContextGL *context)
 		return;
 	}
 
-	if(context->context != NULL) {
-		zt_winOnly(ztgl_win_contextFree(context));
-	}
+	zt_winOnly(if(context->context != NULL) ztgl_win_contextFree(context));
+	zt_emscriptenOnly(ztgl_ems_contextFree(context));
 
 	zt_freeArena(context, context->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztVec2i ztgl_contextGetSize(ztContextGL *context)
 {
@@ -923,21 +1188,23 @@ ztVec2i ztgl_contextGetSize(ztContextGL *context)
 	return context->size;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_contextSetSize(ztContextGL *context, i32 w, i32 h, i32 nw, i32 nh)
 {
 	zt_winOnly(return ztgl_win_contextSetSize(context, w, h, nw, nh));
+	zt_emscriptenOnly(return ztgl_ems_contextSetSize(context, w, h, nw, nh));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_contextDisplay(ztContextGL *context)
 {
 	zt_winOnly(ztgl_win_contextDisplay(context));
+	zt_emscriptenOnly(ztgl_ems_contextDisplay(context));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_contextIsFullscreen(ztContextGL *context)
 {
@@ -945,176 +1212,247 @@ bool ztgl_contextIsFullscreen(ztContextGL *context)
 	return zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 {
 	zt_returnValOnNull(context, false);
 	zt_winOnly(return ztgl_win_contextToggleFullscreen(context, fullscreen));
+	zt_emscriptenOnly(return ztgl_ems_contextToggleFullscreen(context, fullscreen));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_contextChangeResolution(ztContextGL *context, i32 w, i32 h)
 {
 	zt_returnValOnNull(context, false);
 	zt_winOnly(return ztgl_win_contextChangeResolution(context, w, h));
+	zt_emscriptenOnly(return ztgl_ems_contextChangeResolution(context, w, h));
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void ztgl_clearColor(ztVec4 color)
 {
-	glClearColor(color.r, color.g, color.b, color.a);
-	glClear(GL_COLOR_BUFFER_BIT);
+	ZT_PROFILE_OPENGL("ztgl_clearColor");
+
+	ztgl_callAndReportOnErrorFast(glClearColor(color.r, color.g, color.b, color.a));
+	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_clearColor(r32 r, r32 g, r32 b, r32 a)
 {
-	glClearColor(r, g, b, a);
-	glClear(GL_COLOR_BUFFER_BIT);
+	ZT_PROFILE_OPENGL("ztgl_clearColor");
+
+	ztgl_callAndReportOnErrorFast(glClearColor(r, g, b, a));
+	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_clearDepth()
 {
-	glClear(GL_DEPTH_BUFFER_BIT);
+	ZT_PROFILE_OPENGL("ztgl_clearDepth");
+
+#if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT));
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_clear(ztVec4 color)
 {
-	glClearColor(color.r, color.g, color.b, color.a);
-	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	ZT_PROFILE_OPENGL("ztgl_clear");
+
+	ztgl_callAndReportOnErrorFast(glClearColor(color.r, color.g, color.b, color.a));
+#if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
+#else
+	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_clear(r32 r, r32 g, r32 b, r32 a)
 {
-	glClearColor(r, g, b, a);
-	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	ZT_PROFILE_OPENGL("ztgl_clear");
+
+	ztgl_callAndReportOnErrorFast(glClearColor(r, g, b, a));
+#if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
+#else
+	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_setViewport(i32 width, i32 height)
 {
+	ZT_PROFILE_OPENGL("ztgl_setViewport(w,h)");
+
 	ztgl_callAndReturnValOnError(glViewport(0, 0, width, height), false);
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_setViewport(ztContextGL *context)
 {
+	ZT_PROFILE_OPENGL("ztgl_setViewport");
+
 	zt_winOnly(return ztgl_win_setViewport(context));
+	zt_emscriptenOnly(return ztgl_ems_setViewport(context));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_cullFront()
 {
+	ZT_PROFILE_OPENGL("ztgl_cullFront");
+
 	ztgl_callAndReportOnErrorFast(glEnable(GL_CULL_FACE));
 	ztgl_callAndReportOnErrorFast(glCullFace(GL_FRONT));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_cullBack()
 {
+	ZT_PROFILE_OPENGL("ztgl_cullBack");
+
 	ztgl_callAndReportOnErrorFast(glEnable(GL_CULL_FACE));
 	ztgl_callAndReportOnErrorFast(glCullFace(GL_BACK));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_cullNone()
 {
+	ZT_PROFILE_OPENGL("ztgl_cullNone");
+
 	ztgl_callAndReportOnErrorFast(glDisable(GL_CULL_FACE));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestOff()
 {
-	glDisable(GL_DEPTH_TEST);
+	ZT_PROFILE_OPENGL("ztgl_depthTestOff");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestNever()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_NEVER);
+	ZT_PROFILE_OPENGL("ztgl_depthTestNever");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_NEVER));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestLess()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	ZT_PROFILE_OPENGL("ztgl_depthTestLess");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LESS));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestLessEqual()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL);
+	ZT_PROFILE_OPENGL("ztgl_depthTestLessEqual");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LEQUAL));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestEqual()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_EQUAL);
+	ZT_PROFILE_OPENGL("ztgl_depthTestEqual");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_EQUAL));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestGreater()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_GREATER);
+	ZT_PROFILE_OPENGL("ztgl_depthTestGreater");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_GREATER));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestNotEqual()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_NOTEQUAL);
+	ZT_PROFILE_OPENGL("ztgl_depthTestNotEqual");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_NOTEQUAL));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestGreaterEqual()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_GEQUAL);
+	ZT_PROFILE_OPENGL("ztgl_depthTestGreaterEqual");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_GEQUAL));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_depthTestAlways()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_ALWAYS);
+	ZT_PROFILE_OPENGL("ztgl_depthTestAlways");
+
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
+	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_ALWAYS));
+#	endif
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest)
 {
+	ZT_PROFILE_OPENGL("ztgl_blendMode");
+
 	GLenum factors[2] = { GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA };
 	ztGLBlendMode_Enum params[2] = { source, dest };
 
@@ -1134,15 +1472,21 @@ void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest)
 		}
 	}
 
-	glBlendFunc(factors[0], factors[1]);
+	ztgl_callAndReportOnErrorFast(glEnable(GL_BLEND));
+	ztgl_callAndReportOnErrorFast(glBlendFunc(factors[0], factors[1]));
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 bool ztgl_checkAndReportError(const char *function)
 {
+	ZT_PROFILE_OPENGL("ztgl_checkAndReportError");
+
+#	if defined(ZT_OPENGL_DEBUGGING_LOGALL)
+	//zt_logDebug("Checking for errors after call to %s", function);
+#	endif
 	int errors = 0;
 	for (GLint error = glGetError(); error != 0 && errors < 10; error = glGetError()) {
 		zt_logCritical("OpenGL: error from function %s: 0x%08x (%d)", function, error, error);
@@ -1151,10 +1495,12 @@ bool ztgl_checkAndReportError(const char *function)
 	return errors > 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 int ztgl_clearErrors()
 {
+	ZT_PROFILE_OPENGL("ztgl_clearErrors");
+
 	int errors = 0;
 	for (GLint error = glGetError(); error != 0 && errors < 10; error = glGetError())
 		++errors;
@@ -1162,25 +1508,27 @@ int ztgl_clearErrors()
 	return errors;
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztShaderGL *ztgl_shaderMake(const char *vert_src, const char *frag_src, const char *geom_src)
 {
 	return ztgl_shaderMake(zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderMake");
+
 	struct local
 	{
 		static GLuint load_shader(GLenum type, const char *src)
 		{
 			GLuint shader = glCreateShader(type);
-			ztgl_callAndReturnValOnError("glCreateShader", 0);
+			ztgl_checkAndReportError("glCreateShader");
 
 			if (shader) {
 				ztgl_callAndReturnValOnError(glShaderSource(shader, 1, &src, NULL), 0);
@@ -1207,7 +1555,7 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 			return shader;
 		}
 
-		static GLuint load_program(GLuint vert, GLuint frag, GLuint geom)
+		static GLuint load_program(GLuint vert, GLuint frag, GLuint geom, const char *vert_src, const char *frag_src, const char *geom_src)
 		{
 			GLuint program = glCreateProgram();
 			if (ztgl_checkAndReportError("glCreateProgram")) {
@@ -1221,6 +1569,28 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 				if (geom != 0) {
 					ztgl_callAndReturnValOnError(glAttachShader(program, geom), 0);
 				}
+
+				int attrib_pos = zt_strFindPos(vert_src, "attribute ", 0);
+				int attrib_idx = 0;
+				while (attrib_pos != ztStrPosNotFound) {
+					// we need to parse out the attributes and tell opengl which locations to bind them to
+					int attrib_end = zt_strFindPos(vert_src, ";", attrib_pos);
+					int attrib_beg = zt_strFindLastPos(vert_src, " ", attrib_end);
+
+					if (attrib_end != ztStrPosNotFound && attrib_beg != ztStrPosNotFound) {
+						attrib_beg += 1; // remove space
+						char attrib_name[128];
+						zt_strCpy(attrib_name, zt_elementsOf(attrib_name), vert_src + attrib_beg, attrib_end - attrib_beg);
+						int debug_stop = 1;
+
+						ztgl_callAndReturnValOnError(glBindAttribLocation(program, attrib_idx++, attrib_name), 0);
+
+						attrib_pos = zt_strFindPos(vert_src, "attribute ", attrib_end + 1);
+					}
+					else break;
+				}
+
+
 				ztgl_callAndReturnValOnError(glLinkProgram(program), 0);
 
 				GLint link_status = GL_FALSE;
@@ -1246,16 +1616,16 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	};
 
 	GLuint vert = local::load_shader(GL_VERTEX_SHADER, vert_src);
-	if (vert == 0) { zt_logCritical("OpenGL: Unable to compile vertex shader."); return false; }
+	if (vert == 0) { zt_logCritical("OpenGL: Unable to compile vertex shader."); return nullptr; }
 
 	GLuint frag = local::load_shader(GL_FRAGMENT_SHADER, frag_src);
-	if (frag == 0) { zt_logCritical("OpenGL: Unable to compile fragment shader."); return false; }
+	if (frag == 0) { zt_logCritical("OpenGL: Unable to compile fragment shader."); return nullptr; }
 
 	GLuint geom = geom_src ? local::load_shader(GL_GEOMETRY_SHADER, geom_src) : 0;
-	if (geom_src && geom == 0) { zt_logCritical("OpenGL: Unable to compile geometry shader."); return false; }
+	if (geom_src && geom == 0) { zt_logCritical("OpenGL: Unable to compile geometry shader."); return nullptr; }
 
-	GLuint program = local::load_program(vert, frag, geom);
-	if (program == 0) { zt_logCritical("OPenGL: Unable to compile and link shader program."); return false; }
+	GLuint program = local::load_program(vert, frag, geom, vert_src, frag_src, geom_src);
+	if (program == 0) { zt_logCritical("OpenGL: Unable to compile and link shader program."); return nullptr; }
 
 	ztShaderGL *shader = zt_mallocStructArena(ztShaderGL, arena);
 	shader->program_id = program;
@@ -1263,18 +1633,19 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	shader->frag_id = frag;
 	shader->geom_id = geom;
 	shader->textures_bound = 0;
+	shader->in_use = false;
 	shader->arena = arena;
 
 	// extract shader variables
 	int uniform_count = 0;
-	glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count);
+	ztgl_callAndReportOnErrorFast(glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count));
 
 	int actual_count = 0;
 	zt_fiz(uniform_count) {
 		int len = 0, size = 0;
 		GLenum type = 0;
 		char varname[256] = { 0 };
-		glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
+		ztgl_callAndReportOnErrorFast(glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
 
 		actual_count += size;
 	}
@@ -1287,7 +1658,7 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 		int len = 0, size = 0;
 		GLenum type = 0;
 		char varname[256] = { 0 };
-		glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname);
+		ztgl_callAndReportOnErrorFast(glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
 		varname[len] = 0;
 
 		if (size > 1) { // variable array is named like "variable[0]"
@@ -1316,13 +1687,28 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 		}
 	}
 
+#	if 0
+	int attrib_count = 0;
+	ztgl_callAndReportOnErrorFast(glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &attrib_count));
+	zt_fiz(attrib_count) {
+		int len = 0, size = 0;
+		GLenum type = 0;
+		char varname[256] = { 0 };
+		ztgl_callAndReportOnErrorFast(glGetActiveAttrib(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
+		varname[len] = 0;
+
+		int location = glGetAttribLocation(program, varname);
+	}
+#	endif
 	return shader;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderFree(ztShaderGL *shader)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderFree");
+
 	if (shader == nullptr) {
 		return;
 	}
@@ -1332,12 +1718,12 @@ void ztgl_shaderFree(ztShaderGL *shader)
 	}
 	zt_freeArena(shader->uniforms, shader->arena);
 
-	GLint ids[3] = { shader->vert_id, shader->frag_id, shader->geom_id };
+	GLuint ids[3] = { shader->vert_id, shader->frag_id, shader->geom_id };
 
 	zt_fiz(zt_elementsOf(ids)) {
 		if (ids[i]) {
-			ztgl_callAndReportOnError(glDeleteShader(ids[i]));
 			ztgl_callAndReportOnError(glDetachShader(shader->program_id, ids[i]));
+			ztgl_callAndReportOnError(glDeleteShader(ids[i]));
 		}
 	}
 
@@ -1346,29 +1732,37 @@ void ztgl_shaderFree(ztShaderGL *shader)
 	zt_freeArena(shader, shader->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderBegin(ztShaderGL *shader)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderBegin");
+
 	zt_returnOnNull(shader);
 	ztgl_callAndReportOnErrorFast(glUseProgram(shader->program_id));
 	ztgl_textureBindReset(shader);
+	shader->in_use = true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderEnd(ztShaderGL *shader)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderEnd");
+
 	zt_returnOnNull(shader);
 	ztgl_textureBindReset(shader);
 	ztgl_callAndReportOnErrorFast(glUseProgram(0));
 	shader->textures_bound = 0;
+	shader->in_use = false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_shaderHasVariable(ztShaderGL *shader, u32 name_hash)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderHasVariable");
+
 	zt_returnValOnNull(shader, false);
 	zt_fiz(shader->uniforms_count) {
 		if (shader->uniforms[i].name_hash == name_hash) {
@@ -1379,10 +1773,12 @@ bool ztgl_shaderHasVariable(ztShaderGL *shader, u32 name_hash)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztInline GLint _ztgl_shaderGetUniformLocation(ztShaderGL *shader, u32 name_hash)
 {
+	ZT_PROFILE_OPENGL("_ztgl_shaderGetUniformLocation");
+
 	zt_returnValOnNull(shader, -1);
 	zt_fiz(shader->uniforms_count) {
 		if (shader->uniforms[i].name_hash == name_hash) {
@@ -1393,66 +1789,90 @@ ztInternal ztInline GLint _ztgl_shaderGetUniformLocation(ztShaderGL *shader, u32
 	return -1;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableFloat(ztShaderGL *shader, u32 name_hash, r32 value)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableFloat");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform1fv(location, 1, &value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableInt(ztShaderGL *shader, u32 name_hash, i32 value)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableInt");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform1i(location, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableVec2(ztShaderGL *shader, u32 name_hash, r32 value[2])
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableVec2");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform2fv(location, 1, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableVec3(ztShaderGL *shader, u32 name_hash, r32 value[3])
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableVec3");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform3fv(location, 1, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableVec4(ztShaderGL *shader, u32 name_hash, r32 value[4])
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableVec4");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniform4fv(location, 1, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, r32 value[16])
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableMat4");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniformMatrix4fv(location, 1, GL_FALSE, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value[12])
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableMat3");
+	zt_assertReturnOnFail(shader->in_use);
+
 	GLint location = _ztgl_shaderGetUniformLocation(shader, name_hash);
 	if (location != -1) ztgl_callAndReportOnErrorFast(glUniformMatrix3fv(location, 1, GL_FALSE, value));
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 {
+	ZT_PROFILE_OPENGL("ztgl_shaderVariableTex");
+	zt_assertReturnOnFail(shader->in_use);
+
 	if (tex == nullptr) {
 		return;
 	}
@@ -1462,13 +1882,15 @@ void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 	ztgl_textureBind(tex, shader->textures_bound++);
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 
 ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags)
 {
+	ZT_PROFILE_OPENGL("_ztgl_textureMakeBase");
+
 #if 1
 	if (pixel_data) {
 		int half_height = height / 2;
@@ -1522,15 +1944,31 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 			return true;
 		}
 
-		static bool makeRenderTarget(GLuint *tex_id, GLuint *frame_buffer_id, GLuint *depth_buffer_id, GLuint *resolve_buffer_id, GLuint *render_target_id, i32 width, i32 height, i32 flags)
+		static bool makeRenderTarget(GLuint *tex_id, GLuint *frame_buffer_id, GLuint *depth_buffer_id, GLuint *resolve_buffer_id, GLuint *render_target_id, i32 width, i32 height, i32 flags, i32 *width_actual, i32 *height_actual)
 		{
+#			if defined(ZT_GLES2)
+			int orig_width = width;
+			int orig_height = height;
+
+			if (!zt_isPow2(width)) width = zt_nextPow2(width);
+			if (!zt_isPow2(height)) height = zt_nextPow2(height);
+			zt_logDebug("opengl: render target dimensions: %d x %d", width, height);
+#			endif
 			ztgl_callAndReturnValOnError(glGenFramebuffers(1, frame_buffer_id), false);
+
+#			if defined(ZT_GLES2)
+			zt_bitRemove(flags, ztTextureGLFlags_DepthMap);
+#			endif
 
 			if (zt_bitIsSet(flags, ztTextureGLFlags_DepthMap)) {
 				ztgl_callAndReturnValOnError(glGenTextures(1, tex_id), false);
 				//ztgl_callAndReturnValOnError(glActiveTexture(GL_TEXTURE0), false);
 				ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, *tex_id), false);
+#				if !defined(ZT_GLES2)
 				ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL), false);
+#				else
+				ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, NULL), false);
+#				endif
 
 				if (zt_bitIsSet(flags, ztTextureGLFlags_PixelPerfect)) {
 					ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), false);
@@ -1542,15 +1980,41 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 				}
 				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
 				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+#				if !defined(ZT_GLES2)
 				GLfloat border_color[] = { 1.f, 1.f, 1.f, 1.f };
 				ztgl_callAndReturnValOnError(glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color), false);
+#				endif
 
 				ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
 				ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, *tex_id, 0), false);
+#				if !defined(ZT_GLES2)
 				ztgl_callAndReturnValOnError(glDrawBuffer(GL_NONE), false);
 				ztgl_callAndReturnValOnError(glReadBuffer(GL_NONE), false);
+#				endif
 			}
 			else {
+#				if defined(ZT_GLES2)
+				ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
+
+				*depth_buffer_id = 0;
+				*render_target_id = 0;
+				*resolve_buffer_id = 0;
+
+				ztgl_callAndReturnValOnError(glGenTextures(1, tex_id), false);
+				ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, *tex_id), false);
+				if (zt_bitIsSet(flags, ztTextureGLFlags_PixelPerfect)) {
+					ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), false);
+					ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), false);
+				}
+				else {
+					ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
+				}
+				ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr), false);
+				ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex_id, 0), false);
+				ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, 0), false);
+
+#				else
+
 				ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *frame_buffer_id), false);
 
 				ztgl_callAndReturnValOnError(glGenRenderbuffers(1, depth_buffer_id), false);
@@ -1558,10 +2022,20 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 				ztgl_callAndReturnValOnError(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, width, height), false);
 				ztgl_callAndReturnValOnError(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, *depth_buffer_id), false);
 
+				//
+
 				ztgl_callAndReturnValOnError(glGenTextures(1, render_target_id), false);
+
 				ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, *render_target_id), false);
 				ztgl_callAndReturnValOnError(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, width, height, true), false);
 				ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, *render_target_id, 0), false);
+
+				if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+					zt_logCritical("OpenGL frame buffer status is not complete [1] (status: 0x%x)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+					return false;
+				}
+
+				//
 
 				ztgl_callAndReturnValOnError(glGenFramebuffers(1, resolve_buffer_id), false);
 				ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, *resolve_buffer_id), false);
@@ -1578,20 +2052,29 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 				ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0), false);
 				ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr), false);
 				ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex_id, 0), false);
+				ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, 0), false);
+#endif
+			}
+
+			if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+				zt_logCritical("OpenGL frame buffer status is not complete [2] (status: 0x%x)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+				return false;
 			}
 
 			ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, 0), false);
 			ztgl_callAndReturnValOnError(glClear(GL_COLOR_BUFFER_BIT), false);
-			if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-				zt_logCritical("OpenGL frame buffer status is not complete");
-				return false;
-			}
+
+			*width_actual = width;
+			*height_actual = height;
 
 			return true;
 		}
 	};
 
 	GLuint tex_id = 0, fb_id = 0, db_id = 0, rb_id = 0, rt_id = 0;
+
+	i32 actual_width = width;
+	i32 actual_height = height;
 
 	if (!render_target) {
 		if (!OpenGL::loadTexture(&tex_id, pixel_data, width, height, flags)) {
@@ -1600,7 +2083,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 		}
 	}
 	else {
-		if (!OpenGL::makeRenderTarget(&tex_id, &fb_id, &db_id, &rb_id, &rt_id, width, height, flags)) {
+		if (!OpenGL::makeRenderTarget(&tex_id, &fb_id, &db_id, &rb_id, &rt_id, width, height, flags, &actual_width, &actual_height)) {
 			zt_logCritical("Unable to create render target");
 			return nullptr;
 		}
@@ -1615,38 +2098,46 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 	texture->rb = rb_id;
 	texture->w = width;
 	texture->h = height;
+	texture->wa = actual_width;
+	texture->ha = actual_height;
 	texture->d = 4;
 	texture->flags = flags;
 	texture->arena = arena;
 
+	zt_logDebug("opengl: made texture (id: %d; fbo: %d; dim: %d x %d)", tex_id, fb_id, width, height);
+
 	return texture;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeFromPixelData(byte *pixels, int w, int h, int d, i32 flags)
 {
 	return ztgl_textureMakeFromPixelData(zt_memGetGlobalArena(), pixels, w, h, d, flags);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeFromPixelData(ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureMakeFromPixelData");
+
 	return _ztgl_textureMakeBase(arena, pixels, w, h, d, flags);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(byte **pixels, int w, int h, int d)
 {
 	return ztgl_textureMakeCubeMapFromPixelData(zt_memGetGlobalArena(), pixels, w, h, d);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztMemoryArena *arena, byte **pixels, int w, int h, int d)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureMakeCubeMapFromPixelData");
+
 	struct local
 	{
 		static bool loadTexture(GLuint *tex_id, byte *tex_data[ztTextureGLCubeMapFiles_MAX], int w, int h)
@@ -1697,38 +2188,44 @@ ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztMemoryArena *arena, byte **p
 	return texture;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeRenderTarget(int w, int h, i32 flags)
 {
 	return ztgl_textureMakeRenderTarget(zt_memGetGlobalArena(), w, h, flags);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeRenderTarget(ztMemoryArena *arena, int w, int h, i32 flags)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureMakeRenderTarget");
+
 	return _ztgl_textureMakeBase(arena, nullptr, w, h, 4, flags);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeDepthRenderTarget(int w, int h)
 {
 	return ztgl_textureMakeDepthRenderTarget(zt_memGetGlobalArena(), w, h);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztMemoryArena *arena, int w, int h)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureMakeDepthRenderTarget");
+
 	return ztgl_textureMakeRenderTarget(arena, w, h, ztTextureGLFlags_DepthMap);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureFree(ztTextureGL *texture)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureFree");
+
 	if(texture == nullptr) {
 		return;
 	}
@@ -1748,10 +2245,12 @@ void ztgl_textureFree(ztTextureGL *texture)
 	zt_freeArena(texture, texture->arena);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureBindReset(ztShaderGL *shader)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureBindReset");
+
 	if (shader->textures_bound == 0) {
 		return;
 	}
@@ -1761,10 +2260,12 @@ void ztgl_textureBindReset(ztShaderGL *shader)
 	shader->textures_bound = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureBind(ztTextureGL *texture, int as_idx)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureBind");
+
 	zt_returnOnNull(texture);
 	ztgl_callAndReportOnErrorFast(glActiveTexture(GL_TEXTURE0 + as_idx));
 
@@ -1776,65 +2277,88 @@ void ztgl_textureBind(ztTextureGL *texture, int as_idx)
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureRenderTargetPrepare");
+
 	zt_returnOnNull(texture);
 
-	ztgl_callAndReportOnErrorFast(glViewport(0, 0, texture->w, texture->h));
 	ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, texture->fbo));
 
+	ztgl_callAndReportOnErrorFast(glViewport(0, 0, texture->wa, texture->ha));
+
+#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
 	ztgl_callAndReportOnErrorFast(glEnable(GL_TEXTURE_2D));
+#	else
+	ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
+	//GLenum targets[] = { GL_COLOR_ATTACHMENT0 };
+	//ztgl_callAndReportOnErrorFast(glDrawBuffers(zt_elementsOf(targets), targets));
+#	endif
+
 	ztgl_callAndReportOnErrorFast(glEnable(GL_BLEND));
 	ztgl_callAndReportOnErrorFast(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 
-	glEnable(GL_MULTISAMPLE);
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glEnable(GL_MULTISAMPLE));
+#	endif
 
 	if (zt_bitIsSet(texture->flags, ztTextureGLFlags_DepthMap)) {
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glCullFace(GL_FRONT);
+		ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT));
+		ztgl_callAndReportOnErrorFast(glCullFace(GL_FRONT));
 	}
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureRenderTargetCommit");
+
 	ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
 	if (zt_bitIsSet(texture->flags, ztTextureGLFlags_DepthMap)) {
-		glCullFace(GL_BACK);
+		ztgl_callAndReportOnErrorFast(glCullFace(GL_BACK));
 	}
 
-	glDisable(GL_MULTISAMPLE);
+#	if !defined(ZT_GLES2)
+	ztgl_callAndReportOnErrorFast(glDisable(GL_MULTISAMPLE));
 
 	if (texture->dbo != 0) {
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, texture->fbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, texture->rb);
+		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_READ_FRAMEBUFFER, texture->fbo));
+		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, texture->rb));
 
-		glBlitFramebuffer(0, 0, texture->w, texture->h, 0, 0, texture->w, texture->h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		ztgl_callAndReportOnErrorFast(glBlitFramebuffer(0, 0, texture->w, texture->h, 0, 0, texture->w, texture->h, GL_COLOR_BUFFER_BIT, GL_LINEAR));
 
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_READ_FRAMEBUFFER, 0));
+		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
 	}
+#	endif
 
 	ztgl_setViewport(context);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_textureIsRenderTarget(ztTextureGL *texture)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureIsRenderTarget");
+
 	zt_returnValOnNull(texture, false);
 	return texture->fbo != 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pixels)
 {
+	ZT_PROFILE_OPENGL("ztgl_textureGetPixels");
+
+#	if defined(ZT_GLES2)
+	zt_assert(false); // this is not supported in ES2
+#	else
 	if (texture->fbo != 0) {
 		ztgl_callAndReportOnError(glBindFramebuffer(GL_READ_FRAMEBUFFER, texture->rb));
 		ztgl_callAndReportOnError(glReadBuffer(GL_COLOR_ATTACHMENT0));
@@ -1858,15 +2382,21 @@ void ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pix
 		ztgl_callAndReportOnError(glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels));
 		ztgl_callAndReportOnError(glBindTexture(GL_TEXTURE_2D, 0));
 	}
-
+#endif
 }
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count, void *vertices, int vert_count)
 {
+	ZT_PROFILE_OPENGL("ztgl_drawVertices");
+
+#	if defined(ZT_GLES2)
+	zt_assert(false); // this is not supported here, must use ztVertexArrayGL
+#	endif
+
 	int vert_size = 0;
 	zt_fiz(entries_count) {
 		vert_size += entries[i].size;
@@ -1900,17 +2430,19 @@ void ztgl_drawVertices(GLenum mode, ztVertexEntryGL *entries, int entries_count,
 }
 
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count, bool create)
 {
+	ZT_PROFILE_OPENGL("_ztgl_vertexArrayMake");
+
 	zt_returnValOnNull(vertex_array, false);
 	zt_returnValOnNull(entries, false);
-	zt_returnValOnNull(vert_data, false);
 	zt_assertReturnValOnFail(entries_count > 0, false);
-	zt_assertReturnValOnFail(vert_count > 0, false);
+	//zt_returnValOnNull(vert_data, false);
+	//zt_assertReturnValOnFail(vert_count > 0, false);
 
 	int vert_size = 0;
 	zt_fiz(entries_count) {
@@ -1927,6 +2459,7 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 	if (create) {
 		ztgl_callAndReturnValOnError(glGenVertexArrays(1, &vertex_array->vao), false);
 		ztgl_callAndReturnValOnError(glGenBuffers(1, &vertex_array->vbo), false);
+		vertex_array->vert_count = vert_count;
 	}
 
 	ztgl_callAndReturnValOnError(glBindVertexArray(vertex_array->vao), false);
@@ -1941,14 +2474,18 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 			{
 				case GL_FLOAT: {
 					attrib_size = 4;
-					ztgl_callAndReturnValOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
 					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
+					ztgl_callAndReturnValOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
 				} break;
 
 				case GL_INT: {
+#					if defined(ZT_GLES2)
+					zt_assert(false); // not supported in ES2
+#					else
 					attrib_size = 4;
 					ztgl_callAndReturnValOnError(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size), false);
 					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
+#					endif
 				} break;
 
 				default: {
@@ -1962,21 +2499,25 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 	}
 	ztgl_callAndReturnValOnError(glBindVertexArray(0), false);
 
-	vertex_array->vert_count = vert_count;
+	vertex_array->vert_count_active = vert_count;
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
 {
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayMake");
+
 	return _ztgl_vertexArrayMake(vertex_array, entries, entries_count, vert_data, vert_count, true);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array)
 {
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayFree");
+
 	if (vertex_array == nullptr) {
 		return;
 	}
@@ -1987,34 +2528,40 @@ void ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array)
 	vertex_array->vao = vertex_array->vbo = vertex_array->vert_count = 0;
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
 {
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayUpdate");
+
 	return _ztgl_vertexArrayMake(vertex_array, entries, entries_count, vert_data, vert_count, false);
 }
 
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 void ztgl_vertexArrayDraw(ztVertexArrayGL *vertex_array, GLenum mode)
 {
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayDraw");
+
 	ztgl_callAndReportOnErrorFast(glBindVertexArray(vertex_array->vao));
-	ztgl_callAndReportOnErrorFast(glDrawArrays(mode, 0, vertex_array->vert_count));
+	ztgl_callAndReportOnErrorFast(glDrawArrays(mode, 0, vertex_array->vert_count_active));
 	ztgl_callAndReportOnErrorFast(glBindVertexArray(0));
 }
 
 
 #endif // implementation
 
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 
 
 #ifdef __zt_game_h_internal_included__
 
 bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
 {
+	ZT_PROFILE_OPENGL("_zt_shaderLangConvertToGLSL");
+
 	*vs = *gs = *fs = *error = nullptr;
 
 #	define vv_prefix "_ztvv_"
@@ -2035,6 +2582,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 			ztShLangSyntaxNode *f_input = nullptr;
 			ztShLangSyntaxNode *f_color = nullptr;
+			//ztShLangSyntaxNode *f_textures = nullptr;
 
 			ztShLangSyntaxNode *struct_input = nullptr;
 			ztShLangSyntaxNode *struct_output = nullptr;
@@ -2048,9 +2596,10 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 		// ----------------------------------------------
 
-		static char *dataType(char *data_type)
+		static char *dataType(char *data_type, bool *is_texture = nullptr)
 		{
 			if (zt_strEquals(data_type, "texture2d")) {
+				if(is_texture) *is_texture = true;
 				return "sampler2D";
 			}
 			if(zt_strEquals(data_type, "textureCube")) {
@@ -2062,7 +2611,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 		// ----------------------------------------------
 
-		static void writeVariableDecl(ztShLangSyntaxNode *var_node, ztString *s, int s_len, Vars *vars, bool needs_flat = false)
+		static void writeVariableDecl(ztShLangSyntaxNode *var_node, ztString *s, int s_len, Vars *vars, bool needs_flat = false, const char *name_prefix = nullptr)
 		{
 			if (var_node->variable_decl.is_const) {
 				zt_strCat(*s, s_len, "const ");
@@ -2081,20 +2630,20 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 			}
 
 			if (var_node->first_child) {
-				if (var_node->variable_decl.type == ztShLangTokenType_texture2d) {
-					zt_strCat(*s, s_len, "sampler2D");
-				}
-				else {
-					zt_strMakePrintf(vardecl, 256, "%s ", dataType(var_node->variable_decl.type_name));
+				//if (var_node->variable_decl.type == ztShLangTokenType_texture2d) {
+				//	zt_strCat(*s, s_len, "sampler2D");
+				//}
+				//else {
+					zt_strMakePrintf(vardecl, 256, "%s %s", dataType(var_node->variable_decl.type_name), (name_prefix == nullptr ? "" : name_prefix));
 					zt_strCat(*s, s_len, vardecl);
-				}
+				//}
 
 				zt_flink(child, var_node->first_child) {
 					write(child, 0, s, s_len, vars);
 				}
 			}
 			else {
-				zt_strMakePrintf(vardecl, 256, "%s %s", dataType(var_node->variable_decl.type_name), var_node->variable_decl.name);
+				zt_strMakePrintf(vardecl, 256, "%s %s%s", dataType(var_node->variable_decl.type_name), (name_prefix == nullptr ? "" : name_prefix), var_node->variable_decl.name);
 				zt_strCat(*s, s_len, vardecl);
 			}
 
@@ -2115,7 +2664,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					}
 					bool ignore = false;
 					zt_fiz(ignore_structs_size) {
-						if (ignore = (ignore_structs[i] == child)) {
+						if ((ignore = (ignore_structs[i] == child))) {
 							break;
 						}
 					}
@@ -2128,6 +2677,25 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					}
 
 					bool needs_flat = false;
+
+#					if defined(ZT_GLES2)
+
+					if (child == vars->struct_output || (child == vars->struct_input && vars->which_shader == Shader_Frag)) {
+						//zt_strMakePrintf(prefix, 256, "%s_", vars->v_output->variable_decl.name);
+						const char *prefix = "_zt_varying_";
+
+						zt_flink(chvar, child->first_child) {
+							zt_strCat(*s, s_len, "varying ");
+							writeVariableDecl(chvar, s, s_len, vars, needs_flat, prefix);
+							zt_strCat(*s, s_len, ";\n");
+						}
+						zt_strCat(*s, s_len, "\n");
+						continue;
+					}
+
+					zt_strCat(*s, s_len, "struct ");
+
+#					else
 					if (child == vars->struct_input) {
 						zt_strCat(*s, s_len, "in ");
 
@@ -2138,13 +2706,14 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					else if (child == vars->struct_output) {
 						zt_strCat(*s, s_len, "out ");
 
-						if(vars->which_shader == Shader_Vert) {
+						if (vars->which_shader == Shader_Vert) {
 							needs_flat = true;
 						}
 					}
 					else {
 						zt_strCat(*s, s_len, "struct ");
 					}
+#endif
 
 					zt_strMakePrintf(st_name, 256, "%s\n{\n", child->structure.name);
 					zt_strCat(*s, s_len, st_name);
@@ -2154,6 +2723,9 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						zt_strCat(*s, s_len, ";\n");
 					}
 
+#					if defined(ZT_GLES2)
+					zt_strCat(*s, s_len, "};\n\n");
+#					else
 					if (child == vars->struct_input) {
 						zt_strCat(*s, s_len, "} ");
 						zt_strCat(*s, s_len, vars->f_input->variable_decl.name);
@@ -2167,6 +2739,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					else {
 						zt_strCat(*s, s_len, "};\n\n");
 					}
+#					endif
 				}
 			}
 		}
@@ -2255,14 +2828,20 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 				} break;
 
 				case ztShLangSyntaxNodeType_Variable: {
-					zt_strMakePrintf(input_check, 256, "%s.", vars->var_input ? vars->var_input->variable_decl.name : "");
+					zt_strMakePrintf(input_check, 256, "%s.", vars->var_input ? vars->var_input->variable_decl.name : "__invalid");
+					zt_strMakePrintf(output_check, 256, "%s.", vars->v_output ? vars->v_output->variable_decl.name : "__invalid");
+					//zt_strMakePrintf(texture_check, 256, "%s.", vars->f_textures ? vars->f_textures->variable_decl.name : "__invalid");
 
-					if (node->variable_val.decl == vars->v_position) {
-						//zt_strCat(*s, s_len, "gl_Position");
-						zt_strCat(*s, s_len, node->variable_val.name);
+					if (zt_strCount(node->variable_val.name, ".") == 2) {
+						int debug_stop = 1;
 					}
-					else if (node->variable_val.decl == vars->f_color) {
+
+					if (node->variable_val.decl == vars->f_color) {
+#						if defined(ZT_GLES2)
+						zt_strCat(*s, s_len, "gl_FragColor");
+#						else
 						zt_strCat(*s, s_len, "_ztfs_frag_color");
+#						endif
 					}
 					else if ((node->variable_val.decl->parent == vars->struct_input || zt_strStartsWith(node->variable_val.name, input_check)) && vars->which_shader == Shader_Vert) {
 						zt_strCat(*s, s_len, vv_prefix);
@@ -2281,6 +2860,24 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					else if (node->variable_val.decl->parent == vars->struct_textures) {
 						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
 					}
+#					if defined(ZT_GLES2)
+					else if((vars->which_shader == Shader_Vert && zt_strStartsWith(node->variable_val.name, output_check)) || (vars->which_shader == Shader_Frag && zt_strStartsWith(node->variable_val.name, input_check))) {
+					//else if ((node->variable_val.decl->parent == vars->struct_output && ) || (node->variable_val.decl->parent == vars->struct_input && vars->which_shader == Shader_Frag)) {
+						char var_name[256];
+						zt_strCpy(var_name, zt_elementsOf(var_name), node->variable_val.name);
+
+						char var_name_new[256] = { 0 };
+						zt_strCat(var_name_new, zt_elementsOf(var_name_new), "_zt_varying_");
+						zt_fize(var_name) {
+							if (var_name[i] == '.') {
+								zt_strCat(var_name_new, zt_elementsOf(var_name_new), &var_name[i + 1]);
+								break;
+							}
+						}
+
+						zt_strCat(*s, s_len, var_name_new);
+					}
+#					endif
 					else {
 						zt_strCat(*s, s_len, node->variable_val.name);
 					}
@@ -2316,48 +2913,105 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 				case ztShLangSyntaxNodeType_FunctionCall: {
 
+					bool skip_call = false;
 					char *alternate_name = nullptr;
 
 					if (node->function_call.decl->token == nullptr) {
 						// built in function
 						if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSample")) {
+#							if defined(ZT_GLES2)
+							ztShLangSyntaxNode *decl_param = node->function_call.decl->first_child;
+							zt_flink(param, node->first_child) {
+								if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
+									(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
+									(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name))) {
+									decl_param = decl_param->next;
+									continue;
+								}
+								decl_param = decl_param->next;
+
+								if(param->type != ztShLangSyntaxNodeType_Variable) {
+									zt_strCat(*s, s_len, "[textureSample parameter must be a variable name]");
+								}
+								else {
+									if(zt_strEquals(dataType(param->variable_val.decl->variable_decl.type_name), "samplerCube")) {
+										alternate_name = "textureCube";
+									}
+									else {
+										alternate_name = "texture2D";
+									}
+								}
+								break;
+							}
+
+#							else
 							alternate_name = "texture";
+#							endif
 						}
 						else if(zt_strEquals(node->function_call.decl->function_decl.name, "lerp")) {
 							alternate_name = "mix";
 						}
-					}
+#						if defined(ZT_GLES2)
+						else if (zt_strEquals(node->function_call.decl->function_decl.name, "transpose")) {
+							alternate_name = " ";
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "textureSize")) {
 
-					if (alternate_name) {
-						zt_strCat(*s, s_len, alternate_name);
-					}
-					else {
-						zt_strCat(*s, s_len, node->function_call.name);
-					}
-					zt_strCat(*s, s_len, "(");
+							ztShLangSyntaxNode *decl_param = node->function_call.decl->first_child;
+							zt_flink(param, node->first_child) {
+								if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
+									(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
+									(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name))) {
+									decl_param = decl_param->next;
+									continue;
+								}
+								decl_param = decl_param->next;
 
-					int param_count = 0;
-					ztShLangSyntaxNode *decl_param = node->function_call.decl->first_child;
-					zt_flink(param, node->first_child) {
-						if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
-							(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
-							(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name))) {
+								if(param->type != ztShLangSyntaxNodeType_Variable) {
+									zt_strCat(*s, s_len, "[textureSize parameter must be a variable name]");
+								}
+								else {
+									zt_strCat(*s, s_len, "_zt_size_of_");
+									write(param, 0, s, s_len, vars);
+								}
+							}
+
+							skip_call = true;
+						}
+#						endif
+					}
+					if (!skip_call) {
+						if (alternate_name) {
+							zt_strCat(*s, s_len, alternate_name);
+						}
+						else {
+							zt_strCat(*s, s_len, node->function_call.name);
+						}
+						zt_strCat(*s, s_len, "(");
+
+						int param_count = 0;
+						ztShLangSyntaxNode *decl_param = node->function_call.decl->first_child;
+						zt_flink(param, node->first_child) {
+							if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
+								(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
+								(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name))) {
+								decl_param = decl_param->next;
+								continue;
+							}
 							decl_param = decl_param->next;
-							continue;
+
+							if (param_count++ > 0) {
+								zt_strCat(*s, s_len, ", ");
+							}
+							write(param, 0, s, s_len, vars);
 						}
-						decl_param = decl_param->next;
 
-						if (param_count++ > 0) {
-							zt_strCat(*s, s_len, ", ");
+						if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSize")) {
+							zt_strCat(*s, s_len, ", 0");
 						}
-						write(param, 0, s, s_len, vars);
-					}
 
-					if (zt_strEquals(node->function_call.decl->function_decl.name, "textureSize")) {
-						zt_strCat(*s, s_len, ", 0");
+						zt_strCat(*s, s_len, ")");
 					}
-
-					zt_strCat(*s, s_len, ")");
 				} break;
 
 				case ztShLangSyntaxNodeType_ValueBool:
@@ -2504,7 +3158,11 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		int vs_len = 1024 * 256;
 		*vs = zt_stringMake(vs_len, zt_memGetGlobalArena());
 
+#		if !defined(ZT_GLES2)
 		zt_strCat(*vs, vs_len, "#version 330 core\n\n");
+#		else
+		zt_strCat(*vs, vs_len, "#version 100\n\n");
+#endif
 
 		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr;
 		zt_flink(child, vertex_func_node->first_child) {
@@ -2534,7 +3192,11 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 				i32 index = child->variable_decl.qualifier ? zt_strToInt(child->variable_decl.qualifier, -1) : child_count;
 				zt_assert(index >= 0);
 
+#				if !defined(ZT_GLES2)
 				zt_strMakePrintf(vvar, 256, "layout (location = %d) in %s %s%s;\n", index, local::dataType(child->variable_decl.type_name), vv_prefix, child->variable_decl.name);
+#				else
+				zt_strMakePrintf(vvar, 256, "attribute %s %s%s;\n", local::dataType(child->variable_decl.type_name), vv_prefix, child->variable_decl.name);
+#				endif
 				zt_strCat(*vs, vs_len, vvar);
 			}
 			zt_strCat(*vs, vs_len, "\n");
@@ -2581,8 +3243,12 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 			}
 
 			zt_strCat(*vs, vs_len, "\tgl_Position = ");
+#			if defined(ZT_GLES2)
+			zt_strCat(*vs, vs_len, "_zt_varying_");
+#			else
 			zt_strCat(*vs, vs_len, param_output->variable_decl.name);
 			zt_strCat(*vs, vs_len, ".");
+#			endif
 			zt_strCat(*vs, vs_len, vars.v_position->variable_decl.name);
 			zt_strCat(*vs, vs_len, ";\n");
 
@@ -2608,7 +3274,11 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		int fs_len = 1024 * 256;
 		*fs = zt_stringMake(fs_len, zt_memGetGlobalArena());
 
+#		if !defined(ZT_GLES2)
 		zt_strCat(*fs, fs_len, "#version 330 core\n\nout vec4 _ztfs_frag_color;\n\n");
+#		else
+		zt_strCat(*fs, fs_len, "#version 100\nprecision mediump float;\n\n");
+#		endif
 
 		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr, *param_textures = nullptr;
 		zt_flink(child, fragment_func_node->first_child) {
@@ -2662,6 +3332,11 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					if (_zt_shaderLangIsVariableReferenced(fragment_func_node, child)) {
 						zt_strMakePrintf(st_uni, 256, "uniform %s %s;\n", local::dataType(child->variable_decl.type_name), child->variable_decl.name);
 						zt_strCat(*fs, fs_len, st_uni);
+
+#						if defined(ZT_GLES2)
+						zt_strCatf(*fs, fs_len, "uniform vec2 _zt_size_of_%s;\n", child->variable_decl.name);
+#						endif
+
 					}
 				}
 			}
