@@ -89,6 +89,47 @@
 			typedef unsigned long long size_t;
 #		endif
 #	endif
+
+#elif defined(__EMSCRIPTEN__ )
+#	define ZT_COMPILER_LLVM
+
+#	if defined(_DEBUG)
+#		define ZT_DEBUG
+#	endif
+
+#	define ZT_32BIT
+
+#	define ZT_EMSCRIPTEN
+
+#	define ZT_NO_DSOUND
+
+#	define ztReal32Max      3.402823466e+38F
+#	define ztReal32Min     -3.402823466e+38F
+#	define ztReal32Epsilon  1.192092896e-07F
+
+#	define ztReal64Max      1.7976931348623158e+308
+#	define ztReal64Min     -1.7976931348623158e+308
+#	define ztReal64Epsilon	2.2204460492503131e-016
+
+#	define ztInt32Max       2147483647
+#	define ztInt32Min      -2147483647
+#	define ztUint32Max      4294967295
+#	define ztUint32Min      0
+#	define ztInt64Max       9223372036854775807
+#	define ztInt64Min      -9223372036854775808
+#	define ztUint64Max      18446744073709551615 
+#	define ztUint64Min      0
+
+#	if !defined(_SIZE_T_DEFINED)
+#		define _SIZE_T_DEFINED
+#		if defined(ZT_32BIT)
+typedef unsigned int size_t;
+#		else
+typedef unsigned long long size_t;
+#		endif
+#	endif
+
+
 #else 
 #	error "This compiler is currently unsupported."
 #endif
@@ -114,14 +155,23 @@
 #		define ZT_PLATFORM_STR	"Win64"
 #		define ZT_PLATFORM_WIN64
 #	endif
+#elif defined(ZT_EMSCRIPTEN)
+#	define ZT_PLATFORM_STR	"Win32"
+#	define ZT_PLATFORM_WIN32
 #else
-#	error "This platform is currently upsupported."
+#	error "This platform is currently unsupported."
 #endif
 
 #if defined(ZT_WINDOWS)
 #	define zt_winOnly(code)	code
 #else
 #	define zt_winOnly(code)
+#endif
+
+#if defined(ZT_EMSCRIPTEN)
+#	define zt_emscriptenOnly(code) code
+#else
+#	define zt_emscriptenOnly(code)
 #endif
 
 #if defined(ZT_64BIT)
@@ -259,7 +309,7 @@
 // types
 // ================================================================================================================================================================================================
 
-#if defined(ZT_COMPILER_MSVC)
+#if defined(ZT_COMPILER_MSVC) || defined(ZT_COMPILER_LLVM)
 
 typedef unsigned char      byte;
 typedef signed char        int8;
@@ -329,7 +379,7 @@ struct ztVec3i
 
 		struct {
 			ztVec2i xy;
-			i32     z;
+			//i32     z;
 		};
 
 		i32 values[3];
@@ -356,7 +406,7 @@ struct ztVec4i
 
 		struct {
 			ztVec3i xyz;
-			i32     w;
+			//i32     w;
 		};
 
 		struct {
@@ -456,7 +506,7 @@ struct ztVec3
 
 		struct {
 			ztVec2 xy;
-			r32 z;
+			//r32 z;
 		};
 
 		r32 values[3];
@@ -540,12 +590,12 @@ struct ztVec4
 
 		struct {
 			ztVec3 xyz;
-			r32 w;
+			//r32 w;
 		};
 
 		struct {
 			ztVec3 rgb;
-			r32 a;
+			//r32 a;
 		};
 
 		r32 values[4];
@@ -805,7 +855,7 @@ struct ztQuat
 
 		struct {
 			ztVec3 xyz;
-			r32 w;
+			//r32 w;
 		};
 
 		struct {
@@ -1588,6 +1638,9 @@ struct ztFile
 #if defined(ZT_WINDOWS)
 	i32                   win_file_handle; // HFILE
 	i32                   win_read_pos;
+#elif defined(ZT_COMPILER_LLVM)
+	void                 *fp;
+	i32                   fp_read_pos;
 #else
 #	error "ztFile needs an implementation for this platform"
 #endif
@@ -2289,14 +2342,20 @@ public:
 // memory reader
 // ================================================================================================================================================================================================
 
+enum ztMemoryReaderFlags_Enum
+{
+	ztMemoryReaderFlags_Align = (1<<0),
+};
+
 struct ztMemoryReader
 {
 	void *memory;
 	i32   memory_size;
 	i32   current;
+	i32   flags;
 };
 
-ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size);
+ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size, i32 flags);
 
 ztInline i8             zt_memoryRead_i8  (ztMemoryReader *reader);
 ztInline i16            zt_memoryRead_i16 (ztMemoryReader *reader);
@@ -2515,7 +2574,7 @@ ztInline i32 zt_iunlerp(i32 v1, i32 v2, r32 value)
 
 ztInline void zt_assert_raw(const char *condition_name, const char *file, int file_line)
 {
-	zt_debugOnly(__debugbreak());
+	zt_winOnly(zt_debugOnly(__debugbreak()));
 	zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
 	//zt_debugOnly(__asm { int 3 });
 }
@@ -3595,12 +3654,13 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size)
+ztInline ztMemoryReader zt_memoryReaderMake(void *memory, i32 memory_size, i32 flags)
 {
 	ztMemoryReader reader;
 	reader.memory = memory;
 	reader.memory_size = memory_size;
 	reader.current = 0;
+	reader.flags = flags;
 	return reader;
 }
 
@@ -3700,7 +3760,15 @@ ztInline i32 zt_memoryRead(ztMemoryReader *reader, void *buffer, i32 max_read)
 {
 	i32 max = zt_min(max_read, reader->memory_size - reader->current);
 	zt_memCpy(buffer, max, ((byte*)reader->memory) + reader->current, max);
+
 	reader->current += max;
+	if (zt_bitIsSet(reader->flags, ztMemoryReaderFlags_Align)) {
+		const int byte_align = ztPointerSize;
+		if (reader->current % byte_align != 0) {
+			reader->current += byte_align - (reader->current % byte_align);	// align the memory to 4/8 byte chunks
+		}
+	}
+
 	return max;
 }
 
@@ -3714,7 +3782,15 @@ ztInline void *zt_memoryPointTo(ztMemoryReader *reader, i32 move_forward)
 
 	i32 max = zt_min(move_forward, reader->memory_size - reader->current);
 	i32 current = reader->current;
+
 	reader->current += max;
+	if (zt_bitIsSet(reader->flags, ztMemoryReaderFlags_Align)) {
+		const int byte_align = ztPointerSize;
+		if (reader->current % byte_align != 0) {
+			reader->current += byte_align - (reader->current % byte_align);	// align the memory to 4/8 byte chunks
+		}
+	}
+
 	return ((byte*)reader->memory) + current;
 }
 
@@ -3743,6 +3819,11 @@ ztInline ztMemoryChunk zt_memoryChunkMake(void *memory, i32 memory_size)
 
 void *zt_memoryChunkAlloc(ztMemoryChunk *chunk, i32 bytes)
 {
+	const int byte_align = ztPointerSize;
+	if (bytes % byte_align != 0) {
+		bytes += byte_align - (bytes % byte_align);	// align the memory to 4/8 byte chunks
+	}
+
 	zt_assertReturnValOnFail(chunk->memory_size - chunk->current >= bytes, nullptr);
 
 	i32 current = chunk->current;
@@ -3916,6 +3997,13 @@ extern ztGlobals *zt;
 #	include <WinBase.h>
 #	include <shlobj.h>
 #	include <process.h>
+#elif defined(ZT_COMPILER_LLVM)
+#	include <errno.h>
+#	include <unistd.h>
+#	include <sys/stat.h>
+#	include <dirent.h>
+#	include <string.h>
+
 #endif
 
 ztGlobals zt_local = {};
@@ -3985,6 +4073,32 @@ struct ztThreadMonitor
 	i64 event_handle;
 };
 
+#elif defined(ZT_EMSCRIPTEN)
+
+struct ztThread
+{
+	i32 dummy;
+};
+
+
+// ================================================================================================================================================================================================
+
+struct ztThreadMutex
+{
+	i32 dummy;
+};
+
+
+// ================================================================================================================================================================================================
+
+struct ztThreadMonitor
+{
+	i32 dummy;
+};
+
+
+#else
+	zt_staticAssert(false);
 #endif
 
 
@@ -4069,6 +4183,14 @@ void  _zt_call_free(void* mem)
 			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt->mem_arena_stack); \
 			vsnprintf_s(buffer, 1024 * 64, 1024 * 64, message, arg_ptr);
 
+#elif defined(ZT_COMPILER_LLVM)
+#define _zt_var_args \
+			va_list arg_ptr; \
+			va_start(arg_ptr, message); \
+			if(zt->mem_arena_stack == nullptr) { zt->mem_arena_stack = zt_memMakeArena(zt_megabytes(1), nullptr, 0);} \
+			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt->mem_arena_stack); \
+			vsnprintf(buffer, 1024 * 64, message, arg_ptr);
+
 #else
 #	error "Unsupported compiler for zt_logMessage"
 #endif
@@ -4082,6 +4204,11 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 	if (level < ztLogMessageLevel_Verbose) {
 		OutputDebugStringA(message);
 		OutputDebugStringA("\n");
+	}
+#else
+	if (level < ztLogMessageLevel_Verbose) {
+		printf(message);
+		printf("\n");
 	}
 #endif
 	zt_fiz(zt->log_callbacks_count) {
@@ -4190,14 +4317,14 @@ void  zt_memSet(void *mem, int32 mem_len, byte value)
 
 	int max_idx = mem_len;
 
-	if (max_idx % 4 == 0) {
+	if (max_idx % 4 == 0 && ((pointer)((byte*)mem)) % 4 == 0) {
 		max_idx /= 4;
 		u32 *umem = (u32*)mem;
 		while (max_idx--) {
 			*umem++ = 0;
 		}
 	}
-	else if (max_idx % 2 == 0) {
+	else if (max_idx % 2 == 0 && ((pointer)((byte*)mem)) % 4 == 0) {
 		max_idx /= 2;
 		u16 *umem = (u16*)mem;
 		while (max_idx--) {
@@ -4221,27 +4348,31 @@ void zt_memCpy(void *dst, int32 dst_len, const void *src, int32 src_len)
 	int max_idx = zt_min(dst_len, src_len);
 	zt_assertReturnOnFail(max_idx >= 0);
 
-//	for (int i = 0; i < max_idx; ++i) {
-//		((byte*)dst)[i] = ((byte*)src)[i];
-//	}
-
 	if (max_idx % 4 == 0) {
-		max_idx /= 4;
-		u32 *udst = (u32*)dst;
-		u32 *usrc = (u32*)src;
-		while (max_idx--) {
-			*udst++ = *usrc++;
+		if( ((pointer)((byte*)dst)) % 4 == 0 && ((pointer)((byte*)src)) % 4 == 0) {
+			max_idx /= 4;
+			u32 *udst = (u32*)dst;
+			u32 *usrc = (u32*)src;
+			while (max_idx--) {
+				*udst++ = *usrc++;
+			}
+			return;
 		}
 	}
-	else if (max_idx % 2 == 0) {
-		max_idx /= 2;
-		u16 *udst = (u16*)dst;
-		u16 *usrc = (u16*)src;
-		while (max_idx--) {
-			*udst++ = *usrc++;
+	
+	if (max_idx % 2 == 0) {
+		if( ((pointer)((byte*)dst)) % 4 == 0 && ((pointer)((byte*)src)) % 4 == 0) {
+			max_idx /= 2;
+			u16 *udst = (u16*)dst;
+			u16 *usrc = (u16*)src;
+			while (max_idx--) {
+				*udst++ = *usrc++;
+			}
+			return;
 		}
 	}
-	else {
+	
+	{
 		byte *bdst = (byte*)dst;
 		byte *bsrc = (byte*)src;
 		while (max_idx--) {
@@ -4302,7 +4433,7 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 			}
 		}
 #else
-		arena = malloc(total_size + sizeof(ztMemoryArena));
+		arena = (ztMemoryArena*)malloc(total_size + sizeof(ztMemoryArena));
 #endif
 	}
 	else {
@@ -4490,7 +4621,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		return zt->mem_malloc(bytes);
 	}
 
-	const int byte_align = ztPointerSize;
+		const int byte_align = ztPointerSize;
 	if (bytes % byte_align != 0) {
 		bytes += byte_align - (bytes % byte_align);	// align the memory to 4/8 byte chunks
 	}
@@ -5907,10 +6038,14 @@ int zt_strCatf(char *scat, int scat_len, const char *format, ...)
 
 	int max_idx = (scat_len - start) - 1;
 
-#	if defined(ZT_WINDOWS)
+#	if defined(ZT_COMPILER_MSVC)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf_s(scat, max_idx, max_idx, format, arg_ptr);
+#	elif defined(ZT_COMPILER_LLVM)
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
+	return vsnprintf(scat, max_idx, format, arg_ptr);
 #	else
 #	error "zt_strCatf needs an implementation for this platform"
 #	endif
@@ -6292,8 +6427,21 @@ u32 zt_strHash(const char *s)
 	// Mix 4 bytes at a time into the hash
 	const u8 * data = (const u8*)s;
 
+	struct
+	{
+		union {
+			u8 as_u8[4];
+			u32 as_u32;
+		};
+	} cvt;
+
 	while (s_len >= 4) {
-		u32 k = *(u32 *)data;
+		cvt.as_u8[0] = data[0];
+		cvt.as_u8[1] = data[1];
+		cvt.as_u8[2] = data[2];
+		cvt.as_u8[3] = data[3];
+
+		u32 k = cvt.as_u32;//*(u32 *)data;
 
 		k *= m;
 		k ^= k >> r;
@@ -6309,9 +6457,9 @@ u32 zt_strHash(const char *s)
 	// Handle the last few bytes of the input array
 	switch (s_len)
 	{
-	case 3: h ^= data[2] << 16;
-	case 2: h ^= data[1] << 8;
-	case 1: h ^= data[0];
+		case 3: h ^= data[2] << 16;
+		case 2: h ^= data[1] << 8;
+		case 1: h ^= data[0];
 		h *= m;
 	};
 
@@ -7162,10 +7310,14 @@ int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 {
 	ZT_PROFILE_TOOLS("zt_strPrintf");
 
-#if defined(ZT_WINDOWS)
+#if defined(ZT_COMPILER_MSVC)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf_s(buffer, buffer_size, buffer_size, format, arg_ptr);
+#elif defined(ZT_COMPILER_LLVM)
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
+	return vsnprintf(buffer, buffer_size, format, arg_ptr);
 #else
 #	error "zt_strPrintf needs an implementation for this platform"
 #endif
@@ -7236,6 +7388,8 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 	buffer[len] = 0;
 
 	return len; 
+#elif defined(ZT_EMSCRIPTEN)
+	return 0;
 #else
 #error zt_strConvertToUTF16 needs an implementation for this platform.
 #endif
@@ -7618,6 +7772,46 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	}
 
 	return true;
+#	elif defined(ZT_COMPILER_LLVM)
+
+	char *open_method_str = nullptr;
+	switch (file_open_method)
+	{
+		case ztFileOpenMethod_ReadOnly    : open_method_str = "rb"; break;
+		case ztFileOpenMethod_WriteAppend : open_method_str = "ab"; break;
+		case ztFileOpenMethod_WriteOver   : open_method_str = "wb"; break;
+	}
+	
+	file->fp = fopen(file_name, open_method_str);
+	if(file->fp == nullptr) {
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (%s) (error code: %d)", file_name, open_method_str, errno);
+	}
+
+	i32 path_len = zt_strLen(file_name);
+
+	file->full_name = (char *)zt_memAllocFromArena(arena, path_len + 1);
+	if (file->full_name == nullptr) {
+		zt_logCritical("zt_fileOpen: unable to allocate memory for file information (file: '%s')", file_name);
+		fclose((FILE*)file->fp);
+		return false;
+	}
+
+	zt_strCpy(file->full_name, path_len + 1, file_name, path_len);
+	file->arena = arena;
+
+	file->open_method = file_open_method;
+
+	fseek((FILE*)file->fp, 0, SEEK_END);
+	file->size = ftell((FILE*)file->fp);
+	fseek((FILE*)file->fp, 0, SEEK_SET);
+
+	file->fp_read_pos = 0;
+
+	if (file_open_method == ztFileOpenMethod_WriteAppend) {
+		zt_fileSetReadPos(file, file->size);
+	}
+
+	return true;
 #	endif
 }
 
@@ -7638,10 +7832,15 @@ void zt_fileClose(ztFile *file)
 			CloseHandle((HANDLE)file->win_file_handle);
 		}break;
 	}
+#	elif defined(ZT_COMPILER_LLVM)
+	if (file->fp != nullptr) {
+		fclose((FILE*)file->fp);
+		file->fp = nullptr;
+	}
+#	endif
 
 	zt_memFree(file->arena, file->full_name);
 	zt_memSet(file, zt_sizeof(ztFile), 0);
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -7654,6 +7853,9 @@ i32 zt_fileGetReadPos(ztFile *file)
 
 #if defined(ZT_WINDOWS)
 	return file->win_read_pos;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	return file->fp_read_pos;
 #endif
 }
 
@@ -7677,6 +7879,16 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 	}
 
 	file->win_read_pos = pos;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_returnValOnNull(file->fp, false);
+	fseek((FILE*)file->fp, pos, SEEK_SET);
+	if (ftell((FILE*)file->fp) != pos) {
+		zt_logCritical("zt_fileSetReadPos: fseek call failed (error %d)", errno);
+		return false;
+	}
+
+	file->fp_read_pos = pos;
 #	endif
 
 	return true;
@@ -7692,6 +7904,10 @@ bool zt_fileEof(ztFile *file)
 
 #	if defined(ZT_WINDOWS)
 	return (file->win_read_pos >= file->size);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	return (file->fp_read_pos >= file->size);
+
 #	endif
 }
 
@@ -7809,6 +8025,9 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 	}
 
 	return len;
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return 0;
 #	endif
 }
 
@@ -7833,6 +8052,10 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 	}
 
 	return len;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return 0;
 #	endif
 }
 
@@ -7857,6 +8080,10 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 	zt_strCpy(temp + len_path + 1, ztFileMaxPath - (len_path + 1), app_name);
 
 	return zt_strCpy(buffer, buffer_size, temp, len_path + len_name + 1);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return 0;
 #	endif
 }
 
@@ -7870,6 +8097,18 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 
 #	if defined(ZT_WINDOWS)
 	return GetCurrentDirectoryA(buffer_size, buffer);
+
+#	elif defined(ZT_COMPILER_LLVM)
+
+#if defined(ZT_EMSCRIPTEN)
+	zt_strCpy(buffer, buffer_size, "/");
+#else
+	char *result = getcwd(buffer, buffer_size);
+	if (result == nullptr) {
+		return false;
+	}
+#endif
+	return zt_strLen(buffer);
 #	endif
 }
 
@@ -7881,6 +8120,9 @@ void zt_fileSetCurrentPath(const char *path)
 
 #	if defined(ZT_WINDOWS)
 	SetCurrentDirectoryA(path);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	chdir(path);
 #	endif
 }
 
@@ -7994,6 +8236,9 @@ bool zt_fileExists(const char *file_name)
 	}
 	CloseHandle((HANDLE)hfile);
 	return true;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	return access(file_name, 0) == 0;
 #	endif
 }
 
@@ -8010,6 +8255,10 @@ bool zt_fileDelete(const char *file_name)
 	}
 
 	return true;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
 #	endif
 }
 
@@ -8026,6 +8275,11 @@ bool zt_fileCopy(const char *orig_file, const char *new_file)
 	}
 
 	return true;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
 #	endif
 }
 
@@ -8042,6 +8296,11 @@ bool zt_fileRename(const char *orig_file, const char *new_file)
 	}
 
 	return true;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
 #	endif
 }
 
@@ -8064,6 +8323,16 @@ i32 zt_fileSize(const char *file_name)
 	CloseHandle((HANDLE)hfile);
 
 	return (i32)size;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	ztFile file;
+	if (zt_fileOpen(&file, file_name, ztFileOpenMethod_ReadOnly)) {
+		i32 size = file.size;
+		zt_fileClose(&file);
+		return size;
+	}
+	return 0;
+
 #	endif
 }
 
@@ -8098,6 +8367,11 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 	}
 
 	return false;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
 #	endif
 }
 
@@ -8129,6 +8403,11 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 	}
 
 	return false;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
 #	endif
 }
 
@@ -8154,6 +8433,18 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 
 	file->win_read_pos += bytes_read;
 	return (i32)bytes_read;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_returnValOnNull(file->fp, 0);
+
+	i32 bytes_read = (i32)fread(buffer, 1, (i32)buffer_size, (FILE*)file->fp);
+	file->fp_read_pos += bytes_read;
+
+	if (bytes_read != buffer_size) {
+		zt_logCritical("zt_fileRead: failure reading file '%s' (requested %d bytes; read %d)", file->full_name, buffer_size, bytes_read);
+	}
+
+	return bytes_read;
 #	endif
 }
 
@@ -8181,6 +8472,15 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 	file->size += bytes_written;
 
 	return (i32)bytes_written;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_returnValOnNull(file->fp, 0);
+
+	i32 bytes_written = (i32)fwrite(buffer, 1, (i32)buffer_size, (FILE*)file->fp);
+	file->fp_read_pos += bytes_written;
+	file->size += bytes_written;
+
+	return bytes_written;
 #	endif
 }
 
@@ -8197,6 +8497,14 @@ bool zt_fileWritef(ztFile *file, const char *format, ...)
 	vsnprintf_s(buffer, zt_elementsOf(buffer), zt_elementsOf(buffer), format, arg_ptr);
 
 	return zt_fileWrite(file, buffer);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
+	char buffer[1024 * 16];
+	vsnprintf(buffer, zt_elementsOf(buffer), format, arg_ptr);
+
+	return zt_fileWrite(file, buffer);
 #	endif
 }
 
@@ -8210,6 +8518,10 @@ void zt_fileFlush(ztFile *file)
 
 #	if defined(ZT_WINDOWS)
 	FlushFileBuffers((HANDLE)file->win_file_handle);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_returnOnNull(file->fp);
+	fflush((FILE*)file->fp);
 #	endif
 }
 
@@ -8221,6 +8533,10 @@ void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_
 
 	zt_returnValOnNull(file_name, nullptr);
 	zt_returnValOnNull(file_size, nullptr);
+
+	if (!zt_fileExists(file_name)) {
+		return nullptr;
+	}
 
 	ztFile file;
 	if (!zt_fileOpen(&file, file_name, ztFileOpenMethod_ReadOnly, arena)) {
@@ -8323,6 +8639,20 @@ bool zt_directoryExists(const char *dir)
 #	if defined(ZT_WINDOWS)
 	DWORD attribs = GetFileAttributesA(dir);
 	return (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY));
+
+#	elif defined(ZT_COMPILER_LLVM)
+
+	struct stat path_stat;
+	if (lstat(dir, &path_stat) != 0) {
+		const int error = errno;
+		if (error != ENOENT) {
+			zt_logCritical("failed to lstat path: %s", dir);
+		}
+		return false;
+	}
+
+	return true;
+
 #	else
 #	error zt_directoryExists needs an implementation for this platform
 #	endif
@@ -8360,6 +8690,9 @@ bool zt_directoryMake(const char *dir)
 	}
 
 	return true;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	return mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
 
 #	else
 #	error zt_directoryMake needs an implementation for this platform
@@ -8410,6 +8743,12 @@ bool zt_directoryDelete(const char *dir, bool force)
 	zt_free(dir_list);
 
 	return FALSE != RemoveDirectoryA(dir);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+
+	return false;
+
 #	else
 #	error zt_directoryMake needs an implementation for this platform
 #	endif
@@ -8421,7 +8760,6 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 {
 	ZT_PROFILE_TOOLS("zt_getDirectorySubs");
 
-#	if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
 
 	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
@@ -8436,6 +8774,7 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 		zt_strPrintf(dir_full, ztFileMaxPath, "%s*", directory);
 	}
 
+#	if defined(ZT_WINDOWS)
 	WIN32_FIND_DATAA file_data;
 	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
 	while (hfile != INVALID_HANDLE_VALUE) {
@@ -8444,7 +8783,7 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 			if (dir_len + len + buffer_used >= buffer_size) {
 				break;
 			}
-			if (!(len == 1 && file_data.cFileName[0] == '.' || len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.')) {
+			if (!((len == 1 && file_data.cFileName[0] == '.') || (len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.'))) {
 				int buff_before = buffer_used;
 				if (!end_sep) {
 					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
@@ -8471,13 +8810,71 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
 
+#	elif defined(ZT_COMPILER_LLVM)
+	DIR *dir = opendir(directory);
+	if (dir != nullptr) {
+		struct dirent * entry = readdir(dir);
+		while(entry) {
+			/*
+			struct dirent {
+				ino_t          d_ino;       // inode number
+				off_t          d_off;       // offset to the next dirent
+				unsigned short d_reclen;    // length of this record
+				unsigned char  d_type;      // type of file; not supported by all file system types
+				char           d_name[256]; // filename
+			};
+			*/
+
+			DIR *subdir = opendir(entry->d_name);
+			if (subdir) {
+				closedir(subdir);
+
+				i32 len = zt_strLen(entry->d_name);
+				if (dir_len + len + buffer_used >= buffer_size) {
+					break;
+				}
+				if (!((len == 1 && entry->d_name[0] == '.') || (len == 2 && entry->d_name[0] == '.' && entry->d_name[1] == '.'))) {
+					int buff_before = buffer_used;
+					if (!end_sep) {
+						buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%c%s", directory, ztFilePathSeparator, entry->d_name);
+					}
+					else {
+						buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, entry->d_name);
+					}
+					buffer[buffer_used++] = '\n';
+
+					if (recursive) {
+						char* dir_buffer = (char *)zt_memAllocGlobal(ztFileMaxPath);
+						zt_strCpy(dir_buffer, ztFileMaxPath, buffer + buff_before, (buffer_used - 1) - buff_before);
+
+						int used = zt_getDirectorySubs(dir_buffer, buffer + buffer_used, buffer_size - buffer_used, true);
+						if (used != 0) {
+							buffer_used += used;
+							buffer[buffer_used] = '\n';
+						}
+
+						zt_free(dir_buffer);
+					}
+				}
+			}
+
+			entry = readdir(dir);
+		}
+		closedir(dir);
+	}
+	else {
+		zt_logCritical("unable to open directory: %s (errno: %d)", directory, errno);
+	}
+	return 0;
+
+#	else
+#	error zt_getDirectorySubs needs an implementation for this platform
+#	endif
+
 	zt_free(dir_full);
 
 	buffer[buffer_used] = 0;
 	return buffer_used;
-#	else
-#	error zt_getDirectorySubs needs an implementation for this platform
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -8486,21 +8883,24 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 {
 	ZT_PROFILE_TOOLS("zt_getDirectoryFiles");
 
-#	if defined(ZT_WINDOWS)
 	i32 buffer_used = 0;
+	buffer[0] = 0;
 
 	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
 	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
 	int dir_len = zt_strLen(directory);
 
 	if (!end_sep) {
-		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c*", directory, ztFilePathSeparator);
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c", directory, ztFilePathSeparator);
 		dir_len += 1;
 	}
 	else {
-		zt_strPrintf(dir_full, ztFileMaxPath, "%s*", directory);
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s", directory);
 	}
 
+#	if defined(ZT_WINDOWS)
+	zt_strCat(dir_full, ztFileMaxPath, "*");
+	dir_len += 1;
 	WIN32_FIND_DATAA file_data;
 	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
 	while (hfile != INVALID_HANDLE_VALUE) {
@@ -8537,13 +8937,58 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
 
+#	elif defined(ZT_COMPILER_LLVM)
+	DIR *dir = opendir(dir_full);
+	if (dir != nullptr) {
+		struct dirent * entry = readdir(dir);
+		while(entry) {
+			i32 len = zt_strLen(entry->d_name);
+			if (!((len == 1 && entry->d_name[0] == '.') || (len == 2 && entry->d_name[0] == '.' && entry->d_name[1] == '.'))) {
+				char entry_name[ztFileMaxPath];
+				zt_strPrintf(entry_name, ztFileMaxPath, "%s%s", dir_full, entry->d_name);
+
+				DIR *subdir = opendir(entry_name);
+				if (subdir) {
+					closedir(subdir);
+
+					if (recursive) {
+						int used = zt_getDirectoryFiles(entry_name, buffer + buffer_used, buffer_size - buffer_used, false);
+						if (used != 0) {
+							buffer_used += used;
+							buffer[buffer_used++] = '\n';
+						}
+					}
+				}
+				else {
+					if (dir_len + len + buffer_used >= buffer_size) {
+						break;
+					}
+
+					buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s", entry_name);
+					buffer[buffer_used++] = '\n';
+				}
+			}
+			entry = readdir(dir);
+		}
+		closedir(dir);
+	}
+	else {
+		zt_logCritical("unable to open directory: %s (errno: %d)", dir_full, errno);
+		return 0;
+	}
+	if (buffer_used > 0) {
+		buffer[--buffer_used] = 0;
+	}
+
+#	else
+#	error zt_getDirectoryFiles needs an implementation for this platform
+#	endif
+
 	zt_free(dir_full);
 
 	buffer[buffer_used] = 0;
 	return buffer_used;
-#	else
-#	error zt_getDirectoryFiles needs an implementation for this platform
-#	endif
+
 }
 
 // ================================================================================================================================================================================================
@@ -8596,6 +9041,13 @@ on_error:
 	CloseHandle((HANDLE)dir_mon->io);
 	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	return false;
+
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
+#else
+	zt_assert(false);
 #	endif
 }
 
@@ -8614,6 +9066,11 @@ void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 		CloseHandle((HANDLE)dir_mon->io);
 		zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	}
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+
+#else
+	zt_assert(false);
 #	endif
 }
 
@@ -8649,6 +9106,12 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 	}
 
 	return key != NULL;
+#	elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return false;
+
+#else
+	zt_assert(false);
 #	endif
 }
 
@@ -8949,7 +9412,268 @@ bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 	return zt_atomicBoolSet(atomic_bool, !zt_atomicBoolGet(atomic_bool));
 }
 
-#endif // ZT_WINDOWS
+// ================================================================================================================================================================================================
+
+#elif defined(ZT_EMSCRIPTEN) // ZT_WINDOWS
+
+// ================================================================================================================================================================================================
+
+ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id)
+{
+	ZT_PROFILE_TOOLS("zt_threadMake");
+
+	thread_func(0, user_data, exit_test, exit_test_user_data);
+
+	ztThread *thread = zt_mallocStruct(ztThread);
+	return thread;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadFree(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadFree");
+
+	if (thread == nullptr) {
+		return;
+	}
+
+	zt_free(thread);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadJoin(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadJoin");
+
+	zt_returnOnNull(thread);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_threadIsRunning(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadIsRunning");
+
+	zt_returnValOnNull(thread, false);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ztThreadID zt_threadGetCurrentID()
+{
+	//ZT_PROFILE_TOOLS("zt_threadGetCurrentID"); called by profiling code, can't use here
+
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadYield()
+{
+	ZT_PROFILE_TOOLS("zt_threadYield");
+
+	zt_sleep(0);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztThreadMutex *zt_threadMutexMake()
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexMake");
+
+	ztThreadMutex *mutex = zt_mallocStruct(ztThreadMutex);
+	return mutex;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexFree(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexFree");
+
+	if (mutex == nullptr) {
+		return;
+	}
+
+	zt_free(mutex);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexLock(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexLock");
+
+	zt_returnOnNull(mutex);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexUnlock(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexUnlock");
+
+	zt_returnOnNull(mutex);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztThreadMonitor *zt_threadMonitorMake()
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorMake");
+
+	ztThreadMonitor *monitor = zt_mallocStruct(ztThreadMonitor);
+	return monitor;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorFree(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorFree");
+
+	if (monitor == nullptr) {
+		return;
+	}
+
+	zt_free(monitor);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorWaitForSignal");
+
+	zt_returnOnNull(monitor);
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorTriggerSignal");
+
+	zt_returnOnNull(monitor);
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorReset(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorReset");
+
+	zt_returnOnNull(monitor);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntInc");
+
+	return ++(*atomic_int);
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIncDec");
+
+	return --(*atomic_int);
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntSet");
+
+	(*atomic_int) = value;
+	return value;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntGet");
+
+	return *atomic_int;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntAnd");
+
+	return (*atomic_int) & and_val;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntOr");
+
+	return (*atomic_int) | or_val;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntXor");
+
+	return (*atomic_int) ^ xor_val;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolSet");
+
+	(*atomic_bool) = value ? 1 : 0;
+	return (*atomic_bool) != 0;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolGet");
+
+	return (*atomic_bool) != 0;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolToggle");
+
+	(*atomic_bool) = !(*atomic_bool);
+	return (*atomic_bool) != 0;
+}
+
+#endif // ZT_EMSCRIPTEN
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -9065,7 +9789,7 @@ i32 zt_driveGetDetails(ztDrive *drives, i32 drives_count)
 		int  drive_type = GetDriveTypeA(drive_str);
 
 		if(drives && drives_idx < drives_count) {
-//			drives[drives_idx].name
+			//			drives[drives_idx].name
 
 			zt_strCpy(drives[drives_idx].name, zt_elementsOf(drives[drives_idx].name), drive_str);
 			zt_strCpy(drives[drives_idx].mount, zt_elementsOf(drives[drives_idx].mount), drive_str);
@@ -9104,21 +9828,17 @@ void zt_driveGetSize(ztDrive *drive, u64 *space_avail, u64 *space_total)
 		if(space_total) *space_total = total_bytes.QuadPart;
 	}
 
-//	DWORD sectors_per_clustor, bytes_per_sector, no_free_clusters, no_total_clusters;
-//	if(TRUE == GetDiskFreeSpaceA(drive->mount, &sectors_per_clustor, &bytes_per_sector, &no_free_clusters, &no_total_clusters)) {
-//		if(space_avail) *space_avail = no_free_clusters * sectors_per_clustor * bytes_per_sector;
-//		if(space_total) *space_total = no_total_clusters * sectors_per_clustor * bytes_per_sector;
-//	}
+	//	DWORD sectors_per_clustor, bytes_per_sector, no_free_clusters, no_total_clusters;
+	//	if(TRUE == GetDiskFreeSpaceA(drive->mount, &sectors_per_clustor, &bytes_per_sector, &no_free_clusters, &no_total_clusters)) {
+	//		if(space_avail) *space_avail = no_free_clusters * sectors_per_clustor * bytes_per_sector;
+	//		if(space_total) *space_total = no_total_clusters * sectors_per_clustor * bytes_per_sector;
+	//	}
 
 }
 
-#endif // ZT_WINDOWS
-
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
-
-#ifdef ZT_WINDOWS
 
 bool _zt_clipboardSetData(const void *data, int data_size, UINT format)
 {
@@ -9193,7 +9913,80 @@ bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
 	return result;
 }
 
+#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+
+bool zt_systemInfo(ztSystemInfo *system_info)
+{
+	zt_returnValOnNull(system_info, false);
+
+	zt_memSet(system_info, zt_sizeof(ztSystemInfo), 0);
+
+	system_info->flags = ztSystemInfoFlags_x86;
+	system_info->no_processors = 1;
+	system_info->no_displays = 1;
+	system_info->physical_memory_total = zt_megabytes(256); // TODO: is there a way to determine this?
+	system_info->physical_memory_avail = zt_megabytes(256);
+	system_info->virtual_memory_total = zt_megabytes(256);
+	system_info->virtual_memory_avail = zt_megabytes(256);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
+{
+	return 0; // TODO: implement
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_driveGetDetails(ztDrive *drives, i32 drives_count)
+{
+	return 0; // TODO: implement
+}
+
+// ================================================================================================================================================================================================
+
+void zt_driveGetSize(ztDrive *drive, u64 *space_avail, u64 *space_total)
+{
+	zt_returnOnNull(drive);
+
+	// TODO: implement
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+bool zt_clipboardSendPlainText(const char *text)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardContains(ztClipboardDataType_Enum type)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
 #endif
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -9268,7 +10061,21 @@ ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 			sum1 = (sum1 + chunk[i]) % _zt_mod_adler;
 			sum2 = (sum2 + sum1) % _zt_mod_adler;
 		}
-		zt_memCpy(&checksum_save, 4, chunk + (serial->file_data_size - 4), 4);
+		struct checksum
+		{
+			union {
+				byte as_bytes[4];
+				i32  as_i32;
+			};
+		};
+		checksum cs;
+		cs.as_bytes[0] = chunk [(serial->file_data_size - 4)];
+		cs.as_bytes[1] = chunk [(serial->file_data_size - 3)];
+		cs.as_bytes[2] = chunk [(serial->file_data_size - 2)];
+		cs.as_bytes[3] = chunk [(serial->file_data_size - 1)];
+
+		checksum_save = cs.as_i32;
+		//zt_memCpy(&checksum_save, 4, chunk + (serial->file_data_size - 4), 4);
 	}
 	else {
 		i32 pos = zt_fileGetReadPos(&serial->file);
@@ -9354,8 +10161,10 @@ ztInternal ztInline i32 _zt_readData(ztSerial *serial, void *data, i32 data_size
 	ZT_PROFILE_TOOLS("_zt_readData");
 
 	if (serial->file_data) {
-		if (serial->file_data_size < data_size)
+		if (serial->file_data_size < data_size) {
+			zt_logCritical("serial: not enough data left to read (requested %d bytes, only %d remain)", data_size, serial->file_data_size);
 			return 0;
+		}
 
 		if (data_size == 1) {
 			*((byte*)data) = *((byte*)serial->file_data);
@@ -9477,33 +10286,49 @@ bool _zt_serialMakeReaderDoHeader(ztSerial *serial, const char *identifier)
 {
 	ZT_PROFILE_TOOLS("_zt_serialMakeReaderDoHeader");
 
+//#	if !defined(ZT_EMSCRIPTEN)
 	if (!_zt_validateChecksum(serial)) {
+		zt_logCritical("serial: checksum mismatch");
 		serial->mode = ztSerialMode_Corrupt;
 		return false;
 	}
+//#	endif
 
 	serial->mode = ztSerialMode_Reading;
 
 	i32 header[zt_elementsOf(_zt_serial_header)] = { 0 };
+	byte next_entry = 0;
 
-	if (_zt_readData(serial, header, zt_sizeof(header)) != zt_sizeof(header))
+	if (_zt_readData(serial, header, zt_sizeof(header)) != zt_sizeof(header)) {
+		zt_logCritical("serial: unable to read header");
 		goto on_error;
+	}
 
-	if (zt_memCmp(header, _zt_serial_header, zt_sizeof(header)) != 0)
+	if (zt_memCmp(header, _zt_serial_header, zt_sizeof(header)) != 0) {
+		zt_logCritical("serial: header id mismatch");
 		goto on_error;
+	}
 
-	if (_zt_readData(serial, serial->identifier, zt_sizeof(serial->identifier)) != zt_sizeof(serial->identifier))
+	if (_zt_readData(serial, serial->identifier, zt_sizeof(serial->identifier)) != zt_sizeof(serial->identifier)) {
+		zt_logCritical("serial: unable to read identifier");
 		goto on_error;
+	}
 
-	if (!zt_strEquals(serial->identifier, identifier))
+	if (!zt_strEquals(serial->identifier, identifier)) {
+		zt_logCritical("serial: identifier mismatch (%s) vs (%s)", serial->identifier, identifier);
 		goto on_error;
+	}
 
-	if (_zt_readData(serial, &serial->version, zt_sizeof(serial->version)) != zt_sizeof(serial->version))
+	if (_zt_readData(serial, &serial->version, zt_sizeof(serial->version)) != zt_sizeof(serial->version)) {
+		zt_logCritical("serial: unable to read version");
 		goto on_error;
+	}
 
-	byte next_entry = ztSerialEntryType_Unknown;
-	if (1 != _zt_readData(serial, &next_entry, 1))
+	next_entry = ztSerialEntryType_Unknown;
+	if (1 != _zt_readData(serial, &next_entry, 1)) {
+		zt_logCritical("serial: unable to read next entry");
 		goto on_error;
+	}
 
 	serial->next_entry = next_entry;
 
@@ -11084,6 +11909,11 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 
 #if defined(ZT_WINDOWS)
 	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
+
+#elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return 0;
+
 #else
 #	error "zt_iniFileGetValue needs an implementation for this platform"
 #endif
@@ -11136,6 +11966,11 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 
 #if defined(ZT_WINDOWS)
 	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
+
+#elif defined(ZT_COMPILER_LLVM)
+	zt_assert(false); // TODO: implement
+	return 0;
+
 #else
 #	error "zt_iniFileSetValue needs an implementation for this platform"
 #endif
@@ -11292,7 +12127,29 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 	CloseHandle(pi.hThread);
 
 	return result;
-	#else
+
+#elif defined(ZT_COMPILER_LLVM)
+	FILE *fstr = popen(command, "r");
+
+	if (fstr) {
+		if (output_buffer) {
+			output_buffer[0] = 0;
+		}
+
+		char line[1024];
+		while(fgets(line, zt_elementsOf(line), fstr) != nullptr) {
+			if(output_buffer) {
+				zt_strCat(output_buffer, output_buffer_size, line);
+			}
+		}
+
+		int status = pclose(fstr);
+		return status;
+	}
+
+	return 1;
+
+#else
 #		error zt_processRun needs an implementation for this platform
 #	endif
 }
@@ -11306,6 +12163,7 @@ r64 zt_getTime()
 {
 	//ZT_PROFILE_TOOLS("zt_getTime"); called in profiling code, so can't use here
 
+#	if defined(ZT_WINDOWS)
 	struct local_init
 	{
 		local_init(LARGE_INTEGER *large_integer, r64 *seconds_per_count, LARGE_INTEGER *start_time)
@@ -11326,6 +12184,34 @@ r64 zt_getTime()
 	QueryPerformanceCounter(&current);
 
 	return (((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count);
+
+#	elif defined(ZT_COMPILER_LLVM)
+	struct local_init
+	{
+		local_init(timespec *time, r64 *time_beg_seconds)
+		{
+			clock_gettime(CLOCK_MONOTONIC, time);
+			*time_beg_seconds = timespecToSeconds(time);
+		}
+
+		r64 timespecToSeconds(timespec *time)
+		{
+			return (r64)time->tv_sec + (r64)time->tv_nsec / 1000000000.0;
+		}
+	};
+
+	static timespec time_beg;
+	static r64 time_beg_seconds;
+	static local_init local(&time_beg, &time_beg_seconds);
+
+	timespec time_now;
+	if (clock_gettime(CLOCK_MONOTONIC, &time_now)) {
+		return 0;
+	}
+
+	return local.timespecToSeconds(&time_now) - time_beg_seconds;
+
+#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -11336,6 +12222,10 @@ void zt_sleep(r32 seconds)
 
 #	if defined(ZT_WINDOWS)
 	Sleep(zt_convertToi32Floor(seconds * 1000.f));
+
+#	elif defined(ZT_COMPILER_LLVM)
+	usleep(zt_convertToi32Floor(seconds * 1000000));
+
 #	else
 #	error zt_sleep needs an implementation for this platform
 #	endif
@@ -11349,7 +12239,12 @@ void zt_getDate(int *year, int *month, int *day, int *hour, int *minute, int *se
 
 	time_t tt = time(nullptr);
 	tm t;
+
+#	if defined(ZT_WINDOWS)
 	localtime_s(&t, &tt);
+#	else
+	localtime_r(&tt, &t);
+#	endif
 
 	if (year) *year = t.tm_year + 1900;
 	if (month) *month = t.tm_mon + 1;
@@ -11486,7 +12381,7 @@ void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
 {
 	ZT_PROFILE_TOOLS("zt_memoryDeltaApply");
 
-	ztMemoryReader memReader = zt_memoryReaderMake(diff, diff_size);
+	ztMemoryReader memReader = zt_memoryReaderMake(diff, diff_size, ztMemoryReaderFlags_Align);
 
 	byte *bchunk = (byte*)chunk;
 
@@ -11495,11 +12390,7 @@ void zt_memoryDeltaApply(void *chunk, int chunk_size, void *diff, int diff_size)
 		i32 diff_bytes = zt_memoryRead_i32(&memReader);
 
 		if (diff_bytes > 0) {
-			zt_fiz(diff_bytes) {
-				byte by = zt_memoryRead_u8(&memReader);
-				zt_assert(diff_start + i <= chunk_size);
-				bchunk[diff_start + i] = by;
-			}
+			zt_memoryRead(&memReader, bchunk + diff_start, diff_bytes);
 		}
 	}
 }
