@@ -162,6 +162,9 @@ void ztgl_clear(r32 r, r32 g, r32 b, r32 a);
 bool ztgl_setViewport(i32 width, i32 height);
 bool ztgl_setViewport(ztContextGL *context);
 
+bool ztgl_clipViewport(i32 x, i32 y, i32 w, i32 h);
+bool ztgl_clipReset();
+
 void ztgl_cullFront();
 void ztgl_cullBack();
 void ztgl_cullNone();
@@ -1313,6 +1316,29 @@ bool ztgl_setViewport(ztContextGL *context)
 
 // ================================================================================================================================================================================================
 
+bool ztgl_clipViewport(i32 x, i32 y, i32 w, i32 h)
+{
+	ZT_PROFILE_OPENGL("ztgl_setViewport");
+
+	ztgl_callAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
+	ztgl_callAndReportOnErrorFast(glScissor(x, y, w, h));
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool ztgl_clipReset()
+{
+	ZT_PROFILE_OPENGL("ztgl_clipReset");
+
+	ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 void ztgl_cullFront()
 {
 	ZT_PROFILE_OPENGL("ztgl_cullFront");
@@ -1947,9 +1973,6 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 		static bool makeRenderTarget(GLuint *tex_id, GLuint *frame_buffer_id, GLuint *depth_buffer_id, GLuint *resolve_buffer_id, GLuint *render_target_id, i32 width, i32 height, i32 flags, i32 *width_actual, i32 *height_actual)
 		{
 #			if defined(ZT_GLES2)
-			int orig_width = width;
-			int orig_height = height;
-
 			if (!zt_isPow2(width)) width = zt_nextPow2(width);
 			if (!zt_isPow2(height)) height = zt_nextPow2(height);
 			zt_logDebug("opengl: render target dimensions: %d x %d", width, height);
@@ -2330,7 +2353,7 @@ void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_READ_FRAMEBUFFER, texture->fbo));
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, texture->rb));
 
-		ztgl_callAndReportOnErrorFast(glBlitFramebuffer(0, 0, texture->w, texture->h, 0, 0, texture->w, texture->h, GL_COLOR_BUFFER_BIT, GL_LINEAR));
+		ztgl_callAndReportOnErrorFast(glBlitFramebuffer(0, 0, texture->wa, texture->ha, 0, 0, texture->wa, texture->ha, GL_COLOR_BUFFER_BIT, GL_LINEAR));
 
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_READ_FRAMEBUFFER, 0));
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
