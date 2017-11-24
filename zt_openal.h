@@ -289,7 +289,7 @@ ztInternal bool _ztal_sourceFillNextSlot(ztOpenALBuffer *buffer, ztOpenALBufferE
 
 	ztal_callAndReturnValOnError(alGenSources((ALuint)1, &buffer->sources[didx]), false);
 	
-	zt_logDebug("openal: source: %d for buffer %d (index %d)", buffer->sources[didx], buffer->buffer, didx);
+	//zt_logDebug("openal: source: %d for buffer %d (index %d)", buffer->sources[didx], buffer->buffer, didx);
 	
 	buffer->sources_used[didx] = true;	
 
