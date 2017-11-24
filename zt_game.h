@@ -31153,7 +31153,184 @@ void mainLoopEmscripten()
 	}
 }
 
+// ================================================================================================================================================================================================
+
+bool mainInitializationAndLoop();
+
+// ================================================================================================================================================================================================
+
+void mainLoopEmscriptenWaitForFileSync()
+{
+	if(emscripten_run_script_int("Module.syncdone") == 1) {
+		emscripten_cancel_main_loop();
+
+		if (!mainInitializationAndLoop()) {
+			return;
+		}
+
+		emscripten_set_main_loop(mainLoopEmscripten, 0, true);
+	}
+}
+
+
 #endif
+
+// ================================================================================================================================================================================================
+
+bool mainInitializationAndLoop()
+{
+	ztWindowDetails *win_details;
+
+	if(!zt_directoryExists(zt_game->game_details.user_path)) {
+		zt_directoryMake(zt_game->game_details.user_path);
+	}
+
+	_zt_profilerInit();
+	zt_profilerFrameBegin();
+	{
+		ZT_PROFILE_PLATFORM("main(init)");
+
+		{ // init input
+			_zt_inputSetupKeys();
+
+			for (int i = 0; i < ztInputKeys_MAX; ++i) {
+				zt_game->input_keys_mapping[zt_game->input_keys[i].platform_mapping] = zt_game->input_keys[i].code;
+			}
+			zt_memSet(&zt_game->input_mouse, zt_sizeof(ztInputMouse), 0);
+			zt_game->input_mouse.cursor = ztInputMouseCursor_Arrow;
+		}
+
+		zt_game->game_details.current_frame = 1;
+
+		ztGameSettings *game_settings = &zt_game->win_game_settings[0];
+		zt_game->win_count += 1;
+
+		game_settings->memory = zt_megabytes(64);
+		game_settings->native_w = game_settings->screen_w = 1280;
+		game_settings->native_h = game_settings->screen_h = 720;
+		game_settings->pixels_per_unit = 64;
+
+		game_settings->renderer = ztRenderer_OpenGL;
+		game_settings->renderer_flags = ztRendererFlags_Windowed | ztRendererFlags_LockAspect;
+		game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
+		game_settings->renderer_memory = zt_megabytes(16);
+
+		game_settings->threaded_frame_jobs      = zt_max(0, ZT_MAX_THREADS - 2);
+		game_settings->threaded_background_jobs = 1;
+
+		if (game_settings->threaded_frame_jobs > 3) {
+			game_settings->threaded_frame_jobs -= 1;
+			game_settings->threaded_background_jobs += 1;
+		}
+
+		if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
+			return false;
+
+		zt_logInfo("main: app path: %s", zt_game->game_details.app_path);
+		zt_logInfo("main: data path: %s", zt_game->game_details.data_path);
+		zt_logInfo("main: user path: %s", zt_game->game_details.user_path);
+
+		zt_winOnly(_zt_winLogSystemInfo());
+
+		char app_memory_str[128];
+		zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
+		zt_logInfo("main: initializing %s of memory", app_memory_str);
+
+		zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
+
+		win_details = &zt_game->win_details[0];
+
+#		if defined(ZT_WINDOWS)
+		if (!_zt_winCreateWindow(game_settings, win_details))
+			return false;
+
+		{ // more input init
+			POINT cursor_pos;
+			GetCursorPos(&cursor_pos);
+
+			zt_game->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
+			zt_game->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
+
+			_zt_winControllerInputInit();
+		}
+#		elif defined(ZT_EMSCRIPTEN)
+		zt_logDebug("main: initializing SDL");
+		SDL_Init(SDL_INIT_EVERYTHING);
+		zt_game->app_has_focus = true;
+#		endif
+
+		zt_game->renderer_memory_size = game_settings->renderer_memory;
+		zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
+
+		if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
+			zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
+			return false;
+		}
+
+		if (!_zt_rendererMakeContext(win_details, game_settings, game_settings->renderer_flags)) {
+			zt_logCritical("main: Failed to create renderer context on main window");
+			return false;
+		}
+
+		zt_fiz(zt_elementsOf(_zt_default_shaders)) {
+			if (zt_shaderMake(_zt_default_shaders_names[i], _zt_default_shaders[i], zt_strLen(_zt_default_shaders[i])) == ztInvalidID) {
+				zt_logCritical("main: Failed to load default shader: %s", _zt_default_shaders_names[i]);
+				return false;
+			}
+		}
+
+		// make a simple white texture to use as a default
+		{
+			u32 texture[] = { 0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff };
+
+			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
+			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
+		}
+		// make the default font
+		{
+			_zt_fontMakeDefaults();
+		}
+
+		if (!_zt_callFuncInit(&zt_game->game_details, game_settings)) {
+			return false;
+		}
+
+#		if !defined(ZT_EMSCRIPTEN)
+		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
+#		endif
+
+		_zt_callFuncScreenChange(game_settings);
+		zt_winOnly(_zt_winHandleWindowSize(win_details, game_settings));
+
+		if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
+			zt_bitRemove(game_settings->renderer_flags, ztRendererFlags_Fullscreen); // if we don't remove, it assumes we haven't done it yet
+			zt_rendererRequestFullscreen();
+		}
+
+		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
+	}
+	zt_profilerFrameEnd();
+
+	if (zt_game->input_mouse_look) {
+		zt_winOnly(SetCursorPos(0, 0));
+		zt_emscriptenOnly(SDL_WarpMouse(0, 0));
+	}
+
+
+#	if defined(ZT_WINDOWS)
+	r32 dt = 0;
+	r64 time_last = zt_getTime();
+
+	do {
+		if(!mainLoopCall(&time_last)) {
+			break;
+		}
+	} while (!zt_game->quit_requested);
+
+#	endif
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 
@@ -31183,22 +31360,38 @@ int main(int argc, const char **argv)
 
 	char *user_path = (char*)malloc(ztFileMaxPath);
 
-#	if defined(ZT_GAME_LOCAL_ONLY)
-	zt_fileGetCurrentPath(user_path, ztFileMaxPath);
+	{
+#	if defined(ZT_EMSCRIPTEN)
+		EM_ASM(
+			FS.mkdir('/persistent_data');
+			FS.mount(IDBFS,{},'/persistent_data');
+			Module.print("start file sync..");
+			Module.syncdone = 0;
+			FS.syncfs(true, function(err) {
+				assert(!err);
+				Module.print("end file sync..");
+				Module.syncdone = 1;
+			});
+		);
+
+		zt_strCpy(user_path, ztFileMaxPath, "/persistent_data");
+
+#	elif defined(ZT_GAME_LOCAL_ONLY)
+		zt_fileGetCurrentPath(user_path, ztFileMaxPath);
 #	else
-#	if defined(ZT_GAME_NAME_USER_DIR)
-	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME_USER_DIR);
-#	else
-	zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
+
+#	if !defined(ZT_EMSCRIPTEN)
+#		if defined(ZT_GAME_NAME_USER_DIR)
+			zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME_USER_DIR);
+#		else
+			zt_fileGetUserPath(user_path, ztFileMaxPath, ZT_GAME_NAME);
+#		endif
+#		endif
 #	endif
-#	endif
+	}
+
 	zt_logInfo("user path: %s", user_path);
 	
-	if(!zt_directoryExists(user_path)) {
-		zt_directoryMake(user_path);
-	}
-	zt_logInfo("test");
-
 	ztGameGlobals *game = (ztGameGlobals *)malloc(sizeof(ztGameGlobals));
 	zt_memSet(game, zt_sizeof(ztGameGlobals), 0);
 	zt_game = game;
@@ -31216,162 +31409,23 @@ int main(int argc, const char **argv)
 		zt_winOnly(zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0));
 	}
 
+	zt_game->game_details = {};
+	zt_game->game_details.argc = argc;
+	zt_game->game_details.argv = argv;
+
+	zt_game->game_details.app_path = app_path;
+	zt_game->game_details.data_path = data_path;
+	zt_game->game_details.user_path = user_path;
+
 	zt_game->main_thread_id = zt_threadGetCurrentID();
 
-	ztWindowDetails *win_details;
-
-	_zt_profilerInit();
-	zt_profilerFrameBegin();
-	{
-		ZT_PROFILE_PLATFORM("main(init)");
-
-		{ // init input
-			_zt_inputSetupKeys();
-
-			for (int i = 0; i < ztInputKeys_MAX; ++i) {
-				zt_game->input_keys_mapping[zt_game->input_keys[i].platform_mapping] = zt_game->input_keys[i].code;
-			}
-			zt_memSet(&zt_game->input_mouse, zt_sizeof(ztInputMouse), 0);
-			zt_game->input_mouse.cursor = ztInputMouseCursor_Arrow;
-		}
-
-		zt_game->game_details = {};
-		zt_game->game_details.argc = argc;
-		zt_game->game_details.argv = argv;
-
-		zt_game->game_details.app_path = app_path;
-		zt_game->game_details.data_path = data_path;
-		zt_game->game_details.user_path = user_path;
-
-		zt_game->game_details.current_frame = 1;
-
-		ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-		zt_game->win_count += 1;
-
-		game_settings->memory = zt_megabytes(64);
-		game_settings->native_w = game_settings->screen_w = 1280;
-		game_settings->native_h = game_settings->screen_h = 720;
-		game_settings->pixels_per_unit = 64;
-
-		game_settings->renderer = ztRenderer_OpenGL;
-		game_settings->renderer_flags = ztRendererFlags_Windowed | ztRendererFlags_LockAspect;
-		game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
-		game_settings->renderer_memory = zt_megabytes(16);
-
-		game_settings->threaded_frame_jobs      = zt_max(0, ZT_MAX_THREADS - 2);
-		game_settings->threaded_background_jobs = 1;
-
-		if (game_settings->threaded_frame_jobs > 3) {
-			game_settings->threaded_frame_jobs -= 1;
-			game_settings->threaded_background_jobs += 1;
-		}
-
-		if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
-			return 1;
-
-		zt_logInfo("main: app path: %s", zt_game->game_details.app_path);
-		zt_logInfo("main: data path: %s", zt_game->game_details.data_path);
-		zt_logInfo("main: user path: %s", zt_game->game_details.user_path);
-
-		zt_winOnly(_zt_winLogSystemInfo());
-
-		char app_memory_str[128];
-		zt_strBytesToString(app_memory_str, sizeof(app_memory_str), game_settings->memory);
-		zt_logInfo("main: initializing %s of memory", app_memory_str);
-
-		zt_memPushGlobalArena(zt_memMakeArena(game_settings->memory));
-
-		win_details = &zt_game->win_details[0];
-
-#		if defined(ZT_WINDOWS)
-		if (!_zt_winCreateWindow(game_settings, win_details))
-			return 1;
-
-		{ // more input init
-			POINT cursor_pos;
-			GetCursorPos(&cursor_pos);
-
-			zt_game->input_mouse.screen_x = cursor_pos.x - win_details->window_rect.left;
-			zt_game->input_mouse.screen_y = cursor_pos.y - win_details->window_rect.top;
-
-			_zt_winControllerInputInit();
-		}
-#		elif defined(ZT_EMSCRIPTEN)
-		zt_logDebug("main: initializing SDL");
-		SDL_Init(SDL_INIT_EVERYTHING);
-		zt_game->app_has_focus = true;
-#		endif
-
-		zt_game->renderer_memory_size = game_settings->renderer_memory;
-		zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
-
-		if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
-			zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
-			return 1;
-		}
-
-		if (!_zt_rendererMakeContext(win_details, game_settings, game_settings->renderer_flags)) {
-			zt_logCritical("main: Failed to create renderer context on main window");
-			return 1;
-		}
-
-		zt_fiz(zt_elementsOf(_zt_default_shaders)) {
-			if (zt_shaderMake(_zt_default_shaders_names[i], _zt_default_shaders[i], zt_strLen(_zt_default_shaders[i])) == ztInvalidID) {
-				zt_logCritical("main: Failed to load default shader: %s", _zt_default_shaders_names[i]);
-				return 1;
-			}
-		}
-
-		// make a simple white texture to use as a default
-		{
-			u32 texture[] = { 0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff };
-
-			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
-			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
-		}
-		// make the default font
-		{
-			_zt_fontMakeDefaults();
-		}
-
-		if (!_zt_callFuncInit(&zt_game->game_details, game_settings)) {
-			return 1;
-		}
-
-#		if !defined(ZT_EMSCRIPTEN)
-		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
-#		endif
-
-		_zt_callFuncScreenChange(game_settings);
-		zt_winOnly(_zt_winHandleWindowSize(win_details, game_settings));
-
-		if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_Fullscreen)) {
-			zt_bitRemove(game_settings->renderer_flags, ztRendererFlags_Fullscreen); // if we don't remove, it assumes we haven't done it yet
-			zt_rendererRequestFullscreen();
-		}
-
-		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
-	}
-	zt_profilerFrameEnd();
-
-	r32 dt = 0;
-	r64 time_last = zt_getTime();
-
-	if (zt_game->input_mouse_look) {
-		zt_winOnly(SetCursorPos(0, 0));
-		zt_emscriptenOnly(SDL_WarpMouse(0, 0));
-	}
-
-
 #	if defined(ZT_WINDOWS)
-	do {
-		if(!mainLoopCall(&time_last)) {
-			break;
-		}
-	} while (!zt_game->quit_requested);
+	if (!mainInitializationAndLoop()) {
+		return 1;
+	}
 
 #	elif defined(ZT_EMSCRIPTEN)
-	emscripten_set_main_loop(mainLoopEmscripten, 0, true);
+	emscripten_set_main_loop(mainLoopEmscriptenWaitForFileSync, 0, true);
 	return 0;
 
 #	endif
