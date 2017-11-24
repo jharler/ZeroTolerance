@@ -4004,6 +4004,10 @@ extern ztGlobals *zt;
 #	include <dirent.h>
 #	include <string.h>
 
+#	if defined(ZT_EMSCRIPTEN)
+#	include <emscripten.h>
+#	endif
+
 #endif
 
 ztGlobals zt_local = {};
@@ -4415,6 +4419,18 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 {
 	ZT_PROFILE_TOOLS("zt_memMakeArena");
+
+	char bytes[64];
+	zt_strBytesToString(bytes, zt_elementsOf(bytes), total_size);
+
+#	if defined(ZT_WINDOWS)
+	OutputDebugStringA("Creating memory arena.  Size: ");
+	OutputDebugStringA(bytes);
+	OutputDebugStringA("\n");
+#	else
+	printf("Creating memory arena.  Size: %s\n", bytes);
+#	endif
+
 
 	ztMemoryArena *arena = nullptr;
 	if (from == nullptr) {
@@ -7836,6 +7852,12 @@ void zt_fileClose(ztFile *file)
 	if (file->fp != nullptr) {
 		fclose((FILE*)file->fp);
 		file->fp = nullptr;
+	}
+#	endif
+
+#	if defined(ZT_EMSCRIPTEN)
+	if (file->open_method == ztFileOpenMethod_WriteAppend || file->open_method == ztFileOpenMethod_WriteOver) {
+		EM_ASM(FS.syncfs(false, function(err) { assert(!err); }););
 	}
 #	endif
 
@@ -11911,8 +11933,57 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
 
 #elif defined(ZT_COMPILER_LLVM)
-	zt_assert(false); // TODO: implement
-	return 0;
+
+	if (zt_fileExists(ini_file)) {
+		i32 data_size = 0;
+		char *data = (char*)zt_readEntireFile(ini_file, &data_size, false, zt_memGetGlobalArena());
+		if (data) {
+			ztToken tokens[512];
+			i32 tokens_count = zt_strTokenize(data, data_size, "\r\n", tokens, zt_elementsOf(tokens));
+
+			char current_group[256] = {0};
+			zt_fiz(tokens_count) {
+				char token[512] = {0};
+				zt_strCpy(token, zt_elementsOf(token), data + tokens[i].beg, tokens[i].len);
+
+				if(zt_strStartsWith(token, "[")) {
+					zt_strGetBetween(current_group, zt_elementsOf(current_group), token, "[", "]");
+				}
+				else if(zt_strEquals(current_group, section)) {
+
+					if(!zt_strStartsWith(token, ":")) {
+						int pos_eq = zt_strFindPos(token, "=", 0);
+						if (pos_eq != ztStrPosNotFound) {
+
+							char tok_key[256] = {0};
+							zt_strCpy(tok_key, zt_elementsOf(tok_key), token, pos_eq);
+
+							if(zt_strEquals(tok_key, key)) {
+
+								bool clear_whitespace = true;
+								while(clear_whitespace) {
+									switch(token[++pos_eq])
+									{
+										case ' ': case '\t': break;
+										default: clear_whitespace = false;
+									}
+								}
+
+								zt_strCpy(buffer, buffer_size, token + pos_eq);
+								zt_freeArena(data, zt_memGetGlobalArena());
+								return zt_strLen(buffer);
+							}
+						}
+					}
+				}
+			}
+
+			zt_free(data);
+		}
+	}
+
+	zt_strCpy(buffer, buffer_size, dflt);
+	return zt_strLen(buffer);
 
 #else
 #	error "zt_iniFileGetValue needs an implementation for this platform"
@@ -11968,9 +12039,149 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
 
 #elif defined(ZT_COMPILER_LLVM)
-	zt_assert(false); // TODO: implement
-	return 0;
 
+	i32 data_size = 0;
+	i32 data_avail = zt_megabytes(1);
+	char *data = zt_mallocStructArray(char, data_avail);
+
+	char current_group[256] = { 0 };
+
+	if (zt_fileExists(ini_file)) {
+		data_size = zt_readEntireFile(ini_file, data, data_avail, false);
+		if (data_size > 0) {
+			ztToken tokens[512];
+			i32 tokens_count = zt_strTokenize(data, data_size, "\r\n", tokens, zt_elementsOf(tokens));
+
+			zt_fiz(tokens_count) {
+				char token[512] = {0};
+				zt_strCpy(token, zt_elementsOf(token), data + tokens[i].beg, tokens[i].len);
+
+				if(zt_strStartsWith(token, "[")) {
+					if(zt_strEquals(current_group, section)) { // we're leaving the section we need, so let's add the key and exit
+						i32 data_before_size = tokens[i - 1].beg + tokens[i - 1].len + 1;
+
+						char *data_before = zt_mallocStructArray(char, data_before_size);
+
+						i32 data_after_size = (data_size - data_before_size) + 1;
+						char *data_after = data_after_size > 0 ? zt_mallocStructArray(char, data_after_size) : nullptr;
+
+						zt_strCpy(data_before, data_before_size, data, data_before_size - 1);
+
+						if (data_after != nullptr) {
+							zt_strCpy(data_after, data_after_size, data + (data_before_size - 1), data_after_size - 1);
+						}
+
+						i32 key_len = zt_strLen(key);
+						i32 value_len = zt_strLen(value);
+
+						if (data_before_size + data_after_size + key_len + 2 + value_len >= data_avail) {
+							zt_assert(false);
+							zt_logCritical("unable to add to ini file buffer");
+							zt_free(data_before);
+							zt_free(data_after);
+							zt_free(data);
+							return false;
+						}
+
+						zt_strCpy(data, data_avail, data_before);
+						zt_strCat(data, data_avail, "\n");
+						zt_strCat(data, data_avail, key);
+						zt_strCat(data, data_avail, "=");
+						zt_strCat(data, data_avail, value);
+						zt_strCat(data, data_avail, data_after);
+
+						zt_writeEntireFile(ini_file, data, zt_strLen(data));
+
+						zt_free(data_before);
+						zt_free(data_after);
+						zt_free(data);
+						return true;
+					}
+					zt_strGetBetween(current_group, zt_elementsOf(current_group), token, "[", "]");
+				}
+				else if(zt_strEquals(current_group, section)) {
+
+					if(!zt_strStartsWith(token, ":")) {
+						int pos_eq = zt_strFindPos(token, "=", 0);
+						if (pos_eq != ztStrPosNotFound) {
+
+							char tok_key[256] = {0};
+							zt_strCpy(tok_key, zt_elementsOf(tok_key), token, pos_eq);
+
+							if(zt_strEquals(tok_key, key)) {
+								i32 data_before_size = (tokens[i].beg + pos_eq) + 2;
+								char *data_before = zt_mallocStructArray(char, data_before_size);
+
+								i32 data_after_size = (data_size - (tokens[i].beg + tokens[i].len)) + 1;
+								char *data_after = data_after_size > 0 ? zt_mallocStructArray(char, data_after_size) : nullptr;
+
+								zt_strCpy(data_before, data_before_size, data, data_before_size - 1);
+
+								if (data_after != nullptr) {
+									zt_strCpy(data_after, data_after_size, data + (tokens[i].beg + tokens[i].len), data_after_size - 1);
+								}
+
+								i32 value_len = zt_strLen(value);
+
+								if (data_before_size + data_after_size + value_len >= data_avail) {
+									zt_assert(false);
+									zt_logCritical("unable to add to ini file buffer");
+									zt_free(data_before);
+									zt_free(data_after);
+									zt_free(data);
+									return false;
+								}
+
+								zt_strCpy(data, data_avail, data_before);
+								zt_strCat(data, data_avail, value);
+								zt_strCat(data, data_avail, data_after);
+
+								zt_writeEntireFile(ini_file, data, zt_strLen(data));
+
+								zt_free(data_before);
+								zt_free(data_after);
+								zt_free(data);
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// section and key not found
+	int sec_len = zt_strLen(section);
+	int key_len = zt_strLen(key);
+	int val_len = zt_strLen(value);
+
+	if(data_size + sec_len + 4 + key_len + 1 + val_len + 1 >= data_avail) {
+		zt_assert(false);
+		zt_logCritical("unable to add to ini file buffer");
+		zt_free(data);
+		return false;
+	}
+
+	if (!zt_strEquals(current_group, section)) {
+		zt_strCat(data, data_avail, "[");
+		zt_strCat(data, data_avail, section);
+		zt_strCat(data, data_avail, "]");
+		zt_strCat(data, data_avail, "\n");
+	}
+	if (!zt_strEndsWith(data, "\n")) {
+		zt_strCat(data, data_avail, "\n");
+	}
+
+	zt_strCat(data, data_avail, key);
+	zt_strCat(data, data_avail, "=");
+	zt_strCat(data, data_avail, value);
+	zt_strCat(data, data_avail, "\n");
+
+	zt_writeEntireFile(ini_file, data, zt_strLen(data));
+
+	zt_free(data);
+
+	return true;
 #else
 #	error "zt_iniFileSetValue needs an implementation for this platform"
 #endif
