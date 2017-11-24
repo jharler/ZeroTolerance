@@ -4843,6 +4843,7 @@ struct ztTexture
 	zt_directxSupport(ztTextureDX *dx_texture);
 
 	i32 width, height;
+	i32 width_actual, height_actual;
 	i32 flags;
 	r32 render_texture_scale;
 
@@ -7325,32 +7326,32 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_7,                  "7",                  '7',  '&', '7');
 	_zt_setKeyData(ztInputKeys_8,                  "8",                  '8',  '*', '8');
 	_zt_setKeyData(ztInputKeys_9,                  "9",                  '9',  '(', '9');
-	_zt_setKeyData(ztInputKeys_A,                  "A",                  'a',  'A', 'A');
-	_zt_setKeyData(ztInputKeys_B,                  "B",                  'b',  'B', 'B');
-	_zt_setKeyData(ztInputKeys_C,                  "C",                  'c',  'C', 'C');
-	_zt_setKeyData(ztInputKeys_D,                  "D",                  'd',  'D', 'D');
-	_zt_setKeyData(ztInputKeys_E,                  "E",                  'e',  'E', 'E');
-	_zt_setKeyData(ztInputKeys_F,                  "F",                  'f',  'F', 'F');
-	_zt_setKeyData(ztInputKeys_G,                  "G",                  'g',  'G', 'G');
-	_zt_setKeyData(ztInputKeys_H,                  "H",                  'h',  'H', 'H');
-	_zt_setKeyData(ztInputKeys_I,                  "I",                  'i',  'I', 'I');
-	_zt_setKeyData(ztInputKeys_J,                  "J",                  'j',  'J', 'J');
-	_zt_setKeyData(ztInputKeys_K,                  "K",                  'k',  'K', 'K');
-	_zt_setKeyData(ztInputKeys_L,                  "L",                  'l',  'L', 'L');
-	_zt_setKeyData(ztInputKeys_M,                  "M",                  'm',  'M', 'M');
-	_zt_setKeyData(ztInputKeys_N,                  "N",                  'n',  'N', 'N');
-	_zt_setKeyData(ztInputKeys_O,                  "O",                  'o',  'O', 'O');
-	_zt_setKeyData(ztInputKeys_P,                  "P",                  'p',  'P', 'P');
-	_zt_setKeyData(ztInputKeys_Q,                  "Q",                  'q',  'Q', 'Q');
-	_zt_setKeyData(ztInputKeys_R,                  "R",                  'r',  'R', 'R');
-	_zt_setKeyData(ztInputKeys_S,                  "S",                  's',  'S', 'S');
-	_zt_setKeyData(ztInputKeys_T,                  "T",                  't',  'T', 'T');
-	_zt_setKeyData(ztInputKeys_U,                  "U",                  'u',  'U', 'U');
-	_zt_setKeyData(ztInputKeys_V,                  "V",                  'v',  'V', 'V');
-	_zt_setKeyData(ztInputKeys_W,                  "W",                  'w',  'W', 'W');
-	_zt_setKeyData(ztInputKeys_X,                  "X",                  'x',  'X', 'X');
-	_zt_setKeyData(ztInputKeys_Y,                  "Y",                  'y',  'Y', 'Y');
-	_zt_setKeyData(ztInputKeys_Z,                  "Z",                  'z',  'Z', 'Z');
+	_zt_setKeyData(ztInputKeys_A,                  "A",                  'a',  'A', SDLK_a);
+	_zt_setKeyData(ztInputKeys_B,                  "B",                  'b',  'B', SDLK_b);
+	_zt_setKeyData(ztInputKeys_C,                  "C",                  'c',  'C', SDLK_c);
+	_zt_setKeyData(ztInputKeys_D,                  "D",                  'd',  'D', SDLK_d);
+	_zt_setKeyData(ztInputKeys_E,                  "E",                  'e',  'E', SDLK_e);
+	_zt_setKeyData(ztInputKeys_F,                  "F",                  'f',  'F', SDLK_f);
+	_zt_setKeyData(ztInputKeys_G,                  "G",                  'g',  'G', SDLK_g);
+	_zt_setKeyData(ztInputKeys_H,                  "H",                  'h',  'H', SDLK_h);
+	_zt_setKeyData(ztInputKeys_I,                  "I",                  'i',  'I', SDLK_i);
+	_zt_setKeyData(ztInputKeys_J,                  "J",                  'j',  'J', SDLK_j);
+	_zt_setKeyData(ztInputKeys_K,                  "K",                  'k',  'K', SDLK_k);
+	_zt_setKeyData(ztInputKeys_L,                  "L",                  'l',  'L', SDLK_l);
+	_zt_setKeyData(ztInputKeys_M,                  "M",                  'm',  'M', SDLK_m);
+	_zt_setKeyData(ztInputKeys_N,                  "N",                  'n',  'N', SDLK_n);
+	_zt_setKeyData(ztInputKeys_O,                  "O",                  'o',  'O', SDLK_o);
+	_zt_setKeyData(ztInputKeys_P,                  "P",                  'p',  'P', SDLK_p);
+	_zt_setKeyData(ztInputKeys_Q,                  "Q",                  'q',  'Q', SDLK_q);
+	_zt_setKeyData(ztInputKeys_R,                  "R",                  'r',  'R', SDLK_r);
+	_zt_setKeyData(ztInputKeys_S,                  "S",                  's',  'S', SDLK_s);
+	_zt_setKeyData(ztInputKeys_T,                  "T",                  't',  'T', SDLK_t);
+	_zt_setKeyData(ztInputKeys_U,                  "U",                  'u',  'U', SDLK_u);
+	_zt_setKeyData(ztInputKeys_V,                  "V",                  'v',  'V', SDLK_v);
+	_zt_setKeyData(ztInputKeys_W,                  "W",                  'w',  'W', SDLK_w);
+	_zt_setKeyData(ztInputKeys_X,                  "X",                  'x',  'X', SDLK_x);
+	_zt_setKeyData(ztInputKeys_Y,                  "Y",                  'y',  'Y', SDLK_y);
+	_zt_setKeyData(ztInputKeys_Z,                  "Z",                  'z',  'Z', SDLK_z);
 	_zt_setKeyData(ztInputKeys_LeftWin,            "LeftWin",              0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_RightWin,           "RightWin",             0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Apps,               "Apps",                 0,    0, SDLK_F24);
@@ -9941,12 +9942,16 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	bool has_offset = false;
 
 	r32 ppu = zt_pixelsPerUnit();
-	r32 clip_scale = 1;
+	r32 clip_scale_w = 1;
+	r32 clip_scale_h = 1;
 
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
 			bool first_frame = zt_game->game_details.current_frame == 1;
+
+			r32 cws = zt_game->textures[render_target_id].width / (r32)zt_game->textures[render_target_id].width_actual;
+			r32 chs = zt_game->textures[render_target_id].height / (r32)zt_game->textures[render_target_id].height_actual;
 
 			i32 cw = zt_convertToi32Floor(zt_game->textures[render_target_id].width * zt_game->textures[render_target_id].render_texture_scale);
 			i32 ch = zt_convertToi32Floor(zt_game->textures[render_target_id].height * zt_game->textures[render_target_id].render_texture_scale);
@@ -9964,7 +9969,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			rt_cam.position = camera->position;
 
 			//ppu *= zt_game->textures[render_target_id].render_texture_scale;
-			clip_scale /= zt_game->textures[render_target_id].render_texture_scale;
+			clip_scale_w = (clip_scale_w /zt_game->textures[render_target_id].render_texture_scale) / (cws);
+			clip_scale_h = (clip_scale_h /zt_game->textures[render_target_id].render_texture_scale) / (chs);
+
 		}
 		else {
 			zt_cameraMakePersp(&rt_cam, zt_game->textures[render_target_id].width, zt_game->textures[render_target_id].height, camera->fov, camera->near_z, camera->far_z);
@@ -10089,8 +10096,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		ztMat4 mat2d;
 
 		if (clip_regions_count > 0) {
-			ztgl_callAndReportOnErrorFast(glEnable(GL_SCISSOR_TEST));
-			ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
+			ztgl_clipReset();
 		}
 
 		ztCompileClipRegion *curr_clip_region = nullptr;
@@ -10138,8 +10144,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
-					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
+					ztgl_clipReset();
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -10167,8 +10172,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
-					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
+					ztgl_clipReset();
 				}
 
 				if (blend) {
@@ -10293,7 +10297,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
 								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
 
-								ztgl_callAndReportOnErrorFast(glScissor(zt_convertToi32Floor(pos.x * clip_scale), zt_convertToi32Floor(pos.y * clip_scale), zt_convertToi32Floor(w * clip_scale), zt_convertToi32Floor(h * clip_scale)));
+								ztgl_clipViewport(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
 							}
 							else {
 								/// need to properly adjust the clip rectangle
@@ -10311,12 +10315,11 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 								w     = zt_convertToi32Ceil(    w * w_pct);
 								h     = zt_convertToi32Ceil(    h * w_pct);
 
-								ztgl_callAndReportOnErrorFast(glScissor(zt_convertToi32Floor(pos.x * clip_scale), zt_convertToi32Floor(pos.y * clip_scale), zt_convertToi32Floor(w * clip_scale), zt_convertToi32Floor(h * clip_scale)));
+								ztgl_clipViewport(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
 							}
 						}
 						else {
-							ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
-							//ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
+							ztgl_clipReset();
 						}
 					}
 
@@ -10545,8 +10548,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 				if (curr_clip_region) {
 					curr_clip_region = nullptr;
-					//glDisable(GL_SCISSOR_TEST);
-					ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
+					ztgl_clipReset();
 				}
 
 				if (cmp_tex->command && shader_id != ztInvalidID) {
@@ -10559,8 +10561,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
-				//glDisable(GL_SCISSOR_TEST);
-				ztgl_callAndReportOnErrorFast(glScissor(0, 0, zt_convertToi32Floor(camera->native_w * clip_scale), zt_convertToi32Floor(camera->native_h * clip_scale)));
+				ztgl_clipReset();
 			}
 
 			if (shader_id != ztInvalidID) {
@@ -10572,7 +10573,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		}
 
 		if (clip_regions_count > 0) {
-			ztgl_callAndReportOnErrorFast(glDisable(GL_SCISSOR_TEST));
+			ztgl_clipReset();
 		}
 
 		if (render_target_id != ztInvalidID) {
@@ -16198,6 +16199,8 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 				zt_game->textures_count -= 1;
 				return ztInvalidID;
 			}
+			texture->width_actual = texture->gl_texture->wa;
+			texture->height_actual = texture->gl_texture->ha;
 #			endif
 		} break;
 
@@ -16213,6 +16216,8 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 				zt_game->textures_count -= 1;
 				return ztInvalidID;
 			}
+			texture->width_actual = texture->width;
+			texture->height_actual = texture->height;
 #			endif
 		} break;
 	}
@@ -31083,13 +31088,39 @@ void mainLoopEmscripten()
 				zt_game->app_has_focus = sdl_evt.active.gain == 1;
 			} break;
 
-			case SDL_KEYDOWN: {
-			} break;
-
+			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
+				u32 key_code = (u32)sdl_evt.key.keysym.sym;
+				auto* input_key = &zt_game->input_keys[zt_game->input_keys_mapping[key_code]];
+
+				bool is_down = sdl_evt.type == SDL_KEYDOWN;
+				bool was_down = sdl_evt.type == SDL_KEYUP;
+				bool repeated = zt_bitIsSet(input_key->flags, ztInputKeyFlags_Pressed);
+
+				if (was_down != is_down || repeated) {
+					zt_game->input_this_frame = true;
+
+
+					input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
+
+					if (is_down && !was_down) {
+						input_key->flags |= ztInputKeyFlags_JustPressed;
+						input_key->time_pressed = zt_getTime();
+					}
+
+					if (!is_down && was_down) input_key->flags |= ztInputKeyFlags_JustReleased;
+					if (is_down) input_key->flags |= ztInputKeyFlags_Pressed;
+
+					if (is_down && repeated) input_key->flags |= ztInputKeyFlags_JustRepeated;
+
+					if ( is_down && (!was_down || repeated) && zt_game->input_key_strokes_count < zt_elementsOf(zt_game->input_key_strokes) ) {
+						zt_game->input_key_strokes[zt_game->input_key_strokes_count++] = input_key->code;
+					}
+				}
 			} break;
 
 			case SDL_MOUSEMOTION: {
+				zt_game->input_this_frame = true;
 				zt_game->input_mouse.screen_x = sdl_evt.motion.x;
 				zt_game->input_mouse.screen_y = sdl_evt.motion.y;
 				zt_game->input_mouse.delta_x = sdl_evt.motion.xrel;
@@ -31097,6 +31128,7 @@ void mainLoopEmscripten()
 			} break;
 
 			case SDL_MOUSEBUTTONDOWN: {
+				zt_game->input_this_frame = true;
 				switch(sdl_evt.button.button)
 				{
 					case SDL_BUTTON_LEFT  : zt_game->input_mouse.button_state_left   = ztInputMouseFlags_JustPressed | ztInputMouseFlags_Pressed; break;
@@ -31106,6 +31138,7 @@ void mainLoopEmscripten()
 			} break;
 
 			case SDL_MOUSEBUTTONUP: {
+				zt_game->input_this_frame = true;
 				switch(sdl_evt.button.button)
 				{
 					case SDL_BUTTON_LEFT  : zt_game->input_mouse.button_state_left   = ztInputMouseFlags_JustReleased; break;
