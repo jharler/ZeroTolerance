@@ -531,7 +531,6 @@ void ztal_bufferPlay(ztOpenALBuffer *buffer, bool loop)
 			ztal_callAndReportOnError(alGetSourcei(buffer->sources[i], AL_SOURCE_STATE, &source_state));
 			
 			if (source_state != AL_PLAYING) {
-				zt_logDebug("playing buffer %d source %d index %d", buffer->buffer, buffer->sources[i], i);
 				ztal_callAndReportOnError(alSourcei (buffer->sources[i], AL_LOOPING, loop ? AL_TRUE : AL_FALSE));
 				ztal_callAndReportOnError(alSourcePlay(buffer->sources[i]));
 				return;
@@ -549,7 +548,6 @@ void ztal_bufferPlay(ztOpenALBuffer *buffer, bool loop)
 
 	// if we're here, we have no free buffers and need to just reset the buffer to play it
 	if (buffer->sources_used[0]) {
-		zt_logDebug("killing source 0 buffer %d source %d", buffer->buffer, buffer->sources[0]);
 		ztal_callAndReportOnError(alSourceStop(buffer->sources[0]));
 		ztal_callAndReportOnError(alSourcePlay(buffer->sources[0]));
 		return;
