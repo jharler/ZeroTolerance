@@ -2370,9 +2370,9 @@ void               zt_spriteManagerFree    (ztSpriteManager *sprite_manager, boo
 void               zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name);
 void               zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name);
 
-ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, char *name);
+ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, const char *name);
 ztSprite          *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_hash);
-ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, char *name);
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, const char *name);
 ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash);
 
 i32                zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite);
@@ -20238,9 +20238,12 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset
 	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
 	zt_returnValOnNull(asset_mgr, false);
 	if (asset_id == ztInvalidID) {
+		zt_logCritical("sprite manager: invalid asset id");
 		return false;
 	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	zt_logDebug("sprite manager: loading: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
@@ -20358,8 +20361,8 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztT
 				}
 
 				_serialCheck(zt_serialRead(serial, sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), nullptr));
-				sprite_manager->sprites[idx].hash = zt_strHash(sprite_manager->sprites[idx].name);
-				//sprite_manager->sprites[idx].hash = hash;
+				//sprite_manager->sprites[idx].hash = zt_strHash(sprite_manager->sprites[idx].name);
+				sprite_manager->sprites[idx].hash = hash;
 
 				i32 type = 0;
 				_serialCheck(zt_serialRead(serial, &type));
@@ -20587,7 +20590,7 @@ void zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSprit
 
 // ================================================================================================================================================================================================
 
-ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, char *name)
+ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, const char *name)
 {
 	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
 	return zt_spriteManagerGetSprite(sprite_manager, zt_strHash(name));
@@ -20616,7 +20619,7 @@ ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_
 
 // ================================================================================================================================================================================================
 
-ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, char *name)
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, const char *name)
 {
 	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
 	return zt_spriteManagerGetSpriteNineSlice(sprite_manager, zt_strHash(name));
@@ -27317,6 +27320,7 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 				if (sprite) {
 					system->system_rendering.billboard.sprite = *sprite;
 				}
+				else zt_logCritical("particle system has invalid billboard sprite");
 			} break;
 
 			case ztParticleRenderingType_Facing: {
@@ -27326,6 +27330,7 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 				if (sprite) {
 					system->system_rendering.facing.sprite = *sprite;
 				}
+				else zt_logCritical("particle system has invalid facing sprite");
 			} break;
 
 			default: zt_assert(false);
@@ -27394,9 +27399,12 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 
 		i32 trails_sprite_hash = 0;
 		if (!zt_serialRead(serial, &trails_sprite_hash)) return false;
-		ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, trails_sprite_hash);
-		if (sprite) {
-			system->trails_sprite = *sprite;
+		if (trails_sprite_hash != 0) {
+			ztSprite *sprite = zt_spriteManagerGetSprite(sprite_manager, trails_sprite_hash);
+			if (sprite) {
+				system->trails_sprite = *sprite;
+			}
+			else zt_logCritical("particle system has invalid trail sprite");
 		}
 	}
 	if (!zt_serialGroupPop(serial)) return false;
@@ -27781,6 +27789,11 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 				}
 			}
 			else {
+#				if defined(ZT_EMSCRIPTEN)
+				if (zt_real32Eq(emitter->time_last_particle, ztReal32Max)) {
+					emitter->time_last_particle = dt;
+				}
+#				endif
 				new_particles = zt_convertToi32Ceil(emitter->time_last_particle / time_between_particles);
 			}
 
@@ -27798,7 +27811,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 
 				live_particles += 1;
 
-				if (emitter->time_last_particle == ztReal32Max) {
+				if (zt_real32Eq(emitter->time_last_particle, ztReal32Max)) {
 					emitter->time_last_particle = dt;
 				}
 
