@@ -600,6 +600,11 @@ void ztal_bufferSetFrequency(ztOpenALBuffer *buffer, r32 frequency)
 {
 	zt_returnOnNull(buffer);
 
+	zt_fize(buffer->sources) {
+		if (buffer->sources_used[i]) {
+			ztal_callAndReportOnError(alSourcef (buffer->sources[i], AL_PITCH, 2 * frequency));
+		}
+	}
 }
 
 // ================================================================================================================================================================================================
