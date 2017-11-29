@@ -1249,21 +1249,22 @@ struct ztMaterial
 	ztTextureID diffuse_tex;
 	ztVec4 diffuse_color;
 	i32 diffuse_flags;
-
 	u32 diffuse_tex_override; // shader variable name override
 	u32 diffuse_color_override;
 
 	ztTextureID specular_tex;
 	ztVec4 specular_color;
 	i32 specular_flags;
-
 	u32 specular_tex_override;
 	u32 specular_color_override;
 
 	ztTextureID normal_tex;
 	i32 normal_flags;
-
 	u32 normal_tex_override;
+
+	ztTextureID height_tex;
+	i32 height_flags;
+	u32 height_tex_override;
 
 	r32 shininess;
 
@@ -1273,7 +1274,9 @@ struct ztMaterial
 
 ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4 &diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
 						   ztTextureID specular_tex = ztInvalidID, const ztVec4 &specular_color = ztVec4::one, i32 specular_flags = 0,
-						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0, r32 shininess = 0.5f);
+						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0,
+						   ztTextureID height_tex = ztInvalidID, i32 height_flags = 0,
+						   r32 shininess = 0.5f);
 
 int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size);
 int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int materials_arr_size);
@@ -1562,8 +1565,15 @@ struct ztFrustum
 
 // ================================================================================================================================================================================================
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, const ztVec3 &world_offset = ztVec3::zero);
-void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, const ztVec3 &world_offset = ztVec3::zero);
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z = 0, r32 near_z = 0, const ztVec3 &world_offset = ztVec3::zero);
+void      zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z = 0, r32 near_z = 0, const ztVec3 &world_offset = ztVec3::zero);
+
+ztFrustum zt_mat4CalcViewFrustumPersp(ztMat4 *mat_view, ztMat4 *mat_proj, r32 fov, r32 width, r32 height, r32 near_z, r32 far_z);
+void      zt_mat4CalcViewFrustumPersp(ztFrustum *frustum, ztMat4 *mat_view, ztMat4 *mat_proj, r32 fov, r32 width, r32 height, r32 near_z, r32 far_z);
+
+ztFrustum zt_mat4CalcViewFrustumOrtho(ztMat4 *mat_view, ztMat4 *mat_proj, r32 width, r32 height, r32 near_z, r32 far_z);
+void      zt_mat4CalcViewFrustumOrtho(ztFrustum *frustum, ztMat4 *mat_view, ztMat4 *mat_proj, r32 width, r32 height, r32 near_z, r32 far_z);
+
 
 // ================================================================================================================================================================================================
 
@@ -2089,9 +2099,10 @@ enum ztModelFlags_Enum
 	ztModelFlags_DebugDrawBones = (1<<20),
 
 	// set automically when using internal shaders, but can be set manually
-	ztModelFlags_ShaderSupportsDiffuse          = (1<<27),		// "diffuse_tex", "diffuse_color"
-	ztModelFlags_ShaderSupportsSpecular         = (1<<28),		// "specular_tex", "specular_color"
-	ztModelFlags_ShaderSupportsNormal           = (1<<29),		// "normal_tex"
+	ztModelFlags_ShaderSupportsDiffuse          = (1<<26),		// "diffuse_tex", "diffuse_color"
+	ztModelFlags_ShaderSupportsSpecular         = (1<<27),		// "specular_tex", "specular_color"
+	ztModelFlags_ShaderSupportsNormal           = (1<<28),		// "normal_tex"
+	ztModelFlags_ShaderSupportsHeight           = (1<<29),		// "height_tex"
 	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
 };
 
@@ -2196,6 +2207,7 @@ struct ztScene
 struct ztSceneLightingRules
 {
 	r32 shadow_max_distance = 50.f;
+	r32 shadow_distance_behind_camera = 20.f;
 };
 
 // ================================================================================================================================================================================================
@@ -3793,6 +3805,7 @@ struct ztParticleEmitter
 	i32                                 seed;
 
 	ztVec3                              position;
+	ztVec3                              rotation;
 	ztParticle2                        *particles;
 	int                                 particles_size;
 
@@ -4152,7 +4165,8 @@ void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 fre
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
 
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
-bool zt_audioClipStop(ztAudioClipID audio_clip_id);
+bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time = 0);
+
 
 void zt_audioSetMute(bool mute);
 bool zt_audioGetMute();
@@ -4987,6 +5001,8 @@ struct ztAudioClip
 
 	r32 length;
 	r32 play_time;
+	r32 fade_out_curr;
+	r32 fade_out_time;
 
 	i32 system;
 };
@@ -6999,7 +7015,8 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1.0);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize((_input.normal * 2.0) - vec3(1.0, 1.0, 1.0));\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	\n	float bias = max(0.05 * (1.0 - dot(normal, light_dir)), 0.005);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n}",	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1 || current_depth < 0) {\n	return 0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv);\n		\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0 || uv.y > 1 || uv.y < 0) {\n			discard();\n		}\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n",
+	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
 };
@@ -8669,6 +8686,11 @@ bool zt_drawListAddDrawList(ztDrawList *draw_list, ztDrawList *draw_list_to_add,
 bool zt_drawListAddFrustum(ztDrawList *draw_list, ztFrustum *frustum)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddFrustum");
+
+	if (!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->near_se)) return false;
+	if (!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->near_sw)) return false;
+	if (!zt_drawListAddLine(draw_list, (frustum->near_ne + frustum->near_sw) * .5f, (frustum->near_nw + frustum->near_ne) * .5f)) return false;
+
 	if (!zt_drawListAddLine(draw_list, frustum->near_nw, frustum->near_ne)) return false;
 	if (!zt_drawListAddLine(draw_list, frustum->near_ne, frustum->near_se)) return false;
 	if (!zt_drawListAddLine(draw_list, frustum->near_se, frustum->near_sw)) return false;
@@ -11271,10 +11293,12 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 	static u32 diffuse_tex_hash  = zt_strHash("diffuse_tex");
 	static u32 specular_tex_hash = zt_strHash("specular_tex");
 	static u32 normal_tex_hash   = zt_strHash("normal_tex");
+	static u32 height_tex_hash   = zt_strHash("height_tex");
 
 	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDiffuse ) && zt_shaderHasVariable(shader, material->diffuse_tex_override  ? material->diffuse_tex_override  : diffuse_tex_hash , nullptr)) flags |= ztModelFlags_ShaderSupportsDiffuse;
 	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsSpecular) && zt_shaderHasVariable(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, nullptr)) flags |= ztModelFlags_ShaderSupportsSpecular;
 	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsNormal  ) && zt_shaderHasVariable(shader, material->normal_tex_override   ? material->normal_tex_override   : normal_tex_hash  , nullptr)) flags |= ztModelFlags_ShaderSupportsNormal;
+	if (material && !zt_bitIsSet(flags, ztModelFlags_ShaderSupportsHeight  ) && zt_shaderHasVariable(shader, material->height_tex_override   ? material->height_tex_override   : height_tex_hash  , nullptr)) flags |= ztModelFlags_ShaderSupportsHeight;
 
 	if (!zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDirectionalLight) && shader < ztShaderDefault_MAX && zt_shaderHasVariable(shader, "light_pos", nullptr)) flags |= ztModelFlags_ShaderSupportsDirectionalLight;
 
@@ -11533,6 +11557,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
+	zt_textureSetName(scene->tex_directional_shadow_map, "directional shadow map");
 
 	if(scene->tex_directional_shadow_map == ztInvalidID) {
 		zt_freeArena(scene, arena);
@@ -11723,32 +11748,53 @@ void zt_sceneOptimize(ztScene *scene, ztCamera *camera)
 ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera, ztSceneLightingRules *lighting_rules, bool shadow_pass = false)
 {
 	ZT_PROFILE_RENDERING("_zt_sceneLightingMakeLightMat");
-	ztCamera camera_copy = *camera; // copy camera so that we can adjust near/far planes
+	zt_assertReturnValOnFail(light != nullptr, ztMat4::identity);
+	zt_assertReturnValOnFail(camera != nullptr, ztMat4::identity);
+	zt_assertReturnValOnFail(lighting_rules != nullptr, ztMat4::identity);
 
-	r32 shadow_near = .1f;
-	r32 shadow_far  = lighting_rules ? lighting_rules->shadow_max_distance * 2 : 60.f;
+	r32 shadow_near = .1f - lighting_rules->shadow_distance_behind_camera;
+	r32 shadow_far = lighting_rules->shadow_max_distance;
 
-	if (camera_copy.type == ztCameraType_Perspective) {
-		//camera_copy.near_z = shadow_near;
-		//camera_copy.far_z = lighting_rules ? lighting_rules->shadow_max_distance : 30.f;
-		//camera = &camera_copy;
+	ztMat4 light_mat = ztMat4::identity.getLookAt(light->position.getNormal() * 1, ztVec3::zero);
+	ztQuat quat_rot = camera->rotation.getInverse();
+
+	ztFrustum frustum = zt_cameraCalcViewFrustum(camera, shadow_far, shadow_near);
+
+	ztVec3 points_in_lightspace[8];
+	zt_fize(points_in_lightspace) points_in_lightspace[i] = light_mat.getMultiply(frustum.points[i]);
+	zt_fize(points_in_lightspace) frustum.points[i] = points_in_lightspace[i];
+
+	r32 min_x = ztReal32Max;
+	r32 max_x = ztReal32Min;
+	r32 min_y = ztReal32Max;
+	r32 max_y = ztReal32Min;
+	r32 min_z = ztReal32Max;
+	r32 max_z = ztReal32Min;
+
+	zt_fize(points_in_lightspace) {
+		ztVec3 point = points_in_lightspace[i];
+		min_x = zt_min(min_x, point.x);
+		max_x = zt_max(max_x, point.x);
+		min_y = zt_min(min_y, point.y);
+		max_y = zt_max(max_y, point.y);
+		min_z = zt_min(min_z, point.z);
+		max_z = zt_max(max_z, point.z);
 	}
 
-	//ztVec3 up = zt_currentRenderer() == ztRenderer_DirectX ? zt_vec3(0, -1, 0) : zt_vec3(0, 1, 0);
+	ztVec3 cube_center = zt_vec3((min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2);
+	//cube_center = light_mat.getMultiply(cube_center);
+	ztVec3 cube_size = zt_vec3(max_x - min_x, max_y - min_y, max_z - min_z);
 
-	ztMat4 mat_view = ztMat4::identity.getLookAt(light->position.getNormal(), ztVec3::zero);//, up);
-	ztMat4 mat_proj = ztMat4::makeOrthoProjection(-camera->far_z / 2.f, camera->far_z / 2.f, camera->far_z / 2.f, -camera->far_z / 2.f, shadow_near, shadow_far);
+	ztMat4 ortho_proj = ztMat4::identity;
+	ortho_proj.c0r0 = 2.f / cube_size.x;
+	ortho_proj.c1r1 = 2.f / cube_size.y;
+	ortho_proj.c2r2 = -2.f / cube_size.z;
+	ortho_proj.c3r3 = 1;
 
-	ztVec3 center = camera->position + camera->direction * (zt_min(200, camera->far_z) / -2.f); //half_z;
+	ztMat4 light_move = ztMat4::identity.getTranslate(cube_center * -1);
+	light_mat = light_move * light_mat;
 
-	//if (shadow_pass ) { //&& zt_currentRenderer() == ztRenderer_DirectX) {
-		ztMat4 flip_mat = ztMat4::identity.getScale(1, -1, 1);
-		mat_proj *= flip_mat;
-	//}
-
-
-	//mat_view *= ztMat4::identity.getTranslate(center * zt_vec3(-1, 1, -1));
-	return mat_proj * mat_view;
+	return ortho_proj * light_mat;
 }
 
 // ================================================================================================================================================================================================
@@ -11756,6 +11802,12 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
 	ZT_PROFILE_RENDERING("zt_sceneLighting");
+
+	if (lighting_rules == nullptr) {
+		static ztSceneLightingRules rules = {};
+		lighting_rules = &rules;
+	}
+
 	struct local
 	{
 		static void renderModelAndChildren(ztScene *scene, ztShaderID shader, ztModel *model, i32 match_flags)
@@ -11791,6 +11843,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_textureRenderTargetPrepare(scene->tex_directional_shadow_map);
 		zt_rendererClear(zt_vec4(1, 1, 1, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
+		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
 
 		ztShaderID shader = zt_shaderGetDefault(ztShaderDefault_ShadowDirectional);
 		zt_shaderBegin(shader);
@@ -11825,7 +11878,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	ZT_PROFILE_RENDERING("zt_sceneRender");
 	struct local
 	{
-		static void renderModelAndChildren(ztScene *scene, ztScene::ModelInfo *scene_model_info, ztModel *model, ztCamera *camera, ztMat4 *light_mat, ztShaderID *active_shader)
+		static void renderModelAndChildren(ztScene *scene, ztScene::ModelInfo *scene_model_info, ztModel *model, ztCamera *camera, ztMat4 *light_mat, ztShaderID *active_shader, ztSceneLightingRules *lighting_rules)
 		{
 			if (zt_bitIsSet(model->flags, ztModelFlags_Hidden)) {
 				return;
@@ -11844,14 +11897,15 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 
 					if (shader_supports_lights) {
 						if (scene->directional_light.light) {
-							static u32 light_matrix_hash = zt_strHash("light_matrix");
-							static u32 light_pos_hash = zt_strHash("light_pos");
-							static u32 light_ambient_hash = zt_strHash("light_ambient");
+							static u32 light_matrix_hash    = zt_strHash("light_matrix");
+							static u32 light_pos_hash       = zt_strHash("light_pos");
+							static u32 light_ambient_hash   = zt_strHash("light_ambient");
 							static u32 light_intensity_hash = zt_strHash("light_intensity");
-							static u32 light_color_hash = zt_strHash("light_color");
-							static u32 view_pos_hash = zt_strHash("view_pos");
+							static u32 light_color_hash     = zt_strHash("light_color");
+							static u32 view_pos_hash        = zt_strHash("view_pos");
+
 							zt_shaderSetVariableMat4(*active_shader, light_matrix_hash, *light_mat);
-							zt_shaderSetVariableVec3(*active_shader, light_pos_hash, scene->directional_light.light->position);
+							zt_shaderSetVariableVec3(*active_shader, light_pos_hash, (/*camera->position + */scene->directional_light.light->position) * 10000);
 							zt_shaderSetVariableFloat(*active_shader, light_ambient_hash, scene->directional_light.light->ambient);
 							zt_shaderSetVariableFloat(*active_shader, light_intensity_hash, scene->directional_light.light->intensity);
 							zt_shaderSetVariableVec4(*active_shader, light_color_hash, scene->directional_light.light->color);
@@ -11934,13 +11988,19 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 			}
 			ztModel *child = model->first_child;
 			while (child) {
-				local::renderModelAndChildren(scene, scene_model_info, child, camera, light_mat, active_shader);
+				local::renderModelAndChildren(scene, scene_model_info, child, camera, light_mat, active_shader, lighting_rules);
 				child = child->next;
 			}
 		}
 	};
 
 	_zt_rendererCheckToResetStats();
+
+	if (lighting_rules == nullptr) {
+		static ztSceneLightingRules rules = {};
+		lighting_rules = &rules;
+	}
+
 
 	zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
 
@@ -11973,13 +12033,13 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	if (scene->culling_distance != ztReal32Max) {
 		zt_fiz(scene->models_count) {
 			if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
-				local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
+				local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader, lighting_rules);
 			}
 		}
 	}
 	else {
 		zt_fiz(scene->models_count) {
-			local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader);
+			local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader, lighting_rules);
 		}
 	}
 
@@ -14151,6 +14211,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"sqrt,vec2,vec2",
 			"sqrt,vec3,vec3",
 			"sqrt,vec4,vec4",
+			"discard,void",
 
 			"int,int,int",
 			"int,uint,int",
@@ -15299,15 +15360,19 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 		if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
 
 			if (replace != ztInvalidID) {
-				zt_shaderFree(replace);
 				shader_id = replace;
 			}
 			else {
 				shader_id = local::getNextID();
 			}
 
-			ztShaderGL *gl_shader = zt_game->shaders[shader_id].gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
+			ztShaderGL *gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
 			if (gl_shader != nullptr) {
+				if (replace != ztInvalidID) {
+					zt_shaderFree(replace);
+				}
+				zt_game->shaders[shader_id].gl_shader = gl_shader;
+
 				ztShader* shader = &zt_game->shaders[shader_id];
 				shader->renderer = ztRenderer_OpenGL;
 
@@ -15336,6 +15401,9 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 						shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
 					}
 				}
+			}
+			else {
+				shader_id = ztInvalidID;
 			}
 
 			if (gl_shader == nullptr) {
@@ -17399,9 +17467,14 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 	controller.sneaking_speed = 2.f;
 	controller.lock_y_axis = false;
 
-	controller.rotation = initial_rotation;
-	controller.camera->rotation = ztQuat::makeFromEuler(controller.rotation.x, 0, 0);
-	controller.camera->rotation *= ztQuat::makeFromEuler(0, controller.rotation.y, 0);
+	if (initial_rotation == ztVec3::zero) {
+		controller.rotation = initial_rotation;
+		controller.camera->rotation = ztQuat::makeFromEuler(controller.rotation.x, 0, 0);
+		controller.camera->rotation *= ztQuat::makeFromEuler(0, controller.rotation.y, 0);
+	}
+	else {
+		controller.rotation = camera->rotation.euler();
+	}
 	zt_cameraRecalcMatrices(controller.camera);
 
 	return controller;
@@ -17419,12 +17492,12 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 	if (controller->mouse_delta_x != 0 || controller->mouse_delta_y != 0) {
 		cam_moved = true;
 
-		r32 delta_x = controller->mouse_delta_x * controller->mouse_sensitivity;
-		r32 delta_y = controller->mouse_delta_y * controller->mouse_sensitivity;
+		r32 delta_x = -controller->mouse_delta_x * controller->mouse_sensitivity;
+		r32 delta_y = -controller->mouse_delta_y * controller->mouse_sensitivity;
 
 		controller->rotation.y += delta_x;
-		if (controller->rotation.x <   0) controller->rotation.y += 360;
-		if (controller->rotation.x > 360) controller->rotation.y -= 360;
+		if (controller->rotation.y <   0) controller->rotation.y += 360;
+		if (controller->rotation.y > 360) controller->rotation.y -= 360;
 
 		controller->rotation.x = zt_clamp(controller->rotation.x + delta_y, -89, 89);
 
@@ -17579,42 +17652,58 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 // ================================================================================================================================================================================================
 
-ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, const ztVec3 &world_offset)
+ztFrustum zt_cameraCalcViewFrustum(ztCamera *camera, r32 far_z, r32 near_z, const ztVec3 &world_offset)
 {
 	ztFrustum result;
-	zt_cameraCalcViewFrustum(&result, camera, far_z, world_offset);
+	zt_cameraCalcViewFrustum(&result, camera, far_z, near_z, world_offset);
 	return result;
 }
 
 // ================================================================================================================================================================================================
 
-void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, const ztVec3 &world_offset)
+void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, r32 near_z, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_cameraCalcViewFrustum");
 
 	zt_returnOnNull(frustum);
 	zt_returnOnNull(camera);
 
-	ztVec3 near_center = zt_vec3(0, 0, -camera->near_z);
+	ztVec3 near_center = zt_vec3(0, 0, near_z == 0 ? -camera->near_z : -near_z);
 	ztVec3 far_center = zt_vec3(0, 0, far_z == 0 ? -camera->far_z : -far_z);
 
-	r32 near_half_height = zt_tan(camera->fov / 2.f) * camera->near_z;
-	r32 far_half_height = zt_tan(camera->fov / 2.f) * (far_z == 0 ? camera->far_z : far_z);
+	if (camera->type == ztCameraType_Perspective) {
+		r32 near_half_height = zt_tan(camera->fov / 2.f) * camera->near_z;
+		r32 far_half_height = zt_tan(camera->fov / 2.f) * (far_z == 0 ? camera->far_z : far_z);
 
-	r32 aspect = (r32)camera->width / (r32)camera->height;
+		r32 aspect = (r32)camera->width / (r32)camera->height;
 
-	r32 near_half_width = near_half_height * aspect;
-	r32 far_half_width = far_half_height * aspect;
-	
-	frustum->near_nw = zt_vec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
-	frustum->near_ne = zt_vec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
-	frustum->near_se = zt_vec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
-	frustum->near_sw = zt_vec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
+		r32 near_half_width = near_half_height * aspect;
+		r32 far_half_width = far_half_height * aspect;
 
-	frustum->far_nw = zt_vec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
-	frustum->far_ne = zt_vec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
-	frustum->far_se = zt_vec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
-	frustum->far_sw = zt_vec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
+		frustum->near_nw = zt_vec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
+		frustum->near_ne = zt_vec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
+		frustum->near_se = zt_vec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
+		frustum->near_sw = zt_vec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
+
+		frustum->far_nw = zt_vec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
+		frustum->far_ne = zt_vec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
+		frustum->far_se = zt_vec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
+		frustum->far_sw = zt_vec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
+	}
+	else {
+		r32 half_height = camera->height / 2.f;
+		r32 half_width = camera->width / 2.f;
+
+		frustum->near_nw = zt_vec3(near_center.x - half_width, near_center.y + half_height, near_center.z);
+		frustum->near_ne = zt_vec3(near_center.x + half_width, near_center.y + half_height, near_center.z);
+		frustum->near_se = zt_vec3(near_center.x + half_width, near_center.y - half_height, near_center.z);
+		frustum->near_sw = zt_vec3(near_center.x - half_width, near_center.y - half_height, near_center.z);
+
+		frustum->far_nw = zt_vec3(far_center.x - half_width, far_center.y + half_height, far_center.z);
+		frustum->far_ne = zt_vec3(far_center.x + half_width, far_center.y + half_height, far_center.z);
+		frustum->far_se = zt_vec3(far_center.x + half_width, far_center.y - half_height, far_center.z);
+		frustum->far_sw = zt_vec3(far_center.x - half_width, far_center.y - half_height, far_center.z);
+	}
 
 	ztMat4 cam_view_inv = camera->mat_view.getInverse();
 	zt_fiz(8) {
@@ -17651,6 +17740,143 @@ void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, c
 	zt_fize(frustum->planes) {
 		zt_planeNormalize(&frustum->planes[i]);
 		//frustum->planes[i].normal.normalize();
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztFrustum zt_mat4CalcViewFrustumPersp(ztMat4 *mat_view, ztMat4 *mat_proj, r32 fov, r32 width, r32 height, r32 near_z, r32 far_z)
+{
+	ztFrustum result;
+	zt_mat4CalcViewFrustumPersp(&result, mat_view, mat_proj, fov, width, height, near_z, far_z);
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_mat4CalcViewFrustumPersp(ztFrustum *frustum, ztMat4 *mat_view, ztMat4 *mat_proj, r32 fov, r32 width, r32 height, r32 near_z, r32 far_z)
+{
+	ZT_PROFILE_RENDERING("zt_cameraCalcViewFrustum");
+
+	zt_returnOnNull(frustum);
+	zt_returnOnNull(mat_view);
+	zt_returnOnNull(mat_proj);
+
+	ztVec3 near_center = zt_vec3(0, 0, -near_z);
+	ztVec3 far_center = zt_vec3(0, 0, -far_z);
+
+	r32 near_half_height = zt_tan(fov / 2.f) * near_z;
+	r32 far_half_height = zt_tan(fov / 2.f) * far_z;
+
+	r32 aspect = width / height;
+
+	r32 near_half_width = near_half_height * aspect;
+	r32 far_half_width = far_half_height * aspect;
+
+	frustum->near_nw = zt_vec3(near_center.x - near_half_width, near_center.y + near_half_height, near_center.z);
+	frustum->near_ne = zt_vec3(near_center.x + near_half_width, near_center.y + near_half_height, near_center.z);
+	frustum->near_se = zt_vec3(near_center.x + near_half_width, near_center.y - near_half_height, near_center.z);
+	frustum->near_sw = zt_vec3(near_center.x - near_half_width, near_center.y - near_half_height, near_center.z);
+
+	frustum->far_nw = zt_vec3(far_center.x - far_half_width, far_center.y + far_half_height, far_center.z);
+	frustum->far_ne = zt_vec3(far_center.x + far_half_width, far_center.y + far_half_height, far_center.z);
+	frustum->far_se = zt_vec3(far_center.x + far_half_width, far_center.y - far_half_height, far_center.z);
+	frustum->far_sw = zt_vec3(far_center.x - far_half_width, far_center.y - far_half_height, far_center.z);
+
+	ztMat4 cam_view_inv = mat_view->getInverse();
+	zt_fiz(8) {
+		frustum->points[i] = cam_view_inv * frustum->points[i];
+	}
+
+	ztMat4 mat_final = (*mat_proj) * (*mat_view);
+
+	r32 *m = mat_final.values;
+	frustum->plane_right.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]);
+	frustum->plane_right.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row0];
+
+	frustum->plane_left.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row0]);
+	frustum->plane_left.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row0];
+
+	frustum->plane_bottom.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row1]);
+	frustum->plane_bottom.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row1];
+
+	frustum->plane_top.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row1]);
+	frustum->plane_top.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row1];
+
+	frustum->plane_far.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row2]);
+	frustum->plane_far.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row2];
+
+	frustum->plane_near.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row2]);
+	frustum->plane_near.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row2];
+
+	zt_fize(frustum->planes) {
+		zt_planeNormalize(&frustum->planes[i]);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztFrustum zt_mat4CalcViewFrustumOrtho(ztMat4 *mat_view, ztMat4 *mat_proj, r32 width, r32 height, r32 near_z, r32 far_z)
+{
+	ztFrustum result;
+	zt_mat4CalcViewFrustumOrtho(&result, mat_view, mat_proj, width, height, near_z, far_z);
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_mat4CalcViewFrustumOrtho(ztFrustum *frustum, ztMat4 *mat_view, ztMat4 *mat_proj, r32 width, r32 height, r32 near_z, r32 far_z)
+{
+	ZT_PROFILE_RENDERING("zt_cameraCalcViewFrustum");
+
+	zt_returnOnNull(frustum);
+	zt_returnOnNull(mat_view);
+	zt_returnOnNull(mat_proj);
+
+	ztVec3 near_center = zt_vec3(0, 0, -near_z);
+	ztVec3 far_center = zt_vec3(0, 0, -far_z);
+
+	r32 half_height = height / 2.f;
+	r32 half_width = width / 2.f;
+
+	frustum->near_nw = zt_vec3(near_center.x - half_width, near_center.y + half_height, near_center.z);
+	frustum->near_ne = zt_vec3(near_center.x + half_width, near_center.y + half_height, near_center.z);
+	frustum->near_se = zt_vec3(near_center.x + half_width, near_center.y - half_height, near_center.z);
+	frustum->near_sw = zt_vec3(near_center.x - half_width, near_center.y - half_height, near_center.z);
+
+	frustum->far_nw = zt_vec3(far_center.x - half_width, far_center.y + half_height, far_center.z);
+	frustum->far_ne = zt_vec3(far_center.x + half_width, far_center.y + half_height, far_center.z);
+	frustum->far_se = zt_vec3(far_center.x + half_width, far_center.y - half_height, far_center.z);
+	frustum->far_sw = zt_vec3(far_center.x - half_width, far_center.y - half_height, far_center.z);
+
+	ztMat4 cam_view_inv = mat_view->getInverse();
+	zt_fiz(8) {
+		frustum->points[i] = cam_view_inv * frustum->points[i];
+	}
+
+
+	ztMat4 mat_final = (*mat_proj) * (*mat_view);
+	r32 *m = mat_final.values;
+	frustum->plane_right.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]);
+	frustum->plane_right.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row0];
+
+	frustum->plane_left.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row0]);
+	frustum->plane_left.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row0];
+
+	frustum->plane_bottom.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row1]);
+	frustum->plane_bottom.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row1];
+
+	frustum->plane_top.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row1]);
+	frustum->plane_top.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row1];
+
+	frustum->plane_far.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row2]);
+	frustum->plane_far.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row2];
+
+	frustum->plane_near.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row2]);
+	frustum->plane_near.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row2];
+
+	zt_fize(frustum->planes) {
+		zt_planeNormalize(&frustum->planes[i]);
 	}
 }
 
@@ -19864,11 +20090,15 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
+
+	r32 anchor_scale_x = scale.x < 0 ? -1.f : 1.f;
+	r32 anchor_scale_y = scale.y < 0 ? -1.f : 1.f;
+
 	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y +  sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x +  sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x +  sprite->half_size.x, -sprite->anchor.y +  sprite->half_size.y, 0), // top right
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) +  sprite->half_size.y, 0), // top left
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) +  sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) +  sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) +  sprite->half_size.y, 0), // top right
 	};
 
 	ztVec2 uvs[4] = {
@@ -19889,9 +20119,21 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 	}
 
 	if (scale.x != 1 || scale.y != 1) {
+		bool flip_x = scale.x < 0;
+		bool flip_y = scale.y < 0;
+
 		zt_fiz(4) {
-			pos[i].x *= scale.x;
-			pos[i].y *= scale.y;
+			pos[i].x *= zt_abs(scale.x);
+			pos[i].y *= zt_abs(scale.y);
+		}
+
+		if (flip_x) {
+			zt_swap(uvs[0].x, uvs[2].x);
+			zt_swap(uvs[1].x, uvs[3].x);
+		}
+		if (flip_y) {
+			zt_swap(uvs[0].y, uvs[1].y);
+			zt_swap(uvs[2].y, uvs[3].y);
 		}
 	}
 
@@ -20673,7 +20915,9 @@ i32 zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sp
 
 ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color, i32 diffuse_flags,
 						   ztTextureID specular_tex, const ztVec4 &specular_color, i32 specular_flags,
-						   ztTextureID normal_tex, i32 normal_flags, r32 shininess)
+						   ztTextureID normal_tex, i32 normal_flags, 
+						   ztTextureID height_tex, i32 height_flags,
+						   r32 shininess)
 {
 	ZT_PROFILE_RENDERING("zt_materialMake");
 	ztMaterial result;
@@ -20683,21 +20927,22 @@ ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color,
 	result.diffuse_tex = diffuse_tex;
 	result.diffuse_color = diffuse_color;
 	result.diffuse_flags = diffuse_flags;
-
 	result.diffuse_tex_override = 0;
 	result.diffuse_color_override = 0;
 
 	result.specular_tex = specular_tex;
 	result.specular_color = specular_color;
 	result.specular_flags = specular_flags;
-
 	result.specular_tex_override = 0;
 	result.specular_color_override = 0;
 
 	result.normal_tex = normal_tex;
 	result.normal_flags = normal_flags;
-
 	result.normal_tex_override = 0;
+
+	result.height_tex = height_tex;
+	result.height_flags = height_flags;
+	result.height_tex_override = 0;
 
 	result.shininess = shininess;
 	result.shininess_override = 0;
@@ -20818,7 +21063,7 @@ ztInternal int _zt_materialLoadFromFileDataBase(char *data, int data_size, ztMat
 				curr_mtl->specular_tex = local::parseTexture(line, asset_mgr, asset_id, file_name);
 				curr_mtl->specular_flags |= ztMaterialFlags_OwnsTexture;
 			}
-			else if (zt_strStartsWith(line, "map_Ns ")) {
+			else if (zt_strStartsWith(line, "map_Ns ") || zt_strStartsWith(line, "map_bump ")) {
 				if (curr_mtl->normal_tex != ztInvalidID) {
 					zt_assert(false);
 				}
@@ -20937,6 +21182,13 @@ void zt_materialFree(ztMaterial *material)
 	material->normal_flags = 0;
 	material->normal_tex_override = 0;
 
+	if (zt_bitIsSet(material->height_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->height_tex);
+	}
+	material->height_tex = ztInvalidID;
+	material->height_flags = 0;
+	material->height_tex_override = 0;
+
 	material->shininess_override = 0;
 }
 
@@ -20946,7 +21198,7 @@ bool zt_materialIsEmpty(ztMaterial *material)
 {
 	if (material->diffuse_tex != ztInvalidID || material->diffuse_color != ztVec4::one ||
 		material->specular_tex != ztInvalidID || material->specular_color != ztVec4::one ||
-		material->normal_tex != ztInvalidID) {
+		material->normal_tex != ztInvalidID || material->height_tex != ztInvalidID) {
 		return false;
 	}
 
@@ -20981,6 +21233,11 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
 			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
+			ztTextureID height_tex = zt_max(material->height_tex, 0);
+			zt_game->game_details.curr_frame.texture_switches += 1;
+			static u32 height_tex_hash = zt_strHash("height_tex");
+			zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
+
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
 					zt_game->game_details.curr_frame.texture_switches += 1;
@@ -21011,6 +21268,11 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
 			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
+
+			ztTextureID height_tex = zt_max(material->height_tex, 0);
+			zt_game->game_details.curr_frame.texture_switches += 1;
+			static u32 height_tex_hash = zt_strHash("height_tex");
+			zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
@@ -21132,7 +21394,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		ztVec2 duv1 = v2.uv - v1.uv;
 		ztVec2 duv2 = v3.uv - v1.uv;
 
-		r32 f = 1.f / (duv2.x * duv1.y - duv1.x * duv2.y);
+		r32 f = 1.f / (duv1.x * duv2.y - duv2.x * duv1.y);
 
 		ztVec3 tangent   = zt_vec3(f * ( duv2.y * edge1.x - duv1.y * edge2.x), f * ( duv2.y * edge1.y - duv1.y * edge2.y), f * ( duv2.y * edge1.z - duv1.y * edge2.z));
 		ztVec3 bitangent = zt_vec3(f * (-duv2.x * edge1.x + duv1.x * edge2.x), f * (-duv2.x * edge1.y + duv1.x * edge2.y), f * (-duv2.x * edge1.z + duv1.x * edge2.z));
@@ -21344,11 +21606,11 @@ ztMeshID zt_meshMakePrimitiveBox(r32 width, r32 height, r32 depth)
 ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w, int grid_d)
 {
 	ZT_PROFILE_RENDERING("zt_meshMakePrimitivePlane");
-	int verts_count = (grid_w * grid_d) * 4;
+	int verts_count = (grid_w * grid_d) * 4 * 2;
 	ztVec3 *vertices = zt_mallocStructArray(ztVec3, verts_count);
 	ztVec2 *uvs = zt_mallocStructArray(ztVec2, verts_count);
 	ztVec3 *normals = zt_mallocStructArray(ztVec3, verts_count);
-	int indices_count = (grid_w * grid_d) * 6;
+	int indices_count = (grid_w * grid_d) * 6 * 2;
 	u32* indices = zt_mallocStructArray(u32, indices_count);
 
 	real32 x_offset = (width / -2.0f);
@@ -21360,33 +21622,47 @@ ztMeshID zt_meshMakePrimitivePlane(r32 width, r32 depth, int grid_w, int grid_d)
 	r32 sec_w = (width / grid_w) * .5f;
 	r32 sec_d = (depth / grid_d) * .5f;
 
-	for (int z = 0; z < grid_d; ++z) {
-		for (int x = 0; x < grid_w; ++x) {
-			r32 x_pos = sec_w + x_offset + (x * (width / grid_w));
-			r32 z_pos = sec_d + z_offset + (z * (depth / grid_d));
+	for (int k = 0; k < 2; ++k) {
+		r32 normal_dir = k == 0 ? 1.f : -1.f;
 
-			vertices[vrt_idx] = zt_vec3(-sec_w + x_pos, 0, -sec_d + z_pos);
-			uvs[vrt_idx] = zt_vec2(0.0f, 0.0f);
-			normals[vrt_idx++] = zt_vec3(0, 1, 0);
+		for (int z = 0; z < grid_d; ++z) {
+			for (int x = 0; x < grid_w; ++x) {
+				r32 x_pos = sec_w + x_offset + (x * (width / grid_w));
+				r32 z_pos = sec_d + z_offset + (z * (depth / grid_d));
 
-			vertices[vrt_idx] = zt_vec3(-sec_w + x_pos, 0, sec_d + z_pos);
-			uvs[vrt_idx] = zt_vec2(0.0f, 1.0f);
-			normals[vrt_idx++] = zt_vec3(0, 1, 0);
+				vertices[vrt_idx] = zt_vec3(-sec_w + x_pos, 0, -sec_d + z_pos);
+				uvs[vrt_idx] = zt_vec2(0.0f, 0.0f);
+				normals[vrt_idx++] = zt_vec3(0, normal_dir, 0);
 
-			vertices[vrt_idx] = zt_vec3(sec_w + x_pos, 0, sec_d + z_pos);
-			uvs[vrt_idx] = zt_vec2(1.0f, 1.0f);
-			normals[vrt_idx++] = zt_vec3(0, 1, 0);
+				vertices[vrt_idx] = zt_vec3(-sec_w + x_pos, 0, sec_d + z_pos);
+				uvs[vrt_idx] = zt_vec2(0.0f, 1.0f);
+				normals[vrt_idx++] = zt_vec3(0, normal_dir, 0);
 
-			vertices[vrt_idx] = zt_vec3(sec_w + x_pos, 0, -sec_d + z_pos);
-			uvs[vrt_idx] = zt_vec2(1.0f, 0.0f);
-			normals[vrt_idx++] = zt_vec3(0, 1, 0);
+				vertices[vrt_idx] = zt_vec3(sec_w + x_pos, 0, sec_d + z_pos);
+				uvs[vrt_idx] = zt_vec2(1.0f, 1.0f);
+				normals[vrt_idx++] = zt_vec3(0, normal_dir, 0);
 
-			indices[ind_idx++] = vrt_idx - 4;
-			indices[ind_idx++] = vrt_idx - 3;
-			indices[ind_idx++] = vrt_idx - 2;
-			indices[ind_idx++] = vrt_idx - 4;
-			indices[ind_idx++] = vrt_idx - 2;
-			indices[ind_idx++] = vrt_idx - 1;
+				vertices[vrt_idx] = zt_vec3(sec_w + x_pos, 0, -sec_d + z_pos);
+				uvs[vrt_idx] = zt_vec2(1.0f, 0.0f);
+				normals[vrt_idx++] = zt_vec3(0, normal_dir, 0);
+
+				if (k == 0) {
+					indices[ind_idx++] = vrt_idx - 4;
+					indices[ind_idx++] = vrt_idx - 3;
+					indices[ind_idx++] = vrt_idx - 2;
+					indices[ind_idx++] = vrt_idx - 4;
+					indices[ind_idx++] = vrt_idx - 2;
+					indices[ind_idx++] = vrt_idx - 1;
+				}
+				else {
+					indices[ind_idx++] = vrt_idx - 1;
+					indices[ind_idx++] = vrt_idx - 2;
+					indices[ind_idx++] = vrt_idx - 4;
+					indices[ind_idx++] = vrt_idx - 2;
+					indices[ind_idx++] = vrt_idx - 3;
+					indices[ind_idx++] = vrt_idx - 4;
+				}
+			}
 		}
 	}
 
@@ -27729,7 +28005,7 @@ void zt_particleEmitterReset(ztParticleEmitter *emitter)
 	ZT_PROFILE_PARTICLES("zt_particleEmitterReset");
 
 	zt_returnOnNull(emitter);
-	_zt_particleEmitterInit(emitter, emitter->system, emitter->seed);
+	_zt_particleEmitterInit(emitter, emitter->system, zt_randomInt(&emitter->random, 0, ztInt32Max));
 }
 
 // ================================================================================================================================================================================================
@@ -27761,7 +28037,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 		live_particles += 1;
 	}
 
-	ztVec3 system_rotation_euler = zt_particleVariableVec3GetValue(&emitter->system_rotation, emitter_life_pct);
+	ztVec3 system_rotation_euler = zt_particleVariableVec3GetValue(&emitter->system_rotation, emitter_life_pct) + emitter->rotation;
 	ztQuat system_rotation = system_rotation_euler != ztVec3::zero ? ztQuat::makeFromEuler(system_rotation_euler) : ztQuat::identity;
 
 	// emit new particles if needed
@@ -30040,6 +30316,28 @@ ztInternal bool _zt_audioCheckContext()
 
 // ================================================================================================================================================================================================
 
+ztInternal void _zt_audioApplyVolume(ztAudioClip *clip, r32 volume)
+{
+#	if defined(ZT_DSOUND)
+	if (clip == nullptr || clip->ds_buffer == nullptr) {
+		return;
+	}
+
+	ztds_bufferSetVolume(clip->ds_buffer, volume);
+
+#	elif defined(ZT_OPENAL)
+	if (clip == nullptr || clip->al_buffer == nullptr) {
+		return;
+	}
+
+	ztal_bufferSetVolume(clip->al_buffer, volume);
+
+#	else
+#	endif
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal void _zt_audioApplySystemSettings(ztAudioClip *clip)
 {
 #	if defined(ZT_DSOUND)
@@ -30291,6 +30589,9 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 	ztal_bufferPlay(audio_clip->al_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing;
 #	endif
+
+	audio_clip->fade_out_curr = audio_clip->fade_out_time = 0;
+	_zt_audioApplySystemSettings(audio_clip);
 }
 
 // ================================================================================================================================================================================================
@@ -30343,6 +30644,9 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
 
 #	endif
+
+	audio_clip->fade_out_curr = audio_clip->fade_out_time = 0;
+	_zt_audioApplySystemSettings(audio_clip);
 }
 
 // ================================================================================================================================================================================================
@@ -30357,25 +30661,30 @@ bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id)
 
 // ================================================================================================================================================================================================
 
-bool zt_audioClipStop(ztAudioClipID audio_clip_id)
+bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipStop");
 	zt_assertReturnValOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count, false);
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 
-#	if defined(ZT_DSOUND)
-	zt_assertReturnValOnFail(audio_clip->ds_buffer != nullptr, false);
-	ztds_bufferStop(audio_clip->ds_buffer);
+	if (fade_out_time > 0) {
+		audio_clip->fade_out_time = fade_out_time;
+		audio_clip->fade_out_curr = 0;
+	}
+	else {
+#		if defined(ZT_DSOUND)
+		zt_assertReturnValOnFail(audio_clip->ds_buffer != nullptr, false);
+		ztds_bufferStop(audio_clip->ds_buffer);
 
-#	elif defined(ZT_OPENAL)
-	zt_assertReturnValOnFail(audio_clip->al_buffer != nullptr, false);
-	ztal_bufferStop(audio_clip->al_buffer);
+#		elif defined(ZT_OPENAL)
+		zt_assertReturnValOnFail(audio_clip->al_buffer != nullptr, false);
+		ztal_bufferStop(audio_clip->al_buffer);
 
-#	endif
+#		endif
 
-	zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Playing);
-	zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Looping);
-
+		zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Playing);
+		zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Looping);
+	}
 	return true;
 }
 
@@ -30460,6 +30769,14 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 				else {
 					zt_bitRemove(zt_game->audio_clips[i].flags, ztAudioClipFlags_Playing);
 				}
+			}
+			if (zt_game->audio_clips[i].fade_out_time > 0) {
+				zt_game->audio_clips[i].fade_out_curr += dt;
+
+				r32 pct = 1 - zt_clamp(zt_game->audio_clips[i].fade_out_curr / zt_game->audio_clips[i].fade_out_time, 0, 1);
+
+				r32 vol = zt_lerp(0, zt_game->audio_systems[zt_game->audio_clips[i].system].volume, pct);
+				_zt_audioApplyVolume(&zt_game->audio_clips[i], vol);
 			}
 		}
 	}
@@ -31020,9 +31337,17 @@ bool mainLoopCall(r64 *time_last)
 				zt_game->input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
 				zt_game->input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
 
-				mouse_prev_frame.x = zt_winOnly(win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2));
-				mouse_prev_frame.y = zt_winOnly(win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2));
-				SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
+				mouse_prev_frame = mouse_this_frame;
+
+				bool change_cursor = false;
+				if(mouse_prev_frame.x > win_details->window_rect.right  - 100) { mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2); change_cursor = true; }
+				if(mouse_prev_frame.x < win_details->window_rect.left   + 100) { mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2); change_cursor = true; }
+				if(mouse_prev_frame.y > win_details->window_rect.bottom - 100) { mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2); change_cursor = true; }
+				if(mouse_prev_frame.y < win_details->window_rect.top    + 100) { mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2); change_cursor = true; }
+
+				if(change_cursor) {
+					SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
+				}
 #				endif
 
 				zt_emscriptenOnly(SDL_WarpMouse(0, 0));
