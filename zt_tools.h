@@ -5399,7 +5399,7 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	l.values[2] = -f.x; l.values[6] = -f.y; l.values[10] = -f.z; l.values[14] = 0;
 	l.values[3] =    0; l.values[7] =    0; l.values[11] =    0; l.values[15] = 1;
 
-	ztMat4 p = identity.getTranslate(eye_pos.x, eye_pos.y, eye_pos.z);
+	ztMat4 p = identity.getTranslate(-eye_pos.x, -eye_pos.y, -eye_pos.z);
 	//*this = l * p;
 	*this = p * l;
 }
@@ -8690,6 +8690,8 @@ bool zt_directoryMake(const char *dir)
 
 	const char *delimiters[] = {"\\", "/"};
 
+	int dir_s_len = zt_strLen(dir);
+
 	int pos = zt_strFindFirstOfPos(dir, delimiters, zt_elementsOf(delimiters));
 	while (pos != ztStrPosNotFound) {
 		char section[ztFileMaxPath];
@@ -8699,12 +8701,15 @@ bool zt_directoryMake(const char *dir)
 				return false;
 			}
 		}
+		if (pos == dir_s_len) {
+			break;
+		}
 		int npos = zt_strFindFirstOfPos(dir + pos + 1, delimiters, zt_elementsOf(delimiters));
 		if (npos == ztStrPosNotFound) {
 			if (pos == zt_strLen(dir)) {
 				break;
 			}
-			pos = zt_strLen(dir);
+			pos = dir_s_len;
 		}
 		else {
 			pos += npos + 1;
