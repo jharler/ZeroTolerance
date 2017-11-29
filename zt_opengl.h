@@ -2357,6 +2357,7 @@ void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_READ_FRAMEBUFFER, 0));
 		ztgl_callAndReportOnErrorFast(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
+		//ztgl_callAndReportOnErrorFast(glFinish());
 	}
 #	endif
 
@@ -2973,6 +2974,10 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						}
 						else if(zt_strEquals(node->function_call.decl->function_decl.name, "lerp")) {
 							alternate_name = "mix";
+						}
+						else if(zt_strEquals(node->function_call.decl->function_decl.name, "discard")) {
+							skip_call = true;
+							zt_strCat(*s, s_len, "discard");
 						}
 #						if defined(ZT_GLES2)
 						else if (zt_strEquals(node->function_call.decl->function_decl.name, "transpose")) {
