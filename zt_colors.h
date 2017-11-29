@@ -108,7 +108,6 @@
 #define ztColor_GrayBlue                               zt_color(.55f, .57f, .67f, 1.f)
 #define ztColor_Gunmetal                               zt_color(.16f, .20f, .22f, 1.f)
 #define ztColor_Independence                           zt_color(.30f, .32f, .43f, 1.f)
-#define ztColor_LightGray                              zt_color(.83f, .83f, .83f, 1.f)
 #define ztColor_LightGrayishMagenta                    zt_color(.80f, .60f, .80f, 1.f)
 #define ztColor_LightSlateGray                         zt_color(.47f, .53f, .60f, 1.f)
 #define ztColor_Manatee                                zt_color(.59f, .60f, .67f, 1.f)
