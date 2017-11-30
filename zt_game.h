@@ -4542,6 +4542,7 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
 #include <emscripten.h>
+#include <emscripten/html5.h>
 
 #endif // ZT_EMSCRIPTEN
 
@@ -5158,7 +5159,7 @@ struct ztGameGlobals
 	ztInputKeys_Enum          input_key_strokes[ZT_MAX_INPUT_KEYSTROKES];
 	i32                       input_key_strokes_count = 0;
 
-	i32                       input_keys_mapping[256];
+	i32                       input_keys_mapping[zt_winOnly(256) zt_emscriptenOnly(1254)];
 	ztInputKeys               input_keys[ztInputKeys_MAX];
 
 	ztInputMouse              input_mouse;
@@ -7015,7 +7016,7 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1.0);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1 || current_depth < 0) {\n	return 0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv);\n		\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0 || uv.y > 1 || uv.y < 0) {\n			discard();\n		}\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv);\n		\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
@@ -7304,7 +7305,7 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Shift,              "Shift",                0,    0, SDLK_LSHIFT);
 	_zt_setKeyData(ztInputKeys_Control,            "Control",              0,    0, SDLK_LCTRL);
 	_zt_setKeyData(ztInputKeys_Menu,               "Menu",                 0,    0, SDLK_LALT);
-	_zt_setKeyData(ztInputKeys_Pause,              "Pause",                0,    0, SDLK_PAUSE);
+	_zt_setKeyData(ztInputKeys_Pause,              "Pause",                0,    0, 19);//SDLK_PAUSE);
 	_zt_setKeyData(ztInputKeys_Capital,            "Capital",              0,    0, SDLK_CAPSLOCK);
 	_zt_setKeyData(ztInputKeys_Kana,               "Kana",                 0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Hangul,             "Hangul",               0,    0, SDLK_F24);
@@ -7327,22 +7328,22 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Right,              "Right",                0,    0, SDLK_RIGHT);
 	_zt_setKeyData(ztInputKeys_Down,               "Down",                 0,    0, SDLK_DOWN);
 	_zt_setKeyData(ztInputKeys_Select,             "Select",               0,    0, SDLK_SELECT);
-	_zt_setKeyData(ztInputKeys_Print,              "Print",                0,    0, SDLK_PRINT);
+	_zt_setKeyData(ztInputKeys_Print,              "Print",                0,    0, 316);//SDLK_PRINTSCREEN);
 	_zt_setKeyData(ztInputKeys_Execute,            "Execute",              0,    0, SDLK_EXECUTE);
-	_zt_setKeyData(ztInputKeys_Snapshot,           "Snapshot",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Snapshot,           "Snapshot",             0,    0, SDLK_PAUSE);
 	_zt_setKeyData(ztInputKeys_Insert,             "Insert",               0,    0, SDLK_INSERT);
 	_zt_setKeyData(ztInputKeys_Delete,             "Delete",               0,    0, SDLK_DELETE);
 	_zt_setKeyData(ztInputKeys_Help,               "Help",                 0,    0, SDLK_HELP);
-	_zt_setKeyData(ztInputKeys_0,                  "0",                  '0',  ')', '0');
-	_zt_setKeyData(ztInputKeys_1,                  "1",                  '1',  '!', '1');
-	_zt_setKeyData(ztInputKeys_2,                  "2",                  '2',  '@', '2');
-	_zt_setKeyData(ztInputKeys_3,                  "3",                  '3',  '#', '3');
-	_zt_setKeyData(ztInputKeys_4,                  "4",                  '4',  '$', '4');
-	_zt_setKeyData(ztInputKeys_5,                  "5",                  '5',  '%', '5');
-	_zt_setKeyData(ztInputKeys_6,                  "6",                  '6',  '^', '6');
-	_zt_setKeyData(ztInputKeys_7,                  "7",                  '7',  '&', '7');
-	_zt_setKeyData(ztInputKeys_8,                  "8",                  '8',  '*', '8');
-	_zt_setKeyData(ztInputKeys_9,                  "9",                  '9',  '(', '9');
+	_zt_setKeyData(ztInputKeys_0,                  "0",                  '0',  ')', SDLK_0);
+	_zt_setKeyData(ztInputKeys_1,                  "1",                  '1',  '!', SDLK_1);
+	_zt_setKeyData(ztInputKeys_2,                  "2",                  '2',  '@', SDLK_2);
+	_zt_setKeyData(ztInputKeys_3,                  "3",                  '3',  '#', SDLK_3);
+	_zt_setKeyData(ztInputKeys_4,                  "4",                  '4',  '$', SDLK_4);
+	_zt_setKeyData(ztInputKeys_5,                  "5",                  '5',  '%', SDLK_5);
+	_zt_setKeyData(ztInputKeys_6,                  "6",                  '6',  '^', SDLK_6);
+	_zt_setKeyData(ztInputKeys_7,                  "7",                  '7',  '&', SDLK_7);
+	_zt_setKeyData(ztInputKeys_8,                  "8",                  '8',  '*', SDLK_8);
+	_zt_setKeyData(ztInputKeys_9,                  "9",                  '9',  '(', SDLK_9);
 	_zt_setKeyData(ztInputKeys_A,                  "A",                  'a',  'A', SDLK_a);
 	_zt_setKeyData(ztInputKeys_B,                  "B",                  'b',  'B', SDLK_b);
 	_zt_setKeyData(ztInputKeys_C,                  "C",                  'c',  'C', SDLK_c);
@@ -7369,8 +7370,8 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_X,                  "X",                  'x',  'X', SDLK_x);
 	_zt_setKeyData(ztInputKeys_Y,                  "Y",                  'y',  'Y', SDLK_y);
 	_zt_setKeyData(ztInputKeys_Z,                  "Z",                  'z',  'Z', SDLK_z);
-	_zt_setKeyData(ztInputKeys_LeftWin,            "LeftWin",              0,    0, SDLK_F24);
-	_zt_setKeyData(ztInputKeys_RightWin,           "RightWin",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_LeftWin,            "LeftWin",              0,    0, SDLK_LGUI);
+	_zt_setKeyData(ztInputKeys_RightWin,           "RightWin",             0,    0, SDLK_RGUI);
 	_zt_setKeyData(ztInputKeys_Apps,               "Apps",                 0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Sleep,              "Sleep",                0,    0, SDLK_SLEEP);
 	_zt_setKeyData(ztInputKeys_Numpad0,            "Numpad0",            '0',    0, SDLK_KP_0);
@@ -7387,7 +7388,7 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Add,                "Add",                '+',    0, SDLK_KP_PLUS);
 	_zt_setKeyData(ztInputKeys_Separator,          "Separator",            0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Substract,          "Substract",          '-',    0, SDLK_KP_MINUS);
-	_zt_setKeyData(ztInputKeys_Decimal,            "Decimal",            '.',    0, SDLK_KP_DECIMAL);
+	_zt_setKeyData(ztInputKeys_Decimal,            "Decimal",            '.',    0, 1123);//SDLK_KP_DECIMAL);
 	_zt_setKeyData(ztInputKeys_Divide,             "Divide",             '/',    0, SDLK_KP_DIVIDE);
 	_zt_setKeyData(ztInputKeys_F1,                 "F1",                   0,    0, SDLK_F1);
 	_zt_setKeyData(ztInputKeys_F2,                 "F2",                   0,    0, SDLK_F2);
@@ -7414,7 +7415,7 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_F23,                "F23",                  0,    0, SDLK_F23);
 	_zt_setKeyData(ztInputKeys_F24,                "F24",                  0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_NumLock,            "NumLock",              0,    0, SDLK_NUMLOCK);
-	_zt_setKeyData(ztInputKeys_Scroll,             "Scroll",               0,    0, SDLK_SCROLLLOCK);
+	_zt_setKeyData(ztInputKeys_Scroll,             "Scroll",               0,    0, 145);//SDLK_SCROLLLOCK);
 	_zt_setKeyData(ztInputKeys_LeftShift,          "LeftShift",            0,    0, SDLK_LSHIFT);
 	_zt_setKeyData(ztInputKeys_RightShift,         "RightShift",           0,    0, SDLK_RSHIFT);
 	_zt_setKeyData(ztInputKeys_LeftControl,        "LeftControl",          0,    0, SDLK_LCTRL);
@@ -7428,9 +7429,9 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_BrowserSearch,      "BrowserSearch",        0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_BrowserFavorites,   "BrowserFavorites",     0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_BrowserHome,        "BrowserHome",          0,    0, SDLK_F24);
-	_zt_setKeyData(ztInputKeys_VolumeMute,         "VolumeMute",           0,    0, SDLK_F24);
-	_zt_setKeyData(ztInputKeys_VolumeDown,         "VolumeDown",           0,    0, SDLK_F24);
-	_zt_setKeyData(ztInputKeys_VolumeUp,           "VolumeUp",             0,    0, SDLK_F24);
+	_zt_setKeyData(ztInputKeys_VolumeMute,         "VolumeMute",           0,    0, SDLK_MUTE);
+	_zt_setKeyData(ztInputKeys_VolumeDown,         "VolumeDown",           0,    0, SDLK_VOLUMEDOWN);
+	_zt_setKeyData(ztInputKeys_VolumeUp,           "VolumeUp",             0,    0, SDLK_VOLUMEUP);
 	_zt_setKeyData(ztInputKeys_MediaNextTrack,     "MediaNextTrack",       0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_MediaPrevTrack,     "MediaPrevTrack",       0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_MediaStop,          "MediaStop",            0,    0, SDLK_F24);
@@ -7439,17 +7440,17 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_LaunchMediaSelect,  "LaunchMediaSelect",    0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_LaunchApp1,         "LaunchApp1",           0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_LaunchApp2,         "LaunchApp2",           0,    0, SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Semicolon,          "Semicolon",          ';',  ':', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Plus,               "Plus",               '=',  '+', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Comma,              "Comma",              ',',  '<', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Minus,              "Minus",              '-',  '_', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Period,             "Period",             '.',  '>', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_ForwardSlash,       "ForwardSlash",       '/',  '?', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Tilda,              "Tilda",              '`',  '~', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_OpenBrace,          "OpenBrace",          '[',  '{', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_BackSlash,          "BackSlash",         '\\',  '|', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_CloseBrace,         "CloseBrace",         ']',  '}', SDLK_F24);
-	_zt_setKeyData(ztInputKeys_Apos,               "Apos",              '\'', '\"', SDLK_F24);
+	_zt_setKeyData(ztInputKeys_Semicolon,          "Semicolon",          ';',  ':', 186);//SDLK_SEMICOLON);
+	_zt_setKeyData(ztInputKeys_Plus,               "Plus",               '=',  '+', 187);//SDLK_EQUALS);
+	_zt_setKeyData(ztInputKeys_Comma,              "Comma",              ',',  '<', SDLK_COMMA);
+	_zt_setKeyData(ztInputKeys_Minus,              "Minus",              '-',  '_', 189);//SDLK_MINUS);
+	_zt_setKeyData(ztInputKeys_Period,             "Period",             '.',  '>', SDLK_PERIOD);
+	_zt_setKeyData(ztInputKeys_ForwardSlash,       "ForwardSlash",       '/',  '?', SDLK_SLASH);
+	_zt_setKeyData(ztInputKeys_Tilda,              "Tilda",              '`',  '~', SDLK_BACKQUOTE);
+	_zt_setKeyData(ztInputKeys_OpenBrace,          "OpenBrace",          '[',  '{', SDLK_LEFTBRACKET);
+	_zt_setKeyData(ztInputKeys_BackSlash,          "BackSlash",         '\\',  '|', SDLK_BACKSLASH);
+	_zt_setKeyData(ztInputKeys_CloseBrace,         "CloseBrace",         ']',  '}', SDLK_RIGHTBRACKET);
+	_zt_setKeyData(ztInputKeys_Apos,               "Apos",              '\'', '\"', SDLK_QUOTE);
 	_zt_setKeyData(ztInputKeys_Oem_8,              "Oem_8",                0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Oem_102,            "Oem_102",              0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_ProcessKey,         "ProcessKey",           0,    0, SDLK_F24);
@@ -31269,6 +31270,10 @@ ztInternal HINSTANCE _zt_hinstance;
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
 
+ztInternal bool _ems_request_pointer_lock = false;
+
+// ================================================================================================================================================================================================
+
 void _zt_emsProcessMessages()
 {
 }
@@ -31322,6 +31327,11 @@ bool mainLoopCall(r64 *time_last)
 			mouse_look = zt_game->input_mouse_look;
 			if (mouse_look) {
 				zt_winOnly(GetCursorPos(&mouse_prev_frame));
+
+				zt_emscriptenOnly(_ems_request_pointer_lock = true);
+			}
+			else {
+				zt_emscriptenOnly(_ems_request_pointer_lock = false);
 			}
 		}
 		if (zt_game->input_mouse_look) {
@@ -31411,6 +31421,36 @@ bool mainLoopCall(r64 *time_last)
 
 #if defined(ZT_EMSCRIPTEN)
 
+EM_BOOL emsCallbackClick(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+	if (e->screenX != 0 && e->screenY != 0 && e->clientX != 0 && e->clientY != 0 && e->canvasX != 0 && e->canvasY != 0 && e->targetX != 0 && e->targetY != 0) {
+		if (eventType == EMSCRIPTEN_EVENT_CLICK && _ems_request_pointer_lock) {
+			_ems_request_pointer_lock = false;
+			EMSCRIPTEN_RESULT ret = emscripten_request_pointerlock(0, 0);
+			if (ret != EMSCRIPTEN_RESULT_SUCCESS) {
+				zt_logCritical("emscripten_request_pointerlock() failure");
+			}
+		}
+	}
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+EM_BOOL emsCallbackPointerLockChange(int event_type, const EmscriptenPointerlockChangeEvent *e, void *user_data)
+{
+	if (zt_game->input_mouse_look) {
+		_ems_request_pointer_lock = true;
+	}
+	else {
+		_ems_request_pointer_lock = false;
+	}
+
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
 void mainLoopEmscripten()
 {
 	static r64 time = zt_getTime();
@@ -31438,21 +31478,31 @@ void mainLoopEmscripten()
 				if (was_down != is_down || repeated) {
 					zt_game->input_this_frame = true;
 
+					ztInputKeys *keys[2] = {input_key, nullptr};
 
-					input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
+					if(input_key->code == ztInputKeys_LeftShift   || input_key->code == ztInputKeys_RightShift  ) keys[1] = &zt_game->input_keys[ztInputKeys_Shift];
+					if(input_key->code == ztInputKeys_LeftControl || input_key->code == ztInputKeys_RightControl) keys[1] = &zt_game->input_keys[ztInputKeys_Control];
+					if(input_key->code == ztInputKeys_LeftMenu    || input_key->code == ztInputKeys_RightMenu   ) keys[1] = &zt_game->input_keys[ztInputKeys_Menu];
 
-					if (is_down && !was_down) {
-						input_key->flags |= ztInputKeyFlags_JustPressed;
-						input_key->time_pressed = zt_getTime();
-					}
+					zt_fize(keys) {
+						if(keys[i] == nullptr) break;
+						input_key = keys[i];
 
-					if (!is_down && was_down) input_key->flags |= ztInputKeyFlags_JustReleased;
-					if (is_down) input_key->flags |= ztInputKeyFlags_Pressed;
+						input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
 
-					if (is_down && repeated) input_key->flags |= ztInputKeyFlags_JustRepeated;
+						if (is_down && !was_down) {
+							input_key->flags |= ztInputKeyFlags_JustPressed;
+							input_key->time_pressed = zt_getTime();
+						}
 
-					if ( is_down && (!was_down || repeated) && zt_game->input_key_strokes_count < zt_elementsOf(zt_game->input_key_strokes) ) {
-						zt_game->input_key_strokes[zt_game->input_key_strokes_count++] = input_key->code;
+						if (!is_down && was_down) input_key->flags |= ztInputKeyFlags_JustReleased;
+						if (is_down) input_key->flags |= ztInputKeyFlags_Pressed;
+
+						if (is_down && repeated) input_key->flags |= ztInputKeyFlags_JustRepeated;
+
+						if ( is_down && (!was_down || repeated) && zt_game->input_key_strokes_count < zt_elementsOf(zt_game->input_key_strokes) ) {
+							zt_game->input_key_strokes[zt_game->input_key_strokes_count++] = input_key->code;
+						}
 					}
 				}
 			} break;
@@ -31538,6 +31588,10 @@ void mainLoopEmscriptenWaitForFileSync()
 		if (!mainInitializationAndLoop()) {
 			return;
 		}
+		emscripten_set_click_callback(0, 0, 1, emsCallbackClick);
+		emscripten_set_pointerlockchange_callback("#window", 0, 1, emsCallbackPointerLockChange);
+		
+		//emscripten_set_some_callback(nullptr, nullptr, true, emsCallback);
 
 		emscripten_set_main_loop(mainLoopEmscripten, 0, true);
 	}
@@ -31796,6 +31850,8 @@ int main(int argc, const char **argv)
 	}
 
 #	elif defined(ZT_EMSCRIPTEN)
+	EM_ASM(Module['noExitRuntime'] = true);
+
 	emscripten_set_main_loop(mainLoopEmscriptenWaitForFileSync, 0, true);
 	return 0;
 
