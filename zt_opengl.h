@@ -1273,11 +1273,7 @@ void ztgl_clear(ztVec4 color)
 	ZT_PROFILE_OPENGL("ztgl_clear");
 
 	ztgl_callAndReportOnErrorFast(glClearColor(color.r, color.g, color.b, color.a));
-#if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
-#else
-	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
-#endif
 }
 
 // ================================================================================================================================================================================================
@@ -1287,11 +1283,7 @@ void ztgl_clear(r32 r, r32 g, r32 b, r32 a)
 	ZT_PROFILE_OPENGL("ztgl_clear");
 
 	ztgl_callAndReportOnErrorFast(glClearColor(r, g, b, a));
-#if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
-#else
-	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
-#endif
 }
 
 // ================================================================================================================================================================================================
@@ -1371,10 +1363,7 @@ void ztgl_cullNone()
 void ztgl_depthTestOff()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestOff");
-
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glDisable(GL_DEPTH_TEST));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1383,10 +1372,8 @@ void ztgl_depthTestNever()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestNever");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_NEVER));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1395,10 +1382,8 @@ void ztgl_depthTestLess()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestLess");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LESS));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1407,10 +1392,8 @@ void ztgl_depthTestLessEqual()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestLessEqual");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_LEQUAL));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1419,10 +1402,8 @@ void ztgl_depthTestEqual()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestEqual");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_EQUAL));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1431,10 +1412,8 @@ void ztgl_depthTestGreater()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestGreater");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_GREATER));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1443,10 +1422,8 @@ void ztgl_depthTestNotEqual()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestNotEqual");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_NOTEQUAL));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1455,10 +1432,8 @@ void ztgl_depthTestGreaterEqual()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestGreaterEqual");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_GEQUAL));
-#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -1467,10 +1442,8 @@ void ztgl_depthTestAlways()
 {
 	ZT_PROFILE_OPENGL("ztgl_depthTestAlways");
 
-#	if !defined(ZT_GLES2)
 	ztgl_callAndReportOnErrorFast(glEnable(GL_DEPTH_TEST));
 	ztgl_callAndReportOnErrorFast(glDepthFunc(GL_ALWAYS));
-#	endif
 }
 
 // ================================================================================================================================================================================================
