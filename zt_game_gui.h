@@ -1815,7 +1815,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 
 		case ztGuiThemeValue_r32_CollapsingPanelHeight:        *result = 26 / ppu; break;
 		case ztGuiThemeValue_r32_CollapsingPanelButtonOffsetX: *result =  2 / ppu; break;
-		case ztGuiThemeValue_r32_CollapsingPanelButtonOffsetY: *result =  2 / ppu; break;
+		case ztGuiThemeValue_r32_CollapsingPanelButtonOffsetY: *result = -3 / ppu; break;
 		case ztGuiThemeValue_r32_CollapsingPanelPaddingX:      *result =  4 / ppu; break;
 		case ztGuiThemeValue_r32_CollapsingPanelPaddingY:      *result =  4 / ppu; break;
 
@@ -4501,8 +4501,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelUpdate, ztInternal ZT_FUNC_GU
 
 	if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Dirty)) || zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Resized)) || item->collapsing_panel.content_panel_size != item->collapsing_panel.content_panel->size) {
 		ztGuiTheme *theme = zt_guiItemGetTheme(item);
+
+		r32 button_offset_x = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_CollapsingPanelButtonOffsetX, item);
+		r32 button_offset_y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_CollapsingPanelButtonOffsetY, item);
+
 		r32 padding = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_Padding, item);
-		zt_guiItemSetPosition(item->collapsing_panel.button, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, zt_vec2(0, -padding));
+		zt_guiItemSetPosition(item->collapsing_panel.button, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, zt_vec2(button_offset_x, button_offset_y));
 
 		ztGuiItem *content_panel = item->collapsing_panel.content_panel;
 
@@ -22777,6 +22781,7 @@ void zt_guiInitDebug(ztGuiManager *gm)
 	{
 		ztGuiItem *menu_options = zt_guiMakeMenu(nullptr);
 		zt_guiMenuAppend(menu_options, "Toggle FPS Display", ztGuiDebugMenu_FpsDisplay);
+		zt_guiMenuAppendSeparator(menu_options);
 		zt_guiMenuAppend(menu_options, "Exit", ztGuiDebugMenu_Exit);
 		zt_guiMenuAppendSubmenu(menubar, "Options", menu_options);
 		zt_guiMenuSetCallback(menu_options, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiInitDebugOnMenuItem));
