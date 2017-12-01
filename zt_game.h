@@ -20332,10 +20332,10 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	};
 
 	zt_fiz(4) {
-		zt_alignToPixel(&pos_nw[i], ppu);
-		zt_alignToPixel(&pos_ne[i], ppu);
-		zt_alignToPixel(&pos_sw[i], ppu);
-		zt_alignToPixel(&pos_se[i], ppu);
+		//zt_alignToPixel(&pos_nw[i], ppu);
+		//zt_alignToPixel(&pos_ne[i], ppu);
+		//zt_alignToPixel(&pos_sw[i], ppu);
+		//zt_alignToPixel(&pos_se[i], ppu);
 	}
 
 	zt_drawListPushTexture(draw_list, sns->tex);
