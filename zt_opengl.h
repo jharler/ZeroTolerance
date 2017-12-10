@@ -694,6 +694,38 @@ void ztgl_win_contextDisplay(ztContextGL *context)
 
 // ================================================================================================================================================================================================
 
+ztInternal void _ztgl_getFullScreenCoords(HWND handle, int *pos_x, int *pos_y, int *screen_w, int *screen_h)
+{
+	*pos_x = 0;
+	*pos_y = 0;
+	*screen_w = GetSystemMetrics(SM_CXSCREEN);
+	*screen_h = GetSystemMetrics(SM_CYSCREEN);
+
+	RECT win_rect;
+	if (GetWindowRect(handle, &win_rect) == TRUE) {
+		// make sure we go fullscreen on the right monitor
+		ztDisplay displays[16];
+		int display_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
+
+		ztVec2 win_pos = zt_vec2(win_rect.left + ((win_rect.right - win_rect.left) / 2.f), win_rect.top + ((win_rect.bottom - win_rect.top) / 2.f));
+
+		zt_fiz(display_count) {
+			ztVec2 screen_pos = zt_vec2(displays[i].screen_area.xy) + zt_vec2(displays[i].screen_area.zw) * .5f;
+			ztVec2 screen_size = zt_vec2(displays[i].screen_area.zw);
+
+			if (zt_collisionPointInRect(win_pos, screen_pos, screen_size)) {
+				*pos_x = displays[i].screen_area.x;
+				*pos_y = displays[i].screen_area.y;
+				*screen_w = displays[i].screen_area.z;
+				*screen_h = displays[i].screen_area.w;
+				break;
+			}
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
 ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
 {
 	ZT_PROFILE_OPENGL("ztgl_win_contextMake");
@@ -755,7 +787,9 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 
 	if (zt_bitIsSet(flags, ztRendererFlagsGL_Fullscreen)) {
 		zt_logDebug("OpenGL: Going fullscreen");
-		//GetWindowRect(win_details->handle, &win_details->windowed_screen_area);
+
+		int pos_x = 0, pos_y = 0, screen_x = 0, screen_y = 0;
+		_ztgl_getFullScreenCoords(handle, &pos_x, &pos_y, &screen_x, &screen_y);
 
 		LONG dwExStyle = GetWindowLong(handle, GWL_EXSTYLE);
 		LONG dwStyle = GetWindowLong(handle, GWL_STYLE);
@@ -766,10 +800,7 @@ ztContextGL *ztgl_win_contextMake(ztMemoryArena *arena, HWND handle, i32 client_
 		SetWindowLong(handle, GWL_EXSTYLE, dwExStyle);
 		SetWindowLong(handle, GWL_STYLE, dwStyle);
 
-		int screen_x = GetSystemMetrics(SM_CXSCREEN);
-		int screen_y = GetSystemMetrics(SM_CYSCREEN);
-
-		SetWindowPos(handle, 0, 0, 0, screen_x, screen_y, SWP_NOZORDER | SWP_FRAMECHANGED);
+		SetWindowPos(handle, 0, pos_x, pos_y, screen_x, screen_y, SWP_NOZORDER | SWP_FRAMECHANGED);
 	}
 
 	ztContextGL *result = zt_mallocStructArena(ztContextGL, arena);
@@ -838,10 +869,10 @@ bool ztgl_win_contextToggleFullscreen(ztContextGL *context, bool fullscreen)
 		SetWindowLong(context->handle, GWL_EXSTYLE, dwExStyle);
 		SetWindowLong(context->handle, GWL_STYLE, dwStyle);
 
-		int screen_x = GetSystemMetrics(SM_CXSCREEN);
-		int screen_y = GetSystemMetrics(SM_CYSCREEN);
+		int pos_x = 0, pos_y = 0, screen_x = 0, screen_y = 0;
+		_ztgl_getFullScreenCoords(context->handle, &pos_x, &pos_y, &screen_x, &screen_y);
 
-		SetWindowPos(context->handle, 0, 0, 0, screen_x, screen_y, SWP_NOZORDER | SWP_FRAMECHANGED);
+		SetWindowPos(context->handle, 0, pos_x, pos_y, screen_x, screen_y, SWP_NOZORDER | SWP_FRAMECHANGED);
 
 		context->flags |= ztRendererFlagsGL_Fullscreen;
 	}
@@ -934,8 +965,8 @@ bool ztgl_win_setViewport(ztContextGL *context)
 	r32 realh = (context->native_size.y / (r32)context->pixels_per_unit) / 2.f;
 
 	if (zt_bitIsSet(context->flags, ztRendererFlagsGL_Fullscreen)) {
-		int screen_x = GetSystemMetrics(SM_CXSCREEN);
-		int screen_y = GetSystemMetrics(SM_CYSCREEN);
+		int pos_x = 0, pos_y = 0, screen_x = 0, screen_y = 0;
+		_ztgl_getFullScreenCoords(context->handle, &pos_x, &pos_y, &screen_x, &screen_y);
 
 		if (!local::opengl_calls(screen_x, screen_y, realw, realh)) {
 			return false;
