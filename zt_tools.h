@@ -479,6 +479,9 @@ struct ztVec2
 
 ztInline ztVec2 zt_vec2(r32 x, r32 y) { return{ x, y }; }
 ztInline ztVec2 zt_vec2(r32 v[2]) { return{ v[0], v[1] }; }
+ztInline ztVec2 zt_vec2(ztVec2i v) { return{ (r32)v.x, (r32)v.y }; }
+
+ztInline ztVec2i zt_vec2i(ztVec2 v);
 
 ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2);
@@ -556,6 +559,9 @@ struct ztVec3
 ztInline ztVec3 zt_vec3(r32 x, r32 y, r32 z) { return { x, y, z }; }
 ztInline ztVec3 zt_vec3(const ztVec2& v, r32 z) { return { v.x, v.y, z }; }
 ztInline ztVec3 zt_vec3(r32 v[3]) { return { v[0], v[1], v[2] }; }
+
+ztInline ztVec3 zt_vec3(ztVec3i v) { return{ (r32)v.x, (r32)v.y, (r32)v.z }; }
+ztInline ztVec3i zt_vec3i(ztVec3 v);
 
 ztInline ztVec3 operator+(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2);
@@ -636,6 +642,8 @@ ztInline ztVec4 zt_vec4(const ztVec2& v2a, const ztVec2& v2b) { return { v2a.x, 
 ztInline ztVec4 zt_vec4(const ztVec3& v3, r32 w) { return { v3.x, v3.y, v3.z, w }; }
 ztInline ztVec4 zt_vec4(r32 v[4]) { return { v[0], v[1], v[2], v[3] }; }
 
+ztInline ztVec4i zt_vec4i(ztVec4 v);
+ztInline ztVec4 zt_vec4(ztVec4i v) { return{ (r32)v.x, (r32)v.y, (r32)v.z, (r32)v.w }; }
 
 ztInline ztVec4 operator+(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2);
@@ -1913,7 +1921,7 @@ bool zt_systemInfo(ztSystemInfo *system_info);
 
 struct ztDisplay
 {
-	ztVec4i screen_area;
+	ztVec4i screen_area; // zw are w/h
 	ztVec4i work_area; // excludes task bars
 	i32     refresh_rate_in_hz;
 	i32     index;
@@ -2756,6 +2764,12 @@ ztInline ztVec2 operator*(r32 scale, const ztVec2& v1)
 	return zt_vec2(v1.x * scale, v1.y * scale);
 }
 
+// ================================================================================================================================================================================================
+
+ztInline ztVec2i zt_vec2i(ztVec2 v)
+{
+	return zt_vec2i(zt_convertToi32Floor(v.x), zt_convertToi32Floor(v.y));
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -2911,6 +2925,12 @@ ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 	return zt_vec3(v1.x * scale, v1.y * scale, v1.z * scale);
 }
 
+// ================================================================================================================================================================================================
+
+ztInline ztVec3i zt_vec3i(ztVec3 v)
+{
+	return zt_vec3i(zt_convertToi32Floor(v.x), zt_convertToi32Floor(v.y), zt_convertToi32Floor(v.z));
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -2996,6 +3016,13 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
 	return zt_vec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec4i zt_vec4i(ztVec4 v)
+{
+	return zt_vec4i(zt_convertToi32Floor(v.x), zt_convertToi32Floor(v.y), zt_convertToi32Floor(v.z), zt_convertToi32Floor(v.w));
 }
 
 // ================================================================================================================================================================================================
