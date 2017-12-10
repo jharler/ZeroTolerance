@@ -214,6 +214,7 @@ struct ztGameSettings
 
 	i32                                 screen_w, native_w;
 	i32                                 screen_h, native_h;
+	i32                                 monitor;
 	ztRenderer_Enum                     renderer;
 	i32                                 renderer_target_version_major;
 	i32                                 renderer_target_version_minor;
@@ -1099,6 +1100,7 @@ enum ztShaderDefault_Enum
 
 	ztShaderDefault_Skybox,
 	ztShaderDefault_ShadowDirectional,
+	ztShaderDefault_ShadowDirectionalTextured,
 
 	ztShaderDefault_SignedDistanceField,
 
@@ -1215,7 +1217,7 @@ int             zt_vertexArrayDataSize(ztVertexArrayDataType_Enum type);
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
- #pragma pack(push, 1)
+#pragma pack(push, 1)
 struct ztVertexDefault
 {
 	ztVec3 position;
@@ -1223,12 +1225,36 @@ struct ztVertexDefault
 	ztVec3 normal;
 	ztVec4 color;
 };
- #pragma pack(pop)
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
 ztVertexArrayID zt_vertexArrayMakeDefault(ztVertexDefault *vertices, int vertices_count);
 ztVertexArrayID zt_vertexArrayUpdateDefault(ztVertexArrayID vertex_array_id, ztVertexDefault *vertices, int vertices_count);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#pragma pack(push, 1)
+struct ztVertexDefaultLit
+{
+	ztVec3 position;
+	ztVec2 uv;
+	ztVec3 normal;
+	ztVec4 color;
+	ztVec4 tangent;
+	ztVec4 bitangent;
+};
+#pragma pack(pop)
+
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayMakeDefaultLit(ztVertexDefaultLit *vertices, int vertices_count);
+ztVertexArrayID zt_vertexArrayUpdateDefaultLit(ztVertexArrayID vertex_array_id, ztVertexDefaultLit *vertices, int vertices_count);
+
+void            zt_vertexArrayDefaultCalculateTangentBitangent(const ztVertexDefaultLit& v1, const ztVertexDefaultLit& v2, const ztVertexDefaultLit& v3, ztVec4 *tangent, ztVec4 *bitangent);
+void            zt_triangleCalculateTangentBitangent(const ztVec3& v1, const ztVec3& v2, const ztVec3& v3, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, ztVec4 *tangent, ztVec4 *bitangent);
 
 
 // ================================================================================================================================================================================================
@@ -1677,6 +1703,8 @@ enum ztRendererDepthTestFunction_Enum
 };
 
 void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function);
+void zt_rendererEnableDepthWriting(bool depth_writing);
+
 
 // ================================================================================================================================================================================================
 
@@ -2011,290 +2039,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 
 // ================================================================================================================================================================================================
-// lighting
-// ================================================================================================================================================================================================
-
-enum ztLightType_Enum
-{
-	ztLightType_Directional,
-	ztLightType_Spot,
-	ztLightType_Area,
-};
-
-// ================================================================================================================================================================================================
-
-struct ztLight
-{
-	ztLightType_Enum type;
-
-	ztVec3 position;
-	ztVec3 direction;
-	bool casts_shadows;
-	
-	ztColor color;
-	r32 intensity;
-	r32 ambient;
-};
-
-// ================================================================================================================================================================================================
-
-ztLight zt_lightMakeDirectional(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-ztLight zt_lightMakeSpot(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
-
-
-// ================================================================================================================================================================================================
-// bones
-// ================================================================================================================================================================================================
-
-enum ztBoneFlags_Enum
-{
-	ztBoneFlags_DebugDrawHighlight = (1<<31),
-};
-
-// ================================================================================================================================================================================================
-
-struct ztModel;
-
-// ================================================================================================================================================================================================
-
-struct ztBone
-{
-	int         index;
-	ztString    name;
-	i32         flags;
-
-	ztTransform transform;      // current location of bone
-	ztTransform transform_base; // resting location of bone
-	r32         size;
-
-	ztBone     *first_child;
-	ztBone     *next;
-	ztBone     *parent;
-
-	ztMat4      mat_model;      // bone in model space
-	ztMat4      mat_offset;
-	ztMat4      mat_local_bind_transform;
-	ztMat4      mat_inverse_bind_transform;
-};
-
-
-// ================================================================================================================================================================================================
-// models
-// ================================================================================================================================================================================================
-
-enum ztModelFlags_Enum
-{
-	ztModelFlags_NoFaceCull     = (1<<1),
-	ztModelFlags_Translucent    = (1<<2),
-	ztModelFlags_CastsShadows   = (1<<3),
-	ztModelFlags_Hidden         = (1<<4),
-	ztModelFlags_OwnsMaterials  = (1<<5),
-	ztModelFlags_OwnsMesh       = (1<<6),
-
-	ztModelFlags_DebugDrawAxis  = (1<<16),
-	ztModelFlags_DrawOrigin     = (1<<17),
-	ztModelFlags_DebugDrawAABB  = (1<<18),
-	ztModelFlags_DebugDrawOBB   = (1<<19),
-	ztModelFlags_DebugDrawBones = (1<<20),
-
-	// set automically when using internal shaders, but can be set manually
-	ztModelFlags_ShaderSupportsDiffuse          = (1<<26),		// "diffuse_tex", "diffuse_color"
-	ztModelFlags_ShaderSupportsSpecular         = (1<<27),		// "specular_tex", "specular_color"
-	ztModelFlags_ShaderSupportsNormal           = (1<<28),		// "normal_tex"
-	ztModelFlags_ShaderSupportsHeight           = (1<<29),		// "height_tex"
-	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
-};
-
-// ================================================================================================================================================================================================
-
-struct ztModel
-{
-	ztMeshID                mesh_id;
-	ztTransform             transform;
-	i32                     flags;
-
-	ztString                name;
-
-	ztShaderID              shader;
-	ztShaderVariableValues *shader_vars;
-
-	ztMaterial              material;
-	ztBone                 *bones;
-	int                     bones_count;
-	int                     bones_root_idx;
-
-	ztModel                *first_child;
-	ztModel                *next;
-	ztModel                *parent;
-
-	ztMemoryArena          *arena;
-
-	ztMat4                  calculated_mat;
-
-	ztMat4                  prev_mat;
-	ztVec3                  aabb_center, aabb_size;
-	ztVec3                  obb_center, obb_size;
-};
-
-// ================================================================================================================================================================================================
-
-ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
-void     zt_modelFree(ztModel *model);
-
-ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id);
-
-void     zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
-
-void     zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size);
-void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
-
-
-// ================================================================================================================================================================================================
-// scenes
-// ================================================================================================================================================================================================
-
-enum ztSceneModelFlags_Enum
-{
-	ztSceneModelFlags_ShaderLit       = (1<<1),
-	ztSceneModelFlags_ShaderBones     = (1<<2),
-	ztSceneModelFlags_HasTranslucent  = (1<<3),
-	ztSceneModelFlags_ExcludeFromCull = (1<<4),
-
-	ztSceneModelFlags_Culled          = (1<<31),
-};
-
-// ================================================================================================================================================================================================
-
-#ifndef ZT_SCENE_MAX_LIGHTS
-#define ZT_SCENE_MAX_LIGHTS	4
-#endif
-
-// ================================================================================================================================================================================================
-
-struct ztScene
-{
-	struct ModelInfo
-	{
-		ztModel *model;
-		i32 flags;
-		r32 dist_from_cam;
-	};
-
-	ModelInfo *models;
-	int models_count;
-	int models_size;
-
-	struct LightInfo
-	{
-		ztLight *light;
-	};
-
-	LightInfo directional_light;
-	LightInfo lights[ZT_SCENE_MAX_LIGHTS];
-
-	ModelInfo skybox;
-
-	r32 culling_distance;
-
-	ztMemoryArena *arena;
-
-	ztTextureID tex_directional_shadow_map;
-};
-
-// ================================================================================================================================================================================================
-
-struct ztSceneLightingRules
-{
-	r32 shadow_max_distance = 50.f;
-	r32 shadow_distance_behind_camera = 20.f;
-};
-
-// ================================================================================================================================================================================================
-
-ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models = 1024, int shadow_map_res = 4096);
-void zt_sceneFree(ztScene *scene);
-void zt_sceneFreeAllModels(ztScene *scene);
-
-void zt_sceneAddLight(ztScene *scene, ztLight *light);
-void zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
-
-void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
-void zt_sceneRemoveModel(ztScene *scene, ztModel *model);
-bool zt_sceneHasModel(ztScene *scene, ztModel *model);
-
-// --------------------------------------------------------
-// Calculates matrices for scene models (should be called after physics)
-void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset = ztVec3::zero);
-
-// --------------------------------------------------------
-// Culls models and lights based on camera view (not absolutely necessary)
-void zt_sceneOptimize(ztScene *scene, ztCamera *camera);
-
-// --------------------------------------------------------
-// Generate shadow maps for non-culled lights
-void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
-
-void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
-
-void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
-
-
-// ================================================================================================================================================================================================
-// fonts
-// ================================================================================================================================================================================================
-
-typedef i32 ztFontID;
-
-#define ztFontDefault		0
-#define ztFontDefaultMono	1
-
-#define ZT_FUNC_TEXT_ANIM(name) void name(ztDrawList *draw_list, int ch, int ch_idx, int ch_max, int row, ztVec3 *pos, ztVec2 *uvs, r32 *x_adv, r32 *y_adv, bool *should_skip, bool *pop_color, void *user_data)
-typedef ZT_FUNC_TEXT_ANIM(ztTextAnim_Func);
-
-const char *zt_fontGetCharsetStandard(i32 *size);
-
-ztFontID    zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
-ztFontID    zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
-ztFontID    zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2i& override_offset = zt_vec2i(0,0));
-ztFontID    zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2i& override_offset = zt_vec2i(0, 0));
-ztFontID    zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = zt_vec2i(0, 0));
-void        zt_fontFree(ztFontID font_id);
-
-void        zt_fontMakeMonoSpaced(ztFontID font);
-
-const char *zt_fontGetName(ztFontID font_id);
-i32         zt_fontGetSizeInPixels(ztFontID font_id);
-ztTextureID zt_fontGetTexture(ztFontID font_id);
-
-ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-// fancy text allows colors to be added in the middle of text using the format:
-// "This text is <color=ff0000ff>red</color> text.
-// be sure to avoid spaces in the color specifier
-//
-// fancy text also allows for sprites to be added in the middle of the text using the format:
-// "This is a sprite: <sprite=tex_id,x,y,w,h,scale_x,scale_y>
-// where tex_id is the id of the texture to use, x,y are the pixel coordinates of the top left corner, w,h are the pixel width and height, and scale_x,scale_y are r32 scale values to apply
-// be sure to avoid spaces in the sprite specifier
-
-ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
-
-// ================================================================================================================================================================================================
 // sprites
 // ================================================================================================================================================================================================
 
@@ -2372,12 +2116,12 @@ struct ztSpriteManager
 };
 
 
-void               zt_spriteManagerMake    (ztSpriteManager *sprite_manager, int max_sprites);
-bool               zt_spriteManagerLoad    (ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
-bool               zt_spriteManagerLoad    (ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
-bool               zt_spriteManagerLoadAll (ztSpriteManager *sprite_manager); // loads all .spr files from the data/textures directory
-bool               zt_spriteManagerSave    (ztSpriteManager *sprite_manager, ztSerial *serial);
-void               zt_spriteManagerFree    (ztSpriteManager *sprite_manager, bool should_free_textures = false);
+void               zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites);
+bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
+bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
+bool               zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager); // loads all .spr files from the data/textures directory
+bool               zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial);
+void               zt_spriteManagerFree(ztSpriteManager *sprite_manager, bool should_free_textures = false);
 
 void               zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name);
 void               zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name);
@@ -2388,6 +2132,360 @@ ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_ma
 ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash);
 
 i32                zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite);
+
+// ================================================================================================================================================================================================
+// lighting
+// ================================================================================================================================================================================================
+
+enum ztLightType_Enum
+{
+	ztLightType_Directional,
+	ztLightType_Spot,
+	ztLightType_Area,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztLight
+{
+	ztLightType_Enum type;
+
+	ztVec3 position;
+	ztVec3 direction;
+	bool casts_shadows;
+	
+	ztColor color;
+	r32 intensity;
+	r32 ambient;
+};
+
+// ================================================================================================================================================================================================
+
+ztLight zt_lightMakeDirectional(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeSpot(const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+
+
+// ================================================================================================================================================================================================
+// bones
+// ================================================================================================================================================================================================
+
+enum ztBoneFlags_Enum
+{
+	ztBoneFlags_DebugDrawHighlight = (1<<31),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztModel;
+struct ztSpriteAnimController;
+struct ztParticleEmitter;
+
+// ================================================================================================================================================================================================
+
+struct ztBone
+{
+	int         index;
+	ztString    name;
+	i32         flags;
+
+	ztTransform transform;      // current location of bone
+	ztTransform transform_base; // resting location of bone
+	r32         size;
+
+	ztBone     *first_child;
+	ztBone     *next;
+	ztBone     *parent;
+
+	ztMat4      mat_model;      // bone in model space
+	ztMat4      mat_offset;
+	ztMat4      mat_local_bind_transform;
+	ztMat4      mat_inverse_bind_transform;
+};
+
+
+// ================================================================================================================================================================================================
+// models
+// ================================================================================================================================================================================================
+
+enum ztModelFlags_Enum
+{
+	ztModelFlags_Initialized    = (1<<0),
+
+	ztModelFlags_NoFaceCull     = (1<<1),
+	ztModelFlags_Translucent    = (1<<2),
+	ztModelFlags_CastsShadows   = (1<<3),
+	ztModelFlags_Hidden         = (1<<4),
+	ztModelFlags_OwnsMaterials  = (1<<5),
+	ztModelFlags_OwnsMesh       = (1<<6),
+
+	ztModelFlags_DebugDrawAxis  = (1<<16),
+	ztModelFlags_DrawOrigin     = (1<<17),
+	ztModelFlags_DebugDrawAABB  = (1<<18),
+	ztModelFlags_DebugDrawOBB   = (1<<19),
+	ztModelFlags_DebugDrawBones = (1<<20),
+
+	// set automically when using internal shaders, but can be set manually
+	ztModelFlags_ShaderSupportsDiffuse          = (1<<26),		// "diffuse_tex", "diffuse_color"
+	ztModelFlags_ShaderSupportsSpecular         = (1<<27),		// "specular_tex", "specular_color"
+	ztModelFlags_ShaderSupportsNormal           = (1<<28),		// "normal_tex"
+	ztModelFlags_ShaderSupportsHeight           = (1<<29),		// "height_tex"
+	ztModelFlags_ShaderSupportsDirectionalLight = (1<<30),		// "light_matrix", "light_pos", "view_pos"
+};
+
+// ================================================================================================================================================================================================
+
+enum ztModelType_Enum
+{
+	ztModelType_Invalid,
+
+	ztModelType_Mesh,
+	ztModelType_VertexArray,
+	ztModelType_Sprite,
+	ztModelType_SpriteAnimation,
+	ztModelType_ParticleSystem,
+
+	ztModelType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+enum ztModelSpriteFacing_Enum
+{
+	ztModelSpriteFacing_Billboard,
+
+	ztModelSpriteFacing_PosX,
+	ztModelSpriteFacing_PosY,
+	ztModelSpriteFacing_PosZ,
+	ztModelSpriteFacing_NegX,
+	ztModelSpriteFacing_NegY,
+	ztModelSpriteFacing_NegZ,
+
+	ztModelSpriteFacing_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztModel
+{
+	ztModelType_Enum        type;
+
+	union
+	{
+		struct {
+			ztMeshID                mesh_id;
+		};
+
+		struct {
+			ztVertexArrayID         vertex_array_id;
+		};
+
+		struct {
+			ztSprite                 sprite;
+			ztModelSpriteFacing_Enum sprite_facing;
+		};
+
+		struct {
+			ztSpriteAnimController  *sprite_anim_controller;
+			ztModelSpriteFacing_Enum sprite_anim_facing;
+		};
+
+		struct {
+			ztParticleEmitter *particle_emitter;
+		};
+	};
+
+
+	ztTransform             transform;
+	i32                     flags;
+
+	ztString                name;
+
+	ztShaderID              shader;
+	ztShaderVariableValues *shader_vars;
+
+	ztMaterial              material;
+	ztBone                 *bones;
+	int                     bones_count;
+	int                     bones_root_idx;
+
+	ztModel                *first_child;
+	ztModel                *next;
+	ztModel                *parent;
+
+	ztMat4                  calculated_mat;
+
+	ztMat4                  prev_mat;
+	ztVec3                  aabb_center, aabb_size;
+	ztVec3                  obb_center, obb_size;
+};
+
+// ================================================================================================================================================================================================
+
+bool     zt_modelMakeFromMesh                (ztModel *model, ztMeshID mesh_id, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+bool     zt_modelMakeFromVertexArray         (ztModel *model, ztVertexArrayID va_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+bool     zt_modelMakeFromSprite              (ztModel *model, ztSprite *sprite, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+bool     zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimController *sprite_anim_controller, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+bool     zt_modelMakeFromParticleEmitter     (ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+void     zt_modelFree(ztModel *model);
+
+bool     zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id);
+
+void     zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
+
+void     zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size);
+void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
+
+
+// ================================================================================================================================================================================================
+// scenes
+// ================================================================================================================================================================================================
+
+enum ztSceneModelFlags_Enum
+{
+	ztSceneModelFlags_ShaderLit       = (1<<1),
+	ztSceneModelFlags_ShaderBones     = (1<<2),
+	ztSceneModelFlags_HasTranslucent  = (1<<3),
+	ztSceneModelFlags_ExcludeFromCull = (1<<4),
+
+	ztSceneModelFlags_Culled          = (1<<31),
+};
+
+// ================================================================================================================================================================================================
+
+#ifndef ZT_SCENE_MAX_LIGHTS
+#define ZT_SCENE_MAX_LIGHTS	4
+#endif
+
+// ================================================================================================================================================================================================
+
+struct ztScene
+{
+	struct ModelInfo
+	{
+		ztModel *model;
+		i32 flags;
+		r32 dist_from_cam;
+	};
+
+	ModelInfo *models;
+	int models_count;
+	int models_size;
+
+	struct LightInfo
+	{
+		ztLight *light;
+	};
+
+	LightInfo directional_light;
+	LightInfo lights[ZT_SCENE_MAX_LIGHTS];
+
+	ModelInfo skybox;
+
+	r32 culling_distance;
+
+	ztMemoryArena *arena;
+
+	ztTextureID tex_directional_shadow_map;
+
+	ztVertexArrayID     vertex_array;
+	ztVertexDefaultLit *vertex_array_vertices;
+	int                 vertex_array_vertices_idx;
+	int                 vertex_array_size;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztSceneLightingRules
+{
+	r32 shadow_max_distance = 50.f;
+	r32 shadow_distance_behind_camera = 20.f;
+};
+
+// ================================================================================================================================================================================================
+
+ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models = 1024, int shadow_map_res = 4096);
+void     zt_sceneFree(ztScene *scene);
+
+bool     zt_sceneMakeVertexArray(ztScene *scene, int max_vertices);
+
+void     zt_sceneAddLight(ztScene *scene, ztLight *light);
+void     zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
+
+void     zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
+void     zt_sceneRemoveModel(ztScene *scene, ztModel *model);
+bool     zt_sceneHasModel(ztScene *scene, ztModel *model);
+
+// --------------------------------------------------------
+// Calculates matrices for scene models (should be called after physics)
+void     zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offset = ztVec3::zero);
+
+// --------------------------------------------------------
+// Culls models and lights based on camera view (not absolutely necessary)
+void     zt_sceneOptimize(ztScene *scene, ztCamera *camera);
+
+// --------------------------------------------------------
+// Generate shadow maps for non-culled lights
+void     zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
+
+void     zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
+
+void     zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules = nullptr);
+
+
+// ================================================================================================================================================================================================
+// fonts
+// ================================================================================================================================================================================================
+
+typedef i32 ztFontID;
+
+#define ztFontDefault		0
+#define ztFontDefaultMono	1
+
+#define ZT_FUNC_TEXT_ANIM(name) void name(ztDrawList *draw_list, int ch, int ch_idx, int ch_max, int row, ztVec3 *pos, ztVec2 *uvs, r32 *x_adv, r32 *y_adv, bool *should_skip, bool *pop_color, void *user_data)
+typedef ZT_FUNC_TEXT_ANIM(ztTextAnim_Func);
+
+const char *zt_fontGetCharsetStandard(i32 *size);
+
+ztFontID    zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
+ztFontID    zt_fontMakeFromTrueTypeFile(const char *file_name, i32 size_in_pixels, const char *charset = nullptr, i32 charset_size = 0);
+ztFontID    zt_fontMakeFromBmpFontAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetID texture_override_asset_id = ztInvalidID, const ztVec2i& override_offset = zt_vec2i(0,0));
+ztFontID    zt_fontMakeFromBmpFontFile(const char *file_name, ztTextureID texture_override_id = ztInvalidID, const ztVec2i& override_offset = zt_vec2i(0, 0));
+ztFontID    zt_fontMakeFromBmpFontData(const char *file_data, ztTextureID texture_override_id, const ztVec2i& override_offset = zt_vec2i(0, 0));
+void        zt_fontFree(ztFontID font_id);
+
+void        zt_fontMakeMonoSpaced(ztFontID font);
+
+const char *zt_fontGetName(ztFontID font_id);
+i32         zt_fontGetSizeInPixels(ztFontID font_id);
+ztTextureID zt_fontGetTexture(ztFontID font_id);
+
+ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtents(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+
+// fancy text allows colors to be added in the middle of text using the format:
+// "This text is <color=ff0000ff>red</color> text.
+// be sure to avoid spaces in the color specifier
+//
+// fancy text also allows for sprites to be added in the middle of the text using the format:
+// "This is a sprite: <sprite=tex_id,x,y,w,h,scale_x,scale_y>
+// where tex_id is the id of the texture to use, x,y are the pixel coordinates of the top left corner, w,h are the pixel width and height, and scale_x,scale_y are r32 scale values to apply
+// be sure to avoid spaces in the sprite specifier
+
+ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+ztVec2      zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int text_len, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
+void        zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const char *text, int text_len, ztVec2 pos, ztVec2 scale, i32 align_flags = ztAlign_Default, i32 anchor_flags = ztAnchor_Default, ztVec2 *extents = nullptr, ztColor default_color = ztColor_White, ztMat4 *transform = nullptr, ztTextAnim_Func *text_anim = nullptr, void *text_anim_user_data = nullptr);
 
 // ================================================================================================================================================================================================
 // physics
@@ -3872,12 +3970,16 @@ void               zt_particleEmitterReset           (ztParticleEmitter *emitter
 bool               zt_particleEmitterUpdate          (ztParticleEmitter *emitter, r32 dt);
 void               zt_particleEmitterRender          (ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera);
 int                zt_particleEmitterGetTriangles    (ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
+int                zt_particleEmitterFillVertices    (ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefault *vertices, int size);
+int                zt_particleEmitterFillVertices    (ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefaultLit *vertices, int size);
 
 void               zt_particleEmitterPoolInit        (ztParticleEmitterPool *pool, int emitters_count, ztParticleSystem *system, i32 seed, bool random_seeds = true);
 void               zt_particleEmitterPoolFree        (ztParticleEmitterPool *pool);
 void               zt_particleEmitterPoolUpdate      (ztParticleEmitterPool *pool, r32 dt);
 void               zt_particleEmitterPoolRender      (ztParticleEmitterPool *pool, ztDrawList *draw_list, ztCamera *camera);
 int                zt_particleEmitterPoolGetTriangles(ztParticleEmitterPool *pool, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
+int                zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *camera, ztVertexDefault *vertices, int size);
+int                zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *camera, ztVertexDefaultLit *vertices, int size);
 void               zt_particleEmitterPoolResetAll    (ztParticleEmitterPool *pool);
 ztParticleEmitter *zt_particleEmitterPoolGetAvailable(ztParticleEmitterPool *pool);
 
@@ -7009,16 +7111,18 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-litshadow",
 	"shader-skybox",
 	"shader-shadowdirectional",
+	"shader-shadowdirectionaltextured",
 	"shader-signeddistancefield"
 };
 
 ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
-	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1.0);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv);\n		\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, 1);\n	}\n",
+	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
+	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
 };
 
@@ -11231,6 +11335,1331 @@ ztVertexArrayID zt_vertexArrayUpdateDefault(ztVertexArrayID vertex_array_id, ztV
 	return zt_vertexArrayUpdate(vertex_array_id, entries, zt_elementsOf(entries), vertices, vertices_count);
 }
 
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayMakeDefaultLit(ztVertexDefaultLit *vertices, int vertices_count)
+{
+	ztVertexArrayEntry entries[] = {
+		{ ztVertexArrayDataType_Float, 3 }, // position
+		{ ztVertexArrayDataType_Float, 2 }, // uv
+		{ ztVertexArrayDataType_Float, 3 }, // normal
+		{ ztVertexArrayDataType_Float, 4 }, // color
+		{ ztVertexArrayDataType_Float, 4 }, // tangent
+		{ ztVertexArrayDataType_Float, 4 }, // bitangent
+	};
+
+	return zt_vertexArrayMake(entries, zt_elementsOf(entries), vertices, vertices_count);
+}
+
+// ================================================================================================================================================================================================
+
+ztVertexArrayID zt_vertexArrayUpdateDefaultLit(ztVertexArrayID vertex_array_id, ztVertexDefaultLit *vertices, int vertices_count)
+{
+	ztVertexArrayEntry entries[] = {
+		{ ztVertexArrayDataType_Float, 3 }, // position
+		{ ztVertexArrayDataType_Float, 2 }, // uv
+		{ ztVertexArrayDataType_Float, 3 }, // normal
+		{ ztVertexArrayDataType_Float, 4 }, // color
+		{ ztVertexArrayDataType_Float, 4 }, // tangent
+		{ ztVertexArrayDataType_Float, 4 }, // bitangent
+	};
+
+	return zt_vertexArrayUpdate(vertex_array_id, entries, zt_elementsOf(entries), vertices, vertices_count);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_vertexArrayDefaultCalculateTangentBitangent(const ztVertexDefaultLit& v1, const ztVertexDefaultLit& v2, const ztVertexDefaultLit& v3, ztVec4 *tangent, ztVec4 *bitangent)
+{
+	ZT_PROFILE_RENDERING("zt_vertexArrayDefaultCalculateTangentBitangent");
+
+	ztVec3 edge1 = v2.position - v1.position;
+	ztVec3 edge2 = v3.position - v1.position;
+	ztVec2 duv1 = v2.uv - v1.uv;
+	ztVec2 duv2 = v3.uv - v1.uv;
+
+	r32 f = 1.f / (duv1.x * duv2.y - duv2.x * duv1.y);
+
+	*tangent = zt_vec4(f * (duv2.y * edge1.x - duv1.y * edge2.x), f * (duv2.y * edge1.y - duv1.y * edge2.y), f * (duv2.y * edge1.z - duv1.y * edge2.z), 0);
+	*bitangent = zt_vec4(f * (-duv2.x * edge1.x + duv1.x * edge2.x), f * (-duv2.x * edge1.y + duv1.x * edge2.y), f * (-duv2.x * edge1.z + duv1.x * edge2.z), 0);
+
+	tangent->xyz.normalize();
+	bitangent->xyz.normalize();
+}
+
+// ================================================================================================================================================================================================
+
+void zt_triangleCalculateTangentBitangent(const ztVec3& v1, const ztVec3& v2, const ztVec3& v3, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, ztVec4 *tangent, ztVec4 *bitangent)
+{
+	ZT_PROFILE_RENDERING("zt_triangleCalculateTangentBitangent");
+
+	ztVec3 edge1 = v2 - v1;
+	ztVec3 edge2 = v3 - v1;
+	ztVec2 duv1 = uv2 - uv1;
+	ztVec2 duv2 = uv3 - uv1;
+
+	r32 f = 1.f / (duv1.x * duv2.y - duv2.x * duv1.y);
+
+	*tangent = zt_vec4(f * (duv2.y * edge1.x - duv1.y * edge2.x), f * (duv2.y * edge1.y - duv1.y * edge2.y), f * (duv2.y * edge1.z - duv1.y * edge2.z), 0);
+	*bitangent = zt_vec4(f * (-duv2.x * edge1.x + duv1.x * edge2.x), f * (-duv2.x * edge1.y + duv1.x * edge2.y), f * (-duv2.x * edge1.z + duv1.x * edge2.z), 0);
+
+	tangent->xyz.normalize();
+	bitangent->xyz.normalize();
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y)
+{
+	ZT_PROFILE_RENDERING("zt_spriteMake");
+	zt_assert(tex != ztInvalidID);
+	zt_assert(x >= 0 && y >= 0 && w != 0 && h != 0);
+
+	r32 tex_w = (r32)zt_game->textures[tex].width;
+	r32 tex_h = (r32)zt_game->textures[tex].height;
+
+	ztSprite result;
+	result.tex = tex;
+	result.tex_uv.x = x / tex_w;
+	result.tex_uv.y = y / tex_h;
+	result.tex_uv.z = result.tex_uv.x + w / tex_w;
+	result.tex_uv.w = result.tex_uv.y + h / tex_h;
+
+	r32 ppu = zt_pixelsPerUnit();
+	result.half_size.x = w / ppu / 2.f;
+	result.half_size.y = h / ppu / 2.f;
+	result.anchor.x = anchor_x / ppu;
+	result.anchor.y = anchor_y / ppu;
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
+{
+	return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y, int pixel_border)
+{
+	if (pixel_border != 0) {
+		x = (x * w) + pixel_border;
+		y = (y * h) + pixel_border;
+		w -= pixel_border * 2;
+		h -= pixel_border * 2;
+		return zt_spriteMake(tex, x, y, w, h, anchor_x, anchor_y);
+	}
+	else {
+		return zt_spriteMake(tex, x * w, y * h, w, h, anchor_x, anchor_y);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor, int pixel_border)
+{
+	if (pixel_border != 0) {
+		pos.x = (pos.x * size.x) + pixel_border;
+		pos.y = (pos.y * size.y) + pixel_border;
+		size.x -= pixel_border * 2;
+		size.y -= pixel_border * 2;
+		return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
+	}
+	else {
+		return zt_spriteMake(tex, pos.x * size.x, pos.y * size.y, size.x, size.y, anchor.x, anchor.y);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	if (rotation != ztVec3::zero) {
+		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
+			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
+			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
+
+			zt_fiz(4) {
+				r32 tpos_x = pos[i].x;
+				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
+				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
+			}
+		}
+		else {
+			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
+
+			zt_fiz(4) {
+				rotation_quat.rotatePosition(&pos[i]);
+			}
+		}
+	}
+
+	if (scale != ztVec3::one) {
+		zt_fize(pos) pos[i] *= scale;
+	}
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
+{
+	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	if (rotation != ztVec3::zero) {
+		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
+			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
+			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
+
+			zt_fiz(4) {
+				r32 tpos_x = pos[i].x;
+				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
+				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
+			}
+		}
+		else {
+			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
+
+			zt_fiz(4) {
+				rotation_quat.rotatePosition(&pos[i]);
+			}
+		}
+	}
+
+	if (scale != ztVec3::one) {
+		zt_fize(pos) pos[i] *= scale;
+	}
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += at_pos.x;
+		pos[i].y += at_pos.y;
+	}
+
+	_pos[0] = pos[0];
+	_pos[1] = pos[1];
+	_pos[2] = pos[2];
+	_pos[3] = pos[0];
+	_pos[4] = pos[2];
+	_pos[5] = pos[3];
+
+	_uvs[0] = uvs[0];
+	_uvs[1] = uvs[1];
+	_uvs[2] = uvs[2];
+	_uvs[3] = uvs[0];
+	_uvs[4] = uvs[2];
+	_uvs[5] = uvs[3];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
+
+	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
+		return;
+	}
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	r32 ppu = zt_pixelsPerUnit();
+
+	zt_fiz(4) {
+		pos[i].x += position.x;
+		pos[i].y += position.y;
+
+		zt_alignToPixel(&pos[i].x, ppu);
+		zt_alignToPixel(&pos[i].y, ppu);
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	if (rot.x != 0 || rot.y != 0 || rot.z != 0) {
+		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rot);
+
+		zt_fiz(4) {
+			pos[i] = rotation_mat * pos[i];
+		}
+	}
+
+	if (scale.x != 1 || scale.y != 1) {
+		zt_fiz(4) {
+			pos[i].x *= scale.x;
+			pos[i].y *= scale.y;
+		}
+	}
+
+	r32 pos_x = position.x, pos_y = position.y, ppu = zt_pixelsPerUnit();
+	zt_alignToPixel(&pos_x, ppu);
+	zt_alignToPixel(&pos_y, ppu);
+
+	zt_fiz(4) {
+		pos[i].x += pos_x;
+		pos[i].y += pos_y;
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
+
+	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
+		return;
+	}
+
+	ztVec3 pos[4] = {
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
+		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	zt_fiz(4) {
+		pos[i].x += position.x;
+		pos[i].y += position.y;
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
+
+	r32 anchor_scale_x = scale.x < 0 ? -1.f : 1.f;
+	r32 anchor_scale_y = scale.y < 0 ? -1.f : 1.f;
+
+	ztVec3 pos[4] = {
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + sprite->half_size.y, 0), // top left
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom left
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom right
+		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + sprite->half_size.y, 0), // top right
+	};
+
+	ztVec2 uvs[4] = {
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
+		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
+		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
+	};
+
+	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+	if (rot.x != 0 || rot.y != 0 || rot.z != 0) {
+		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rot);
+
+		zt_fiz(4) {
+			pos[i] = rotation_mat * pos[i];
+		}
+	}
+
+	if (scale.x != 1 || scale.y != 1) {
+		bool flip_x = scale.x < 0;
+		bool flip_y = scale.y < 0;
+
+		zt_fiz(4) {
+			pos[i].x *= zt_abs(scale.x);
+			pos[i].y *= zt_abs(scale.y);
+		}
+
+		if (flip_x) {
+			zt_swap(uvs[0].x, uvs[2].x);
+			zt_swap(uvs[1].x, uvs[3].x);
+		}
+		if (flip_y) {
+			zt_swap(uvs[0].y, uvs[1].y);
+			zt_swap(uvs[2].y, uvs[3].y);
+		}
+	}
+
+	r32 pos_x = position.x, pos_y = position.y;
+	zt_fiz(4) {
+		pos[i].x += pos_x;
+		pos[i].y += pos_y;
+	}
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec2 &area)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteTiled");
+
+	ztVec2 size_per = sprite->half_size * 2;
+
+	int tiles_x = zt_convertToi32Floor(area.x / size_per.x) + 1;
+	int tiles_y = zt_convertToi32Floor(area.y / size_per.y) + 1;
+
+	ztVec2 max_ext = zt_vec2(pos.x + area.x / 2, pos.y - area.y / 2);
+
+	ztVec3 start_pos = zt_vec3((pos.x - (area.x / 2)) + sprite->half_size.x, (pos.y + (area.y / 2)) - sprite->half_size.y, 0);
+
+	zt_drawListPushTexture(draw_list, sprite->tex);
+	zt_fyz(tiles_y) {
+		zt_fxz(tiles_x) {
+			ztVec3 pos = start_pos + zt_vec3(x * size_per.x, -y * size_per.y, 0);
+
+			ztVec3 spos[6];
+			ztVec2 suvs[6];
+
+			zt_spriteGetTriangles(sprite, pos, spos, suvs);
+
+			if (spos[2].x > max_ext.x) {
+				r32 diff_x = spos[2].x - max_ext.x;
+				r32 diff_x_pct = diff_x / size_per.x;
+
+				r32 uv_x = suvs[2].x - suvs[0].x;
+				suvs[2].x -= uv_x * (diff_x_pct);
+				suvs[4].x = suvs[2].x;
+				suvs[5].x = suvs[2].x;
+
+				spos[2].x -= diff_x;
+				spos[4].x -= diff_x;
+				spos[5].x -= diff_x;
+			}
+			if (spos[1].y < max_ext.y) {
+				r32 diff_y = max_ext.y - spos[1].y;
+				r32 diff_y_pct = diff_y / size_per.y;
+
+				r32 uv_y = suvs[1].y - suvs[0].y;
+				suvs[1].y -= uv_y * (diff_y_pct);
+				suvs[2].y = suvs[1].y;
+				suvs[4].y = suvs[1].y;
+				spos[1].y += diff_y;
+				spos[2].y += diff_y;
+				spos[4].y += diff_y;
+			}
+
+			ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
+
+			ztVec3 pos1[3] = { spos[0], spos[1], spos[2] };
+			ztVec2 uvs1[3] = { suvs[0], suvs[1], suvs[2] };
+			zt_drawListAddFilledTriangle(draw_list, pos1, uvs1, nml);
+
+			ztVec3 pos2[3] = { spos[3], spos[4], spos[5] };
+			ztVec2 uvs2[3] = { suvs[3], suvs[4], suvs[5] };
+			zt_drawListAddFilledTriangle(draw_list, pos2, uvs2, nml);
+		}
+	}
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, int tex_w, int tex_h, int nw_interior_x, int nw_interior_y, int se_interior_x, int se_interior_y, int offset_l, int offset_t, int offset_r, int offset_b)
+{
+	ZT_PROFILE_RENDERING("zt_spriteNineSliceMake");
+	zt_assert(tex != ztInvalidID);
+	zt_assert(tex_x >= 0 && tex_y >= 0 && tex_w != 0 && tex_h != 0 && nw_interior_x > tex_x && nw_interior_y > tex_y && se_interior_x < tex_x + tex_w && se_interior_y < tex_y + tex_h);
+
+	r32 tex_atl_w = (r32)zt_game->textures[tex].width;
+	r32 tex_atl_h = (r32)zt_game->textures[tex].height;
+
+	//  0, 1,  2, 3, 4, 5,  6, 7,  8
+	// nw, n, ne, w, c, e, sw, s, se
+
+	ztSpriteNineSlice result;
+
+	r32 x = tex_x / tex_atl_w;
+	r32 y = tex_y / tex_atl_h;
+	r32 w = ((r32)tex_w) / tex_atl_w;
+	r32 h = ((r32)tex_h) / tex_atl_h;
+	r32 nwx = ((r32)nw_interior_x) / tex_atl_w;
+	r32 nwy = ((r32)nw_interior_y) / tex_atl_h;
+	r32 sex = ((r32)se_interior_x) / tex_atl_w;
+	r32 sey = ((r32)se_interior_y) / tex_atl_h;
+
+	result.tex = tex;
+	result.sp_nw = zt_vec4(x, y, nwx, nwy); // nw
+	result.sp_n = zt_vec4(nwx, y, sex, nwy); // n
+	result.sp_ne = zt_vec4(sex, y, x + w, nwy); // ne
+	result.sp_w = zt_vec4(x, nwy, nwx, sey); // w
+	result.sp_c = zt_vec4(nwx, nwy, sex, sey); // c
+	result.sp_e = zt_vec4(sex, nwy, x + w, sey); // e
+	result.sp_sw = zt_vec4(x, sey, nwx, y + h); // sw
+	result.sp_s = zt_vec4(nwx, sey, sex, y + h); // s
+	result.sp_se = zt_vec4(sex, sey, x + w, y + h); // se
+
+	r32 ppu = zt_pixelsPerUnit();
+	result.sz_n = (nw_interior_y - tex_y) / ppu;
+	result.sz_s = ((tex_y + tex_h) - se_interior_y) / ppu;
+	result.sz_w = (nw_interior_x - tex_x) / ppu;
+	result.sz_e = ((tex_x + tex_w) - se_interior_x) / ppu;
+	result.sz_cw = (se_interior_x - nw_interior_x) / ppu;
+	result.sz_ch = (se_interior_y - nw_interior_y) / ppu;
+
+	result.offset.x = offset_l / ppu; //tex_atl_w;
+	result.offset.y = offset_t / ppu; //tex_atl_h;
+	result.offset.z = offset_r / ppu; //tex_atl_w;
+	result.offset.w = offset_b / ppu; //tex_atl_h;
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l, int offset_t, int offset_r, int offset_b)
+{
+	return zt_spriteNineSliceMake(tex, tex_pos.x, tex_pos.y, tex_size.x, tex_size.y, nw_interior.x, nw_interior.y, se_interior.x, se_interior.y, offset_l, offset_t, offset_r, offset_b);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &cpos, const ztVec2 &csize)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddSpriteNineSlice");
+	r32 ppu = zt_pixelsPerUnit();
+
+	ztVec2 pos = cpos;
+	//	zt_alignToPixel(&pos, ppu);
+	ztVec2 size = csize;
+	//	zt_alignToPixel(&size, ppu);
+
+	r32 x_diff = sns->offset.z - sns->offset.x;
+	r32 y_diff = sns->offset.y - sns->offset.w;
+
+	pos.x += x_diff / 2.f;
+	pos.y += y_diff / 2.f;
+
+	size.x += sns->offset.x + sns->offset.z;
+	size.y += sns->offset.y + sns->offset.w;
+
+	ztVec2 upper_left = zt_vec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
+
+	ztVec3 scale_corners = ztVec3::one;
+	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
+	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
+
+	ztVec3 pos_nw[] = {
+		zt_vec3(upper_left.x, upper_left.y, 0),
+		zt_vec3(upper_left.x, upper_left.y - sns->sz_n * scale_corners.y, 0),
+		zt_vec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y, 0),
+		zt_vec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y, 0)
+	};
+	ztVec3 pos_ne[] = {
+		zt_vec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y, 0),
+		zt_vec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y, 0),
+		zt_vec3(upper_right.x, upper_right.y - sns->sz_n * scale_corners.y, 0),
+		zt_vec3(upper_right.x, upper_right.y, 0)
+	};
+	ztVec3 pos_sw[] = {
+		zt_vec3(lower_left.x, lower_left.y + sns->sz_s * scale_corners.y, 0),
+		zt_vec3(lower_left.x, lower_left.y, 0),
+		zt_vec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y, 0),
+		zt_vec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y, 0)
+	};
+	ztVec3 pos_se[] = {
+		zt_vec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y, 0),
+		zt_vec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y, 0),
+		zt_vec3(lower_right.x, lower_right.y, 0),
+		zt_vec3(lower_right.x, lower_right.y + sns->sz_s * scale_corners.y, 0)
+	};
+
+	zt_fiz(4) {
+		//zt_alignToPixel(&pos_nw[i], ppu);
+		//zt_alignToPixel(&pos_ne[i], ppu);
+		//zt_alignToPixel(&pos_sw[i], ppu);
+		//zt_alignToPixel(&pos_se[i], ppu);
+	}
+
+	zt_drawListPushTexture(draw_list, sns->tex);
+	/* center     */ zt_drawListAddFilledQuad(draw_list, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, zt_vec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, zt_vec2(sns->sp_c.z, sns->sp_c.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* west       */ zt_drawListAddFilledQuad(draw_list, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, zt_vec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, zt_vec2(sns->sp_w.z, sns->sp_w.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* east       */ zt_drawListAddFilledQuad(draw_list, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, zt_vec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, zt_vec2(sns->sp_e.z, sns->sp_e.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* north      */ zt_drawListAddFilledQuad(draw_list, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, zt_vec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, zt_vec2(sns->sp_n.z, sns->sp_n.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south      */ zt_drawListAddFilledQuad(draw_list, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, zt_vec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, zt_vec2(sns->sp_s.z, sns->sp_s.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+
+	/* north west */ zt_drawListAddFilledQuad(draw_list, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, zt_vec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, zt_vec2(sns->sp_nw.z, sns->sp_nw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* north east */ zt_drawListAddFilledQuad(draw_list, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, zt_vec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, zt_vec2(sns->sp_ne.z, sns->sp_ne.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south west */ zt_drawListAddFilledQuad(draw_list, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	/* south east */ zt_drawListAddFilledQuad(draw_list, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
+	zt_drawListPopTexture(draw_list);
+}
+
+// ================================================================================================================================================================================================
+#if 1
+void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos, const ztVec2 &csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
+{
+	ZT_PROFILE_RENDERING("zt_spriteNineSliceGetTriangles");
+	r32 ppu = zt_pixelsPerUnit();
+
+	ztVec2 pos = at_pos;
+	ztVec2 size = csize;
+
+	r32 x_diff = sns->offset.z - sns->offset.x;
+	r32 y_diff = sns->offset.y - sns->offset.w;
+
+	pos.x += x_diff / 2.f;
+	pos.y += y_diff / 2.f;
+
+	size.x += sns->offset.x + sns->offset.z;
+	size.y += sns->offset.y + sns->offset.w;
+
+	ztVec2 upper_left = zt_vec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
+	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
+	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
+
+	ztVec2 scale_corners = ztVec2::one;
+	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
+	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
+
+	ztVec2 pos_nw[] = {
+		zt_vec2(upper_left.x, upper_left.y),
+		zt_vec2(upper_left.x, upper_left.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y)
+	};
+	ztVec2 pos_ne[] = {
+		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y),
+		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_right.x, upper_right.y - sns->sz_n * scale_corners.y),
+		zt_vec2(upper_right.x, upper_right.y)
+	};
+	ztVec2 pos_sw[] = {
+		zt_vec2(lower_left.x, lower_left.y + sns->sz_s * scale_corners.y),
+		zt_vec2(lower_left.x, lower_left.y),
+		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y),
+		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y)
+	};
+	ztVec2 pos_se[] = {
+		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y),
+		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y),
+		zt_vec2(lower_right.x, lower_right.y),
+		zt_vec2(lower_right.x, lower_right.y + sns->sz_s * scale_corners.y)
+	};
+
+	zt_fiz(4) {
+		zt_alignToPixel(&pos_nw[i], ppu);
+		zt_alignToPixel(&pos_ne[i], ppu);
+		zt_alignToPixel(&pos_sw[i], ppu);
+		zt_alignToPixel(&pos_se[i], ppu);
+	}
+
+	struct local
+	{
+		static void process(ztVec2 *pos, ztVec2 *uvs, int &idx, const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4)
+		{
+			{
+				pos[idx + 0] = p1;
+				pos[idx + 1] = p2;
+				pos[idx + 2] = p3;
+
+				uvs[idx + 0] = uv1;
+				uvs[idx + 1] = uv2;
+				uvs[idx + 2] = uv3;
+
+				idx += 3;
+			}
+			{
+				pos[idx + 0] = p1;
+				pos[idx + 1] = p3;
+				pos[idx + 2] = p4;
+
+				uvs[idx + 0] = uv1;
+				uvs[idx + 1] = uv3;
+				uvs[idx + 2] = uv4;
+
+				idx += 3;
+			}
+		}
+	};
+
+	int idx = 0;
+	/* center     */ local::process(pos_arr, uvs_arr, idx, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, zt_vec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, zt_vec2(sns->sp_c.z, sns->sp_c.y));
+	/* west       */ local::process(pos_arr, uvs_arr, idx, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, zt_vec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, zt_vec2(sns->sp_w.z, sns->sp_w.y));
+	/* east       */ local::process(pos_arr, uvs_arr, idx, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, zt_vec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, zt_vec2(sns->sp_e.z, sns->sp_e.y));
+	/* north      */ local::process(pos_arr, uvs_arr, idx, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, zt_vec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, zt_vec2(sns->sp_n.z, sns->sp_n.y));
+	/* south      */ local::process(pos_arr, uvs_arr, idx, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, zt_vec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, zt_vec2(sns->sp_s.z, sns->sp_s.y));
+
+	/* north west */ local::process(pos_arr, uvs_arr, idx, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, zt_vec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, zt_vec2(sns->sp_nw.z, sns->sp_nw.y));
+	/* north east */ local::process(pos_arr, uvs_arr, idx, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, zt_vec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, zt_vec2(sns->sp_ne.z, sns->sp_ne.y));
+	/* south west */ local::process(pos_arr, uvs_arr, idx, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y));
+	/* south east */ local::process(pos_arr, uvs_arr, idx, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y));
+}
+#endif
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerMake");
+	zt_returnOnNull(sprite_manager);
+	zt_assertReturnOnFail(max_sprites > 0);
+
+	sprite_manager->sprites = zt_mallocStructArray(ztSpriteManager::Entry, max_sprites);
+	sprite_manager->sprites_count = max_sprites;
+
+	zt_fiz(max_sprites) {
+		sprite_manager->sprites[i].hash = 0;
+		sprite_manager->sprites[i].type = ztSpriteType_Invalid;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
+	zt_returnValOnNull(asset_mgr, false);
+	if (asset_id == ztInvalidID) {
+		zt_logCritical("sprite manager: invalid asset id");
+		return false;
+	}
+	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
+
+	zt_logDebug("sprite manager: loading: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		zt_logCritical("sprite manager: cannot load empty asset");
+		return false;
+	}
+
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		zt_logCritical("sprite manager unable to allocate memory");
+		return false;
+	}
+
+	const char *error = nullptr;
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
+		error = "sprite manager: unable to load asset contents";
+		goto on_error;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, size, ZT_SPRITE_FILE_GUID)) {
+		error = "sprite manager: unable to serialize file";
+		goto on_error;
+	}
+
+	if (!zt_spriteManagerLoad(sprite_manager, &serial, tex)) {
+		error = "sprite manager: unable to load file data";
+		zt_serialClose(&serial);
+		goto on_error;
+	}
+
+	zt_serialClose(&serial);
+	zt_freeArena(data, asset_mgr->arena);
+	return true;
+
+on_error:
+	zt_logCritical(error);
+	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager)
+{
+	char path[ztFileMaxPath];
+	zt_fileConcatFileToPath(path, zt_elementsOf(path), zt_game->game_details.data_path, "textures");
+	char files[ztFileMaxPath];
+	zt_getDirectoryFiles(path, files, zt_elementsOf(files), false);
+
+	ztToken tokens[128];
+	int tokens_count = zt_min(zt_elementsOf(tokens), zt_strTokenize(files, "\n", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace));
+
+	zt_fiz(tokens_count) {
+		char file[ztFileMaxPath];
+		zt_strCpy(file, zt_elementsOf(file), files + tokens[i].beg, tokens[i].len);
+
+		if (zt_striEndsWith(file, ".spr")) {
+			ztTextureID tex = ztInvalidID;
+			zt_fjz(tokens_count) {
+				char tex_file[ztFileMaxPath];
+				zt_strCpy(tex_file, zt_elementsOf(tex_file), files + tokens[j].beg, tokens[j].len);
+
+				if (j != i && zt_striStartsWith(tex_file, zt_strLen(tex_file), file, zt_strLen(file) - 3)) {
+					tex = zt_textureMakeFromFile(tex_file);
+					break;
+				}
+			}
+
+			ztSerial serial;
+			if (zt_serialMakeReader(&serial, file, ZT_SPRITE_FILE_GUID)) {
+				zt_spriteManagerLoad(sprite_manager, &serial, tex);
+				zt_serialClose(&serial);
+			}
+		}
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
+	zt_returnValOnNull(sprite_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) { zt_logCritical("call failed: " #CODE); return false; }
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		int idx = 0;
+		zt_fiz(sprite_manager->sprites_count) {
+			if (sprite_manager->sprites[i].hash == 0) {
+				idx = i;
+				break;
+			}
+		}
+
+		while (true) {
+			_serialCheck(zt_serialGroupPush(serial));
+			{
+				i32 hash = 0;
+				_serialCheck(zt_serialRead(serial, &hash));
+
+				if (hash == 0) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+				if (idx >= sprite_manager->sprites_count) {
+					_serialCheck(zt_serialGroupPop(serial));
+					break;
+				}
+
+				_serialCheck(zt_serialRead(serial, sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), nullptr));
+				//sprite_manager->sprites[idx].hash = zt_strHash(sprite_manager->sprites[idx].name);
+				sprite_manager->sprites[idx].hash = hash;
+
+				i32 type = 0;
+				_serialCheck(zt_serialRead(serial, &type));
+
+				sprite_manager->sprites[idx].type = (ztSpriteType_Enum)type;
+
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					if (sprite_manager->sprites[idx].type == ztSpriteType_Sprite) {
+						sprite_manager->sprites[idx].s.tex = tex;
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.tex_uv));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.half_size));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.anchor));
+					}
+					else if (sprite_manager->sprites[idx].type == ztSpriteType_SpriteNineSlice) {
+						sprite_manager->sprites[idx].sns.tex = tex;
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_nw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_n));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_ne));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_w));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_c));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_e));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_sw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_s));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_se));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_n));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_s));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_e));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_w));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_cw));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_ch));
+						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.offset));
+					}
+					else zt_assert(false);
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+
+				idx += 1;
+			}
+			_serialCheck(zt_serialGroupPop(serial));
+		}
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerSave");
+	zt_returnValOnNull(sprite_manager, false);
+	zt_returnValOnNull(serial, false);
+
+#	define _serialCheck(CODE) if(!CODE) return false;
+
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		zt_fiz(sprite_manager->sprites_count) {
+			if (sprite_manager->sprites[i].hash != 0) {
+				_serialCheck(zt_serialGroupPush(serial));
+				{
+					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].hash));
+					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].name, zt_elementsOf(sprite_manager->sprites[i].name)));
+					_serialCheck(zt_serialWrite(serial, (i32)sprite_manager->sprites[i].type));
+
+					_serialCheck(zt_serialGroupPush(serial));
+					{
+						if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.tex_uv));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.half_size));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.anchor));
+						}
+						else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_nw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_n));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_ne));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_w));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_c));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_e));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_sw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_s));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_se));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_n));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_s));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_e));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_w));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_cw));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_ch));
+							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.offset));
+						}
+						else zt_assert(false);
+					}
+					_serialCheck(zt_serialGroupPop(serial));
+				}
+				_serialCheck(zt_serialGroupPop(serial));
+			}
+		}
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialWrite(serial, 0)); // indicates end of file
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+#	undef _serialCheck
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerFree(ztSpriteManager *sprite_manager, bool should_free_textures)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerFree");
+	if (sprite_manager == nullptr || sprite_manager->sprites == nullptr) {
+		return;
+	}
+
+	if (should_free_textures) {
+		zt_fiz(sprite_manager->sprites_count) {
+			ztTextureID tex = ztInvalidID;
+
+			if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+				tex = sprite_manager->sprites[i].s.tex;
+			}
+			else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+				tex = sprite_manager->sprites[i].sns.tex;
+			}
+
+			if (tex != ztInvalidID) {
+				zt_textureFree(tex);
+
+				for (int j = i + 1; j < sprite_manager->sprites_count; ++j) {
+					if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
+						if (sprite_manager->sprites[i].s.tex == tex) {
+							sprite_manager->sprites[i].s.tex = ztInvalidID;
+						}
+					}
+					else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
+						if (sprite_manager->sprites[i].sns.tex == tex) {
+							sprite_manager->sprites[i].sns.tex = ztInvalidID;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	zt_free(sprite_manager->sprites);
+	sprite_manager->sprites = nullptr;
+	sprite_manager->sprites_count = 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerAddSprite");
+	zt_returnOnNull(sprite_manager);
+	zt_returnOnNull(s);
+	zt_assertReturnOnFail(name != nullptr);
+
+	i32 sprite_hash = zt_strHash(name);
+
+	int idx = -1;
+	zt_fiz(sprite_manager->sprites_count) {
+		if (idx < 0 && sprite_manager->sprites[i].hash == 0) {
+			idx = i;
+		}
+		if (sprite_manager->sprites[i].hash == sprite_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx < 0) {
+		zt_assert(false);
+		return;
+	}
+
+	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
+	sprite_manager->sprites[idx].hash = sprite_hash;
+	sprite_manager->sprites[idx].type = ztSpriteType_Sprite;
+	sprite_manager->sprites[idx].s = *s;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerAddSpriteNineSlice");
+	zt_returnOnNull(sprite_manager);
+	zt_returnOnNull(sns);
+	zt_assertReturnOnFail(name != nullptr);
+
+	i32 sprite_hash = zt_strHash(name);
+
+	int idx = -1;
+	zt_fiz(sprite_manager->sprites_count) {
+		if (idx < 0 && sprite_manager->sprites[i].hash == 0) {
+			idx = i;
+		}
+		if (sprite_manager->sprites[i].hash == sprite_hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx < 0) {
+		zt_assert(false);
+		return;
+	}
+
+	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
+	sprite_manager->sprites[idx].hash = sprite_hash;
+	sprite_manager->sprites[idx].type = ztSpriteType_SpriteNineSlice;
+	sprite_manager->sprites[idx].sns = *sns;
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, const char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
+	return zt_spriteManagerGetSprite(sprite_manager, zt_strHash(name));
+}
+
+// ================================================================================================================================================================================================
+
+ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_hash)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
+	zt_returnValOnNull(sprite_manager, nullptr);
+
+	if (sprite_hash == 0) {
+		return nullptr;
+	}
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if (sprite_manager->sprites[i].hash == sprite_hash) {
+			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_Sprite, nullptr);
+			return &sprite_manager->sprites[i].s;
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, const char *name)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
+	return zt_spriteManagerGetSpriteNineSlice(sprite_manager, zt_strHash(name));
+}
+
+// ================================================================================================================================================================================================
+
+ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
+	zt_returnValOnNull(sprite_manager, nullptr);
+
+	if (sprite_hash == 0) {
+		return nullptr;
+	}
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if (sprite_manager->sprites[i].hash == sprite_hash) {
+			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice, nullptr);
+			return &sprite_manager->sprites[i].sns;
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite)
+{
+	zt_returnValOnNull(sprite_manager, 0);
+	zt_returnValOnNull(sprite, 0);
+
+	zt_fiz(sprite_manager->sprites_count) {
+		if (sprite_manager->sprites[i].type == ztSpriteType_Sprite &&
+			sprite_manager->sprites[i].s.tex == sprite->tex &&
+			sprite_manager->sprites[i].s.half_size == sprite->half_size &&
+			sprite_manager->sprites[i].s.tex_uv == sprite->tex_uv &&
+			sprite_manager->sprites[i].s.anchor == sprite->anchor) {
+
+			return sprite_manager->sprites[i].hash;
+		}
+	}
+
+	return 0;
+}
+
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -11286,10 +12715,11 @@ ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity, bool casts_shadows, c
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+ztInternal bool _zt_modelMakeBase(ztModel *model, ztMeshID mesh_id, ztVertexArrayID va_id, ztSprite *sprite, ztSpriteAnimController *sprite_anim_controller, ztModelSpriteFacing_Enum sprite_facing, ztParticleEmitter *emitter, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
-	ZT_PROFILE_RENDERING("zt_modelMake");
-	zt_assertReturnValOnFail(shader >= 0 && shader < zt_game->shaders_count, nullptr);
+	ZT_PROFILE_RENDERING("_zt_modelMakeBase");
+	zt_returnValOnNull(model, false);
+	zt_assertReturnValOnFail(shader >= 0 && shader < zt_game->shaders_count, false);
 
 	static u32 diffuse_tex_hash  = zt_strHash("diffuse_tex");
 	static u32 specular_tex_hash = zt_strHash("specular_tex");
@@ -11303,11 +12733,38 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 
 	if (!zt_bitIsSet(flags, ztModelFlags_ShaderSupportsDirectionalLight) && shader < ztShaderDefault_MAX && zt_shaderHasVariable(shader, "light_pos", nullptr)) flags |= ztModelFlags_ShaderSupportsDirectionalLight;
 
-	ztModel *model = zt_mallocStructArena(ztModel, arena);
+	zt_memSet(model, zt_sizeof(ztModel), 0);
+
 	model->name = nullptr;
-	model->arena = arena;
-	model->mesh_id = mesh_id;
-	model->flags = flags;
+
+	if (mesh_id != ztInvalidID) {
+		model->type = ztModelType_Mesh;
+		model->mesh_id = mesh_id;
+	}
+	else if (va_id != ztInvalidID) {
+		model->type = ztModelType_VertexArray;
+		model->vertex_array_id = va_id;
+	}
+	else if(sprite != nullptr) {
+		model->type = ztModelType_Sprite;
+		model->sprite = *sprite;
+		model->sprite_facing = sprite_facing;
+	}
+	else if(sprite_anim_controller != nullptr) {
+		model->type = ztModelType_SpriteAnimation;
+		model->sprite_anim_controller = sprite_anim_controller;
+		model->sprite_anim_facing = sprite_facing;
+	}
+	else if (emitter != nullptr) {
+		model->type = ztModelType_ParticleSystem;
+		model->particle_emitter = emitter;
+	}
+	else {
+		zt_logCritical("Nothing to make a model from.");
+		return false;
+	}
+
+	model->flags = flags | ztModelFlags_Initialized;
 	model->shader = shader;
 	model->shader_vars = shader_vars;
 	model->material = material ? *material : zt_materialMake();
@@ -11325,7 +12782,50 @@ ztModel *zt_modelMake(ztMemoryArena *arena, ztMeshID mesh_id, ztMaterial *materi
 		zt_singleLinkAddToEnd(parent->first_child, model);
 	}
 
-	return model;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromMesh(ztModel *model, ztMeshID mesh_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromMesh");
+	return _zt_modelMakeBase(model, mesh_id, ztInvalidID, nullptr, nullptr, ztModelSpriteFacing_MAX, nullptr, material, shader, shader_vars, flags, parent);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromVertexArray(ztModel *model, ztVertexArrayID va_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromVertexArray");
+	return _zt_modelMakeBase(model, ztInvalidID, va_id, nullptr, nullptr, ztModelSpriteFacing_MAX, nullptr, material, shader, shader_vars, flags, parent);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromSprite(ztModel *model, ztSprite *sprite, ztModelSpriteFacing_Enum sprite_facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromSprite");
+	ztMaterial mat = zt_materialMake(sprite->tex);
+	return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, sprite, nullptr, sprite_facing, nullptr, &mat, shader, shader_vars, flags, parent);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimController *sprite_anim_controller, ztModelSpriteFacing_Enum sprite_facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromSpriteAnimController");
+	ztMaterial mat = zt_materialMake();
+	return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, nullptr, sprite_anim_controller, sprite_facing, nullptr, &mat, shader, shader_vars, flags, parent);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromParticleEmitter(ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromParticleEmitter");
+	ztMaterial mat = zt_materialMake(emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? emitter->system->system_rendering.billboard.sprite.tex : emitter->system->system_rendering.facing.sprite.tex);
+	return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, nullptr, nullptr, ztModelSpriteFacing_MAX, emitter, &mat, shader, shader_vars, flags, parent);
 }
 
 // ================================================================================================================================================================================================
@@ -11337,8 +12837,12 @@ void zt_modelFree(ztModel *model)
 		return;
 	}
 
+	if (!zt_bitIsSet(model->flags, ztModelFlags_Initialized)) {
+		return;
+	}
+
 	if (model->name != nullptr) {
-		zt_stringFree(model->name, model->arena);
+		zt_stringFree(model->name);
 	}
 
 	ztModel *child = model->first_child;
@@ -11354,16 +12858,17 @@ void zt_modelFree(ztModel *model)
 		zt_meshFree(model->mesh_id);
 	}
 
-	if (model->bones) {
-		zt_freeArena(model->bones, model->arena);
-	}
+	zt_memSet(model, zt_sizeof(ztModel), 0);
 
-	zt_freeArena(model, model->arena);
+	// todo: this needs changed, possibly a new flag ztModelFlags_OwnsBones?
+	//if (model->bones) {
+	//	zt_freeArena(model->bones, model->arena);
+	//}
 }
 
 // ================================================================================================================================================================================================
 
-ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
+bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_modelMakeSkybox");
 	ztVec3 skybox_verts[] = {
@@ -11377,12 +12882,12 @@ ztModel *zt_modelMakeSkybox(ztMemoryArena *arena, ztTextureID texture_id)
 
 	ztMeshID mesh = zt_meshMake(skybox_verts, nullptr, nullptr, zt_elementsOf(skybox_verts), nullptr, 0);
 	if (mesh == ztInvalidID) {
-		return nullptr;
+		return false;
 	}
 
 	ztMaterial material = zt_materialMake(texture_id);
 
-	return zt_modelMake(zt_memGetGlobalArena(), mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
+	return zt_modelMakeFromMesh(model, mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
 }
 
 // ================================================================================================================================================================================================
@@ -11555,6 +13060,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->models_size = max_models;
 	scene->arena = arena;
 	scene->culling_distance = ztReal32Max;
+	scene->vertex_array = ztInvalidID;
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
@@ -11583,28 +13089,16 @@ void zt_sceneFree(ztScene *scene)
 		return;
 	}
 
+	if (scene->vertex_array != ztInvalidID) {
+		zt_vertexArrayFree(scene->vertex_array);
+		zt_free(scene->vertex_array_vertices);
+		scene->vertex_array = ztInvalidID;
+	}
+
 	zt_textureFree(scene->tex_directional_shadow_map);
 
 	zt_freeArena(scene->models, scene->arena);
 	zt_freeArena(scene, scene->arena);
-}
-
-// ================================================================================================================================================================================================
-
-void zt_sceneFreeAllModels(ztScene *scene)
-{
-	ZT_PROFILE_RENDERING("zt_sceneFreeAllModels");
-	zt_returnOnNull(scene);
-
-	zt_fiz(scene->models_count) {
-		zt_modelFree(scene->models[i].model);
-		scene->models[i].model = nullptr;
-	}
-
-	if (scene->skybox.model) {
-		zt_modelFree(scene->skybox.model);
-		scene->skybox.model = nullptr;
-	}
 }
 
 // ================================================================================================================================================================================================
@@ -11626,6 +13120,30 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light)
 			}
 		}
 	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_sceneMakeVertexArray(ztScene *scene, int max_vertices)
+{
+	zt_returnValOnNull(scene, false);
+	zt_assertReturnValOnFail(max_vertices > 0, false);
+
+	if (scene->vertex_array != ztInvalidID) {
+		zt_vertexArrayFree(scene->vertex_array);
+		zt_free(scene->vertex_array_vertices);
+	}
+
+	scene->vertex_array_vertices = zt_mallocStructArray(ztVertexDefaultLit, max_vertices);
+	scene->vertex_array_vertices_idx = 0;
+	scene->vertex_array_size = max_vertices;
+	scene->vertex_array = zt_vertexArrayMakeDefaultLit(scene->vertex_array_vertices, max_vertices);
+	if (scene->vertex_array == ztInvalidID) {
+		zt_free(scene->vertex_array_vertices);
+		return false;
+	}
+
+	return true;
 }
 
 // ================================================================================================================================================================================================
@@ -11720,7 +13238,7 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 
 	if (scene->culling_distance != ztReal32Max) {
 		zt_fiz(scene->models_count) {
-			scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distance(camera->position));
+			scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distanceForCompare(camera->position));
 			if (scene->models[i].dist_from_cam <= scene->culling_distance || zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
 				zt_bitRemove(scene->models[i].flags, ztSceneModelFlags_Culled);
 				zt_modelCalcMatrix(scene->models[i].model, world_offset);
@@ -11800,6 +13318,82 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 
 // ================================================================================================================================================================================================
 
+ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *camera)
+{
+	ztModelSpriteFacing_Enum facing = model->type == ztModelType_Sprite ? model->sprite_facing : model->sprite_anim_facing;
+	ztSprite *sprite = model->type == ztModelType_Sprite ? &model->sprite : zt_spriteAnimControllerActiveSprite(model->sprite_anim_controller);
+
+	ztVec3 pos[6];
+	ztVec2 uvs[6];
+	ztVec3 rot = ztVec3::zero;
+	ztVec3 nml = ztVec3::zero;
+
+
+	switch (facing)
+	{
+		case ztModelSpriteFacing_Billboard: nml = zt_vec3(0, 0, 1); break;
+		case ztModelSpriteFacing_NegX: rot = zt_vec3(0, 90, 0); nml = zt_vec3(-1, 0, 0); break;
+		case ztModelSpriteFacing_PosX: rot = zt_vec3(0, -90, 0); nml = zt_vec3(1, 0, 0); break;
+		case ztModelSpriteFacing_NegY: rot = zt_vec3(-90, 0, 0); nml = zt_vec3(0, -1, 0); break;
+		case ztModelSpriteFacing_PosY: rot = zt_vec3(90, 0, 0); nml = zt_vec3(0, 1, 0); break;
+		case ztModelSpriteFacing_NegZ: rot = zt_vec3(0, 180, 0); nml = zt_vec3(0, 0, -1); break;
+		case ztModelSpriteFacing_PosZ: rot = zt_vec3(0, 0, 0); nml = zt_vec3(0, 0, 1); break;
+	}
+
+	zt_spriteGetTriangles(sprite, ztVec3::zero, rot, ztVec3::one, pos, uvs);
+
+	if (facing == ztModelSpriteFacing_Billboard) {
+		ztVec3 pos_lookat = model->calculated_mat.getInverse().getMultiply(camera->position);
+
+		//if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisX)) pos_lookat.x = cmp_item->command->billboard_center.x;
+		//if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisY)) pos_lookat.y = cmp_item->command->billboard_center.y;
+		//if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisZ)) pos_lookat.z = cmp_item->command->billboard_center.z;
+
+		ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, ztVec3::zero, zt_vec3(0, 1, 0)).getInverse();
+		mat.values[ztMat4_Col3Row0] = mat.values[ztMat4_Col3Row1] = mat.values[ztMat4_Col3Row2] = 0; // remove translation
+
+		//ztQuat quat = ztQuat::makeFromEuler(0, 0, 0);
+		//zt_fiz(4) {
+		//	quat.rotatePosition(&p[i]);
+		//}
+
+		zt_fize(pos) {
+			pos[i] = mat * pos[i];
+		}
+		nml = mat * nml;
+	}
+
+	ztVertexDefaultLit vertices[6];
+	zt_fize(pos) {
+		vertices[i].position = pos[i];
+		vertices[i].uv = uvs[i];
+		vertices[i].normal = nml;
+		vertices[i].color = ztColor_White;
+	}
+
+	zt_vertexArrayDefaultCalculateTangentBitangent(vertices[0], vertices[1], vertices[2], &vertices[0].tangent, &vertices[0].bitangent);
+	vertices[1].tangent = vertices[2].tangent = vertices[0].tangent;
+	vertices[1].bitangent = vertices[2].bitangent = vertices[0].bitangent;
+
+	zt_vertexArrayDefaultCalculateTangentBitangent(vertices[3], vertices[4], vertices[5], &vertices[3].tangent, &vertices[3].bitangent);
+	vertices[4].tangent = vertices[5].tangent = vertices[3].tangent;
+	vertices[4].bitangent = vertices[5].bitangent = vertices[3].bitangent;
+
+	zt_vertexArrayUpdateDefaultLit(scene->vertex_array, vertices, zt_elementsOf(vertices));
+	zt_vertexArrayDraw(scene->vertex_array);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_sceneDrawParticle(ztScene *scene, ztModel *model, ztCamera *camera)
+{
+	int verts = zt_particleEmitterFillVertices(model->particle_emitter, camera, scene->vertex_array_vertices, scene->vertex_array_size);
+	zt_vertexArrayUpdateDefaultLit(scene->vertex_array, scene->vertex_array_vertices, verts);
+	zt_vertexArrayDraw(scene->vertex_array);
+}
+
+// ================================================================================================================================================================================================
+
 void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
 	ZT_PROFILE_RENDERING("zt_sceneLighting");
@@ -11811,26 +13405,61 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 	struct local
 	{
-		static void renderModelAndChildren(ztScene *scene, ztShaderID shader, ztModel *model, i32 match_flags)
+		static void renderModelAndChildren(int pass, ztScene *scene, ztShaderID shader, ztModel *model, ztCamera *camera, i32 match_flags, bool *needs_multipass)
 		{
-			if ((match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) && !zt_bitIsSet(model->flags, ztModelFlags_Hidden) && model->mesh_id != ztInvalidID) {
-				zt_shaderSetModelMatrices(shader, model->calculated_mat);
+			if ((match_flags == 0 || zt_bitIsSet(model->flags, match_flags)) && !zt_bitIsSet(model->flags, ztModelFlags_Hidden) && model->type != ztModelType_Invalid) {
+				if ((pass == 0 && model->type == ztModelType_Mesh) || (pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
 
-				bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
-				if (changed_cull) {
-					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+					if (model->type == ztModelType_ParticleSystem) {
+						model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
+						zt_shaderSetModelMatrices(shader, ztMat4::identity);
+					}
+					else {
+						zt_shaderSetModelMatrices(shader, model->calculated_mat);
+					}
+
+					bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
+					if (changed_cull) {
+						zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+					}
+
+					switch(model->type)
+					{
+						case ztModelType_Mesh: {
+							zt_meshRender(model->mesh_id);
+						} break;
+
+						case ztModelType_VertexArray: {
+							zt_vertexArrayDraw(model->vertex_array_id);
+						} break;
+
+						case ztModelType_SpriteAnimation:
+						case ztModelType_Sprite: {
+							zt_materialPrepare(&model->material, shader);
+							zt_shaderApplyVariables(shader);
+							_zt_sceneDrawSprite(scene, model, camera);
+						} break;
+
+						case ztModelType_ParticleSystem: {
+							zt_materialPrepare(&model->material, shader);
+							zt_shaderApplyVariables(shader);
+							_zt_sceneDrawParticle(scene, model, camera);
+						} break;
+					}
+
+
+					if (changed_cull) {
+						zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+					}
 				}
-
-				zt_meshRender(model->mesh_id);
-
-				if (changed_cull) {
-					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+				else {
+					*needs_multipass = true;
 				}
 			}
 
 			ztModel *child = model->first_child;
 			while (child) {
-				renderModelAndChildren(scene, shader, child, match_flags);
+				renderModelAndChildren(pass, scene, shader, child, camera, match_flags, needs_multipass);
 				child = child->next;
 			}
 		}
@@ -11846,27 +13475,36 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
 		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
 
-		ztShaderID shader = zt_shaderGetDefault(ztShaderDefault_ShadowDirectional);
-		zt_shaderBegin(shader);
+		for (int pass = 0; pass < 2; ++pass) {
+			bool needs_multipass = false;
 
-		static u32 light_matrix_hash = zt_strHash("light_matrix");
-		zt_shaderSetVariableMat4(shader, light_matrix_hash, light_mat);
-		zt_shaderApplyVariables(shader);
-		ztShaderVariableValues *shader_vars = nullptr;
+			ztShaderID shader = zt_shaderGetDefault(pass == 0 ? ztShaderDefault_ShadowDirectional : ztShaderDefault_ShadowDirectionalTextured);
+			zt_shaderBegin(shader);
 
-		if (scene->culling_distance != ztReal32Max) {
-			zt_fiz(scene->models_count) {
-				if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
-					local::renderModelAndChildren(scene, shader, scene->models[i].model, ztModelFlags_CastsShadows);
+			static u32 light_matrix_hash = zt_strHash("light_matrix");
+			zt_shaderSetVariableMat4(shader, light_matrix_hash, light_mat);
+
+			zt_shaderApplyVariables(shader);
+			ztShaderVariableValues *shader_vars = nullptr;
+
+			if (scene->culling_distance != ztReal32Max) {
+				zt_fiz(scene->models_count) {
+					if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
+						local::renderModelAndChildren(pass, scene, shader, scene->models[i].model, camera, ztModelFlags_CastsShadows, &needs_multipass);
+					}
 				}
 			}
-		}
-		else {
-			zt_fiz(scene->models_count) {
-				local::renderModelAndChildren(scene, shader, scene->models[i].model, ztModelFlags_CastsShadows);
+			else {
+				zt_fiz(scene->models_count) {
+					local::renderModelAndChildren(pass, scene, shader, scene->models[i].model, camera, ztModelFlags_CastsShadows, &needs_multipass);
+				}
+			}
+			zt_shaderEnd(shader);
+
+			if(!needs_multipass) {
+				break;
 			}
 		}
-		zt_shaderEnd(shader);
 
 		zt_textureRenderTargetCommit(scene->tex_directional_shadow_map);
 	}
@@ -11885,7 +13523,10 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 				return;
 			}
 
-			if (model->mesh_id != ztInvalidID) {
+			if (model->type != ztModelType_Invalid) {
+
+				ztSprite *sprite_anim = model->type == ztModelType_SpriteAnimation ? zt_spriteAnimControllerActiveSprite(model->sprite_anim_controller) : nullptr;
+
 				bool shader_supports_lights = zt_bitIsSet(scene_model_info->flags, ztSceneModelFlags_ShaderLit);
 				bool shader_supports_bones = zt_bitIsSet(scene_model_info->flags, ztSceneModelFlags_ShaderBones);
 
@@ -11966,6 +13607,13 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					zt_shaderApplyVariables(*active_shader, model->shader_vars);
 				}
 
+				if (sprite_anim) {
+					model->material.diffuse_tex = sprite_anim->tex;
+				}
+				else if(model->type == ztModelType_ParticleSystem) {
+					model->material.diffuse_tex = model->particle_emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? model->particle_emitter->system->system_rendering.billboard.sprite.tex : model->particle_emitter->system->system_rendering.facing.sprite.tex;
+				}
+
 				if (shader_supports_lights) {
 					static u32 shadowmap_directional_tex_hash = zt_strHash("shadowmap_directional_tex");
 					zt_materialPrepare(&model->material, *active_shader, &scene->tex_directional_shadow_map, &shadowmap_directional_tex_hash, 1);
@@ -11974,14 +13622,38 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					zt_materialPrepare(&model->material, *active_shader);
 				}
 
-				zt_shaderSetModelMatrices(*active_shader, model->calculated_mat);
+				if(model->type == ztModelType_ParticleSystem) {
+					model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
+					zt_shaderSetModelMatrices(*active_shader, ztMat4::identity);
+				}
+				else {
+					zt_shaderSetModelMatrices(*active_shader, model->calculated_mat);
+				}
 
 				bool changed_cull = zt_bitIsSet(model->flags, ztModelFlags_NoFaceCull);
 				if (changed_cull) {
 					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
 				}
 
-				zt_meshRender(model->mesh_id);
+				switch(model->type)
+				{
+					case ztModelType_Mesh: {
+						zt_meshRender(model->mesh_id);
+					} break;
+
+					case ztModelType_VertexArray: {
+						zt_vertexArrayDraw(model->vertex_array_id);
+					} break;
+
+					case ztModelType_SpriteAnimation:
+					case ztModelType_Sprite: {
+						_zt_sceneDrawSprite(scene, model, camera);
+					} break;
+
+					case ztModelType_ParticleSystem: {
+						_zt_sceneDrawParticle(scene, model, camera);
+					} break;
+				}
 
 				if (changed_cull) {
 					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
@@ -12318,6 +13990,12 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 #			endif
 		} break;
 	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_rendererEnableDepthWriting(bool depth_writing)
+{
 }
 
 // ================================================================================================================================================================================================
@@ -19664,1256 +21342,6 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y)
-{
-	ZT_PROFILE_RENDERING("zt_spriteMake");
-	zt_assert(tex != ztInvalidID);
-	zt_assert(x >= 0 && y >= 0 && w != 0 && h != 0);
-
-	r32 tex_w = (r32)zt_game->textures[tex].width;
-	r32 tex_h = (r32)zt_game->textures[tex].height;
-
-	ztSprite result;
-	result.tex = tex;
-	result.tex_uv.x = x / tex_w;
-	result.tex_uv.y = y / tex_h;
-	result.tex_uv.z = result.tex_uv.x + w / tex_w;
-	result.tex_uv.w = result.tex_uv.y + h / tex_h;
-
-	r32 ppu = zt_pixelsPerUnit();
-	result.half_size.x = w / ppu / 2.f;
-	result.half_size.y = h / ppu / 2.f;
-	result.anchor.x = anchor_x / ppu;
-	result.anchor.y = anchor_y / ppu;
-
-	return result;
-}
-
-// ================================================================================================================================================================================================
-
-ztSprite zt_spriteMake(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor)
-{
-	return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
-}
-
-// ================================================================================================================================================================================================
-
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y, int pixel_border)
-{
-	if (pixel_border != 0) {
-		x = (x * w) + pixel_border;
-		y = (y * h) + pixel_border;
-		w -= pixel_border * 2;
-		h -= pixel_border * 2;
-		return zt_spriteMake(tex, x, y, w, h, anchor_x, anchor_y);
-	}
-	else {
-		return zt_spriteMake(tex, x * w, y * h, w, h, anchor_x, anchor_y);
-	}
-}
-
-// ================================================================================================================================================================================================
-
-ztSprite zt_spriteMakeFromGrid(ztTextureID tex, ztVec2i pos, ztVec2i size, ztVec2i anchor, int pixel_border)
-{
-	if (pixel_border != 0) {
-		pos.x = (pos.x * size.x) + pixel_border;
-		pos.y = (pos.y * size.y) + pixel_border;
-		size.x -= pixel_border * 2;
-		size.y -= pixel_border * 2;
-		return zt_spriteMake(tex, pos.x, pos.y, size.x, size.y, anchor.x, anchor.y);
-	}
-	else {
-		return zt_spriteMake(tex, pos.x * size.x, pos.y * size.y, size.x, size.y, anchor.x, anchor.y);
-	}
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
-{
-	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
-
-	zt_fiz(4) {
-		pos[i].x += at_pos.x;
-		pos[i].y += at_pos.y;
-
-		zt_alignToPixel(&pos[i].x, ppu);
-		zt_alignToPixel(&pos[i].y, ppu);
-	}
-
-	_pos[0] = pos[0];
-	_pos[1] = pos[1];
-	_pos[2] = pos[2];
-	_pos[3] = pos[0];
-	_pos[4] = pos[2];
-	_pos[5] = pos[3];
-
-	_uvs[0] = uvs[0];
-	_uvs[1] = uvs[1];
-	_uvs[2] = uvs[2];
-	_uvs[3] = uvs[0];
-	_uvs[4] = uvs[2];
-	_uvs[5] = uvs[3];
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
-{
-	ZT_PROFILE_RENDERING("zt_spriteGetTriangles");
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	if (rotation != ztVec3::zero) {
-		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
-			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
-			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
-
-			zt_fiz(4) {
-				r32 tpos_x = pos[i].x;
-				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
-				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
-			}
-		}
-		else {
-			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
-
-			zt_fiz(4) {
-				rotation_quat.rotatePosition(&pos[i]);
-			}
-		}
-	}
-
-	if (scale != ztVec3::one) {
-		zt_fize(pos) pos[i] *= scale;
-	}
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
-
-	zt_fiz(4) {
-		pos[i].x += at_pos.x;
-		pos[i].y += at_pos.y;
-
-		zt_alignToPixel(&pos[i].x, ppu);
-		zt_alignToPixel(&pos[i].y, ppu);
-	}
-
-	_pos[0] = pos[0];
-	_pos[1] = pos[1];
-	_pos[2] = pos[2];
-	_pos[3] = pos[0];
-	_pos[4] = pos[2];
-	_pos[5] = pos[3];
-
-	_uvs[0] = uvs[0];
-	_uvs[1] = uvs[1];
-	_uvs[2] = uvs[2];
-	_uvs[3] = uvs[0];
-	_uvs[4] = uvs[2];
-	_uvs[5] = uvs[3];
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6], ztVec2 _uvs[6])
-{
-	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
-
-	zt_fiz(4) {
-		pos[i].x += at_pos.x;
-		pos[i].y += at_pos.y;
-	}
-
-	_pos[0] = pos[0];
-	_pos[1] = pos[1];
-	_pos[2] = pos[2];
-	_pos[3] = pos[0];
-	_pos[4] = pos[2];
-	_pos[5] = pos[3];
-
-	_uvs[0] = uvs[0];
-	_uvs[1] = uvs[1];
-	_uvs[2] = uvs[2];
-	_uvs[3] = uvs[0];
-	_uvs[4] = uvs[2];
-	_uvs[5] = uvs[3];
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 &rotation, const ztVec3 &scale, ztVec3 _pos[6], ztVec2 _uvs[6])
-{
-	ZT_PROFILE_RENDERING("zt_spriteGetTrianglesFast");
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	if (rotation != ztVec3::zero) {
-		if (zt_real32Eq(rotation.x, 0) && zt_real32Eq(rotation.y, 0)) {
-			r32 val_cos = zt_cos(zt_degreesToRadians(rotation.z));
-			r32 val_sin = zt_sin(zt_degreesToRadians(rotation.z));
-
-			zt_fiz(4) {
-				r32 tpos_x = pos[i].x;
-				pos[i].x = val_cos * tpos_x - val_sin * pos[i].y;
-				pos[i].y = val_sin * tpos_x + val_cos * pos[i].y;
-			}
-		}
-		else {
-			ztQuat rotation_quat = ztQuat::makeFromEuler(rotation);
-
-			zt_fiz(4) {
-				rotation_quat.rotatePosition(&pos[i]);
-			}
-		}
-	}
-
-	if (scale != ztVec3::one) {
-		zt_fize(pos) pos[i] *= scale;
-	}
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
-
-	zt_fiz(4) {
-		pos[i].x += at_pos.x;
-		pos[i].y += at_pos.y;
-	}
-
-	_pos[0] = pos[0];
-	_pos[1] = pos[1];
-	_pos[2] = pos[2];
-	_pos[3] = pos[0];
-	_pos[4] = pos[2];
-	_pos[5] = pos[3];
-
-	_uvs[0] = uvs[0];
-	_uvs[1] = uvs[1];
-	_uvs[2] = uvs[2];
-	_uvs[3] = uvs[0];
-	_uvs[4] = uvs[2];
-	_uvs[5] = uvs[3];
-}
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
-
-	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
-		return;
-	}
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
-
-	zt_fiz(4) {
-		pos[i].x += position.x;
-		pos[i].y += position.y;
-
-		zt_alignToPixel(&pos[i].x, ppu);
-		zt_alignToPixel(&pos[i].y, ppu);
-	}
-
-	zt_drawListPushTexture(draw_list, sprite->tex);
-	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	if (rot.x != 0 || rot.y != 0 || rot.z != 0) {
-		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rot);
-
-		zt_fiz(4) {
-			pos[i] = rotation_mat * pos[i];
-		}
-	}
-
-	if (scale.x != 1 || scale.y != 1) {
-		zt_fiz(4) {
-			pos[i].x *= scale.x;
-			pos[i].y *= scale.y;
-		}
-	}
-
-	r32 pos_x = position.x, pos_y = position.y, ppu = zt_pixelsPerUnit();
-	zt_alignToPixel(&pos_x, ppu);
-	zt_alignToPixel(&pos_y, ppu);
-
-	zt_fiz(4) {
-		pos[i].x += pos_x;
-		pos[i].y += pos_y;
-	}
-
-	zt_drawListPushTexture(draw_list, sprite->tex);
-	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
-	zt_drawListPopTexture(draw_list);
-}
-
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
-
-	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
-		return;
-	}
-
-	ztVec3 pos[4] = {
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top left
-		zt_vec3(-sprite->anchor.x + -sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-sprite->anchor.x + sprite->half_size.x, -sprite->anchor.y + sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	zt_fiz(4) {
-		pos[i].x += position.x;
-		pos[i].y += position.y;
-	}
-
-	zt_drawListPushTexture(draw_list, sprite->tex);
-	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &position, const ztVec3 &rot, const ztVec3 &scale)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
-
-	r32 anchor_scale_x = scale.x < 0 ? -1.f : 1.f;
-	r32 anchor_scale_y = scale.y < 0 ? -1.f : 1.f;
-
-	ztVec3 pos[4] = {
-		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) +  sprite->half_size.y, 0), // top left
-		zt_vec3(-(sprite->anchor.x * anchor_scale_x) + -sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom left
-		zt_vec3(-(sprite->anchor.x * anchor_scale_x) +  sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) + -sprite->half_size.y, 0), // bottom right
-		zt_vec3(-(sprite->anchor.x * anchor_scale_x) +  sprite->half_size.x, -(sprite->anchor.y * anchor_scale_y) +  sprite->half_size.y, 0), // top right
-	};
-
-	ztVec2 uvs[4] = {
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.y),
-		zt_vec2(sprite->tex_uv.x, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
-		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
-	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	if (rot.x != 0 || rot.y != 0 || rot.z != 0) {
-		ztMat4 rotation_mat = ztMat4::identity.getRotateEuler(rot);
-
-		zt_fiz(4) {
-			pos[i] = rotation_mat * pos[i];
-		}
-	}
-
-	if (scale.x != 1 || scale.y != 1) {
-		bool flip_x = scale.x < 0;
-		bool flip_y = scale.y < 0;
-
-		zt_fiz(4) {
-			pos[i].x *= zt_abs(scale.x);
-			pos[i].y *= zt_abs(scale.y);
-		}
-
-		if (flip_x) {
-			zt_swap(uvs[0].x, uvs[2].x);
-			zt_swap(uvs[1].x, uvs[3].x);
-		}
-		if (flip_y) {
-			zt_swap(uvs[0].y, uvs[1].y);
-			zt_swap(uvs[2].y, uvs[3].y);
-		}
-	}
-
-	r32 pos_x = position.x, pos_y = position.y;
-	zt_fiz(4) {
-		pos[i].x += pos_x;
-		pos[i].y += pos_y;
-	}
-
-	zt_drawListPushTexture(draw_list, sprite->tex);
-	zt_drawListAddFilledQuad(draw_list, pos, uvs, nml);
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSpriteTiled(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 &pos, const ztVec2 &area)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSpriteTiled");
-
-	ztVec2 size_per = sprite->half_size * 2;
-
-	int tiles_x = zt_convertToi32Floor(area.x / size_per.x) + 1;
-	int tiles_y = zt_convertToi32Floor(area.y / size_per.y) + 1;
-
-	ztVec2 max_ext =  zt_vec2(pos.x + area.x / 2, pos.y - area.y / 2);
-
-	ztVec3 start_pos = zt_vec3((pos.x - (area.x / 2)) + sprite->half_size.x, (pos.y + (area.y / 2)) - sprite->half_size.y, 0);
-
-	zt_drawListPushTexture(draw_list, sprite->tex);
-	zt_fyz(tiles_y) {
-		zt_fxz(tiles_x) {
-			ztVec3 pos = start_pos + zt_vec3(x * size_per.x, -y * size_per.y, 0);
-
-			ztVec3 spos[6];
-			ztVec2 suvs[6];
-
-			zt_spriteGetTriangles(sprite, pos, spos, suvs);
-
-			if(spos[2].x > max_ext.x) {
-				r32 diff_x = spos[2].x - max_ext.x;
-				r32 diff_x_pct = diff_x / size_per.x;
-
-				r32 uv_x = suvs[2].x - suvs[0].x;
-				suvs[2].x -= uv_x * (diff_x_pct);
-				suvs[4].x = suvs[2].x;
-				suvs[5].x = suvs[2].x;
-
-				spos[2].x -= diff_x;
-				spos[4].x -= diff_x;
-				spos[5].x -= diff_x;
-			}
-			if(spos[1].y < max_ext.y) {
-				r32 diff_y = max_ext.y - spos[1].y;
-				r32 diff_y_pct = diff_y / size_per.y;
-
-				r32 uv_y = suvs[1].y - suvs[0].y;
-				suvs[1].y -= uv_y * (diff_y_pct);
-				suvs[2].y = suvs[1].y;
-				suvs[4].y = suvs[1].y;
-				spos[1].y += diff_y;
-				spos[2].y += diff_y;
-				spos[4].y += diff_y;
-			}
-
-			ztVec3 nml[3] = { ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-			ztVec3 pos1[3] = { spos[0], spos[1], spos[2] };
-			ztVec2 uvs1[3] = { suvs[0], suvs[1], suvs[2] };
-			zt_drawListAddFilledTriangle(draw_list, pos1, uvs1, nml);
-
-			ztVec3 pos2[3] = { spos[3], spos[4], spos[5] };
-			ztVec2 uvs2[3] = { suvs[3], suvs[4], suvs[5] };
-			zt_drawListAddFilledTriangle(draw_list, pos2, uvs2, nml);
-		}
-	}
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-
-ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, int tex_x, int tex_y, int tex_w, int tex_h, int nw_interior_x, int nw_interior_y, int se_interior_x, int se_interior_y, int offset_l, int offset_t, int offset_r, int offset_b)
-{
-	ZT_PROFILE_RENDERING("zt_spriteNineSliceMake");
-	zt_assert(tex != ztInvalidID);
-	zt_assert(tex_x >= 0 && tex_y >= 0 && tex_w != 0 && tex_h != 0 && nw_interior_x > tex_x && nw_interior_y > tex_y && se_interior_x < tex_x + tex_w && se_interior_y < tex_y + tex_h);
-
-	r32 tex_atl_w = (r32)zt_game->textures[tex].width;
-	r32 tex_atl_h = (r32)zt_game->textures[tex].height;
-
-	//  0, 1,  2, 3, 4, 5,  6, 7,  8
-	// nw, n, ne, w, c, e, sw, s, se
-
-	ztSpriteNineSlice result;
-
-	r32 x = tex_x / tex_atl_w;
-	r32 y = tex_y / tex_atl_h;
-	r32 w = ((r32)tex_w) / tex_atl_w;
-	r32 h = ((r32)tex_h) / tex_atl_h;
-	r32 nwx = ((r32)nw_interior_x) / tex_atl_w;
-	r32 nwy = ((r32)nw_interior_y) / tex_atl_h;
-	r32 sex = ((r32)se_interior_x) / tex_atl_w;
-	r32 sey = ((r32)se_interior_y) / tex_atl_h;
-
-	result.tex = tex;
-	result.sp_nw = zt_vec4( x  , y  , nwx  , nwy); // nw
-	result.sp_n  = zt_vec4( nwx, y  , sex  , nwy); // n
-	result.sp_ne = zt_vec4( sex, y  , x + w, nwy); // ne
-	result.sp_w  = zt_vec4( x  , nwy, nwx  , sey); // w
-	result.sp_c  = zt_vec4( nwx, nwy, sex  , sey); // c
-	result.sp_e  = zt_vec4( sex, nwy, x + w, sey); // e
-	result.sp_sw = zt_vec4( x  , sey, nwx  , y + h); // sw
-	result.sp_s  = zt_vec4( nwx, sey, sex  , y + h); // s
-	result.sp_se = zt_vec4( sex, sey, x + w, y + h); // se
-
-	r32 ppu = zt_pixelsPerUnit();
-	result.sz_n = (nw_interior_y - tex_y) / ppu;
-	result.sz_s = ((tex_y + tex_h) - se_interior_y) / ppu;
-	result.sz_w = (nw_interior_x - tex_x) / ppu;
-	result.sz_e = ((tex_x + tex_w) - se_interior_x) / ppu;
-	result.sz_cw = (se_interior_x - nw_interior_x) / ppu;
-	result.sz_ch = (se_interior_y - nw_interior_y) / ppu;
-
-	result.offset.x = offset_l / ppu; //tex_atl_w;
-	result.offset.y = offset_t / ppu; //tex_atl_h;
-	result.offset.z = offset_r / ppu; //tex_atl_w;
-	result.offset.w = offset_b / ppu; //tex_atl_h;
-
-	return result;
-}
-
-// ================================================================================================================================================================================================
-
-ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec2i tex_size, ztVec2i nw_interior, ztVec2i se_interior, int offset_l, int offset_t, int offset_r, int offset_b)
-{
-	return zt_spriteNineSliceMake(tex, tex_pos.x, tex_pos.y, tex_size.x, tex_size.y, nw_interior.x, nw_interior.y, se_interior.x, se_interior.y, offset_l, offset_t, offset_r, offset_b);
-}
-
-// ================================================================================================================================================================================================
-
-void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &cpos, const ztVec2 &csize)
-{
-	ZT_PROFILE_RENDERING("zt_drawListAddSpriteNineSlice");
-	r32 ppu = zt_pixelsPerUnit();
-
-	ztVec2 pos = cpos;
-//	zt_alignToPixel(&pos, ppu);
-	ztVec2 size = csize;
-//	zt_alignToPixel(&size, ppu);
-
-	r32 x_diff = sns->offset.z - sns->offset.x;
-	r32 y_diff = sns->offset.y - sns->offset.w;
-
-	pos.x += x_diff / 2.f;
-	pos.y += y_diff / 2.f;
-
-	size.x += sns->offset.x + sns->offset.z;
-	size.y += sns->offset.y + sns->offset.w;
-
-	ztVec2 upper_left  = zt_vec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 lower_left  = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 center      = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
-
-	ztVec3 scale_corners = ztVec3::one;
-	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
-	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
-
-	ztVec3 pos_nw[] = {
-		zt_vec3(upper_left.x,                               upper_left.y, 0),
-		zt_vec3(upper_left.x,                               upper_left.y - sns->sz_n * scale_corners.y, 0),
-		zt_vec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y, 0),
-		zt_vec3(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y, 0)
-	};
-	ztVec3 pos_ne[] = {
-		zt_vec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y, 0),
-		zt_vec3(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y, 0),
-		zt_vec3(upper_right.x,                               upper_right.y - sns->sz_n * scale_corners.y, 0),
-		zt_vec3(upper_right.x,                               upper_right.y, 0)
-	};
-	ztVec3 pos_sw[] = {
-		zt_vec3(lower_left.x,                               lower_left.y + sns->sz_s * scale_corners.y, 0),
-		zt_vec3(lower_left.x,                               lower_left.y, 0),
-		zt_vec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y, 0),
-		zt_vec3(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y, 0)
-	};
-	ztVec3 pos_se[] = {
-		zt_vec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y, 0),
-		zt_vec3(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y, 0),
-		zt_vec3(lower_right.x,                               lower_right.y, 0),
-		zt_vec3(lower_right.x,                               lower_right.y + sns->sz_s * scale_corners.y, 0)
-	};
-
-	zt_fiz(4) {
-		//zt_alignToPixel(&pos_nw[i], ppu);
-		//zt_alignToPixel(&pos_ne[i], ppu);
-		//zt_alignToPixel(&pos_sw[i], ppu);
-		//zt_alignToPixel(&pos_se[i], ppu);
-	}
-
-	zt_drawListPushTexture(draw_list, sns->tex);
-	/* center     */ zt_drawListAddFilledQuad(draw_list, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, zt_vec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, zt_vec2(sns->sp_c.z, sns->sp_c.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* west       */ zt_drawListAddFilledQuad(draw_list, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, zt_vec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, zt_vec2(sns->sp_w.z, sns->sp_w.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* east       */ zt_drawListAddFilledQuad(draw_list, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, zt_vec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, zt_vec2(sns->sp_e.z, sns->sp_e.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* north      */ zt_drawListAddFilledQuad(draw_list, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, zt_vec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, zt_vec2(sns->sp_n.z, sns->sp_n.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* south      */ zt_drawListAddFilledQuad(draw_list, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, zt_vec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, zt_vec2(sns->sp_s.z, sns->sp_s.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-
-	/* north west */ zt_drawListAddFilledQuad(draw_list, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, zt_vec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, zt_vec2(sns->sp_nw.z, sns->sp_nw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* north east */ zt_drawListAddFilledQuad(draw_list, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, zt_vec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, zt_vec2(sns->sp_ne.z, sns->sp_ne.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* south west */ zt_drawListAddFilledQuad(draw_list, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	/* south east */ zt_drawListAddFilledQuad(draw_list, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero);
-	zt_drawListPopTexture(draw_list);
-}
-
-// ================================================================================================================================================================================================
-#if 1
-void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos, const ztVec2 &csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
-{
-	ZT_PROFILE_RENDERING("zt_spriteNineSliceGetTriangles");
-	r32 ppu = zt_pixelsPerUnit();
-
-	ztVec2 pos = at_pos;
-	ztVec2 size = csize;
-
-	r32 x_diff = sns->offset.z - sns->offset.x;
-	r32 y_diff = sns->offset.y - sns->offset.w;
-
-	pos.x += x_diff / 2.f;
-	pos.y += y_diff / 2.f;
-
-	size.x += sns->offset.x + sns->offset.z;
-	size.y += sns->offset.y + sns->offset.w;
-
-	ztVec2 upper_left = zt_vec2(pos.x - size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
-	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
-
-	ztVec2 scale_corners = ztVec2::one;
-	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
-	if (size.y < sns->sz_n + sns->sz_s) { scale_corners.y = size.y / (sns->sz_n + sns->sz_s); }
-
-	ztVec2 pos_nw[] = {
-		zt_vec2(upper_left.x, upper_left.y),
-		zt_vec2(upper_left.x, upper_left.y - sns->sz_n * scale_corners.y),
-		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y - sns->sz_n * scale_corners.y),
-		zt_vec2(upper_left.x + sns->sz_w * scale_corners.x, upper_left.y)
-	};
-	ztVec2 pos_ne[] = {
-		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y),
-		zt_vec2(upper_right.x - sns->sz_e * scale_corners.x, upper_right.y - sns->sz_n * scale_corners.y),
-		zt_vec2(upper_right.x, upper_right.y - sns->sz_n * scale_corners.y),
-		zt_vec2(upper_right.x, upper_right.y)
-	};
-	ztVec2 pos_sw[] = {
-		zt_vec2(lower_left.x, lower_left.y + sns->sz_s * scale_corners.y),
-		zt_vec2(lower_left.x, lower_left.y),
-		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y),
-		zt_vec2(lower_left.x + sns->sz_w * scale_corners.x, lower_left.y + sns->sz_s * scale_corners.y)
-	};
-	ztVec2 pos_se[] = {
-		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y + sns->sz_s * scale_corners.y),
-		zt_vec2(lower_right.x - sns->sz_e * scale_corners.x, lower_right.y),
-		zt_vec2(lower_right.x, lower_right.y),
-		zt_vec2(lower_right.x, lower_right.y + sns->sz_s * scale_corners.y)
-	};
-
-	zt_fiz(4) {
-		zt_alignToPixel(&pos_nw[i], ppu);
-		zt_alignToPixel(&pos_ne[i], ppu);
-		zt_alignToPixel(&pos_sw[i], ppu);
-		zt_alignToPixel(&pos_se[i], ppu);
-	}
-
-	struct local
-	{
-		static void process(ztVec2 *pos, ztVec2 *uvs, int &idx, const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &p4, const ztVec2 &uv1, const ztVec2 &uv2, const ztVec2 &uv3, const ztVec2 &uv4)
-		{
-			{
-				pos[idx + 0] = p1;
-				pos[idx + 1] = p2;
-				pos[idx + 2] = p3;
-
-				uvs[idx + 0] = uv1;
-				uvs[idx + 1] = uv2;
-				uvs[idx + 2] = uv3;
-
-				idx += 3;
-			}
-			{
-				pos[idx + 0] = p1;
-				pos[idx + 1] = p3;
-				pos[idx + 2] = p4;
-
-				uvs[idx + 0] = uv1;
-				uvs[idx + 1] = uv3;
-				uvs[idx + 2] = uv4;
-
-				idx += 3;
-			}
-		}
-	};
-
-	int idx = 0;
-	/* center     */ local::process(pos_arr, uvs_arr, idx, pos_nw[2], pos_sw[3], pos_se[0], pos_ne[1], sns->sp_c.xy, zt_vec2(sns->sp_c.x, sns->sp_c.w), sns->sp_c.zw, zt_vec2(sns->sp_c.z, sns->sp_c.y));
-	/* west       */ local::process(pos_arr, uvs_arr, idx, pos_nw[1], pos_sw[0], pos_sw[3], pos_nw[2], sns->sp_w.xy, zt_vec2(sns->sp_w.x, sns->sp_w.w), sns->sp_w.zw, zt_vec2(sns->sp_w.z, sns->sp_w.y));
-	/* east       */ local::process(pos_arr, uvs_arr, idx, pos_ne[1], pos_se[0], pos_se[3], pos_ne[2], sns->sp_e.xy, zt_vec2(sns->sp_e.x, sns->sp_e.w), sns->sp_e.zw, zt_vec2(sns->sp_e.z, sns->sp_e.y));
-	/* north      */ local::process(pos_arr, uvs_arr, idx, pos_nw[3], pos_nw[2], pos_ne[1], pos_ne[0], sns->sp_n.xy, zt_vec2(sns->sp_n.x, sns->sp_n.w), sns->sp_n.zw, zt_vec2(sns->sp_n.z, sns->sp_n.y));
-	/* south      */ local::process(pos_arr, uvs_arr, idx, pos_sw[3], pos_sw[2], pos_se[1], pos_se[0], sns->sp_s.xy, zt_vec2(sns->sp_s.x, sns->sp_s.w), sns->sp_s.zw, zt_vec2(sns->sp_s.z, sns->sp_s.y));
-
-	/* north west */ local::process(pos_arr, uvs_arr, idx, pos_nw[0], pos_nw[1], pos_nw[2], pos_nw[3], sns->sp_nw.xy, zt_vec2(sns->sp_nw.x, sns->sp_nw.w), sns->sp_nw.zw, zt_vec2(sns->sp_nw.z, sns->sp_nw.y));
-	/* north east */ local::process(pos_arr, uvs_arr, idx, pos_ne[0], pos_ne[1], pos_ne[2], pos_ne[3], sns->sp_ne.xy, zt_vec2(sns->sp_ne.x, sns->sp_ne.w), sns->sp_ne.zw, zt_vec2(sns->sp_ne.z, sns->sp_ne.y));
-	/* south west */ local::process(pos_arr, uvs_arr, idx, pos_sw[0], pos_sw[1], pos_sw[2], pos_sw[3], sns->sp_sw.xy, zt_vec2(sns->sp_sw.x, sns->sp_sw.w), sns->sp_sw.zw, zt_vec2(sns->sp_sw.z, sns->sp_sw.y));
-	/* south east */ local::process(pos_arr, uvs_arr, idx, pos_se[0], pos_se[1], pos_se[2], pos_se[3], sns->sp_se.xy, zt_vec2(sns->sp_se.x, sns->sp_se.w), sns->sp_se.zw, zt_vec2(sns->sp_se.z, sns->sp_se.y));
-}
-#endif
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-
-void zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerMake");
-	zt_returnOnNull(sprite_manager);
-	zt_assertReturnOnFail(max_sprites > 0);
-
-	sprite_manager->sprites = zt_mallocStructArray(ztSpriteManager::Entry, max_sprites);
-	sprite_manager->sprites_count = max_sprites;
-
-	zt_fiz(max_sprites) {
-		sprite_manager->sprites[i].hash = 0;
-		sprite_manager->sprites[i].type = ztSpriteType_Invalid;
-	}
-}
-
-// ================================================================================================================================================================================================
-
-bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
-	zt_returnValOnNull(asset_mgr, false);
-	if (asset_id == ztInvalidID) {
-		zt_logCritical("sprite manager: invalid asset id");
-		return false;
-	}
-	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
-
-	zt_logDebug("sprite manager: loading: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
-
-	i32 size = zt_assetSize(asset_mgr, asset_id);
-	if (size <= 0) {
-		zt_logCritical("sprite manager: cannot load empty asset");
-		return false;
-	}
-
-	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
-	if (!data) {
-		zt_logCritical("sprite manager unable to allocate memory");
-		return false;
-	}
-
-	const char *error = nullptr;
-
-	if (!zt_assetLoadData(asset_mgr, asset_id, data, size, true)) {
-		error = "sprite manager: unable to load asset contents";
-		goto on_error;
-	}
-
-	ztSerial serial;
-	if (!zt_serialMakeReader(&serial, data, size, ZT_SPRITE_FILE_GUID)) {
-		error = "sprite manager: unable to serialize file";
-		goto on_error;
-	}
-
-	if (!zt_spriteManagerLoad(sprite_manager, &serial, tex)) {
-		error = "sprite manager: unable to load file data";
-		zt_serialClose(&serial);
-		goto on_error;
-	}
-
-	zt_serialClose(&serial);
-	zt_freeArena(data, asset_mgr->arena);
-	return true;
-
-on_error:
-	zt_logCritical(error);
-	zt_freeArena(data, asset_mgr->arena);
-	return false;
-}
-
-// ================================================================================================================================================================================================
-
-bool zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager)
-{
-	char path[ztFileMaxPath];
-	zt_fileConcatFileToPath(path, zt_elementsOf(path), zt_game->game_details.data_path, "textures");
-	char files[ztFileMaxPath];
-	zt_getDirectoryFiles(path, files, zt_elementsOf(files), false);
-
-	ztToken tokens[128];
-	int tokens_count = zt_min(zt_elementsOf(tokens), zt_strTokenize(files, "\n", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace));
-
-	zt_fiz(tokens_count) {
-		char file[ztFileMaxPath];
-		zt_strCpy(file, zt_elementsOf(file), files + tokens[i].beg, tokens[i].len);
-
-		if (zt_striEndsWith(file, ".spr")) {
-			ztTextureID tex = ztInvalidID;
-			zt_fjz(tokens_count) {
-				char tex_file[ztFileMaxPath];
-				zt_strCpy(tex_file, zt_elementsOf(tex_file), files + tokens[j].beg, tokens[j].len);
-
-				if (j != i && zt_striStartsWith(tex_file, zt_strLen(tex_file), file, zt_strLen(file) - 3)) {
-					tex = zt_textureMakeFromFile(tex_file);
-					break;
-				}
-			}
-
-			ztSerial serial;
-			if (zt_serialMakeReader(&serial, file, ZT_SPRITE_FILE_GUID)) {
-				zt_spriteManagerLoad(sprite_manager, &serial, tex);
-				zt_serialClose(&serial);
-			}
-		}
-	}
-
-	return true;
-}
-
-// ================================================================================================================================================================================================
-
-bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
-	zt_returnValOnNull(sprite_manager, false);
-	zt_returnValOnNull(serial, false);
-
-#	define _serialCheck(CODE) if(!CODE) { zt_logCritical("call failed: " #CODE); return false; }
-
-	_serialCheck(zt_serialGroupPush(serial));
-	{
-		int idx = 0;
-		zt_fiz(sprite_manager->sprites_count) {
-			if (sprite_manager->sprites[i].hash == 0) {
-				idx = i;
-				break;
-			}
-		}
-
-		while(true) {
-			_serialCheck(zt_serialGroupPush(serial));
-			{
-				i32 hash = 0;
-				_serialCheck(zt_serialRead(serial, &hash));
-
-				if (hash == 0) {
-					_serialCheck(zt_serialGroupPop(serial));
-					break;
-				}
-				if (idx >= sprite_manager->sprites_count) {
-					_serialCheck(zt_serialGroupPop(serial));
-					break;
-				}
-
-				_serialCheck(zt_serialRead(serial, sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), nullptr));
-				//sprite_manager->sprites[idx].hash = zt_strHash(sprite_manager->sprites[idx].name);
-				sprite_manager->sprites[idx].hash = hash;
-
-				i32 type = 0;
-				_serialCheck(zt_serialRead(serial, &type));
-
-				sprite_manager->sprites[idx].type = (ztSpriteType_Enum)type;
-
-				_serialCheck(zt_serialGroupPush(serial));
-				{
-					if (sprite_manager->sprites[idx].type == ztSpriteType_Sprite) {
-						sprite_manager->sprites[idx].s.tex = tex;
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.tex_uv));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.half_size));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].s.anchor));
-					}
-					else if (sprite_manager->sprites[idx].type == ztSpriteType_SpriteNineSlice) {
-						sprite_manager->sprites[idx].sns.tex = tex;
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_nw));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_n));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_ne));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_w));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_c));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_e));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_sw));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_s));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sp_se));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_n));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_s));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_e));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_w));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_cw));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.sz_ch));
-						_serialCheck(zt_serialRead(serial, &sprite_manager->sprites[idx].sns.offset));
-					}
-					else zt_assert(false);
-				}
-				_serialCheck(zt_serialGroupPop(serial));
-
-				idx += 1;
-			}
-			_serialCheck(zt_serialGroupPop(serial));
-		}
-	}
-	_serialCheck(zt_serialGroupPop(serial));
-
-#	undef _serialCheck
-
-	return true;
-}
-
-// ================================================================================================================================================================================================
-
-bool zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerSave");
-	zt_returnValOnNull(sprite_manager, false);
-	zt_returnValOnNull(serial, false);
-
-#	define _serialCheck(CODE) if(!CODE) return false;
-
-	_serialCheck(zt_serialGroupPush(serial));
-	{
-		zt_fiz(sprite_manager->sprites_count) {
-			if (sprite_manager->sprites[i].hash != 0) {
-				_serialCheck(zt_serialGroupPush(serial));
-				{
-					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].hash));
-					_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].name, zt_elementsOf(sprite_manager->sprites[i].name)));
-					_serialCheck(zt_serialWrite(serial, (i32)sprite_manager->sprites[i].type));
-
-					_serialCheck(zt_serialGroupPush(serial));
-					{
-						if(sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.tex_uv));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.half_size));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].s.anchor));
-						}
-						else if(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_nw));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_n));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_ne));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_w));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_c));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_e));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_sw));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_s));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sp_se));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_n));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_s));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_e));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_w));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_cw));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.sz_ch));
-							_serialCheck(zt_serialWrite(serial, sprite_manager->sprites[i].sns.offset));
-						}
-						else zt_assert(false);
-					}
-					_serialCheck(zt_serialGroupPop(serial));
-				}
-				_serialCheck(zt_serialGroupPop(serial));
-			}
-		}
-
-		_serialCheck(zt_serialGroupPush(serial));
-		{
-			_serialCheck(zt_serialWrite(serial, 0)); // indicates end of file
-		}
-		_serialCheck(zt_serialGroupPop(serial));
-	}
-	_serialCheck(zt_serialGroupPop(serial));
-
-#	undef _serialCheck
-
-	return true;
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteManagerFree(ztSpriteManager *sprite_manager, bool should_free_textures)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerFree");
-	if (sprite_manager == nullptr || sprite_manager->sprites == nullptr) {
-		return;
-	}
-
-	if (should_free_textures) {
-		zt_fiz(sprite_manager->sprites_count) {
-			ztTextureID tex = ztInvalidID;
-
-			if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
-				tex = sprite_manager->sprites[i].s.tex;
-			}
-			else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
-				tex = sprite_manager->sprites[i].sns.tex;
-			}
-
-			if (tex != ztInvalidID) {
-				zt_textureFree(tex);
-
-				for (int j = i + 1; j < sprite_manager->sprites_count; ++j) {
-					if (sprite_manager->sprites[i].type == ztSpriteType_Sprite) {
-						if (sprite_manager->sprites[i].s.tex == tex) {
-							sprite_manager->sprites[i].s.tex = ztInvalidID;
-						}
-					}
-					else if (sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice) {
-						if (sprite_manager->sprites[i].sns.tex == tex) {
-							sprite_manager->sprites[i].sns.tex = ztInvalidID;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	zt_free(sprite_manager->sprites);
-	sprite_manager->sprites = nullptr;
-	sprite_manager->sprites_count = 0;
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteManagerAddSprite(ztSpriteManager *sprite_manager, ztSprite *s, char *name)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerAddSprite");
-	zt_returnOnNull(sprite_manager);
-	zt_returnOnNull(s);
-	zt_assertReturnOnFail(name != nullptr);
-
-	i32 sprite_hash = zt_strHash(name);
-
-	int idx = -1;
-	zt_fiz(sprite_manager->sprites_count) {
-		if(idx < 0 && sprite_manager->sprites[i].hash == 0) {
-			idx = i;
-		}
-		if(sprite_manager->sprites[i].hash == sprite_hash) {
-			idx = i;
-			break;
-		}
-	}
-
-	if (idx < 0) {
-		zt_assert(false);
-		return;
-	}
-
-	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
-	sprite_manager->sprites[idx].hash = sprite_hash;
-	sprite_manager->sprites[idx].type = ztSpriteType_Sprite;
-	sprite_manager->sprites[idx].s    = *s;
-}
-
-// ================================================================================================================================================================================================
-
-void zt_spriteManagerAddSpriteNineSlice(ztSpriteManager *sprite_manager, ztSpriteNineSlice *sns, char *name)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerAddSpriteNineSlice");
-	zt_returnOnNull(sprite_manager);
-	zt_returnOnNull(sns);
-	zt_assertReturnOnFail(name != nullptr);
-
-	i32 sprite_hash = zt_strHash(name);
-
-	int idx = -1;
-	zt_fiz(sprite_manager->sprites_count) {
-		if(idx < 0 && sprite_manager->sprites[i].hash == 0) {
-			idx = i;
-		}
-		if(sprite_manager->sprites[i].hash == sprite_hash) {
-			idx = i;
-			break;
-		}
-	}
-
-	if (idx < 0) {
-		zt_assert(false);
-		return;
-	}
-
-	zt_strCpy(sprite_manager->sprites[idx].name, zt_elementsOf(sprite_manager->sprites[idx].name), name);
-	sprite_manager->sprites[idx].hash = sprite_hash;
-	sprite_manager->sprites[idx].type = ztSpriteType_SpriteNineSlice;
-	sprite_manager->sprites[idx].sns  = *sns;
-}
-
-// ================================================================================================================================================================================================
-
-ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, const char *name)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
-	return zt_spriteManagerGetSprite(sprite_manager, zt_strHash(name));
-}
-
-// ================================================================================================================================================================================================
-
-ztSprite *zt_spriteManagerGetSprite(ztSpriteManager *sprite_manager, i32 sprite_hash)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerGetSprite");
-	zt_returnValOnNull(sprite_manager, nullptr);
-
-	if (sprite_hash == 0) {
-		return nullptr;
-	}
-
-	zt_fiz(sprite_manager->sprites_count) {
-		if(sprite_manager->sprites[i].hash == sprite_hash) {
-			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_Sprite, nullptr);
-			return &sprite_manager->sprites[i].s;
-		}
-	}
-
-	return nullptr;
-}
-
-// ================================================================================================================================================================================================
-
-ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, const char *name)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
-	return zt_spriteManagerGetSpriteNineSlice(sprite_manager, zt_strHash(name));
-}
-
-// ================================================================================================================================================================================================
-
-ztSpriteNineSlice *zt_spriteManagerGetSpriteNineSlice(ztSpriteManager *sprite_manager, i32 sprite_hash)
-{
-	ZT_PROFILE_RENDERING("zt_spriteManagerGetSpriteNineSlice");
-	zt_returnValOnNull(sprite_manager, nullptr);
-
-	if (sprite_hash == 0) {
-		return nullptr;
-	}
-
-	zt_fiz(sprite_manager->sprites_count) {
-		if(sprite_manager->sprites[i].hash == sprite_hash) {
-			zt_assertReturnValOnFail(sprite_manager->sprites[i].type == ztSpriteType_SpriteNineSlice, nullptr);
-			return &sprite_manager->sprites[i].sns;
-		}
-	}
-
-	return nullptr;
-}
-
-// ================================================================================================================================================================================================
-
-i32 zt_spriteManagerFindSpriteHash(ztSpriteManager *sprite_manager, ztSprite *sprite)
-{
-	zt_returnValOnNull(sprite_manager, 0);
-	zt_returnValOnNull(sprite, 0);
-
-	zt_fiz(sprite_manager->sprites_count) {
-		if (sprite_manager->sprites[i].type        == ztSpriteType_Sprite && 
-			sprite_manager->sprites[i].s.tex       == sprite->tex && 
-			sprite_manager->sprites[i].s.half_size == sprite->half_size && 
-			sprite_manager->sprites[i].s.tex_uv    == sprite->tex_uv && 
-			sprite_manager->sprites[i].s.anchor    == sprite->anchor) {
-
-			return sprite_manager->sprites[i].hash;
-		}
-	}
-
-	return 0;
-}
-
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-
 ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color, i32 diffuse_flags,
 						   ztTextureID specular_tex, const ztVec4 &specular_color, i32 specular_flags,
 						   ztTextureID normal_tex, i32 normal_flags, 
@@ -24747,7 +25175,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 
 r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
-	ZT_PROFILE_ANIMATION("zt_tweenValue");
+	ZT_PROFILE_ANIMATION("zt_tweenValue(r32)");
 	if (ease_in && ease_out == nullptr) {
 		percent = ease_in(percent, ease_in_user_data);
 	}
@@ -24770,6 +25198,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 
 ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec2)");
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out));
 }
@@ -24778,6 +25207,7 @@ ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, 
 
 ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec2)");
 	return zt_vec2(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
 }
@@ -24786,6 +25216,7 @@ ztVec2 zt_tweenValue(const ztVec2 &val_beg, const ztVec2 &val_end, r32 percent, 
 
 ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec3)");
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out));
@@ -24795,6 +25226,7 @@ ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, 
 
 ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec3)");
 	return zt_vec3(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data));
@@ -24804,6 +25236,7 @@ ztVec3 zt_tweenValue(const ztVec3 &val_beg, const ztVec3 &val_end, r32 percent, 
 
 ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, ztTweenEase_Func *ease_out)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec4)");
 	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_out),
 	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_out),
@@ -24814,6 +25247,7 @@ ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, 
 
 ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, ztTweenEase_Func *ease_in, void *ease_in_user_data, ztTweenEase_Func *ease_out, void *ease_out_user_data)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenValue(ztVec4)");
 	return zt_vec4(zt_tweenValue(val_beg.x, val_end.x, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.y, val_end.y, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
 	               zt_tweenValue(val_beg.z, val_end.z, percent, ease_in, ease_in_user_data, ease_out, ease_out_user_data),
@@ -24827,6 +25261,7 @@ ztVec4 zt_tweenValue(const ztVec4 &val_beg, const ztVec4 &val_end, r32 percent, 
 
 void _zt_tweenItemMakeReal(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *value, i32 flags, r32 length, r32 delay, ZT_FUNCTION_POINTER_VAR(ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_VAR(ease_out, ztTweenEase_Func), ztAnimCurve *curve)
 {
+	ZT_PROFILE_ANIMATION("_zt_tweenItemMakeReal");
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
 
@@ -24865,6 +25300,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, r32 beg_val, r32 end_val, r32 *va
 
 void _zt_tweenItemMakeVec2(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, ztVec2 *value, i32 flags, r32 length, r32 delay, ZT_FUNCTION_POINTER_VAR(ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_VAR(ease_out, ztTweenEase_Func), ztAnimCurve *curve)
 {
+	ZT_PROFILE_ANIMATION("_zt_tweenItemMakeVec2");
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
 
@@ -24903,6 +25339,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec2 beg_val, ztVec2 end_val, z
 
 void _zt_tweenItemMakeVec3(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, ztVec3 *value, i32 flags, r32 length, r32 delay, ZT_FUNCTION_POINTER_VAR(ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_VAR(ease_out, ztTweenEase_Func), ztAnimCurve *curve)
 {
+	ZT_PROFILE_ANIMATION("_zt_tweenItemMakeVec3");
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
 
@@ -24941,6 +25378,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec3 beg_val, ztVec3 end_val, z
 
 void _zt_tweenItemMakeVec4(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, ztVec4 *value, i32 flags, r32 length, r32 delay, ZT_FUNCTION_POINTER_VAR(ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_VAR(ease_out, ztTweenEase_Func), ztAnimCurve *curve)
 {
+	ZT_PROFILE_ANIMATION("_zt_tweenItemMakeVec4");
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
 
@@ -24979,6 +25417,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztVec4 beg_val, ztVec4 end_val, z
 
 void _zt_tweenItemMakeQuat(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, ztQuat *value, i32 flags, r32 length, r32 delay, ZT_FUNCTION_POINTER_VAR(ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_VAR(ease_out, ztTweenEase_Func), ztAnimCurve *curve)
 {
+	ZT_PROFILE_ANIMATION("_zt_tweenItemMakeQuat");
 	zt_returnOnNull(tween_item);
 	zt_returnOnNull(value);
 
@@ -25017,6 +25456,7 @@ void zt_tweenItemMake(ztTweenItem *tween_item, ztQuat beg_val, ztQuat end_val, z
 
 r32 zt_tweenItemPercentComplete(ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemPercentComplete");
 	zt_returnValOnNull(tween_item, 0);
 
 	if (zt_bitIsSet(tween_item->flags, ztTweenItemFlags_Stopped)) {
@@ -25034,6 +25474,7 @@ r32 zt_tweenItemPercentComplete(ztTweenItem *tween_item)
 
 bool zt_tweenItemIsComplete(ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemIsComplete");
 	zt_returnValOnNull(tween_item, false);
 
 	if (zt_bitIsSet(tween_item->flags, ztTweenItemFlags_Stopped)) {
@@ -25051,6 +25492,7 @@ bool zt_tweenItemIsComplete(ztTweenItem *tween_item)
 
 void zt_tweenItemStart(ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemStart");
 	zt_returnOnNull(tween_item);
 
 	tween_item->time = 0;
@@ -25062,6 +25504,7 @@ void zt_tweenItemStart(ztTweenItem *tween_item)
 
 void zt_tweenItemPause(ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemPause");
 	zt_returnOnNull(tween_item);
 
 	tween_item->flags |= ztTweenItemFlags_Paused;
@@ -25071,6 +25514,7 @@ void zt_tweenItemPause(ztTweenItem *tween_item)
 
 void zt_tweenItemStop(ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemStop");
 	zt_returnOnNull(tween_item);
 
 	zt_bitRemove(tween_item->flags, ztTweenItemFlags_Paused);
@@ -25081,6 +25525,7 @@ void zt_tweenItemStop(ztTweenItem *tween_item)
 
 void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenItemUpdate");
 	zt_returnOnNull(tween_item);
 
 	zt_fiz(tween_item_count) {
@@ -25176,6 +25621,7 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 
 void zt_tweenGroupMake(ztTweenGroup *tween_group, ztTweenItem *tween_items, int tween_items_count)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenGroupMake");
 	zt_returnOnNull(tween_group);
 	zt_returnOnNull(tween_items);
 	zt_assert(tween_items_count > 0 && tween_items_count < zt_elementsOf(tween_group->items));
@@ -25191,6 +25637,7 @@ void zt_tweenGroupMake(ztTweenGroup *tween_group, ztTweenItem *tween_items, int 
 
 r32 zt_tweenGroupPercentComplete(ztTweenGroup *tween_group)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenGroupPercentComplete");
 	zt_returnValOnNull(tween_group, 0);
 
 	r32 min_pct_complete = 1;
@@ -25209,6 +25656,7 @@ r32 zt_tweenGroupPercentComplete(ztTweenGroup *tween_group)
 
 bool zt_tweenGroupIsComplete(ztTweenGroup *tween_group)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenGroupIsComplete");
 	return zt_real32Eq(zt_tweenGroupPercentComplete(tween_group), 1.f);
 }
 
@@ -25216,6 +25664,7 @@ bool zt_tweenGroupIsComplete(ztTweenGroup *tween_group)
 
 void zt_tweenGroupUpdate(ztTweenGroup *tween_group, int tween_group_count, r32 dt)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenGroupUpdate");
 	zt_returnOnNull(tween_group);
 
 	zt_fiz(tween_group_count) {
@@ -25230,6 +25679,7 @@ void zt_tweenGroupUpdate(ztTweenGroup *tween_group, int tween_group_count, r32 d
 
 void zt_tweenManagerMake(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerMake");
 	zt_returnOnNull(tween_manager);
 	zt_tweenManagerReset(tween_manager);
 }
@@ -25238,6 +25688,7 @@ void zt_tweenManagerMake(ztTweenManager *tween_manager)
 
 void zt_tweenManagerReset(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerReset");
 	zt_returnOnNull(tween_manager);
 	zt_memSet(tween_manager, zt_sizeof(ztTweenManager), 0);
 }
@@ -25246,6 +25697,7 @@ void zt_tweenManagerReset(ztTweenManager *tween_manager)
 
 ztTweenGroup *zt_tweenManagerGetTemporaryGroup(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerGetTemporaryGroup");
 	zt_returnValOnNull(tween_manager, nullptr);
 
 	zt_fize(tween_manager->groups) {
@@ -25262,6 +25714,7 @@ ztTweenGroup *zt_tweenManagerGetTemporaryGroup(ztTweenManager *tween_manager)
 
 ztTweenGroup *zt_tweenManagerGetPermanentGroup(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerGetPermanentGroup");
 	zt_returnValOnNull(tween_manager, nullptr);
 
 	zt_fize(tween_manager->groups) {
@@ -25278,6 +25731,7 @@ ztTweenGroup *zt_tweenManagerGetPermanentGroup(ztTweenManager *tween_manager)
 
 void zt_tweenManagerReclaimGroup(ztTweenManager *tween_manager, ztTweenGroup *tween_group)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerReclaimGroup");
 	zt_returnOnNull(tween_manager);
 	zt_returnOnNull(tween_group);
 
@@ -25295,6 +25749,7 @@ void zt_tweenManagerReclaimGroup(ztTweenManager *tween_manager, ztTweenGroup *tw
 
 ztTweenItem *zt_tweenManagerGetTemporaryItem(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerGetTemporaryItem");
 	zt_returnValOnNull(tween_manager, nullptr);
 
 	zt_fize(tween_manager->items) {
@@ -25311,6 +25766,7 @@ ztTweenItem *zt_tweenManagerGetTemporaryItem(ztTweenManager *tween_manager)
 
 ztTweenItem *zt_tweenManagerGetPermanentItem(ztTweenManager *tween_manager)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerGetPermanentItem");
 	zt_returnValOnNull(tween_manager, nullptr);
 
 	zt_fize(tween_manager->items) {
@@ -25327,6 +25783,7 @@ ztTweenItem *zt_tweenManagerGetPermanentItem(ztTweenManager *tween_manager)
 
 void zt_tweenManagerReclaimItem(ztTweenManager *tween_manager, ztTweenItem *tween_item)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerReclaimItem");
 	zt_returnOnNull(tween_manager);
 	zt_returnOnNull(tween_item);
 
@@ -25345,6 +25802,7 @@ void zt_tweenManagerReclaimItem(ztTweenManager *tween_manager, ztTweenItem *twee
 
 void zt_tweenManagerUpdate(ztTweenManager *tween_manager, r32 dt)
 {
+	ZT_PROFILE_ANIMATION("zt_tweenManagerUpdate");
 	zt_returnOnNull(tween_manager);
 
 	zt_tweenGroupUpdate(tween_manager->groups, zt_elementsOf(tween_manager->groups), dt);
@@ -25549,6 +26007,7 @@ bool zt_variableCacheSetFrameGap(ztVariableCache *cache, i32 id, i32 frames)
 
 ztTweenEase_Func *zt_animCurveFindEaseFunction(ztAnimCurveEaseType_Enum type)
 {
+	ZT_PROFILE_ANIMATION("zt_animCurveFindEaseFunction");
 	switch (type)
 	{
 		case ztAnimCurveEaseType_Linear  : return zt_tweenEaseLinear;
@@ -25572,6 +26031,7 @@ ztTweenEase_Func *zt_animCurveFindEaseFunction(ztAnimCurveEaseType_Enum type)
 
 r32 zt_animCurveGetValue(ztAnimCurve *curve, r32 percent)
 {
+	ZT_PROFILE_ANIMATION("zt_animCurveGetValue");
 	zt_returnValOnNull(curve, 0);
 	zt_assertReturnValOnFail(percent >= 0 && percent <= 1, percent);
 
@@ -25608,8 +26068,8 @@ r32 zt_animCurveGetValue(ztAnimCurve *curve, r32 percent)
 
 					percent = percent / (curve->segments[i].pos_end.x - curve->segments[i].pos_beg.x);
 
-					ztVec2 beg = curve->segments[i].pos_beg;
-					ztVec2 end = curve->segments[i].pos_end;
+					ztVec2 &beg = curve->segments[i].pos_beg;
+					ztVec2 &end = curve->segments[i].pos_end;
 					ztVec2 beg_cp = curve->segments[i].control_point_beg * zt_vec2(.5f, .25f) + beg;
 					ztVec2 end_cp = curve->segments[i].control_point_end * zt_vec2(.5f, .25f) + end;
 
@@ -28498,7 +28958,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 
 // ================================================================================================================================================================================================
 
-int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztVec3 *ptr_pos, ztVec2 *ptr_uv, ztVec4 *ptr_colors, int size)
+int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztVec3 *ptr_pos, ztVec2 *ptr_uv, ztVec4 *ptr_colors, ztVertexDefault *vertex_default, ztVertexDefaultLit *vertex_default_lit, int size)
 {
 	ZT_PROFILE_PARTICLES("_zt_particleEmitterRender");
 
@@ -28578,17 +29038,19 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 			}
 		};
 
+		ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::sort");
 		qsort(emitter->particles, emitter->particles_size, zt_sizeof(ztParticle2), camera->type == ztCameraType_Perspective ? sort::compare_d : sort::compare_z);
 	}
 
 	ztVec2 facing_uvs[4];
 	ztVec3 facing_nml[4];
 
-	if (camera->type == ztCameraType_Perspective) {
+	if (camera->type == ztCameraType_Perspective && draw_list != nullptr) {
 		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
 	}
 
 	if (emitter->system->trails_use) {
+		ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::trials");
 		if (draw_list != nullptr) {
 			zt_drawListPushTexture(draw_list, emitter->system->trails_sprite.tex);
 			zt_drawListPushBlendMode(draw_list, emitter->system->system_rendering.blend_mode_src, emitter->system->system_rendering.blend_mode_dst);
@@ -28704,29 +29166,112 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 								return index;
 							}
 
-							ptr_pos   [index  ] = pos   [0];
-							ptr_uv    [index  ] = uvs   [0];
-							ptr_colors[index++] = colors[0];
+							if (vertex_default_lit) {
+								ztVec3 normal = rotation.rotatePosition(zt_vec3(0, 0, 1));
+								ztVec4 tangent, bitangent;
+								zt_triangleCalculateTangentBitangent(pos[0], pos[1], pos[2], uvs[0], uvs[1], uvs[2], &tangent, &bitangent);
 
-							ptr_pos   [index  ] = pos   [1];
-							ptr_uv    [index  ] = uvs   [1];
-							ptr_colors[index++] = colors[1];
+								vertex_default_lit[index  ].position  = pos   [0];
+								vertex_default_lit[index  ].uv        = uvs   [0];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
 
-							ptr_pos   [index  ] = pos   [2];
-							ptr_uv    [index  ] = uvs   [2];
-							ptr_colors[index++] = colors[2];
+								vertex_default_lit[index  ].position  = pos   [1];
+								vertex_default_lit[index  ].uv        = uvs   [1];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
 
-							ptr_pos   [index  ] = pos   [0];
-							ptr_uv    [index  ] = uvs   [0];
-							ptr_colors[index++] = colors[0];
+								vertex_default_lit[index  ].position  = pos   [2];
+								vertex_default_lit[index  ].uv        = uvs   [2];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
 
-							ptr_pos   [index  ] = pos   [2];
-							ptr_uv    [index  ] = uvs   [2];
-							ptr_colors[index++] = colors[2];
+								zt_triangleCalculateTangentBitangent(pos[0], pos[2], pos[3], uvs[0], uvs[2], uvs[3], &tangent, &bitangent);
 
-							ptr_pos   [index  ] = pos   [3];
-							ptr_uv    [index  ] = uvs   [3];
-							ptr_colors[index++] = colors[3];
+								vertex_default_lit[index  ].position  = pos   [0];
+								vertex_default_lit[index  ].uv        = uvs   [0];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
+
+								vertex_default_lit[index  ].position  = pos   [2];
+								vertex_default_lit[index  ].uv        = uvs   [2];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
+
+								vertex_default_lit[index  ].position  = pos   [3];
+								vertex_default_lit[index  ].uv        = uvs   [3];
+								vertex_default_lit[index  ].color     = particle->color;
+								vertex_default_lit[index  ].tangent   = tangent;
+								vertex_default_lit[index  ].bitangent = bitangent;
+								vertex_default_lit[index++].normal    = normal;
+							}
+							else if (vertex_default) {
+								ztVec3 normal = rotation.rotatePosition(zt_vec3(0, 0, 1));
+								vertex_default_lit[index  ].position = pos   [0];
+								vertex_default_lit[index  ].uv       = uvs   [0];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+
+								vertex_default_lit[index  ].position = pos   [1];
+								vertex_default_lit[index  ].uv       = uvs   [1];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+
+								vertex_default_lit[index  ].position = pos   [2];
+								vertex_default_lit[index  ].uv       = uvs   [2];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+
+								vertex_default_lit[index  ].position = pos   [0];
+								vertex_default_lit[index  ].uv       = uvs   [0];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+
+								vertex_default_lit[index  ].position = pos   [2];
+								vertex_default_lit[index  ].uv       = uvs   [2];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+
+								vertex_default_lit[index  ].position = pos   [3];
+								vertex_default_lit[index  ].uv       = uvs   [3];
+								vertex_default_lit[index  ].color    = particle->color;
+								vertex_default_lit[index++].normal   = normal;
+							}
+							else {
+								ptr_pos   [index  ] = pos   [0];
+								ptr_uv    [index  ] = uvs   [0];
+								ptr_colors[index++] = colors[0];
+
+								ptr_pos   [index  ] = pos   [1];
+								ptr_uv    [index  ] = uvs   [1];
+								ptr_colors[index++] = colors[1];
+
+								ptr_pos   [index  ] = pos   [2];
+								ptr_uv    [index  ] = uvs   [2];
+								ptr_colors[index++] = colors[2];
+
+								ptr_pos   [index  ] = pos   [0];
+								ptr_uv    [index  ] = uvs   [0];
+								ptr_colors[index++] = colors[0];
+
+								ptr_pos   [index  ] = pos   [2];
+								ptr_uv    [index  ] = uvs   [2];
+								ptr_colors[index++] = colors[2];
+
+								ptr_pos   [index  ] = pos   [3];
+								ptr_uv    [index  ] = uvs   [3];
+								ptr_colors[index++] = colors[3];
+							}
 						}
 					}
 
@@ -28752,7 +29297,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 			zt_drawListPushColor(draw_list, ztColor_White);
 		}
 
-		if(camera && camera->type == ztCameraType_Orthographic) {
+		if(camera) {// && camera->type == ztCameraType_Orthographic) {
 			need_uvs = true;
 			uvs_sprite = &emitter->system->system_rendering.billboard.sprite;
 		}
@@ -28792,6 +29337,13 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 		zt_drawListPushBlendMode(draw_list, emitter->system->system_rendering.blend_mode_src, emitter->system->system_rendering.blend_mode_dst);
 	}
 
+	ztMat4 mat_billboard;
+
+	if (camera->type == ztCameraType_Perspective && emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard && draw_list == nullptr) {
+		mat_billboard = ztMat4::identity.getLookAt(camera->position, emitter->position, zt_vec3(0, 1, 0)).getInverse();
+		mat_billboard.values[ztMat4_Col3Row0] = mat_billboard.values[ztMat4_Col3Row1] = mat_billboard.values[ztMat4_Col3Row2] = 0; // remove translation
+	}
+
 	zt_fiz(emitter->particles_size) {
 		if (emitter->particles[i].life_left <= 0) {
 			continue;
@@ -28816,20 +29368,179 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 		}
 
 		if(camera->type == ztCameraType_Perspective) {
-			zt_drawListPushColor(draw_list, particle->color);
+			ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::perspective");
+			if (draw_list) {
+				zt_drawListPushColor(draw_list, particle->color);
+			}
+
 			switch (emitter->system->system_rendering.type)
 			{
 				case ztParticleRenderingType_BillBoard: {
-					if (emitter->system->rotate_towards_movement) {
-						zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, 0, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw, ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ, particle->velocity.getNormal());
+					if (draw_list) {
+						if (emitter->system->rotate_towards_movement) {
+							zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, 0, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw, ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ, particle->velocity.getNormal());
+						}
+						else {
+							zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, particle->rotation.z, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw);
+						}
 					}
 					else {
-						zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, particle->rotation.z, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw);
+						ztVec3 pos[4];
+						ztVec3 normal = zt_vec3(0, 0, 1);
+
+						if (particle->rotation == ztVec3::zero) {
+							pos[0] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[1] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[2] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[3] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+						}
+						else {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::rotate_billboard");
+							pos[0] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[1] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[2] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[3] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+						
+							ztQuat quat = ztQuat::makeFromEuler(0, 0, particle->rotation.z);
+						
+							quat.rotatePosition(&pos[0]);
+							quat.rotatePosition(&pos[1]);
+							quat.rotatePosition(&pos[2]);
+							quat.rotatePosition(&pos[3]);
+							quat.rotatePosition(&normal);
+						}
+
+						{
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::apply_billboard");
+							// apply billboard transform
+							zt_fize(pos) {
+								pos[i] = particle->position + (mat_billboard * pos[i]);
+							}
+							normal = mat_billboard * normal;
+						}
+
+						if (index >= size - 6) {
+							zt_assert(false);
+							return index;
+						}
+
+						if (vertex_default_lit) {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::billboard_vertex_default_lit");
+
+							ztVec4 tangent, bitangent;
+							zt_triangleCalculateTangentBitangent(pos[0], pos[1], pos[2], facing_uvs[0], facing_uvs[1], facing_uvs[2], &tangent, &bitangent);
+
+							vertex_default_lit[index  ].position  = pos       [0];
+							vertex_default_lit[index  ].uv        = facing_uvs[0];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [1];
+							vertex_default_lit[index  ].uv        = facing_uvs[1];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [2];
+							vertex_default_lit[index  ].uv        = facing_uvs[2];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							zt_triangleCalculateTangentBitangent(pos[0], pos[2], pos[3], facing_uvs[0], facing_uvs[2], facing_uvs[3], &tangent, &bitangent);
+
+							vertex_default_lit[index  ].position  = pos       [0];
+							vertex_default_lit[index  ].uv        = facing_uvs[0];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [2];
+							vertex_default_lit[index  ].uv        = facing_uvs[2];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [3];
+							vertex_default_lit[index  ].uv        = facing_uvs[3];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+						}
+						else if (vertex_default) {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::billboard_vertex_default");
+							ztVec3 normal = zt_vec3(0, 0, 1);
+
+							vertex_default_lit[index  ].position = pos       [0];
+							vertex_default_lit[index  ].uv       = facing_uvs[0];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [1];
+							vertex_default_lit[index  ].uv       = facing_uvs[1];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [2];
+							vertex_default_lit[index  ].uv       = facing_uvs[2];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [0];
+							vertex_default_lit[index  ].uv       = facing_uvs[0];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [2];
+							vertex_default_lit[index  ].uv       = facing_uvs[2];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [3];
+							vertex_default_lit[index  ].uv       = facing_uvs[3];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+						}
+						else {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::billboard_arrays");
+							ptr_pos[index] = pos[0];
+							ptr_uv    [index  ] = facing_uvs[0];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [1];
+							ptr_uv    [index  ] = facing_uvs[1];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [2];
+							ptr_uv    [index  ] = facing_uvs[2];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [0];
+							ptr_uv    [index  ] = facing_uvs[0];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [2];
+							ptr_uv    [index  ] = facing_uvs[2];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [3];
+							ptr_uv    [index  ] = facing_uvs[3];
+							ptr_colors[index++] = particle->color;
+						}
+
 					}
 				} break;
 
 				case ztParticleRenderingType_Facing: {
 					ztVec3 pos[4];
+					ztVec3 normal = zt_vec3(0, 0, 1);
 
 					if (particle->rotation == ztVec3::zero) {
 						pos[0] = zt_vec3(particle->position.x - emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
@@ -28838,6 +29549,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						pos[3] = zt_vec3(particle->position.x + emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
 					}
 					else {
+						ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::facing_rotation");
 						pos[0] = zt_vec3(0, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
 						pos[1] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
 						pos[2] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
@@ -28849,6 +29561,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						quat.rotatePosition(&pos[1]);
 						quat.rotatePosition(&pos[2]);
 						quat.rotatePosition(&pos[3]);
+						quat.rotatePosition(&normal);
 
 						pos[0] += particle->position;
 						pos[1] += particle->position;
@@ -28865,35 +29578,125 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 							return index;
 						}
 
-						ptr_pos   [index  ] = pos       [0];
-						ptr_uv    [index  ] = facing_uvs[0];
-						ptr_colors[index++] = particle->color;
+						if (vertex_default_lit) {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::facing_vertex_default_lit");
 
-						ptr_pos   [index  ] = pos       [1];
-						ptr_uv    [index  ] = facing_uvs[1];
-						ptr_colors[index++] = particle->color;
+							ztVec4 tangent, bitangent;
+							zt_triangleCalculateTangentBitangent(pos[0], pos[1], pos[2], facing_uvs[0], facing_uvs[1], facing_uvs[2], &tangent, &bitangent);
 
-						ptr_pos   [index  ] = pos       [2];
-						ptr_uv    [index  ] = facing_uvs[2];
-						ptr_colors[index++] = particle->color;
+							vertex_default_lit[index  ].position  = pos       [0];
+							vertex_default_lit[index  ].uv        = facing_uvs[0];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
 
-						ptr_pos   [index  ] = pos       [0];
-						ptr_uv    [index  ] = facing_uvs[0];
-						ptr_colors[index++] = particle->color;
+							vertex_default_lit[index  ].position  = pos       [1];
+							vertex_default_lit[index  ].uv        = facing_uvs[1];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
 
-						ptr_pos   [index  ] = pos       [2];
-						ptr_uv    [index  ] = facing_uvs[2];
-						ptr_colors[index++] = particle->color;
+							vertex_default_lit[index  ].position  = pos       [2];
+							vertex_default_lit[index  ].uv        = facing_uvs[2];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
 
-						ptr_pos   [index  ] = pos       [3];
-						ptr_uv    [index  ] = facing_uvs[3];
-						ptr_colors[index++] = particle->color;
+							zt_triangleCalculateTangentBitangent(pos[0], pos[2], pos[3], facing_uvs[0], facing_uvs[2], facing_uvs[3], &tangent, &bitangent);
+
+							vertex_default_lit[index  ].position  = pos       [0];
+							vertex_default_lit[index  ].uv        = facing_uvs[0];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [2];
+							vertex_default_lit[index  ].uv        = facing_uvs[2];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+
+							vertex_default_lit[index  ].position  = pos       [3];
+							vertex_default_lit[index  ].uv        = facing_uvs[3];
+							vertex_default_lit[index  ].color     = particle->color;
+							vertex_default_lit[index  ].tangent   = tangent;
+							vertex_default_lit[index  ].bitangent = bitangent;
+							vertex_default_lit[index++].normal    = normal;
+						}
+						else if (vertex_default) {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::facing_vertex_default");
+							ztVec3 normal = zt_vec3(0, 0, 1);
+
+							vertex_default_lit[index  ].position = pos       [0];
+							vertex_default_lit[index  ].uv       = facing_uvs[0];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [1];
+							vertex_default_lit[index  ].uv       = facing_uvs[1];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [2];
+							vertex_default_lit[index  ].uv       = facing_uvs[2];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [0];
+							vertex_default_lit[index  ].uv       = facing_uvs[0];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [2];
+							vertex_default_lit[index  ].uv       = facing_uvs[2];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+
+							vertex_default_lit[index  ].position = pos       [3];
+							vertex_default_lit[index  ].uv       = facing_uvs[3];
+							vertex_default_lit[index  ].color    = particle->color;
+							vertex_default_lit[index++].normal   = normal;
+						}
+						else {
+							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::facing_arrays");
+							ptr_pos[index] = pos[0];
+							ptr_uv    [index  ] = facing_uvs[0];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [1];
+							ptr_uv    [index  ] = facing_uvs[1];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [2];
+							ptr_uv    [index  ] = facing_uvs[2];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [0];
+							ptr_uv    [index  ] = facing_uvs[0];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [2];
+							ptr_uv    [index  ] = facing_uvs[2];
+							ptr_colors[index++] = particle->color;
+
+							ptr_pos   [index  ] = pos       [3];
+							ptr_uv    [index  ] = facing_uvs[3];
+							ptr_colors[index++] = particle->color;
+						}
 					}
 				} break;
 			}
-			zt_drawListPopColor(draw_list);
+			if (draw_list) {
+				zt_drawListPopColor(draw_list);
+			}
 		}
 		else {
+			ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::ortho");
 			ztSprite *sprite = nullptr;
 
 			switch (emitter->system->system_rendering.type)
@@ -28911,6 +29714,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 
 			if (sprite != nullptr) {
 				ztVec3 pos[4];
+				ztVec3 normal = zt_vec3(0, 0, 1);
 
 				if (particle->rotation == ztVec3::zero) {
 					pos[0] = zt_vec3(particle->position.x - sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
@@ -28919,6 +29723,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 					pos[3] = zt_vec3(particle->position.x + sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
 				}
 				else {
+					ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::rotation");
 					pos[0] = zt_vec3(-sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
 					pos[1] = zt_vec3(-sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
 					pos[2] = zt_vec3(+sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
@@ -28930,6 +29735,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 					quat.rotatePosition(&pos[1]);
 					quat.rotatePosition(&pos[2]);
 					quat.rotatePosition(&pos[3]);
+					quat.rotatePosition(&normal);
 
 					pos[0] += particle->position;
 					pos[1] += particle->position;
@@ -28953,29 +29759,113 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						return index;
 					}
 
-					ptr_pos   [index  ] = pos       [0];
-					ptr_uv    [index  ] = facing_uvs[0];
-					ptr_colors[index++] = particle->color;
+					if (vertex_default_lit) {
+						ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::vertex_default_lit");
+						ztVec4 tangent, bitangent;
+						zt_triangleCalculateTangentBitangent(pos[0], pos[1], pos[2], facing_uvs[0], facing_uvs[1], facing_uvs[2], &tangent, &bitangent);
 
-					ptr_pos   [index  ] = pos       [1];
-					ptr_uv    [index  ] = facing_uvs[1];
-					ptr_colors[index++] = particle->color;
+						vertex_default_lit[index  ].position  = pos       [0];
+						vertex_default_lit[index  ].uv        = facing_uvs[0];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
 
-					ptr_pos   [index  ] = pos       [2];
-					ptr_uv    [index  ] = facing_uvs[2];
-					ptr_colors[index++] = particle->color;
+						vertex_default_lit[index  ].position  = pos       [1];
+						vertex_default_lit[index  ].uv        = facing_uvs[1];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
 
-					ptr_pos   [index  ] = pos       [0];
-					ptr_uv    [index  ] = facing_uvs[0];
-					ptr_colors[index++] = particle->color;
+						vertex_default_lit[index  ].position  = pos       [2];
+						vertex_default_lit[index  ].uv        = facing_uvs[2];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
 
-					ptr_pos   [index  ] = pos       [2];
-					ptr_uv    [index  ] = facing_uvs[2];
-					ptr_colors[index++] = particle->color;
+						zt_triangleCalculateTangentBitangent(pos[0], pos[2], pos[3], facing_uvs[0], facing_uvs[2], facing_uvs[3], &tangent, &bitangent);
 
-					ptr_pos   [index  ] = pos       [3];
-					ptr_uv    [index  ] = facing_uvs[3];
-					ptr_colors[index++] = particle->color;
+						vertex_default_lit[index  ].position  = pos       [0];
+						vertex_default_lit[index  ].uv        = facing_uvs[0];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
+
+						vertex_default_lit[index  ].position  = pos       [2];
+						vertex_default_lit[index  ].uv        = facing_uvs[2];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
+
+						vertex_default_lit[index  ].position  = pos       [3];
+						vertex_default_lit[index  ].uv        = facing_uvs[3];
+						vertex_default_lit[index  ].color     = particle->color;
+						vertex_default_lit[index  ].tangent   = tangent;
+						vertex_default_lit[index  ].bitangent = bitangent;
+						vertex_default_lit[index++].normal    = normal;
+					}
+					else if (vertex_default) {
+						ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::vertex_default");
+						vertex_default_lit[index].position = pos[0];
+						vertex_default_lit[index  ].uv       = facing_uvs[0];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+
+						vertex_default_lit[index  ].position = pos       [1];
+						vertex_default_lit[index  ].uv       = facing_uvs[1];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+
+						vertex_default_lit[index  ].position = pos       [2];
+						vertex_default_lit[index  ].uv       = facing_uvs[2];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+
+						vertex_default_lit[index  ].position = pos       [0];
+						vertex_default_lit[index  ].uv       = facing_uvs[0];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+
+						vertex_default_lit[index  ].position = pos       [2];
+						vertex_default_lit[index  ].uv       = facing_uvs[2];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+
+						vertex_default_lit[index  ].position = pos       [3];
+						vertex_default_lit[index  ].uv       = facing_uvs[3];
+						vertex_default_lit[index  ].color    = particle->color;
+						vertex_default_lit[index++].normal   = normal;
+					}
+					else {
+						ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::arrays");
+						ptr_pos[index] = pos[0];
+						ptr_uv    [index  ] = facing_uvs[0];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [1];
+						ptr_uv    [index  ] = facing_uvs[1];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [2];
+						ptr_uv    [index  ] = facing_uvs[2];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [0];
+						ptr_uv    [index  ] = facing_uvs[0];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [2];
+						ptr_uv    [index  ] = facing_uvs[2];
+						ptr_colors[index++] = particle->color;
+
+						ptr_pos   [index  ] = pos       [3];
+						ptr_uv    [index  ] = facing_uvs[3];
+						ptr_colors[index++] = particle->color;
+					}
 				}
 			}
 			else {
@@ -29042,14 +29932,28 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 void zt_particleEmitterRender(ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera)
 {
 	zt_returnOnNull(draw_list);
-	_zt_particleEmitterRender(emitter, camera, draw_list, nullptr, nullptr, nullptr, 0);
+	_zt_particleEmitterRender(emitter, camera, draw_list, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
 }
 
 // ================================================================================================================================================================================================
 
 int zt_particleEmitterGetTriangles(ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size)
 {
-	return _zt_particleEmitterRender(emitter, camera, nullptr, pos, uv, colors, size);
+	return _zt_particleEmitterRender(emitter, camera, nullptr, pos, uv, colors, nullptr, nullptr, size);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterFillVertices(ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefault *vertices, int size)
+{
+	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, vertices, nullptr, size);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterFillVertices(ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefaultLit *vertices, int size)
+{
+	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, nullptr, vertices, size);
 }
 
 // ================================================================================================================================================================================================
@@ -29169,6 +30073,50 @@ int zt_particleEmitterPoolGetTriangles(ztParticleEmitterPool *pool, ztCamera *ca
 			pos += this_total;
 			uv += this_total;
 			colors += this_total;
+			size -= this_total;
+		}
+	}
+
+	return total;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *camera, ztVertexDefault *vertices, int size)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolFillVertices");
+	zt_returnValOnNull(pool, 0);
+
+	int total = 0;
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->enabled) {
+			int this_total = zt_particleEmitterFillVertices(pool->emitters[i], camera, vertices, size);
+
+			total += this_total;
+			vertices += this_total;
+			size -= this_total;
+		}
+	}
+
+	return total;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *camera, ztVertexDefaultLit *vertices, int size)
+{
+	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolFillVertices");
+	zt_returnValOnNull(pool, 0);
+
+	int total = 0;
+
+	zt_fiz(pool->emitters_count) {
+		if (pool->emitters[i]->enabled) {
+			int this_total = zt_particleEmitterFillVertices(pool->emitters[i], camera, vertices, size);
+
+			total += this_total;
+			vertices += this_total;
 			size -= this_total;
 		}
 	}
@@ -30029,7 +30977,7 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 				if (add_to_frontier) {
 					neighbor->_my_move_cost = new_cost;
 
-					r32 dist = progress->destination->position.distance(neighbor->position);
+					r32 dist = progress->destination == nullptr ? 999 : progress->destination->position.distance(neighbor->position);
 					int idx;
 					for (idx = 0; idx < progress->frontier_idx; ++idx) {
 						if (path_type == ztPathType_Dijkstra) {
@@ -30067,7 +31015,12 @@ int zt_pathCalculatePath(ztPathProgress *progress, ztPathNodeCost_Func *path_nod
 		}
 	}
 
-	progress->path_count = _zt_pathGridGetSteps(progress->origin, progress->destination, progress->path, progress->path_size);
+	if (progress->destination == nullptr) {
+		progress->path_count = 0;
+	}
+	else {
+		progress->path_count = _zt_pathGridGetSteps(progress->origin, progress->destination, progress->path, progress->path_size);
+	}
 	return progress->path_count;
 }
 
@@ -30119,7 +31072,7 @@ bool zt_eventIsTriggered(ztEvent *evt, bool condition, i32 flags, r32 timeout)
 			}
 		}
 
-		return true;
+		return evt->triggered;
 	}
 
 	if (condition) {
@@ -30874,6 +31827,21 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 	int screen_y = GetSystemMetrics(SM_CYSCREEN);
 	int pos_x = (screen_x - (client_rect.right - client_rect.left)) / 2;
 	int pos_y = (screen_y - (client_rect.bottom - client_rect.top)) / 2;
+
+	if (game_settings->monitor > 0) {
+		ztDisplay displays[16];
+		int displays_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
+
+		if(game_settings->monitor < displays_count) {
+			ztDisplay *display = &displays[game_settings->monitor];
+			screen_x = display->screen_area.z;
+			screen_y = display->screen_area.w;
+
+			pos_x = display->work_area.x + (screen_x - (client_rect.right - client_rect.left)) / 2;
+			pos_y = display->work_area.y + (screen_y - (client_rect.bottom - client_rect.top)) / 2;
+		}
+	}
+
 
 #	if defined(ZT_UNICODE)
 	window_details->handle = CreateWindow(wndcls.lpszClassName, (LPCWSTR)wc_game_name, style, pos_x, pos_y, client_rect.right - client_rect.left, client_rect.bottom - client_rect.top, NULL, NULL, wndcls.hInstance, 0);
