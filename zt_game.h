@@ -2363,30 +2363,36 @@ struct ztScene
 {
 	struct ModelInfo
 	{
-		ztModel *model;
-		i32 flags;
-		r32 dist_from_cam;
+		ztModel   *model;
+		i32        flags;
+		r32        dist_from_cam;
 	};
-
-	ModelInfo *models;
-	int models_count;
-	int models_size;
 
 	struct LightInfo
 	{
 		ztLight *light;
 	};
 
-	LightInfo directional_light;
-	LightInfo lights[ZT_SCENE_MAX_LIGHTS];
 
-	ModelInfo skybox;
+	ModelInfo          *models;
+	int                 models_count;
+	int                 models_size;
 
-	r32 culling_distance;
+	ModelInfo         **list_std; // standard/opaque models ordered in distance from camera
+	i32                 list_std_count;
+	ModelInfo         **list_trn;
+	i32                 list_trn_count;
 
-	ztMemoryArena *arena;
+	LightInfo           directional_light;
+	LightInfo           lights[ZT_SCENE_MAX_LIGHTS];
 
-	ztTextureID tex_directional_shadow_map;
+	ModelInfo           skybox;
+
+	r32                 culling_distance;
+
+	ztMemoryArena      *arena;
+
+	ztTextureID         tex_directional_shadow_map;
 
 	ztVertexArrayID     vertex_array;
 	ztVertexDefaultLit *vertex_array_vertices;
@@ -2398,7 +2404,7 @@ struct ztScene
 
 struct ztSceneLightingRules
 {
-	r32 shadow_max_distance = 50.f;
+	r32 shadow_max_distance           = 50.f;
 	r32 shadow_distance_behind_camera = 20.f;
 };
 
@@ -13056,6 +13062,10 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	ZT_PROFILE_RENDERING("zt_sceneMake");
 	ztScene *scene = zt_mallocStructArena(ztScene, arena);
 	scene->models = zt_mallocStructArray(ztScene::ModelInfo, max_models);
+	scene->list_std = zt_mallocStructArray(ztScene::ModelInfo*, max_models);
+	scene->list_std_count = 0;
+	scene->list_trn = zt_mallocStructArray(ztScene::ModelInfo*, max_models);
+	scene->list_trn_count = 0;
 	scene->models_count = 0;
 	scene->models_size = max_models;
 	scene->arena = arena;
@@ -13098,6 +13108,9 @@ void zt_sceneFree(ztScene *scene)
 	zt_textureFree(scene->tex_directional_shadow_map);
 
 	zt_freeArena(scene->models, scene->arena);
+	zt_freeArena(scene->list_std, scene->arena);
+	zt_freeArena(scene->list_trn, scene->arena);
+
 	zt_freeArena(scene, scene->arena);
 }
 
@@ -13180,6 +13193,8 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 
 	// TODO: sort according to shader
 	int idx = scene->models_count++;
+	zt_assertReturnOnFail(idx < scene->models_size);
+
 	scene->models[idx].model = model;
 	scene->models[idx].dist_from_cam = 0;
 	scene->models[idx].flags = flags;
@@ -13189,6 +13204,13 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 	}
 	if (zt_shaderHasVariable(model->shader, "bones_count", nullptr)) {
 		scene->models[idx].flags |= ztSceneModelFlags_ShaderBones;
+	}
+
+	if (zt_bitIsSet(flags, ztSceneModelFlags_HasTranslucent)) {
+		scene->list_trn[scene->list_trn_count++] = &scene->models[idx];
+	}
+	else {
+		scene->list_std[scene->list_std_count++] = &scene->models[idx];
 	}
 }
 
@@ -13202,6 +13224,20 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 
 	zt_fiz(scene->models_count) {
 		if (scene->models[i].model == model) {
+			
+			ztScene::ModelInfo **list = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? scene->list_trn : scene->list_std;
+			i32 *list_count = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? &scene->list_trn_count : &scene->list_std_count;
+
+			zt_fjz(list_count) {
+				if(list[j] == &scene->models[i]) {
+					for(int k = j; k < (*list_count) - 1; ++k) {
+						list[k] = list[k + 1];
+					}
+					*list_count -= 1;
+					break;
+				}
+			}
+
 			for (int j = i; j < scene->models_count - 1; ++j) {
 				scene->models[j] = scene->models[j + 1];
 			}
@@ -13236,9 +13272,14 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 {
 	ZT_PROFILE_RENDERING("zt_scenePrepare");
 
+	zt_fiz(scene->models_count) {
+		zt_modelCalcMatrix(scene->models[i].model, world_offset);
+
+		scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distanceForCompare(camera->position));
+	}
+
 	if (scene->culling_distance != ztReal32Max) {
 		zt_fiz(scene->models_count) {
-			scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distanceForCompare(camera->position));
 			if (scene->models[i].dist_from_cam <= scene->culling_distance || zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
 				zt_bitRemove(scene->models[i].flags, ztSceneModelFlags_Culled);
 				zt_modelCalcMatrix(scene->models[i].model, world_offset);
@@ -13248,11 +13289,36 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 			}
 		}
 	}
-	else {
-		zt_fiz(scene->models_count) {
-			zt_modelCalcMatrix(scene->models[i].model, world_offset);
+
+	struct sort
+	{
+		static int compareNearToFar(const void *vone, const void *vtwo)
+		{
+			const ztScene::ModelInfo *mone = *(ztScene::ModelInfo**)vone;
+			const ztScene::ModelInfo *mtwo = *(ztScene::ModelInfo**)vtwo;
+
+			if (zt_real32Eq(mone->dist_from_cam, mtwo->dist_from_cam)) {
+				return mone < mtwo ? -1 : 1;
+			}
+
+			return mone->dist_from_cam <  mtwo->dist_from_cam ? -1 : 1;
 		}
-	}
+
+		static int compareFarToNear(const void *vone, const void *vtwo)
+		{
+			const ztScene::ModelInfo *mone = *(ztScene::ModelInfo**)vone;
+			const ztScene::ModelInfo *mtwo = *(ztScene::ModelInfo**)vtwo;
+
+			if (zt_real32Eq(mone->dist_from_cam, mtwo->dist_from_cam)) {
+				return mone < mtwo ? 1 : -1;
+			}
+
+			return mone->dist_from_cam <  mtwo->dist_from_cam ? 1 : -1;
+		}
+	};
+
+	qsort(scene->list_std, scene->list_std_count, zt_sizeof(ztScene::ModelInfo*), sort::compareNearToFar);
+	qsort(scene->list_trn, scene->list_trn_count, zt_sizeof(ztScene::ModelInfo*), sort::compareFarToNear);
 }
 
 // ================================================================================================================================================================================================
@@ -13703,18 +13769,18 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 		zt_shaderEnd(scene->skybox.model->shader);
 	}
 
-	if (scene->culling_distance != ztReal32Max) {
-		zt_fiz(scene->models_count) {
-			if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_Culled)) {
-				local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader, lighting_rules);
-			}
+	zt_fiz(scene->list_std_count) {
+		if (!zt_bitIsSet(scene->list_std[i]->flags, ztSceneModelFlags_Culled)) {
+			local::renderModelAndChildren(scene, scene->list_std[i], scene->list_std[i]->model, camera, &light_mat, &shader, lighting_rules);
 		}
 	}
-	else {
-		zt_fiz(scene->models_count) {
-			local::renderModelAndChildren(scene, &scene->models[i], scene->models[i].model, camera, &light_mat, &shader, lighting_rules);
+	zt_rendererEnableDepthWriting(false);
+	zt_fiz(scene->list_trn_count) {
+		if (!zt_bitIsSet(scene->list_trn[i]->flags, ztSceneModelFlags_Culled)) {
+			local::renderModelAndChildren(scene, scene->list_trn[i], scene->list_trn[i]->model, camera, &light_mat, &shader, lighting_rules);
 		}
 	}
+	zt_rendererEnableDepthWriting(true);
 
 	if (shader != ztInvalidID) {
 		zt_shaderEnd(shader);
