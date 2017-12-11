@@ -2273,11 +2273,11 @@ struct ztModel
 	union
 	{
 		struct {
-			ztMeshID                mesh_id;
+			ztMeshID                 mesh_id;
 		};
 
 		struct {
-			ztVertexArrayID         vertex_array_id;
+			ztVertexArrayID          vertex_array_id;
 		};
 
 		struct {
@@ -2291,7 +2291,7 @@ struct ztModel
 		};
 
 		struct {
-			ztParticleEmitter *particle_emitter;
+			ztParticleEmitter       *particle_emitter;
 		};
 	};
 
@@ -2366,6 +2366,9 @@ struct ztScene
 		ztModel   *model;
 		i32        flags;
 		r32        dist_from_cam;
+
+		ztVec3     aabb_center;
+		ztVec3     aabb_size;
 	};
 
 	struct LightInfo
@@ -12976,32 +12979,49 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	{
 		static void getExtents(ztModel *model, ztVec3 *min, ztVec3 *max, ztMat4& mat)
 		{
-			if (model->mesh_id != ztInvalidID) {
-				ztVec3 center, size;
-				zt_meshGetOBB(model->mesh_id, &center, &size);
+			switch(model->type)
+			{
+				case ztModelType_Mesh: {
+					ztVec3 center, size;
+					zt_meshGetOBB(model->mesh_id, &center, &size);
 
-				ztVec3 corners[8] = {
-					zt_vec3(center.x - size.x / 2, center.y + size.y / 2, center.z - size.z / 2),	// top, far left
-					zt_vec3(center.x - size.x / 2, center.y + size.y / 2, center.z + size.z / 2),	// top, near left
-					zt_vec3(center.x + size.x / 2, center.y + size.y / 2, center.z + size.z / 2),	// top, near right
-					zt_vec3(center.x + size.x / 2, center.y + size.y / 2, center.z - size.z / 2),	// top, far right
-					zt_vec3(center.x - size.x / 2, center.y - size.y / 2, center.z - size.z / 2),	// bottom, far left
-					zt_vec3(center.x - size.x / 2, center.y - size.y / 2, center.z + size.z / 2),	// bottom, near left
-					zt_vec3(center.x + size.x / 2, center.y - size.y / 2, center.z + size.z / 2),	// bottom, near right
-					zt_vec3(center.x + size.x / 2, center.y - size.y / 2, center.z - size.z / 2),	// bottom, far right
-				};
+					ztVec3 corners[8] = {
+						zt_vec3(center.x - size.x / 2, center.y + size.y / 2, center.z - size.z / 2),	// top, far left
+						zt_vec3(center.x - size.x / 2, center.y + size.y / 2, center.z + size.z / 2),	// top, near left
+						zt_vec3(center.x + size.x / 2, center.y + size.y / 2, center.z + size.z / 2),	// top, near right
+						zt_vec3(center.x + size.x / 2, center.y + size.y / 2, center.z - size.z / 2),	// top, far right
+						zt_vec3(center.x - size.x / 2, center.y - size.y / 2, center.z - size.z / 2),	// bottom, far left
+						zt_vec3(center.x - size.x / 2, center.y - size.y / 2, center.z + size.z / 2),	// bottom, near left
+						zt_vec3(center.x + size.x / 2, center.y - size.y / 2, center.z + size.z / 2),	// bottom, near right
+						zt_vec3(center.x + size.x / 2, center.y - size.y / 2, center.z - size.z / 2),	// bottom, far right
+					};
 
-				zt_fize(corners) {
-					corners[i] = mat.getMultiply(corners[i]);
+					zt_fize(corners) {
+						corners[i] = mat.getMultiply(corners[i]);
 
-					min->x = zt_min(min->x, corners[i].x);
-					min->y = zt_min(min->y, corners[i].y);
-					min->z = zt_min(min->z, corners[i].z);
+						min->x = zt_min(min->x, corners[i].x);
+						min->y = zt_min(min->y, corners[i].y);
+						min->z = zt_min(min->z, corners[i].z);
 
-					max->x = zt_max(max->x, corners[i].x);
-					max->y = zt_max(max->y, corners[i].y);
-					max->z = zt_max(max->z, corners[i].z);
-				}
+						max->x = zt_max(max->x, corners[i].x);
+						max->y = zt_max(max->y, corners[i].y);
+						max->z = zt_max(max->z, corners[i].z);
+					}
+				} break;
+
+				case ztModelType_VertexArray:
+				case ztModelType_Sprite:
+				case ztModelType_SpriteAnimation:
+				case ztModelType_ParticleSystem: {
+
+					min->x = zt_min(min->x, -.5f);
+					min->y = zt_min(min->y, -.5f);
+					min->z = zt_min(min->z, -.5f);
+
+					max->x = zt_max(max->x, .5f);
+					max->y = zt_max(max->y, .5f);
+					max->z = zt_max(max->z, .5f);
+				} break;
 			}
 
 			zt_flink(child, model->first_child) {
@@ -13027,10 +13047,10 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 		scale_test = scale_test->parent;
 	}
 
-	ztVec3 zero = model->transform.position;//model->calculated_mat.getMultiply(model->transform.position);
+	ztVec3 zero = ztVec3::zero;//model->calculated_mat.getMultiply(model->transform.position);
 
 	if (model->parent) {
-		zero = model->parent->calculated_mat.getMultiply(zero);
+		zero = model->parent->calculated_mat.getMultiply(model->transform.position);
 	}
 
 	*center = *center - zero;//model->calculated_mat.getInverse().getMultiply(*center);
@@ -13198,6 +13218,8 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 	scene->models[idx].model = model;
 	scene->models[idx].dist_from_cam = 0;
 	scene->models[idx].flags = flags;
+
+	zt_modelGetAABB(model, &scene->models[idx].aabb_center, &scene->models[idx].aabb_size);
 	
 	if (zt_shaderHasVariable(model->shader, "light_pos", nullptr)) {
 		scene->models[idx].flags |= ztSceneModelFlags_ShaderLit;
@@ -13224,7 +13246,6 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 
 	zt_fiz(scene->models_count) {
 		if (scene->models[i].model == model) {
-			
 			ztScene::ModelInfo **list = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? scene->list_trn : scene->list_std;
 			i32 *list_count = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? &scene->list_trn_count : &scene->list_std_count;
 
@@ -13275,18 +13296,29 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 	zt_fiz(scene->models_count) {
 		zt_modelCalcMatrix(scene->models[i].model, world_offset);
 
-		scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distanceForCompare(camera->position));
+		scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->transform.position.distance(camera->position));
 	}
+
+	ztFrustum camera_frustum = zt_cameraCalcViewFrustum(camera);
 
 	if (scene->culling_distance != ztReal32Max) {
 		zt_fiz(scene->models_count) {
-			if (scene->models[i].dist_from_cam <= scene->culling_distance || zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
+			bool visible = true;
+
+			if (scene->models[i].dist_from_cam > scene->culling_distance) {
+				visible = false;
+			}
+			else if (!zt_collisionAABBInFrustum(camera_frustum, scene->models[i].model->transform.position + scene->models[i].aabb_center, scene->models[i].aabb_size)) {
+				visible = false;
+			}
+
+			if (visible) {
 				zt_bitRemove(scene->models[i].flags, ztSceneModelFlags_Culled);
-				zt_modelCalcMatrix(scene->models[i].model, world_offset);
 			}
 			else {
 				scene->models[i].flags |= ztSceneModelFlags_Culled;
 			}
+
 		}
 	}
 
@@ -13386,6 +13418,7 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 
 ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *camera)
 {
+	ZT_PROFILE_RENDERING("_zt_sceneDrawSprite");
 	ztModelSpriteFacing_Enum facing = model->type == ztModelType_Sprite ? model->sprite_facing : model->sprite_anim_facing;
 	ztSprite *sprite = model->type == ztModelType_Sprite ? &model->sprite : zt_spriteAnimControllerActiveSprite(model->sprite_anim_controller);
 
@@ -13453,6 +13486,7 @@ ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *ca
 
 ztInternal void _zt_sceneDrawParticle(ztScene *scene, ztModel *model, ztCamera *camera)
 {
+	ZT_PROFILE_RENDERING("_zt_sceneDrawParticle");
 	int verts = zt_particleEmitterFillVertices(model->particle_emitter, camera, scene->vertex_array_vertices, scene->vertex_array_size);
 	zt_vertexArrayUpdateDefaultLit(scene->vertex_array, scene->vertex_array_vertices, verts);
 	zt_vertexArrayDraw(scene->vertex_array);
