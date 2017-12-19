@@ -129,6 +129,36 @@ typedef unsigned long long size_t;
 #		endif
 #	endif
 
+#elif defined(ZT_ANDROID)
+
+#	if defined(_DEBUG)
+#		define ZT_DEBUG
+#	endif
+
+#	define ZT_64BIT
+
+#	define ZT_NO_DSOUND
+#	define ZT_NO_OPENAL
+
+#	define ztReal32Max      3.402823466e+38F
+#	define ztReal32Min     -3.402823466e+38F
+#	define ztReal32Epsilon  1.192092896e-07F
+
+#	define ztReal64Max      1.7976931348623158e+308
+#	define ztReal64Min     -1.7976931348623158e+308
+#	define ztReal64Epsilon	2.2204460492503131e-016
+
+#	define ztInt32Max       2147483647
+#	define ztInt32Min      -2147483647
+#	define ztUint32Max      4294967295
+#	define ztUint32Min      0
+#	define ztInt64Max       9223372036854775807
+#	define ztInt64Min      -9223372036854775808
+#	define ztUint64Max      18446744073709551615 
+#	define ztUint64Min      0
+
+#include <stddef.h>
+#include <android/asset_manager.h>
 
 #else 
 #	error "This compiler is currently unsupported."
@@ -158,6 +188,9 @@ typedef unsigned long long size_t;
 #elif defined(ZT_EMSCRIPTEN)
 #	define ZT_PLATFORM_STR	"Win32"
 #	define ZT_PLATFORM_WIN32
+#elif defined(ZT_ANDROID)
+#	define ZT_PLATFORM_STR	"Android"
+#	define ZT_PLATFORM_ANDROID
 #else
 #	error "This platform is currently unsupported."
 #endif
@@ -172,6 +205,12 @@ typedef unsigned long long size_t;
 #	define zt_emscriptenOnly(code) code
 #else
 #	define zt_emscriptenOnly(code)
+#endif
+
+#if defined(ZT_ANDROID)
+#	define zt_androidOnly(code) code
+#else
+#	define zt_androidOnly(code)
 #endif
 
 #if defined(ZT_64BIT)
@@ -309,7 +348,7 @@ typedef unsigned long long size_t;
 // types
 // ================================================================================================================================================================================================
 
-#if defined(ZT_COMPILER_MSVC) || defined(ZT_COMPILER_LLVM)
+#if defined(ZT_COMPILER_MSVC) || defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
 typedef unsigned char      byte;
 typedef signed char        int8;
@@ -349,6 +388,7 @@ typedef int32	           b32;
 // math
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec2i
 {
 	union {
@@ -362,12 +402,14 @@ struct ztVec2i
 	bool operator==(const ztVec2i& v) const { return x == v.x && y == v.y; }
 	bool operator!=(const ztVec2i& v) const { return x != v.x || y != v.y; }
 };
+#pragma pack(pop)
 
 ztInline ztVec2i zt_vec2i(i32 x, i32 y) { return { x, y }; }
 
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec3i
 {
 	union {
@@ -388,12 +430,14 @@ struct ztVec3i
 	bool operator==(const ztVec3i& v) const { return x == v.x && y == v.y && z == v.z; }
 	bool operator!=(const ztVec3i& v) const { return x != v.x || y != v.y || z != v.z; }
 };
+#pragma pack(pop)
 
 ztInline ztVec3i zt_vec3i(i32 x, i32 y, i32 z) { return { x, y, z }; }
 
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec4i
 {
 	union {
@@ -420,12 +464,14 @@ struct ztVec4i
 	bool operator==(const ztVec4i& v) const { return x == v.x && y == v.y && z == v.z && w == v.w; }
 	bool operator!=(const ztVec4i& v) const { return x != v.x || y != v.y || z != v.z || w != v.w; }
 };
+#pragma pack(pop)
 
 ztInline ztVec4i zt_vec4i(i32 x, i32 y, i32 z, i32 w) { return { x, y, z, w }; }
 
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec2
 {
 	union {
@@ -476,6 +522,7 @@ struct ztVec2
 	static const ztVec2 min;
 	static const ztVec2 max;
 };
+#pragma pack(pop)
 
 ztInline ztVec2 zt_vec2(r32 x, r32 y) { return{ x, y }; }
 ztInline ztVec2 zt_vec2(r32 v[2]) { return{ v[0], v[1] }; }
@@ -492,6 +539,7 @@ ztInline ztVec2 operator*(r32 scale, const ztVec2& v1);
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec3
 {
 	union {
@@ -549,12 +597,8 @@ struct ztVec3
 	static const ztVec3 one;
 	static const ztVec3 min;
 	static const ztVec3 max;
-
-#if defined(ZT_VEC3_EXTRAS)
-	ZT_VEC3_EXTRAS	// use this to add conversions to and from your own classes
-#endif
 };
-
+#pragma pack(pop)
 
 ztInline ztVec3 zt_vec3(r32 x, r32 y, r32 z) { return { x, y, z }; }
 ztInline ztVec3 zt_vec3(const ztVec2& v, r32 z) { return { v.x, v.y, z }; }
@@ -572,6 +616,7 @@ ztInline ztVec3 operator*(r32 scale, const ztVec3& v1);
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztVec4
 {
 	union {
@@ -631,11 +676,8 @@ struct ztVec4
 	static const ztVec4 one;
 	static const ztVec4 min;
 	static const ztVec4 max;
-
-#if defined(ZT_VEC4_EXTRAS)
-	ZT_VEC4_EXTRAS	// use this to add conversions to and from your own classes
-#endif
 };
+#pragma pack(pop)
 
 ztInline ztVec4 zt_vec4(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
 ztInline ztVec4 zt_vec4(const ztVec2& v2a, const ztVec2& v2b) { return { v2a.x, v2a.y, v2b.x, v2b.y }; }
@@ -750,6 +792,7 @@ enum ztMat4_Enum
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztMat4
 {
 	union {
@@ -831,13 +874,8 @@ struct ztMat4
 
 
 	void cleanup(int digits);
-
-
-#if defined(ZT_MAT4_EXTRAS)
-	ZT_MAT4_EXTRAS	// use this to add conversions to and from your own classes
-#endif
 };
-
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -851,6 +889,7 @@ ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztQuat
 {
 	union {
@@ -928,7 +967,7 @@ struct ztQuat
 	
 	static const ztQuat identity;
 };
-
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -1646,9 +1685,15 @@ struct ztFile
 #if defined(ZT_WINDOWS)
 	i32                   win_file_handle; // HFILE
 	i32                   win_read_pos;
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	void                 *fp;
 	i32                   fp_read_pos;
+
+#if defined(ZT_ANDROID)
+	AAsset               *asset;
+	i32                   asset_size;
+#endif
+
 #else
 #	error "ztFile needs an implementation for this platform"
 #endif
@@ -2131,8 +2176,8 @@ bool zt_serialRead       (ztSerial *serial, ztQuat *quat);
 
 #define zt_base64GetEncodedSize(bytes_to_encode) ((((bytes_to_encode) / 3) * 4) + 3 + 1) // includes null terminator
 
-int     zt_base64Encode        (byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
-int     zt_base64Decode        (char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
+int     zt_base64Encode        (const byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
+int     zt_base64Decode        (const char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
 
 
 // ================================================================================================================================================================================================
@@ -2241,7 +2286,7 @@ bool   operator!= (ztDate& d1, ztDate& d2);
 class ztBlockProfiler
 {
 public:
-	ztBlockProfiler(char *_block_name, ztLogMessageLevel_Enum _log_level = ztLogMessageLevel_Verbose) : block_name(_block_name), log_level(_log_level) {
+	ztBlockProfiler(const char *_block_name, ztLogMessageLevel_Enum _log_level = ztLogMessageLevel_Verbose) : block_name(_block_name), log_level(_log_level) {
 		time_beg = zt_getTime();
 	}
 
@@ -2249,7 +2294,7 @@ public:
 		zt_logMessage(log_level, "%s took %f ms to execute", block_name, (r32)(zt_getTime() - time_beg) * 1000.f);
 	}
 
-	char                  *block_name;
+	const char            *block_name;
 	ztLogMessageLevel_Enum log_level;
 	r64                    time_beg;
 };
@@ -3987,6 +4032,10 @@ struct ztGlobals
 #	if defined(ZT_DLL) || defined(ZT_LOADER)
 	void *(*functionPointer)(ztFunctionID) = nullptr;
 #	endif
+
+#	if defined(ZT_ANDROID)
+	AAssetManager *android_asset_manager = nullptr; // must be set prior to any file activity
+#	endif
 };
 
 #define ZT_GLOBALS_VERSION	1 // update this any time ztGlobals is changed
@@ -4024,7 +4073,7 @@ extern ztGlobals *zt;
 #	include <WinBase.h>
 #	include <shlobj.h>
 #	include <process.h>
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 #	include <errno.h>
 #	include <unistd.h>
 #	include <sys/stat.h>
@@ -4033,6 +4082,12 @@ extern ztGlobals *zt;
 
 #	if defined(ZT_EMSCRIPTEN)
 #	include <emscripten.h>
+#	endif
+
+#	if defined(ZT_ANDROID)
+#	include <android/log.h>
+#	include <android_native_app_glue.h>
+#	include <sys/mman.h>
 #	endif
 
 #endif
@@ -4104,30 +4159,55 @@ struct ztThreadMonitor
 	i64 event_handle;
 };
 
+// end ZT_WINDOWS
 #elif defined(ZT_EMSCRIPTEN)
 
-struct ztThread
-{
-	i32 dummy;
-};
+	struct ztThread
+	{
+		i32 dummy;
+	};
 
 
-// ================================================================================================================================================================================================
+	// ================================================================================================================================================================================================
 
-struct ztThreadMutex
-{
-	i32 dummy;
-};
-
-
-// ================================================================================================================================================================================================
-
-struct ztThreadMonitor
-{
-	i32 dummy;
-};
+	struct ztThreadMutex
+	{
+		i32 dummy;
+	};
 
 
+	// ================================================================================================================================================================================================
+
+	struct ztThreadMonitor
+	{
+		i32 dummy;
+	};
+
+// end ZT_EMSCRIPTEN
+#elif defined(ZT_ANDROID)
+
+	struct ztThread
+	{
+		i32 dummy;
+	};
+
+
+	// ================================================================================================================================================================================================
+
+	struct ztThreadMutex
+	{
+		i32 dummy;
+	};
+
+
+	// ================================================================================================================================================================================================
+
+	struct ztThreadMonitor
+	{
+		i32 dummy;
+	};
+
+// end ZT_ANDROID
 #else
 	zt_staticAssert(false);
 #endif
@@ -4214,7 +4294,7 @@ void  _zt_call_free(void* mem)
 			char *buffer = zt_mallocStructArrayArena(char, 1024 * 64, zt->mem_arena_stack); \
 			vsnprintf_s(buffer, 1024 * 64, 1024 * 64, message, arg_ptr);
 
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 #define _zt_var_args \
 			va_list arg_ptr; \
 			va_start(arg_ptr, message); \
@@ -4236,6 +4316,21 @@ void _zt_logMessageRaw(ztLogMessageLevel_Enum level, const char *message)
 		OutputDebugStringA(message);
 		OutputDebugStringA("\n");
 	}
+#elif defined(ZT_ANDROID)
+
+#	ifndef ZT_ANDROID_LOG_PREFIX
+#	define ZT_ANDROID_LOG_PREFIX "*****   ZT_LOG   *****"
+#	endif
+
+	switch (level)
+	{
+		case ztLogMessageLevel_Verbose :
+		case ztLogMessageLevel_Debug   :
+		case ztLogMessageLevel_Info    : __android_log_print(ANDROID_LOG_INFO,  ZT_ANDROID_LOG_PREFIX, "======== %s", message); break;
+		case ztLogMessageLevel_Critical: __android_log_print(ANDROID_LOG_WARN,  ZT_ANDROID_LOG_PREFIX, "======== %s", message); break;
+		case ztLogMessageLevel_Fatal   : __android_log_print(ANDROID_LOG_ERROR, ZT_ANDROID_LOG_PREFIX, "======== %s", message); break;
+	}
+
 #else
 	if (level < ztLogMessageLevel_Verbose) {
 		printf(message);
@@ -4454,6 +4549,8 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 	OutputDebugStringA("Creating memory arena.  Size: ");
 	OutputDebugStringA(bytes);
 	OutputDebugStringA("\n");
+#	elif defined(ZT_ANDROID)
+	__android_log_print(ANDROID_LOG_INFO,  ZT_ANDROID_LOG_PREFIX, "======== %s", bytes);
 #	else
 	printf("Creating memory arena.  Size: %s\n", bytes);
 #	endif
@@ -4475,6 +4572,21 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 				arena = (ztMemoryArena*)(total_size + sizeof(ztMemoryArena));
 			}
 		}
+#elif defined(ZT_ANDROID)
+		arena = (ztMemoryArena*)mmap((void*)zt_gigabytes(1), total_size + zt_sizeof(ztMemoryArena), PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+		if (arena == nullptr) {
+			zt_strMakePrintf(error, 1024, "mmap failed with code: %d\n", errno);
+			__android_log_print(ANDROID_LOG_ERROR,  ZT_ANDROID_LOG_PREFIX, "======== %s", error);
+
+			arena = (ztMemoryArena*)mmap((void*)0, total_size + zt_sizeof(ztMemoryArena), PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+			if (arena == nullptr) {
+				zt_strMakePrintf(error, 1024, "VirtualAlloc failed again with code: %d\n", errno);
+				__android_log_print(ANDROID_LOG_ERROR,  ZT_ANDROID_LOG_PREFIX, "======== %s", error);
+
+				arena = (ztMemoryArena*)(total_size + sizeof(ztMemoryArena));
+			}
+		}
+
 #else
 		arena = (ztMemoryArena*)malloc(total_size + sizeof(ztMemoryArena));
 #endif
@@ -5416,10 +5528,6 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	ztVec3 s = f.cross(up_vec).getNormal();
 	ztVec3 u = s.cross(f);
 
-	r32 dot_s = 0;
-	r32 dot_u = 0;
-	r32 dot_f = 0;
-
 	ztMat4 l;
 	l.values[0] =  s.x; l.values[4] =  s.y; l.values[ 8] =  s.z; l.values[12] = 0;
 	l.values[1] =  u.x; l.values[5] =  u.y; l.values[ 9] =  u.z; l.values[13] = 0;
@@ -6085,7 +6193,7 @@ int zt_strCatf(char *scat, int scat_len, const char *format, ...)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf_s(scat, max_idx, max_idx, format, arg_ptr);
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf(scat, max_idx, format, arg_ptr);
@@ -7357,7 +7465,7 @@ int zt_strPrintf(char *buffer, int buffer_size, const char *format, ...)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf_s(buffer, buffer_size, buffer_size, format, arg_ptr);
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	return vsnprintf(buffer, buffer_size, format, arg_ptr);
@@ -7431,7 +7539,8 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 	buffer[len] = 0;
 
 	return len; 
-#elif defined(ZT_EMSCRIPTEN)
+#elif defined(ZT_EMSCRIPTEN) || defined(ZT_ANDROID)
+	zt_assert(false);
 	return 0;
 #else
 #error zt_strConvertToUTF16 needs an implementation for this platform.
@@ -7815,9 +7924,56 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	}
 
 	return true;
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
-	char *open_method_str = nullptr;
+#	if defined(ZT_ANDROID)
+	if (file_name && file_name[0] == '@') {
+		// asset manager is required in order to read this file
+
+		if (file_open_method != ztFileOpenMethod_ReadOnly) {
+			zt_logCritical("zt_fileOpen: Cannot open asset file for write: %s", file_name);
+			return false;
+		}
+
+		file_name += 1;
+
+		if (zt->android_asset_manager == nullptr) {
+			zt_logCritical("zt_fileOpen: Asset manager is null!");
+		}
+
+		file->asset = AAssetManager_open(zt->android_asset_manager, file_name, AASSET_MODE_STREAMING);
+		if (file->asset == nullptr) {
+			zt_logCritical("zt_fileOpen: Unable to open asset file: %s", file_name);
+			return false;
+		}
+		file->size = file->asset_size = AAsset_getLength(file->asset);
+
+		i32 path_len = zt_strLen(file_name);
+
+		file->full_name = (char *)zt_memAllocFromArena(arena, path_len + 1);
+		if (file->full_name == nullptr) {
+			zt_logCritical("zt_fileOpen: unable to allocate memory for file information (file: '%s')", file_name);
+			return false;
+		}
+
+		zt_strCpy(file->full_name, path_len + 1, file_name, path_len);
+		file->arena = arena;
+
+		file->open_method = file_open_method;
+
+		file->fp = nullptr;
+		file->fp_read_pos = 0;
+
+		return true;
+	}
+	else {
+		file->asset      = nullptr;
+		file->asset_size = 0;
+	}
+
+#	endif
+
+	const char *open_method_str = nullptr;
 	switch (file_open_method)
 	{
 		case ztFileOpenMethod_ReadOnly    : open_method_str = "rb"; break;
@@ -7828,6 +7984,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	file->fp = fopen(file_name, open_method_str);
 	if(file->fp == nullptr) {
 		zt_logCritical("zt_fileOpen: unable to open file: '%s' (%s) (error code: %d)", file_name, open_method_str, errno);
+		return false;
 	}
 
 	i32 path_len = zt_strLen(file_name);
@@ -7875,11 +8032,19 @@ void zt_fileClose(ztFile *file)
 			CloseHandle((HANDLE)file->win_file_handle);
 		}break;
 	}
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	if (file->fp != nullptr) {
 		fclose((FILE*)file->fp);
 		file->fp = nullptr;
 	}
+
+#	if defined(ZT_ANDROID)
+	if (file->asset != nullptr) {
+		AAsset_close(file->asset);
+		file->asset = nullptr;
+	}
+#	endif
+
 #	endif
 
 #	if defined(ZT_EMSCRIPTEN)
@@ -7903,7 +8068,7 @@ i32 zt_fileGetReadPos(ztFile *file)
 #if defined(ZT_WINDOWS)
 	return file->win_read_pos;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	return file->fp_read_pos;
 #endif
 }
@@ -7917,7 +8082,7 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 	zt_returnValOnNull(file, false);
 
 	if (pos > file->size) {
-		zt_logDebug("zt_fileSetReadPos: attempting to set position beyond file size (%s)", file->full_name);
+		zt_logCritical("zt_fileSetReadPos: attempting to set position beyond file size (%s)", file->full_name);
 		return false;
 	}
 
@@ -7929,8 +8094,20 @@ bool zt_fileSetReadPos(ztFile *file, i32 pos)
 
 	file->win_read_pos = pos;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if (file->asset != nullptr) {
+		if (AAsset_seek(file->asset, pos, SEEK_SET) == -1) {
+			return false;
+		}
+		file->fp_read_pos = pos;
+		return true;
+	}
+#	endif
+
 	zt_returnValOnNull(file->fp, false);
+
 	fseek((FILE*)file->fp, pos, SEEK_SET);
 	if (ftell((FILE*)file->fp) != pos) {
 		zt_logCritical("zt_fileSetReadPos: fseek call failed (error %d)", errno);
@@ -7954,7 +8131,7 @@ bool zt_fileEof(ztFile *file)
 #	if defined(ZT_WINDOWS)
 	return (file->win_read_pos >= file->size);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	return (file->fp_read_pos >= file->size);
 
 #	endif
@@ -8074,7 +8251,7 @@ i32 zt_fileGetAppBin(char *buffer, int buffer_size)
 	}
 
 	return len;
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return 0;
 #	endif
@@ -8102,7 +8279,7 @@ i32 zt_fileGetAppPath(char *buffer, int buffer_size)
 
 	return len;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return 0;
 #	endif
@@ -8130,7 +8307,7 @@ i32 zt_fileGetUserPath(char *buffer, int buffer_size, char *app_name)
 
 	return zt_strCpy(buffer, buffer_size, temp, len_path + len_name + 1);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return 0;
 #	endif
@@ -8147,7 +8324,7 @@ i32 zt_fileGetCurrentPath(char *buffer, int buffer_size)
 #	if defined(ZT_WINDOWS)
 	return GetCurrentDirectoryA(buffer_size, buffer);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
 #if defined(ZT_EMSCRIPTEN)
 	zt_strCpy(buffer, buffer_size, "/");
@@ -8170,7 +8347,7 @@ void zt_fileSetCurrentPath(const char *path)
 #	if defined(ZT_WINDOWS)
 	SetCurrentDirectoryA(path);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	chdir(path);
 #	endif
 }
@@ -8286,7 +8463,21 @@ bool zt_fileExists(const char *file_name)
 	CloseHandle((HANDLE)hfile);
 	return true;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if (file_name && file_name[0] == '@') {
+		ztFile file;
+		if (zt_fileOpen(&file, file_name, ztFileOpenMethod_ReadOnly)) {
+			zt_fileClose(&file);
+			return true;
+		}
+
+		return false;
+	}
+#	endif
+
+
 	return access(file_name, 0) == 0;
 #	endif
 }
@@ -8305,7 +8496,7 @@ bool zt_fileDelete(const char *file_name)
 
 	return true;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 #	endif
@@ -8325,7 +8516,7 @@ bool zt_fileCopy(const char *orig_file, const char *new_file)
 
 	return true;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -8346,7 +8537,7 @@ bool zt_fileRename(const char *orig_file, const char *new_file)
 
 	return true;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -8373,7 +8564,7 @@ i32 zt_fileSize(const char *file_name)
 
 	return (i32)size;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	ztFile file;
 	if (zt_fileOpen(&file, file_name, ztFileOpenMethod_ReadOnly)) {
 		i32 size = file.size;
@@ -8417,7 +8608,7 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 
 	return false;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -8453,7 +8644,7 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 
 	return false;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -8483,7 +8674,19 @@ i32 zt_fileRead(ztFile *file, void *buffer, i32 buffer_size)
 	file->win_read_pos += bytes_read;
 	return (i32)bytes_read;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if (file->asset != nullptr) {
+		i32 bytes_read = (i32)AAsset_read(file->asset, buffer, buffer_size);
+		if (bytes_read != buffer_size) {
+			zt_logCritical("zt_fileRead: failure reading file '%s' (requested %d bytes; read %d)", file->full_name, buffer_size, bytes_read);
+		}
+
+		return bytes_read;
+	}
+#	endif
+
 	zt_returnValOnNull(file->fp, 0);
 
 	i32 bytes_read = (i32)fread(buffer, 1, (i32)buffer_size, (FILE*)file->fp);
@@ -8522,7 +8725,7 @@ i32 zt_fileWrite(ztFile *file, const void *buffer, i32 buffer_size)
 
 	return (i32)bytes_written;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_returnValOnNull(file->fp, 0);
 
 	i32 bytes_written = (i32)fwrite(buffer, 1, (i32)buffer_size, (FILE*)file->fp);
@@ -8547,7 +8750,7 @@ bool zt_fileWritef(ztFile *file, const char *format, ...)
 
 	return zt_fileWrite(file, buffer);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	va_list arg_ptr;
 	va_start(arg_ptr, format);
 	char buffer[1024 * 16];
@@ -8568,7 +8771,7 @@ void zt_fileFlush(ztFile *file)
 #	if defined(ZT_WINDOWS)
 	FlushFileBuffers((HANDLE)file->win_file_handle);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_returnOnNull(file->fp);
 	fflush((FILE*)file->fp);
 #	endif
@@ -8689,7 +8892,21 @@ bool zt_directoryExists(const char *dir)
 	DWORD attribs = GetFileAttributesA(dir);
 	return (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY));
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if(dir && dir[0] == '@') {
+		dir += 1;
+
+		AAssetDir *asset_dir = AAssetManager_openDir(zt->android_asset_manager, dir);
+		if (asset_dir != nullptr) {
+			AAssetDir_close(asset_dir);
+			return true;
+		}
+
+		return false;
+	}
+#	endif
 
 	struct stat path_stat;
 	if (lstat(dir, &path_stat) != 0) {
@@ -8745,7 +8962,7 @@ bool zt_directoryMake(const char *dir)
 
 	return true;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	return mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
 
 #	else
@@ -8798,7 +9015,7 @@ bool zt_directoryDelete(const char *dir, bool force)
 
 	return FALSE != RemoveDirectoryA(dir);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 
 	return false;
@@ -8864,7 +9081,14 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if(directory && directory[0] == '@') {
+		zt_assert(false); // needs implemented
+	}
+#	endif
+
 	DIR *dir = opendir(directory);
 	if (dir != nullptr) {
 		struct dirent * entry = readdir(dir);
@@ -8991,7 +9215,69 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if(directory && directory[0] == '@') { 
+		// this is a big dumb hack that works with ztAssetManager because the Android NDK does not 
+		// offer a way to query directories from the Android AAssetManager.
+
+		const char *asset_list_file_name = "@data/asset_list";
+		i32 asset_list_file_size = 0;
+		char *asset_list_file_data = (char*)zt_readEntireFile(asset_list_file_name, &asset_list_file_size);
+		if (asset_list_file_data) {
+
+			//directory += 1;
+			char directory_search[ztFileMaxPath];
+			zt_strCpy(directory_search, ztFileMaxPath, directory);
+			if(directory_search[0] != 0) {
+				zt_strCat(directory_search, ztFileMaxPath, "/");
+			}
+			int directory_len = zt_strLen(directory_search);
+
+			int pos_beg = 0;
+			while(true) {
+				int pos_end = zt_strFindPos(asset_list_file_data, asset_list_file_size, "\n", pos_beg);
+				if (pos_end == ztStrPosNotFound) {
+					break;
+				}
+
+				char file_name[ztFileMaxPath];
+				zt_strCpy(file_name, ztFileMaxPath, "@data/");
+				zt_strCat(file_name, ztFileMaxPath, asset_list_file_data + pos_beg, pos_end - pos_beg);
+
+				if (directory_len == 0 || zt_strStartsWith(file_name, directory_search)) {
+					int file_name_len = zt_strLen(file_name);
+					char *file_name_str = file_name + directory_len;
+					if (recursive || zt_strFindPos(file_name_str, "/", 0) == ztStrPosNotFound) {
+						bool add_to_buffer = true;
+						if (file_name_len + buffer_used >= buffer_size) {
+							add_to_buffer = false;
+						}
+						if (zt_strEquals(file_name, asset_list_file_name)) {
+							add_to_buffer = false;
+						}
+	
+						if (add_to_buffer) {
+							buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s", file_name);
+							buffer[buffer_used++] = '\n';
+						}
+					}
+				}
+
+				pos_beg = pos_end + 1;
+			}
+
+			zt_free(asset_list_file_data);
+		}
+		else {
+			zt_logCritical("asset_list file not found.  unable to read files list");
+		}
+
+		return buffer_used;
+	}
+#	endif
+
 	DIR *dir = opendir(dir_full);
 	if (dir != nullptr) {
 		struct dirent * entry = readdir(dir);
@@ -9096,7 +9382,7 @@ on_error:
 	zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	return false;
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -9120,7 +9406,7 @@ void zt_directoryStopMonitor(ztDirectoryMonitor *dir_mon)
 		CloseHandle((HANDLE)dir_mon->io);
 		zt_memSet(dir_mon, zt_sizeof(ztDirectoryMonitor), 0);
 	}
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 
 #else
@@ -9160,7 +9446,7 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 	}
 
 	return key != NULL;
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	zt_assert(false); // TODO: implement
 	return false;
 
@@ -9727,7 +10013,268 @@ bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
 	return (*atomic_bool) != 0;
 }
 
-#endif // ZT_EMSCRIPTEN
+// end ZT_EMSCRIPTEN
+#elif  defined(ZT_ANDROID)
+
+// ================================================================================================================================================================================================
+
+ztThread *zt_threadMake(ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id)
+{
+	ZT_PROFILE_TOOLS("zt_threadMake");
+
+	//thread_func(0, user_data, exit_test, exit_test_user_data);
+
+	ztThread *thread = zt_mallocStruct(ztThread);
+	return thread;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadFree(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadFree");
+
+	if (thread == nullptr) {
+		return;
+	}
+
+	zt_free(thread);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadJoin(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadJoin");
+
+	zt_returnOnNull(thread);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_threadIsRunning(ztThread *thread)
+{
+	ZT_PROFILE_TOOLS("zt_threadIsRunning");
+
+	zt_returnValOnNull(thread, false);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+ztThreadID zt_threadGetCurrentID()
+{
+	//ZT_PROFILE_TOOLS("zt_threadGetCurrentID"); called by profiling code, can't use here
+
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadYield()
+{
+	ZT_PROFILE_TOOLS("zt_threadYield");
+
+	zt_sleep(0);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztThreadMutex *zt_threadMutexMake()
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexMake");
+
+	ztThreadMutex *mutex = zt_mallocStruct(ztThreadMutex);
+	return mutex;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexFree(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexFree");
+
+	if (mutex == nullptr) {
+		return;
+	}
+
+	zt_free(mutex);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexLock(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexLock");
+
+	zt_returnOnNull(mutex);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMutexUnlock(ztThreadMutex *mutex)
+{
+	ZT_PROFILE_TOOLS("zt_threadMutexUnlock");
+
+	zt_returnOnNull(mutex);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztThreadMonitor *zt_threadMonitorMake()
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorMake");
+
+	ztThreadMonitor *monitor = zt_mallocStruct(ztThreadMonitor);
+	return monitor;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorFree(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorFree");
+
+	if (monitor == nullptr) {
+		return;
+	}
+
+	zt_free(monitor);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorWaitForSignal(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorWaitForSignal");
+
+	zt_returnOnNull(monitor);
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorTriggerSignal(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorTriggerSignal");
+
+	zt_returnOnNull(monitor);
+	zt_assert(false);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_threadMonitorReset(ztThreadMonitor *monitor)
+{
+	ZT_PROFILE_TOOLS("zt_threadMonitorReset");
+
+	zt_returnOnNull(monitor);
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntInc(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntInc");
+
+	return ++(*atomic_int);
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIncDec(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIncDec");
+
+	return --(*atomic_int);
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntSet(ztAtomicInt *atomic_int, i32 value)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntSet");
+
+	(*atomic_int) = value;
+	return value;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntGet(ztAtomicInt *atomic_int)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntGet");
+
+	return *atomic_int;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntAnd(ztAtomicInt *atomic_int, i32 and_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntAnd");
+
+	return (*atomic_int) & and_val;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntOr(ztAtomicInt *atomic_int, i32 or_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntOr");
+
+	return (*atomic_int) | or_val;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_atomicIntXor(ztAtomicInt *atomic_int, i32 xor_val)
+{
+	ZT_PROFILE_TOOLS("zt_atomicIntXor");
+
+	return (*atomic_int) ^ xor_val;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolSet(ztAtomicBool *atomic_bool, bool value)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolSet");
+
+	(*atomic_bool) = value ? 1 : 0;
+	return (*atomic_bool) != 0;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolGet(ztAtomicBool *atomic_bool)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolGet");
+
+	return (*atomic_bool) != 0;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_atomicBoolToggle(ztAtomicBool *atomic_bool)
+{
+	ZT_PROFILE_TOOLS("zt_atomicBoolToggle");
+
+	(*atomic_bool) = !(*atomic_bool);
+	return (*atomic_bool) != 0;
+}
+
+// end ZT_ANDROID
+#endif
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -10039,6 +10586,78 @@ bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
 	return false;
 }
 
+#elif defined(ZT_ANDROID) // end ZT_EMSCRIPTEN
+
+bool zt_systemInfo(ztSystemInfo *system_info)
+{
+	zt_returnValOnNull(system_info, false);
+
+	zt_memSet(system_info, zt_sizeof(ztSystemInfo), 0);
+
+	system_info->flags = ztSystemInfoFlags_x86;
+	system_info->no_processors = 1;
+	system_info->no_displays = 1;
+	system_info->physical_memory_total = zt_megabytes(256); // TODO: is there a way to determine this?
+	system_info->physical_memory_avail = zt_megabytes(256);
+	system_info->virtual_memory_total = zt_megabytes(256);
+	system_info->virtual_memory_avail = zt_megabytes(256);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_displayGetDetails(ztDisplay *display, i32 display_count)
+{
+	return 0; // TODO: implement
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_driveGetDetails(ztDrive *drives, i32 drives_count)
+{
+	return 0; // TODO: implement
+}
+
+// ================================================================================================================================================================================================
+
+void zt_driveGetSize(ztDrive *drive, u64 *space_avail, u64 *space_total)
+{
+	zt_returnOnNull(drive);
+
+	// TODO: implement
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+bool zt_clipboardSendPlainText(const char *text)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardContains(ztClipboardDataType_Enum type)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
+{
+	zt_assert(false); // TODO: implement
+	return false;
+}
+
 #endif
 
 
@@ -10103,8 +10722,6 @@ ztInternal ztInline void _zt_serialAddToChecksum(ztSerial *serial, void *data, i
 ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 {
 	ZT_PROFILE_TOOLS("_zt_validateChecksum");
-
-	bool is_valid = false;
 
 	i16 sum1 = 1, sum2 = 0;
 	i32 checksum_save = 0;
@@ -10909,7 +11526,7 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size)
+int zt_base64Encode(const byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size)
 {
 #	define b64_encode(B) (B < 26 ? ('A' + B) : (B < 52 ? ('a' + (B - 26)) : (B < 62 ? ('0' + (B - 52)) : (B == 62 ? '+' : '/'))))
 
@@ -10944,7 +11561,7 @@ int zt_base64Encode(byte *data_to_encode, int data_len, char *encoded_data_buffe
 
 // ================================================================================================================================================================================================
 
-int zt_base64Decode(char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size)
+int zt_base64Decode(const char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size)
 {
 #	define b64_decode(C) (C >= 'A' && C <= 'Z') ? (C - 'A') : ((C >= 'a' && C <= 'z') ? (C - 'a' + 26) : ((C >= '0' && C <= '9') ? (C - '0' + 52) : ((C == '+' ? 62 : 63))))
 #	define b64_find_next_char(VAR) \
@@ -11964,7 +12581,7 @@ i32 zt_iniFileGetValue(const char *ini_file, const char *section, const char *ke
 #if defined(ZT_WINDOWS)
 	return GetPrivateProfileStringA(section, key, dflt, buffer, buffer_size, ini_file);
 
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
 	if (zt_fileExists(ini_file)) {
 		i32 data_size = 0;
@@ -12070,7 +12687,7 @@ bool zt_iniFileSetValue(const char *ini_file, const char *section, const char *k
 #if defined(ZT_WINDOWS)
 	return FALSE != WritePrivateProfileStringA(section, key, value, ini_file);
 
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
 	i32 data_size = 0;
 	i32 data_avail = zt_megabytes(1);
@@ -12371,7 +12988,7 @@ int zt_processRun(const char *command, char *output_buffer, int output_buffer_si
 
 	return result;
 
-#elif defined(ZT_COMPILER_LLVM)
+#elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	FILE *fstr = popen(command, "r");
 
 	if (fstr) {
@@ -12428,7 +13045,7 @@ r64 zt_getTime()
 
 	return (((r64)current.QuadPart - start_time.QuadPart) * seconds_per_count);
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	struct local_init
 	{
 		local_init(timespec *time, r64 *time_beg_seconds)
@@ -12466,7 +13083,7 @@ void zt_sleep(r32 seconds)
 #	if defined(ZT_WINDOWS)
 	Sleep(zt_convertToi32Floor(seconds * 1000.f));
 
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	usleep(zt_convertToi32Floor(seconds * 1000000));
 
 #	else
