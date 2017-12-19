@@ -96,6 +96,8 @@
 #	include "zt_dsound.h"
 #elif !defined(ZT_NO_OPENAL)
 #	include "zt_openal.h"
+#elif !defined(ZT_NO_OPENSL)
+#	include "zt_opensl.h"
 #endif
 
 
@@ -261,6 +263,7 @@ struct ztGameDetails
 
 	i32 current_frame;
 	r32 current_dt;
+	r64 app_start_time;
 
 	struct {
 		i32 shader_switches;
@@ -1095,13 +1098,15 @@ enum ztShaderDefault_Enum
 {
 	ztShaderDefault_Solid,		// no textures
 	ztShaderDefault_Unlit,		// diffuse
+
+#	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	ztShaderDefault_Lit,		// diffuse
 	ztShaderDefault_LitShadow,	// diffuse, shadow map, material values
-
-	ztShaderDefault_Skybox,
 	ztShaderDefault_ShadowDirectional,
 	ztShaderDefault_ShadowDirectionalTextured,
+#	endif
 
+	ztShaderDefault_Skybox,
 	ztShaderDefault_SignedDistanceField,
 
 	ztShaderDefault_MAX,
@@ -1155,7 +1160,7 @@ void        zt_textureFreePixelData(byte *pixels);
 
 void        zt_textureFree(ztTextureID texture_id);
 
-void        zt_textureSetName(ztTextureID texture_id, char *name);
+void        zt_textureSetName(ztTextureID texture_id, const char *name);
 
 void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
 void        zt_textureRenderTargetCommit(ztTextureID texture_id);
@@ -2511,6 +2516,7 @@ enum ztCollisionGeometryType_Enum
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztCollisionGeometry
 {
 	ztCollisionGeometryType_Enum type;
@@ -2532,7 +2538,7 @@ struct ztCollisionGeometry
 		};
 	};
 };
-
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -2575,7 +2581,7 @@ struct ztRigidBody
 
 	i32      flags;
 
-	i8       collision_layer;        // 1-31
+	i32      collision_layer;        // 1-31
 	i32      collides_with_layers;   // bits to determine which layers this body, when moving, can collide with
 
 	ztCollisionGeometry  cg_bounding;
@@ -4581,11 +4587,11 @@ struct ztShLangSyntaxNode
 
 // ================================================================================================================================================================================================
 
-ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name);
+ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, const char *name);
 bool                _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntaxNode *var_decl_node);
-bool                _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name);
-bool                _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name);
-char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type);
+bool                _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, const char *name);
+bool                _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, const char *name);
+const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type);
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -4633,6 +4639,14 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #	define zt_noOpenALSupport(code) code
 #endif
 
+#if defined(ZT_OPENSL)
+#	define zt_openSLSupport(code) code
+#	define zt_noOpenSLSupport(code)
+#else
+#	define zt_openSLSupport(code)
+#	define zt_noOpenSLSupport(code) code
+#endif
+
 
 // ================================================================================================================================================================================================
 // Windows implementation
@@ -4655,7 +4669,11 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
-#endif // ZT_EMSCRIPTEN
+#elif defined(ZT_ANDROID) // end ZT_EMSCRIPTEN
+#include <android/log.h>
+#include <android_native_app_glue.h>
+
+#endif // ZT_ANDROID
 
 #if !defined(ZT_NO_OPENGL)
 #define ZT_OPENGL_IMPLEMENTATION
@@ -4675,6 +4693,11 @@ char               *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #if defined(ZT_OPENAL)
 #define ZT_OPENAL_IMPLEMENTATION
 #include "zt_openal.h"
+#endif
+
+#if defined(ZT_OPENSL)
+#define ZT_OPENSL_IMPLEMENTATION
+#include "zt_opensl.h"
 #endif
 
 
@@ -4700,7 +4723,7 @@ struct ztWindowDetails
 	zt_directxSupport(ztVertexArrayDX *dx_tri_verts_array);
 };
 
-#elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+#elif defined(ZT_EMSCRIPTEN)|| defined(ZT_ANDROID) // end ZT_WINDOWS
 
 
 struct ztWindowDetails
@@ -5107,7 +5130,8 @@ enum ztAudioClipFlags_Enum
 struct ztAudioClip
 {
 	zt_dsoundSupport(ztDirectSoundBuffer *ds_buffer);
-	zt_openALSupport(ztOpenALBuffer *al_buffer);
+	zt_openALSupport(ztOpenALBuffer      *al_buffer);
+	zt_openSLSupport(ztOpenSLBuffer      *sl_buffer);
 
 	i32 flags;
 
@@ -5190,6 +5214,11 @@ struct ztGameGlobals
 	xinput_setState_Func      xinput_setState = nullptr;
 	r32                       xinput_haptic[ZT_MAX_INPUT_CONTROLLERS];
 #	endif
+
+#	if defined(ZT_ANDROID)
+	android_app              *android_app;
+#	endif
+
 	bool                      app_has_focus = true;
 
 	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
@@ -5255,6 +5284,7 @@ struct ztGameGlobals
 
 	zt_dsoundSupport(ztDirectSoundContext *ds_context = nullptr);
 	zt_openALSupport(ztOpenALContext      *al_context = nullptr);
+	zt_openSLSupport(ztOpenSLContext      *sl_context = nullptr);
 
 	ztAudioClip               audio_clips[ZT_MAX_AUDIO_CLIPS];
 	ztAudioDelay              audio_delays[ZT_MAX_AUDIO_CLIPS];
@@ -5270,7 +5300,7 @@ struct ztGameGlobals
 	ztInputKeys_Enum          input_key_strokes[ZT_MAX_INPUT_KEYSTROKES];
 	i32                       input_key_strokes_count = 0;
 
-	i32                       input_keys_mapping[zt_winOnly(256) zt_emscriptenOnly(1254)];
+	i32                       input_keys_mapping[zt_winOnly(256) zt_emscriptenOnly(1254) zt_androidOnly(256)];
 	ztInputKeys               input_keys[ztInputKeys_MAX];
 
 	ztInputMouse              input_mouse;
@@ -6575,6 +6605,8 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 {
 	ZT_PROFILE_ASSETS("zt_assetManagerLoadDirectory");
 
+	zt_logDebug("asset_manager: loading directory: %s", directory);
+
 	zt_memSet(asset_mgr, sizeof(ztAssetManager), 0);
 
 	zt_memPushGlobalArena(arena);
@@ -6623,6 +6655,13 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 		tokens_count = ztAssetManagerMaxAssets;
 	}
 
+#	if defined(ZT_WINDOWS)
+	ztFile asset_list_file;
+	char asset_list_file_name[ztFileMaxPath];
+	zt_fileConcatFileToPath(asset_list_file_name, ztFileMaxPath, directory, "asset_list");
+	zt_fileOpen(&asset_list_file, asset_list_file_name, ztFileOpenMethod_WriteOver);
+#	endif
+
 	zt_fiz(tokens_count) {
 		char* token = buffer + tokens[i].beg + dir_len;
 		buffer[tokens[i].beg + tokens[i].len] = 0; // replace the \n with null
@@ -6636,8 +6675,17 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 		asset_mgr->asset_data     [i] = nullptr;
 		asset_mgr->asset_callbacks[i] = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+
+#		if defined(ZT_WINDOWS)
+		zt_fileWrite(&asset_list_file, asset_mgr->asset_name[i]);
+		zt_fileWrite(&asset_list_file, "\n");
+#		endif
 	}
 	asset_mgr->asset_count = tokens_count;
+
+#	if defined(ZT_WINDOWS)
+	zt_fileClose(&asset_list_file);
+#	endif
 
 	zt_directoryMonitor(&asset_mgr->directory_mon, directory, true, ztDirectoryMonitorFlags_Modify);
 
@@ -6683,7 +6731,7 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 	asset_mgr->packed_file_names[header.name_buffer_size] = 0;
 
 	ztToken *tokens = zt_mallocStructArrayArena(ztToken, header.file_count, arena);
-	int tokens_count = zt_strTokenize(asset_mgr->packed_file_names, "\n", tokens, header.file_count);
+	zt_strTokenize(asset_mgr->packed_file_names, "\n", tokens, header.file_count);
 
 	zt_fiz(header.file_count) {
 		ztAssetPackedFileEntry entry;
@@ -7116,22 +7164,26 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-solid",
 	"shader-unlit",
+#	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"shader-lit",
 	"shader-litshadow",
-	"shader-skybox",
 	"shader-shadowdirectional",
 	"shader-shadowdirectionaltextured",
+#	endif
+	"shader-skybox",
 	"shader-signeddistancefield"
 };
 
 ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = _input.color;\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
+#	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
 	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d shadowmap_directional_tex;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.shadowmap_directional_tex);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.shadowmap_directional_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
-	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
+#	endif
+	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
 };
 
@@ -7227,10 +7279,9 @@ ztInternal void _zt_setKeyDataActl(ztInputKeys *input_keys, ztInputKeys_Enum cod
 
 ztInternal void _zt_inputSetupKeys()
 {
-	int idx = 0;
-
 #if defined(ZT_WINDOWS)
-	_zt_setKeyData(ztInputKeys_Invalid,            "Invalid",              0,    0, 0);
+	int idx = 0;
+	_zt_setKeyData(ztInputKeys_Invalid, "Invalid", 0, 0, 0);
 	_zt_setKeyData(ztInputKeys_LeftButton,         "LeftButton",           0,    0, VK_F24);
 	_zt_setKeyData(ztInputKeys_RightButton,        "RightButton",          0,    0, VK_F24);
 	_zt_setKeyData(ztInputKeys_Cancel,             "Cancel",               0,    0, VK_F24);
@@ -7404,6 +7455,7 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, VK_OEM_CLEAR);
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
+	int idx = 0;
 	_zt_setKeyData(ztInputKeys_Invalid,            "Invalid",              0,    0, 0);
 	_zt_setKeyData(ztInputKeys_LeftButton,         "LeftButton",           0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_RightButton,        "RightButton",          0,    0, SDLK_F24);
@@ -7576,6 +7628,9 @@ ztInternal void _zt_inputSetupKeys()
 	_zt_setKeyData(ztInputKeys_Zoom,               "Zoom",                 0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_Pa1,                "Pa1",                  0,    0, SDLK_F24);
 	_zt_setKeyData(ztInputKeys_OemClear,           "OemClear",             0,    0, SDLK_F24);
+	// end ZT_EMSCRIPTEN
+#elif defined(ZT_ANDROID)
+
 #endif // end ZT_EMSCRIPTEN
 };
 
@@ -10084,8 +10139,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	ztCamera rt_cam;
 	if (render_target_id != ztInvalidID) {
 		if (camera->type == ztCameraType_Orthographic) {
-			bool first_frame = zt_game->game_details.current_frame == 1;
-
 			r32 cws = zt_game->textures[render_target_id].width / (r32)zt_game->textures[render_target_id].width_actual;
 			r32 chs = zt_game->textures[render_target_id].height / (r32)zt_game->textures[render_target_id].height_actual;
 
@@ -10245,8 +10298,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 			ztShaderID shader_id = shaders[i]->shader;
 
-			GLuint model_loc = -1;
-
 			static u32 model_hash = zt_strHash("model");
 
 			if (shaders[i]->shader != ztInvalidID) {
@@ -10263,7 +10314,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				zt_shaderSetCameraMatrices(sid, camera->mat_proj, camera->mat_view);
 				ztgl_textureBind(zt_game->textures[0].gl_texture, 0);
 
-#				if !defined(ZT_GLES2)
+#				if !defined(ZT_GLES)
 				glColor4fv(ztVec4::one.values);
 #				endif
 
@@ -10301,7 +10352,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				}
 
 				if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-#					if !defined(ZT_GLES2)
+#					if !defined(ZT_GLES)
 					glColor4fv(active_color.values);
 #					endif
 				}
@@ -10364,7 +10415,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							case ztDrawCommandType_Point: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
-#								if !defined(ZT_GLES2)
+#								if !defined(ZT_GLES)
 								zt_game->game_details.curr_frame.draw_calls += 1;
 								glEnd();
 								ztgl_callAndReportOnErrorFast(glPopMatrix());
@@ -10400,7 +10451,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 
 							case ztDrawCommandType_Point: {
 								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::p");
-#								if !defined(ZT_GLES2)
+#								if !defined(ZT_GLES)
 								if (cam->type == ztCameraType_Perspective) {
 									ztgl_callAndReportOnErrorFast(glMatrixMode(GL_PROJECTION));
 									ztgl_callAndReportOnErrorFast(glPushMatrix());
@@ -10625,7 +10676,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						} break;
 
 						case ztDrawCommandType_Point: {
-#							if !defined(ZT_GLES2)
+#							if !defined(ZT_GLES)
 							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
 							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
 							if (transform) {
@@ -10643,7 +10694,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 							active_color = cmp_item->command->color;
 
 							if (shader_id == ztInvalidID || zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-#								if !defined(ZT_GLES2)
+#								if !defined(ZT_GLES)
 								glColor4fv(active_color.values);
 #								endif
 							}
@@ -10705,6 +10756,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			}
 			else {
 				ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
+				ztgl_callAndReportOnErrorFast(glUseProgram(0));
 			}
 		}
 
@@ -11507,8 +11559,6 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _pos[6
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
 	r32 ppu = zt_pixelsPerUnit();
 
 	zt_fiz(4) {
@@ -11578,8 +11628,6 @@ void zt_spriteGetTriangles(ztSprite *sprite, const ztVec3 &at_pos, const ztVec3 
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
 
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
 	r32 ppu = zt_pixelsPerUnit();
 
 	zt_fiz(4) {
@@ -11624,10 +11672,6 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, ztVec3 _p
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
 
 	zt_fiz(4) {
 		pos[i].x += at_pos.x;
@@ -11692,10 +11736,6 @@ void zt_spriteGetTrianglesFast(ztSprite *sprite, const ztVec3 &at_pos, const ztV
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.w),
 		zt_vec2(sprite->tex_uv.z, sprite->tex_uv.y),
 	};
-
-	static ztVec3 nml[4] = { ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero };
-
-	r32 ppu = zt_pixelsPerUnit();
 
 	zt_fiz(4) {
 		pos[i].x += at_pos.x;
@@ -12039,7 +12079,7 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &cpos, const ztVec2 &csize)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteNineSlice");
-	r32 ppu = zt_pixelsPerUnit();
+	//r32 ppu = zt_pixelsPerUnit();
 
 	ztVec2 pos = cpos;
 	//	zt_alignToPixel(&pos, ppu);
@@ -12059,7 +12099,6 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
 	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
 	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
 
 	ztVec3 scale_corners = ztVec3::one;
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
@@ -12116,7 +12155,7 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos, const ztVec2 &csize, ztVec2 pos_arr[54], ztVec2 uvs_arr[54])
 {
 	ZT_PROFILE_RENDERING("zt_spriteNineSliceGetTriangles");
-	r32 ppu = zt_pixelsPerUnit();
+	//r32 ppu = zt_pixelsPerUnit();
 
 	ztVec2 pos = at_pos;
 	ztVec2 size = csize;
@@ -12134,7 +12173,7 @@ void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos
 	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
 	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
 	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
-	ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
+	//ztVec2 center = zt_vec2(pos.x + (sns->sz_w - sns->sz_e) / 2.f, pos.y - (sns->sz_n - sns->sz_s) / 2.f);
 
 	ztVec2 scale_corners = ztVec2::one;
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
@@ -12166,10 +12205,10 @@ void zt_spriteNineSliceGetTriangles(ztSpriteNineSlice *sns, const ztVec2 &at_pos
 	};
 
 	zt_fiz(4) {
-		zt_alignToPixel(&pos_nw[i], ppu);
-		zt_alignToPixel(&pos_ne[i], ppu);
-		zt_alignToPixel(&pos_sw[i], ppu);
-		zt_alignToPixel(&pos_se[i], ppu);
+		//zt_alignToPixel(&pos_nw[i], ppu);
+		//zt_alignToPixel(&pos_ne[i], ppu);
+		//zt_alignToPixel(&pos_sw[i], ppu);
+		//zt_alignToPixel(&pos_se[i], ppu);
 	}
 
 	struct local
@@ -13249,7 +13288,7 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 			ztScene::ModelInfo **list = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? scene->list_trn : scene->list_std;
 			i32 *list_count = zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent) ? &scene->list_trn_count : &scene->list_std_count;
 
-			zt_fjz(list_count) {
+			zt_fjz(*list_count) {
 				if(list[j] == &scene->models[i]) {
 					for(int k = j; k < (*list_count) - 1; ++k) {
 						list[k] = list[k + 1];
@@ -13373,7 +13412,6 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	r32 shadow_far = lighting_rules->shadow_max_distance;
 
 	ztMat4 light_mat = ztMat4::identity.getLookAt(light->position.getNormal() * 1, ztVec3::zero);
-	ztQuat quat_rot = camera->rotation.getInverse();
 
 	ztFrustum frustum = zt_cameraCalcViewFrustum(camera, shadow_far, shadow_near);
 
@@ -13496,6 +13534,7 @@ ztInternal void _zt_sceneDrawParticle(ztScene *scene, ztModel *model, ztCamera *
 
 void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *lighting_rules)
 {
+#	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	ZT_PROFILE_RENDERING("zt_sceneLighting");
 
 	if (lighting_rules == nullptr) {
@@ -13585,7 +13624,6 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 			zt_shaderSetVariableMat4(shader, light_matrix_hash, light_mat);
 
 			zt_shaderApplyVariables(shader);
-			ztShaderVariableValues *shader_vars = nullptr;
 
 			if (scene->culling_distance != ztReal32Max) {
 				zt_fiz(scene->models_count) {
@@ -13608,6 +13646,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 		zt_textureRenderTargetCommit(scene->tex_directional_shadow_map);
 	}
+#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -13778,7 +13817,6 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
 
 	ztShaderID shader = ztInvalidID;
-	ztShaderVariableValues *shader_vars = nullptr;
 
 	ztMat4 light_mat;
 	if (scene->directional_light.light) {
@@ -14758,7 +14796,7 @@ ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *gl
 		va_start(arg_ptr, message); \
 		char message_buffer[1024 * 16]; \
 		vsnprintf_s(message_buffer, zt_elementsOf(message_buffer), message, arg_ptr);
-#	elif defined(ZT_COMPILER_LLVM)
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 	va_list arg_ptr; \
 		va_start(arg_ptr, message); \
 		char message_buffer[1024 * 16]; \
@@ -14800,7 +14838,7 @@ ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *gl
 
 // ================================================================================================================================================================================================
 
-char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
+const char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
 {
 	switch (node->type)
 	{
@@ -14829,7 +14867,7 @@ char *_zt_shaderLangSyntaxNodeDesc(ztShLangSyntaxNode *node)
 
 // ================================================================================================================================================================================================
 
-char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
+const char *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type)
 {
 	switch (token_type)
 	{
@@ -15035,7 +15073,6 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 #	define make_node_with_parent(var, token_type, parent_node, tok)	ztShLangSyntaxNode *var = &global_node->cache->cache[global_node->cache->cache_used++]; zt_assert(global_node->cache->cache_used < global_node->cache->cache_size); var->type = token_type; var->next = nullptr; var->parent = parent_node; var->cache = nullptr; zt_singleLinkAddToEnd(parent_node->first_child, var); var->token = tok
 
 #	define err_to_string(tok)	 local::tokenToString(tok, file_data, error_buff_1, zt_elementsOf(error_buff_1))
-#	define err_to_string2(tok)	 local::tokenToString(tok, file_data, error_buff_2, zt_elementsOf(error_buff_2))
 #	define error_ueof() _zt_shaderLangErrorMessage(global_node, &tokens[tokens_count - 1], error, file_data, "Unexpected end of file")
 #	define error_ute(tok) _zt_shaderLangErrorMessage(global_node, tok, error, file_data, "Unexpected token encountered")
 #	define read_next_token(var)	if (tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment) { if (tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
@@ -15045,11 +15082,13 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 	struct local
 	{
-		static char *makeString(char *cache, int *cache_used, int cache_size, char *source, int source_len)
+		static char *makeString(char *cache, int *cache_used, int cache_size, const char *source, int source_len)
 		{
 			zt_assert(*cache_used + source_len + 1 < cache_size);
 			if(*cache_used + source_len + 1 >= cache_size) {
-				return "out of memory";
+				static char out_of_memory[32];
+				zt_strCpy(out_of_memory, 32, "out of memory");
+				return out_of_memory;
 			}
 
 			zt_strCpy(cache + (*cache_used), source_len + 1, source, source_len);
@@ -15745,10 +15784,8 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 
 	ztShLangSyntaxNode *active_scope = global_node;
 
-	char error_buff_1[256] = { 0 }, error_buff_2[256] = { 0 };
+	char error_buff_1[256] = { 0 };
 	*error = nullptr;
-
-	int paren_count = 0;
 
 	int token_idx = 0;
 
@@ -15928,7 +15965,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	// add the built-in functions
 	{
 		// function name,<param data types>,return data type
-		char *built_in_functions[] = {
+		const char *built_in_functions[] = {
 			"textureSample,texture2d,vec2,vec4",
 			"textureSample,textureCube,vec3,vec4",
 			"textureSize,texture2d,vec2",
@@ -16075,7 +16112,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 	}
 	// add the built-in structs
 	{
-		char *built_in_structs[] = {
+		const char *built_in_structs[] = {
 			"vec2,float x,float y",
 			"vec3,float x,float y,float z,float r,float g,float b,vec2 xy,vec2 xz,vec2 yz",
 			"vec4,float x,float y,float z,float w,float r,float g,float b,float a,vec2 xy,vec2 yz,vec2 zw,vec3 xyz,vec3 rgb",
@@ -16139,7 +16176,7 @@ void _zt_shaderLangFreeSyntaxTree(ztShLangSyntaxNode *node)
 
 // ================================================================================================================================================================================================
 
-ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, char *name)
+ztShLangSyntaxNode *_zt_shaderLangFindStructure(ztShLangSyntaxNode *node, const char *name)
 {
 	ztShLangSyntaxNode *global_node = node;
 	while (global_node->parent) {
@@ -16161,7 +16198,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 {
 	struct local
 	{
-		static bool isAllowedHere(char *file_data, ztShLangSyntaxNode *var_node, ztShLangSyntaxNodeType_Enum *allowed_types, int allowed_types_count, char *scope_name, ztString *error)
+		static bool isAllowedHere(char *file_data, ztShLangSyntaxNode *var_node, ztShLangSyntaxNodeType_Enum *allowed_types, int allowed_types_count, const char *scope_name, ztString *error)
 		{
 			zt_fiz(allowed_types_count) {
 				if (var_node->type == allowed_types[i]) {
@@ -16174,7 +16211,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 
 		// ================================================================================================================================================================================================
 
-		static ztString findDataType(ztShLangSyntaxNode *scope, ztShLangSyntaxNode *var_node, char *ident)
+		static ztString findDataType(ztShLangSyntaxNode *scope, ztShLangSyntaxNode *var_node, const char *ident)
 		{
 			zt_assert(var_node == nullptr || var_node->type == ztShLangSyntaxNodeType_Variable);
 
@@ -16244,7 +16281,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 				}
 				if (var_node == nullptr) {
 
-					char *built_in_datatypes[] = {
+					const char *built_in_datatypes[] = {
 						"int",
 						"uint",
 						"float",
@@ -16319,8 +16356,6 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 						if (found) *found = true;
 
 						// check parameters
-						bool params_match = true;
-
 						ztShLangSyntaxNode *param_decl = child->first_child;
 						ztShLangSyntaxNode *param_call = node->first_child;
 
@@ -16432,7 +16467,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 					return ztShLangTokenType_Identifier;
 				}
 
-				static char *getTypeString(ztShLangSyntaxNode *node, ztShLangTokenType_Enum result_type, ztString *error, char *file_data)
+				static const char *getTypeString(ztShLangSyntaxNode *node, ztShLangTokenType_Enum result_type, ztString *error, char *file_data)
 				{
 					if (result_type != ztShLangTokenType_Identifier) {
 						return _zt_shaderLangTokenTypeDesc(result_type);
@@ -16471,7 +16506,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 			}
 			else {
 				if (op_node->operation.op == ztShLangTokenType_Access) {
-					char *left_type = sublocal::getTypeString(op_node->operation.left, left_orig, error, file_data);
+					const char *left_type = sublocal::getTypeString(op_node->operation.left, left_orig, error, file_data);
 					ztShLangSyntaxNode *struct_node = _zt_shaderLangFindStructure(op_node, left_type);
 
 					if (struct_node) {
@@ -16842,7 +16877,7 @@ ztInternal void _zt_shaderLangDumpSyntaxTree(ztShLangSyntaxNode *node, int inden
 
 // ================================================================================================================================================================================================
 
-ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
+ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, const char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
 {
 	zt_flink(child, node->first_child) {
 		if (child->type == ztShLangSyntaxNodeType_VariableDecl && zt_strEquals(child->variable_decl.type_name, name)) {
@@ -16893,7 +16928,7 @@ ztInternal bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, ch
 
 // ================================================================================================================================================================================================
 
-bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name)
+bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, const char *name)
 {
 	ztShLangSyntaxNode *functions_checked[512];
 	zt_fize(functions_checked) {
@@ -16908,7 +16943,7 @@ bool _zt_shaderLangIsStructureReferenced(ztShLangSyntaxNode *node, char *name)
 
 // ================================================================================================================================================================================================
 
-ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
+ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, const char *name, ztShLangSyntaxNode **functions_checked, int *functions_checked_size)
 {
 	zt_flink(child, node->first_child) {
 		if (child->type == ztShLangSyntaxNodeType_FunctionCall) {
@@ -16955,7 +16990,7 @@ ztInternal bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, cha
 
 // ================================================================================================================================================================================================
 
-bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, char *name)
+bool _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node, const char *name)
 {
 	ztShLangSyntaxNode *functions_checked[512];
 	zt_fize(functions_checked) {
@@ -17043,7 +17078,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 {
 	ZT_PROFILE_RENDERING("_zt_rendererShaderReload");
 	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_manager->asset_name[asset_id]);
-	ztShaderID shader_id = (ztShaderID)user_data;
+	ztShaderID shader_id = (ztShaderID)(pointer)user_data;
 	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
 
 	i32 size = zt_assetSize(asset_manager, asset_id);
@@ -17203,8 +17238,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (frag_src) zt_stringFree(frag_src, zt_memGetGlobalArena());
 
 #		else
-		error = "OpenGL has been disabled in the library.";
-		goto on_error;
+		error = zt_stringMakeFrom("DirectX has been disabled in the library.");
 #		endif // ZT_OPENGL
 		}
 	}
@@ -17277,7 +17311,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 			if (frag_src) zt_stringFree(frag_src);
 		}
 #		else
-		error = "DirectX has been disabled in the library.";
+		error = zt_stringMakeFrom("DirectX has been disabled in the library.");
 #		endif // ZT_DIRECTX
 	}
 
@@ -17286,7 +17320,7 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	zt_free(shader_tokens);
 
 	if (error) {
-		zt_logCritical(error);
+		zt_logCritical("Unable to make shader '%s' (%s)", name, error);
 		zt_stringFree(error);
 		return ztInvalidID;
 	}
@@ -17311,8 +17345,8 @@ ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_le
 	}
 	else if (game_settings->renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
-		if (dx_vert_cnt == 0) { error = "No DirectX vertex shader found"; goto on_error; }
-		if (dx_frag_cnt == 0) { error = "No DirectX fragment shader found"; goto on_error; }
+		if (dx_vert_cnt == 0) { error = zt_stringMakeFrom("No DirectX vertex shader found"); goto on_error; }
+		if (dx_frag_cnt == 0) { error = zt_stringMakeFrom("No DirectX fragment shader found"); goto on_error; }
 
 		char *vert_src = data + dx_vert_beg[0];
 		vert_src[dx_vert_len[0]] = 0;
@@ -18548,7 +18582,7 @@ void zt_textureFree(ztTextureID texture_id)
 
 // ================================================================================================================================================================================================
 
-void zt_textureSetName(ztTextureID texture_id, char *name)
+void zt_textureSetName(ztTextureID texture_id, const char *name)
 {
 	ZT_PROFILE_RENDERING("zt_textureFree");
 	if (texture_id == ztInvalidID) {
@@ -19360,14 +19394,9 @@ ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec
 	controller.target            = target;
 	controller.rotation          = ztQuat::identity;
 
-	ztVec3 euler_cam = camera->rotation.euler();
-
 	zt_cameraLookAt(camera, target);
 //	controller.rotation = ztQuat::makeFromPoints(target, camera->position);
 	controller.rotation = ztQuat::makeFromDirection((target - camera->position), zt_vec3(0,1,0));
-
-	euler_cam = camera->rotation.euler();
-	ztVec3 euler = controller.rotation.euler();
 
 	return controller;
 }
@@ -19679,13 +19708,13 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 ztInternal byte *_zt_fontLoadFontPng(i32 *size)
 {
 	// base64 is a space efficient way to store binary data inline
-	char *data = "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"
-	             "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"
-	             "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";
+	const char *data = "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"
+	                   "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"
+	                   "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";
 	*size = 15310;
 	byte *result = zt_mallocStructArray(byte, *size);
-	i32 decoded_size = zt_base64Decode(data, 20417, result, *size);
-	zt_assert(decoded_size == 15310);
+	i32 decoded_size = 	zt_base64Decode(data, 20417, result, *size);
+	zt_assertReturnValOnFail(decoded_size == 15310, nullptr);
 	return result;
 }
 
@@ -19700,15 +19729,17 @@ ztInternal void _zt_fontMakeDefaults()
 
 	{
 		// default
-		char *data = "info face=ZeroToleranceGui size=16 bold=0 italic=0 charset=unicode=stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=512 scaleH=64 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=11 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=34 x=15 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=35 x=23 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\nchar id=36 x=35 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=37 x=44 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=38 x=55 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=39 x=65 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=40 x=71 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=41 x=78 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=42 x=86 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=43 x=94 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=44 x=106 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=45 x=111 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=46 x=118 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=47 x=124 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=48 x=133 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=49 x=142 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=149 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=51 x=157 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=52 x=166 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=53 x=175 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=54 x=183 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=55 x=191 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=56 x=200 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=57 x=208 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=58 x=217 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=59 x=223 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=60 x=230 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=61 x=240 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=62 x=252 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=63 x=263 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=64 x=271 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=65 x=281 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=66 x=291 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=67 x=300 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=68 x=309 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=69 x=318 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=70 x=326 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=71 x=334 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=72 x=343 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=73 x=353 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=74 x=358 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=75 x=365 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=76 x=374 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=77 x=382 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=78 x=393 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=79 x=403 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=80 x=412 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=81 x=420 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=82 x=429 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=83 x=438 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=84 x=447 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=85 x=455 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=86 x=464 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=87 x=473 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=88 x=484 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=89 x=493 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=90 x=501 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=91 x=510 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=92 x=517 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=93 x=527 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=94 x=535 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=95 x=547 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=96 x=558 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=97 x=564 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=98 x=572 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=99 x=581 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=100 x=589 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=101 x=598 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=102 x=606 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=103 x=613 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=104 x=622 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=105 x=631 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=106 x=636 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=107 x=642 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=108 x=651 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=109 x=657 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=110 x=668 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=111 x=677 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=112 x=685 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=113 x=693 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=114 x=702 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=115 x=709 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=116 x=717 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=117 x=724 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=118 x=734 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=119 x=741 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=120 x=751 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=121 x=759 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=122 x=767 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=123 x=775 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=124 x=784 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=125 x=789 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=126 x=798 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\n";
-		ztFontID font = zt_fontMakeFromBmpFontData(data, tex, zt_vec2i(0, 20));
+		const char *data = "info face=ZeroToleranceGui size=16 bold=0 italic=0 charset=unicode=stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=512 scaleH=64 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=11 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=34 x=15 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=35 x=23 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\nchar id=36 x=35 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=37 x=44 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=38 x=55 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=39 x=65 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=40 x=71 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=41 x=78 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=42 x=86 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=43 x=94 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=44 x=106 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=45 x=111 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=46 x=118 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=47 x=124 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=48 x=133 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=49 x=142 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=149 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=51 x=157 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=52 x=166 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=53 x=175 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=54 x=183 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=55 x=191 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=56 x=200 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=57 x=208 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=58 x=217 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=59 x=223 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=60 x=230 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=61 x=240 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=62 x=252 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=63 x=263 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=64 x=271 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=65 x=281 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=66 x=291 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=67 x=300 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=68 x=309 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=69 x=318 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=70 x=326 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=71 x=334 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=72 x=343 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=73 x=353 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=74 x=358 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=75 x=365 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=76 x=374 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=77 x=382 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=78 x=393 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=79 x=403 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=80 x=412 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=81 x=420 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=82 x=429 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=83 x=438 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=84 x=447 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=85 x=455 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=86 x=464 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=87 x=473 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=88 x=484 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=89 x=493 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=90 x=501 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=91 x=510 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=92 x=517 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=93 x=527 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=94 x=535 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=95 x=547 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=96 x=558 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=97 x=564 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=98 x=572 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=99 x=581 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=100 x=589 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=101 x=598 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=102 x=606 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=103 x=613 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=104 x=622 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=105 x=631 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=106 x=636 y=0 width=5 height=16 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=107 x=642 y=0 width=8 height=16 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15\nchar id=108 x=651 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=109 x=657 y=0 width=10 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15\nchar id=110 x=668 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=111 x=677 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=112 x=685 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=113 x=693 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=114 x=702 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=115 x=709 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=116 x=717 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=117 x=724 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=118 x=734 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=119 x=741 y=0 width=9 height=16 xoffset=0 yoffset=0 xadvance=9 page=0 chnl=15\nchar id=120 x=751 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=121 x=759 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=122 x=767 y=0 width=6 height=16 xoffset=0 yoffset=0 xadvance=6 page=0 chnl=15\nchar id=123 x=775 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=124 x=784 y=0 width=4 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15\nchar id=125 x=789 y=0 width=7 height=16 xoffset=0 yoffset=0 xadvance=7 page=0 chnl=15\nchar id=126 x=798 y=0 width=11 height=16 xoffset=0 yoffset=0 xadvance=11 page=0 chnl=15\n";
+		//ztFontID font = 
+		zt_fontMakeFromBmpFontData(data, tex, zt_vec2i(0, 20));
 		zt_game->fonts_count_system += 1;
 	}
 
 	{
 		// monospaced default
-		char *data = "info face=ZeroToleranceDefaultMono size=16 bold=0 italic=0 charset=unicode stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=1024 scaleH=32 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=8 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=34 x=16 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=35 x=24 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=36 x=32 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=37 x=40 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=38 x=48 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=39 x=56 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=40 x=64 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=41 x=72 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=42 x=80 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=43 x=88 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=44 x=96 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=45 x=104 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=46 x=112 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=47 x=120 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=48 x=128 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=49 x=136 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=50 x=144 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=51 x=152 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=52 x=160 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=53 x=168 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=54 x=176 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=55 x=184 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=56 x=192 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=57 x=200 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=58 x=208 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=59 x=216 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=60 x=224 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=61 x=232 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=62 x=240 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=63 x=248 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=64 x=256 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=65 x=264 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=66 x=272 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=67 x=280 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=68 x=288 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=69 x=296 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=70 x=304 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=71 x=312 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=72 x=320 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=73 x=328 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=74 x=336 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=75 x=344 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=76 x=352 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=77 x=360 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=78 x=368 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=79 x=376 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=80 x=384 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=81 x=392 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=82 x=400 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=83 x=408 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=84 x=416 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=85 x=424 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=86 x=432 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=87 x=440 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=88 x=448 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=89 x=456 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=90 x=464 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=91 x=472 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=92 x=480 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=93 x=488 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=94 x=496 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=95 x=504 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=96 x=512 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=97 x=520 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=98 x=528 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=99 x=536 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=100 x=544 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=101 x=552 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=102 x=560 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=103 x=568 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=104 x=576 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=105 x=584 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=106 x=592 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=107 x=600 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=108 x=608 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=109 x=616 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=110 x=624 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=111 x=632 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=112 x=640 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=113 x=648 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=114 x=656 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=115 x=664 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=116 x=672 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=117 x=680 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=118 x=688 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=119 x=696 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=120 x=704 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=121 x=712 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=122 x=720 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=123 x=728 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=124 x=736 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=125 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=126 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\n";
-		ztFontID font = zt_fontMakeFromBmpFontData(data, tex, zt_vec2i(0, 1));
+		const char *data = "info face=ZeroToleranceDefaultMono size=16 bold=0 italic=0 charset=unicode stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=0,0 outline=0\ncommon lineHeight=16 base=13 scaleW=1024 scaleH=32 pages=1 packed=0\npage id=0 file=\".\"\nchars count=94\nchar id=33 x=8 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=34 x=16 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=35 x=24 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=36 x=32 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=37 x=40 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=38 x=48 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=39 x=56 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=40 x=64 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=41 x=72 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=42 x=80 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=43 x=88 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=44 x=96 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=45 x=104 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=46 x=112 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=47 x=120 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=48 x=128 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=49 x=136 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=50 x=144 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=51 x=152 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=52 x=160 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=53 x=168 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=54 x=176 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=55 x=184 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=56 x=192 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=57 x=200 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=58 x=208 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=59 x=216 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=60 x=224 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=61 x=232 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=62 x=240 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=63 x=248 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=64 x=256 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=65 x=264 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=66 x=272 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=67 x=280 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=68 x=288 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=69 x=296 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=70 x=304 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=71 x=312 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=72 x=320 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=73 x=328 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=74 x=336 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=75 x=344 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=76 x=352 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=77 x=360 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=78 x=368 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=79 x=376 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=80 x=384 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=81 x=392 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=82 x=400 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=83 x=408 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=84 x=416 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=85 x=424 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=86 x=432 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=87 x=440 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=88 x=448 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=89 x=456 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=90 x=464 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=91 x=472 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=92 x=480 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=93 x=488 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=94 x=496 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=95 x=504 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=96 x=512 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=97 x=520 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=98 x=528 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=99 x=536 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=100 x=544 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=101 x=552 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=102 x=560 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=103 x=568 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=104 x=576 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=105 x=584 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=106 x=592 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=107 x=600 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=108 x=608 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=109 x=616 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=110 x=624 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=111 x=632 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=112 x=640 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=113 x=648 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=114 x=656 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=115 x=664 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=116 x=672 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=117 x=680 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=118 x=688 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=119 x=696 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=120 x=704 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=121 x=712 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=122 x=720 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=123 x=728 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=124 x=736 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=125 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\nchar id=126 x=744 y=0 width=8 height=16 xoffset=0 yoffset=3 xadvance=8 page=0 chnl=15\n";
+		//ztFontID font = 
+		zt_fontMakeFromBmpFontData(data, tex, zt_vec2i(0, 1));
 		zt_game->fonts_count_system += 1;
 	}
 	zt_free(tex_data);
@@ -19720,7 +19751,7 @@ const char *zt_fontGetCharsetStandard(i32 *size)
 {
 	zt_returnValOnNull(size, nullptr);
 
-	char *charset = " !\"#$%&'()*+'-.,/0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+	const char *charset = " !\"#$%&'()*+'-.,/0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 	*size = zt_strLen(charset);
 	return charset;
 }
@@ -19840,14 +19871,14 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 		struct local
 		{
-			static i32 getIntBetween(char *str, char *beg, char *end)
+			static i32 getIntBetween(const char *str, const char *beg, const char *end)
 			{
 				char value[128] = { 0 };
 				zt_strGetBetween(value, zt_elementsOf(value), str, beg, end);
 				return zt_strToInt(value, 0);
 			}
 
-			static i32 getCodepoint(char *str, char *beg, char *end)
+			static i32 getCodepoint(const char *str, const char *beg, const char *end)
 			{
 				char id[6] = { 0 };
 				zt_strGetBetween(id, zt_elementsOf(id), str, beg, end);
@@ -19865,7 +19896,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 		int chars = 0;
 		int chars_line = 0;
-		int base = 0;
 		int kernings = 0;
 		int ascender = 0;
 		int descender = 0;
@@ -19901,7 +19931,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 				font->size_pixels = local::getIntBetween(node_buff, "size=\"", "\"");
 			}
 			else if (zt_strStartsWith(node_buff, "<metrics ")) {
-				int line_height = local::getIntBetween(node_buff, "height=\"", "\"");
 				font->line_height = local::getIntBetween(node_buff, "height=\"", "\"") / zt_pixelsPerUnit();
 				ascender = local::getIntBetween(node_buff, "ascender=\"", "\"");
 				descender = local::getIntBetween(node_buff, "descender=\"", "\"");
@@ -20218,7 +20247,6 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 
 		font->space_width = 0;
 
-		int kerning = 0;
 		for (int i = chars_line; i < lines; ++i) {
 			zt_strCpy(line_buff, zt_elementsOf(line_buff), (char*)data + lines_tok[i].beg, lines_tok[i].len);
 			line_buff[lines_tok[i].len] = 0;
@@ -20722,7 +20750,6 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 		extents->y = total_height;
 	}
 
-	r32 true_total_width = total_width;
 	r32 true_total_height = total_height;
 
 	ztVec2 size = ztVec2::zero; // TODO(josh): add support for setting area for font to fit to
@@ -20775,11 +20802,8 @@ void zt_drawListAddText2D(ztDrawList *draw_list, ztFontID font_id, const char *t
 			start_pos_x = position.x + (total_width / 2.f - row_width);
 		}
 
-		real32 spacing = 0;
-
 		ztVec2 position;
 		ztVec2 units_size;
-		ztVec3 rotation = ztVec3::zero;
 
 		r32 scale_x = scale.x;
 		r32 scale_y = scale.y;
@@ -20963,7 +20987,6 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 				*format_ptr = 0;
 				format_ptr = format;
 
-				int str_len = zt_strLen(format);
 				if (zt_strStartsWith(format, "sprite=")) {
 					ztToken tokens[7];
 					char *sprite_str = format + 7;
@@ -20971,22 +20994,20 @@ ztInternal void _zt_fontGetExtentsFancy(ztFontID font_id, const char *text, int 
 
 					if (tokens_count >= 5) {
 						i32 id = zt_strToInt(sprite_str + tokens[0].beg, tokens[0].len, 0);
-						i32 x  = zt_strToInt(sprite_str + tokens[1].beg, tokens[1].len, 0);
-						i32 y  = zt_strToInt(sprite_str + tokens[2].beg, tokens[2].len, 0);
+//						i32 x  = zt_strToInt(sprite_str + tokens[1].beg, tokens[1].len, 0);
+//						i32 y  = zt_strToInt(sprite_str + tokens[2].beg, tokens[2].len, 0);
 						i32 w  = zt_strToInt(sprite_str + tokens[3].beg, tokens[3].len, 0);
 						i32 h  = zt_strToInt(sprite_str + tokens[4].beg, tokens[4].len, 0);
 
 						r32 sx = tokens_count >= 6 ? zt_strToReal32(sprite_str + tokens[5].beg, tokens[5].len, 0) : 1.f;
-						r32 sy = tokens_count >= 7 ? zt_strToReal32(sprite_str + tokens[6].beg, tokens[6].len, 0) : 1.f;
+//						r32 sy = tokens_count >= 7 ? zt_strToReal32(sprite_str + tokens[6].beg, tokens[6].len, 0) : 1.f;
 
 						ztVec2i ts = zt_textureGetSize(id);
 						if (ts.x > 0 && ts.y > 0) {
 							r32 ppu = zt_pixelsPerUnit();
 							r32 sprite_w = w / ppu;
-							r32 sprite_h = h / ppu;
 
 							r32 scale_diff_x = sprite_w - (sprite_w * sx);
-							r32 scale_diff_y = sprite_h - (sprite_h * sy);
 
 							last_xadv = 0;
 							row_width += sprite_w - scale_diff_x;
@@ -21159,7 +21180,6 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 		extents->y = total_height;
 	}
 
-	r32 true_total_width = total_width;
 	r32 true_total_height = total_height;
 
 	ztVec2 size = ztVec2::zero; // TODO(josh): add support for setting area for font to fit to
@@ -21222,11 +21242,8 @@ void zt_drawListAddFancyText2D(ztDrawList *draw_list, ztFontID font_id, const ch
 			start_pos_x = position.x + (total_width / 2.f - row_width);
 		}
 
-		real32 spacing = 0;
-
 		ztVec2 position;
 		ztVec2 units_size;
-		ztVec3 rotation = ztVec3::zero;
 
 		r32 scale_x = scale.x;
 		r32 scale_y = scale.y;
@@ -22349,8 +22366,6 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 {
 	ZT_PROFILE_RENDERING("_zt_meshLoadOBJBase");
 
-	const char *error = nullptr;
-
 	{
 		bool has_cr = zt_strFindPos(data, zt_min(1024, size), "\r", 1) != ztStrPosNotFound;
 		const char *end_search = has_cr ? "\\\r" : "\\n";
@@ -22738,8 +22753,6 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 	if (!data) {
 		return ztInvalidID;
 	}
-
-	const char *error = nullptr;
 
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		zt_logCritical("Unable to load asset contents");
@@ -23487,7 +23500,9 @@ ztRigidBody zt_rigidBodyMake(ztModel *model, r32 one_over_mass_in_kg, ztCollisio
 		result.flags |= ztRigidBodyFlags_NeedsMatrixCalc;
 	}
 
-	zt_staticAssert(zt_sizeof(ztRigidBody) == (ztPointerSize * 1) + (zt_sizeof(ztCollisionGeometry) * (1 + ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES)) + 109); // if this fails, more fields were added to ztRigidBody so update this function!
+#	if defined(ZT_WINDOWS)
+	zt_staticAssert(zt_sizeof(ztRigidBody) == (ztPointerSize * 1) + (zt_sizeof(ztCollisionGeometry) * (1 + ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES)) + 112); // if this fails, more fields were added to ztRigidBody so update this function!
+#	endif
 
 	return result;
 }
@@ -24650,7 +24665,6 @@ bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_
 int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionOBBInOBBGetContactPoints");
-	ztVec3 diff = obb_center_2 - obb_center_1;
 
 	ztVec3 corners[8] = {
 		obb_center_2 + obb_rot_2.rotatePosition(zt_vec3(-obb_extents_2.x / 2.f, +obb_extents_2.y / 2.f, +obb_extents_2.z / 2.f)),
@@ -24810,7 +24824,6 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 
 #	define lp_pixel(PX, PY) if( array2d[(PY) * cols + (PX)] != 0 && !((PX == x1 && PY == y1) || (PX == x2 && PY == y2))) return true;
 
-	int p_idx = 0;
 	if (zt_abs(dx) > zt_abs(dy)) {
 		if (x2 < x1) {
 			zt_swap(x1, x2);
@@ -24820,14 +24833,12 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 		r32 xend = (real32)x1;
 		r32 yend = y1 + gradient * (xend - x1);
 		int xpxl1 = (int)xend;
-		int ypxl1 = (int)(yend);
 
 		r32 intery = yend + gradient;
 
 		xend = (r32)x2;
 		yend = y2 + gradient*(xend - x2);
 		int xpxl2 = (int)xend;
-		int ypxl2 = (int)(yend);
 
 		int x;
 		for (x = xpxl1 + 1; x <= xpxl2 - 1; ++x) {
@@ -24845,13 +24856,11 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 		r32 yend = (r32)y1;
 		r32 xend = x1 + gradient * (yend - y1);
 		int ypxl1 = (int)yend;
-		int xpxl1 = (int)(xend);
 		r32 interx = xend + gradient;
 
 		yend = (r32)y2;
 		xend = x2 + gradient*(yend - y2);
 		int ypxl2 = (int)yend;
-		int xpxl2 = (int)(xend);
 
 		int y;
 		for (y = ypxl1 + 1; y <= ypxl2 - 1; ++y) {
@@ -28626,7 +28635,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 				}
 			}
 			else {
-#				if defined(ZT_EMSCRIPTEN)
+#				if defined(ZT_EMSCRIPTEN) || defined(ZT_ANDROID)
 				if (zt_real32Eq(emitter->time_last_particle, ztReal32Max)) {
 					emitter->time_last_particle = dt;
 				}
@@ -28705,7 +28714,6 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 							}
 
 							r32 vol = (1 - zt_randomVal(&emitter->random, 0, spawn_volume));
-							r32 s = zt_degreesToRadians(zt_randomVal(&emitter->random, 0, 360));
 							r32 t = zt_degreesToRadians(zt_randomVal(&emitter->random, angle_min, angle_max));
 
 							particle->position.y = (radius * vol) * zt_cos(t);
@@ -29217,8 +29225,6 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						prev_pos[0] = particle->history[j] + (rotation.rotatePosition(offset_beg));
 						prev_pos[1] = particle->history[j] - (rotation.rotatePosition(offset_beg));
 					}
-
-					bool last_seg = j == zt_elementsOf(particle->history) - 2 || particle->history[j + 2] == ztVec3::min;
 
 					ztVec3 pos[] = {
 						prev_pos[0],
@@ -30700,8 +30706,6 @@ ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals
 
 #	define get_idx(R,C) (((R) < 0 || (R) > rows - 1 || (C) < 0 || (C) > cols - 1) ? -1 : ((R) * cols) + (C))
 
-	int nodes = rows * cols;
-
 	for (int r = 0; r < rows; ++r) {
 		for (int c = 0; c < cols; ++c) {
 			int idx = (r * cols) + c;
@@ -31362,6 +31366,17 @@ ztInternal bool _zt_audioCheckContext()
 	}
 
 	return zt_game->al_context != nullptr;
+
+#	elif defined(ZT_OPENSL)
+	if (zt_game->sl_context == nullptr) {
+		zt_game->sl_context = ztsl_contextMake();
+
+		zt_fize(zt_game->audio_systems) {
+			zt_game->audio_systems[i].volume = 1;
+		}
+	}
+
+	return zt_game->sl_context != nullptr;
 #	else
 
 	return false;
@@ -31386,7 +31401,13 @@ ztInternal void _zt_audioApplyVolume(ztAudioClip *clip, r32 volume)
 
 	ztal_bufferSetVolume(clip->al_buffer, volume);
 
-#	else
+#	elif defined(ZT_OPENSL)
+	if (clip == nullptr || clip->sl_buffer == nullptr) {
+		return;
+	}
+
+	ztsl_bufferSetVolume(clip->sl_buffer, volume);
+
 #	endif
 }
 
@@ -31408,7 +31429,13 @@ ztInternal void _zt_audioApplySystemSettings(ztAudioClip *clip)
 
 	ztal_bufferSetVolume(clip->al_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
 
-#	else
+#	elif defined(ZT_OPENSL)
+	if (clip == nullptr || clip->sl_buffer == nullptr) {
+		return;
+	}
+
+	ztsl_bufferSetVolume(clip->sl_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+
 #	endif
 }
 
@@ -31494,6 +31521,48 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size, i3
 
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
 	audio_clip->al_buffer = buffer;
+	audio_clip->length = length;
+	audio_clip->play_time = 0;
+	audio_clip->flags = 0;
+	audio_clip->system = audio_system;
+
+
+	_zt_audioApplySystemSettings(audio_clip);
+
+	return audio_clip_id;
+
+#	elif defined(ZT_OPENSL)
+
+	ztOpenSLBuffer *buffer = ztsl_bufferMake(zt_game->sl_context, (byte*)data, data_size);
+	if (buffer == nullptr) {
+		return ztInvalidID;
+	}
+
+	zt_assert(zt_game->audio_clips_count < zt_elementsOf(zt_game->audio_clips));
+
+	i32 channels = 0, bits_per_sample = 0, samples_per_second = 0;
+	r32 length = 0;
+	ztsl_bufferGetDetails(buffer, &channels, &bits_per_sample, &samples_per_second, &length);
+
+	ztAudioClipID audio_clip_id = ztInvalidID;
+
+	zt_fiz(zt_game->audio_clips_count) {
+		if (zt_game->audio_clips[i].sl_buffer == nullptr) {
+			audio_clip_id = i;
+			break;
+		}
+	}
+
+	if (audio_clip_id == ztInvalidID) {
+		audio_clip_id = zt_game->audio_clips_count++;
+	}
+	if (audio_clip_id == ztInvalidID) {
+		zt_assert(false);
+		return ztInvalidID;
+	}
+
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+	audio_clip->sl_buffer = buffer;
 	audio_clip->length = length;
 	audio_clip->play_time = 0;
 	audio_clip->flags = 0;
@@ -31615,7 +31684,13 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 	if (audio_clip->al_buffer) {
 		ztal_bufferFree(audio_clip->al_buffer);
 		audio_clip->al_buffer = nullptr;
-}
+	}
+
+#	elif defined(ZT_OPENSL)
+	if (audio_clip->sl_buffer) {
+		ztsl_bufferFree(audio_clip->sl_buffer);
+		audio_clip->sl_buffer = nullptr;
+	}
 #	endif
 }
 
@@ -31630,6 +31705,9 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 
 	//zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
 	if (audio_clip_id < 0 || audio_clip_id >= zt_game->audio_clips_count) {
+		if (audio_clip_id != ztInvalidID) {
+			zt_logDebug("zt_audioClipPlayOnce: audio clip out of range (%d/%d)", audio_clip_id, zt_game->audio_clips_count);
+		}
 		return;
 	}
 
@@ -31638,10 +31716,17 @@ void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency)
 	ztds_bufferSetFrequency(audio_clip->ds_buffer, frequency);
 	ztds_bufferPlay(audio_clip->ds_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing;
+
 #	elif defined(ZT_OPENAL)
 	ztal_bufferSetFrequency(audio_clip->al_buffer, frequency);
 	ztal_bufferPlay(audio_clip->al_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing;
+
+#	elif defined(ZT_OPENSL)
+	ztsl_bufferSetFrequency(audio_clip->sl_buffer, frequency);
+	ztsl_bufferPlay(audio_clip->sl_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing;
+
 #	endif
 
 	audio_clip->fade_out_curr = audio_clip->fade_out_time = 0;
@@ -31697,6 +31782,11 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 	ztal_bufferPlayLooping(audio_clip->al_buffer);
 	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
 
+#	elif defined(ZT_OPENSL)
+	ztsl_bufferSetFrequency(audio_clip->sl_buffer, frequency);
+	ztsl_bufferPlayLooping(audio_clip->sl_buffer);
+	audio_clip->flags |= ztAudioClipFlags_Playing | ztAudioClipFlags_Looping;
+
 #	endif
 
 	audio_clip->fade_out_curr = audio_clip->fade_out_time = 0;
@@ -31733,6 +31823,10 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time)
 #		elif defined(ZT_OPENAL)
 		zt_assertReturnValOnFail(audio_clip->al_buffer != nullptr, false);
 		ztal_bufferStop(audio_clip->al_buffer);
+
+#		elif defined(ZT_OPENSL)
+		zt_assertReturnValOnFail(audio_clip->sl_buffer != nullptr, false);
+		ztsl_bufferStop(audio_clip->sl_buffer);
 
 #		endif
 
@@ -31809,6 +31903,10 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 	}
 #	elif defined(ZT_OPENAL)
 	if (!zt_game->al_context) {
+		return;
+	}
+#	elif defined(ZT_OPENSL)
+	if (!zt_game->sl_context) {
 		return;
 	}
 #	endif
@@ -32370,6 +32468,48 @@ void _zt_emsControllerInputInit()
 {
 }
 
+// end ZT_EMSCRIPTEN
+
+#elif defined(ZT_ANDROID)
+
+ztInternal bool _ems_request_pointer_lock = false;
+
+// ================================================================================================================================================================================================
+
+void _zt_androidProcessEvents()
+{
+	int ident;
+	int events;
+	android_poll_source* source;
+
+	while ((ident = ALooper_pollAll(zt_game->app_has_focus ? 0 : -1, nullptr, &events, (void**)&source)) >= 0) {
+
+		// Process this event.
+		if (source != nullptr) {
+			source->process(zt_game->android_app, source);
+		}
+
+		// Check if we are exiting.
+		if (zt_game->android_app->destroyRequested != 0) {
+			zt_game->quit_requested = true;
+			return;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void _zt_androidProcessMessages()
+{
+	_zt_androidProcessEvents();
+	
+	if (ztgl_android_contextQueryChangeResolution(zt_game->win_details[0].gl_context)) {
+		_zt_callFuncScreenChange(&zt_game->win_game_settings[0]);
+	}
+
+	_zt_rendererSwapBuffers(&zt_game->win_details[0]);
+}
+
 // ================================================================================================================================================================================================
 
 #endif // ZT_EMSCRIPTEN
@@ -32406,8 +32546,8 @@ bool mainLoopCall(r64 *time_last)
 			zt_winOnly(POINT mouse_this_frame);
 			zt_winOnly(GetCursorPos(&mouse_this_frame));
 
-			ztWindowDetails *win_details = &zt_game->win_details[0];
-			if (zt_winOnly(GetFocus() == win_details->handle) zt_emscriptenOnly(zt_game->app_has_focus)) {
+			zt_winOnly(ztWindowDetails *win_details = &zt_game->win_details[0]);
+			if (zt_winOnly(GetFocus() == win_details->handle) zt_emscriptenOnly(zt_game->app_has_focus) zt_androidOnly(true)) {
 				zt_game->input_mouse.screen_x = 0;
 				zt_game->input_mouse.screen_y = 0;
 
@@ -32478,6 +32618,9 @@ bool mainLoopCall(r64 *time_last)
 
 	zt_emscriptenOnly(_zt_emsProcessMessages());
 	zt_emscriptenOnly(_zt_emsControllerInputUpdate(dt));
+
+	zt_androidOnly(_zt_androidProcessMessages());
+
 
 	++zt_game->game_details.current_frame;
 
@@ -32651,19 +32794,147 @@ bool mainInitializationAndLoop();
 void mainLoopEmscriptenWaitForFileSync()
 {
 	if(emscripten_run_script_int("Module.syncdone") == 1) {
+		zt_logInfo("emscripten_cancel_main_loop()");
 		emscripten_cancel_main_loop();
 
 		if (!mainInitializationAndLoop()) {
 			return;
 		}
+
+		zt_logInfo("emscripten_set_click_callback()");
 		emscripten_set_click_callback(0, 0, 1, emsCallbackClick);
+		zt_logInfo("emscripten_set_pointerlockchange_callback()");
 		emscripten_set_pointerlockchange_callback("#window", 0, 1, emsCallbackPointerLockChange);
 		
 		//emscripten_set_some_callback(nullptr, nullptr, true, emsCallback);
 
-		emscripten_set_main_loop(mainLoopEmscripten, 0, true);
+		zt_logInfo("emscripten_set_main_loop()");
+		emscripten_set_main_loop(mainLoopEmscripten, 0, false);
+
+		zt_logInfo("mainLoopEmscriptenWaitForFileSync() exiting");
 	}
 }
+
+// end ZT_EMSCRIPTEN
+
+#elif defined (ZT_ANDROID)
+
+ztInternal android_app *zt_android_app = nullptr;
+
+// ================================================================================================================================================================================================
+
+void androidInit()
+{
+	zt_game->android_app = zt_android_app;
+	zt_game->win_details[0].handle = zt_game->android_app;
+
+	zt->android_asset_manager = zt_android_app->activity->assetManager;
+	if (zt->android_asset_manager == nullptr) {
+		zt_logCritical("asset manager is null!");
+	}
+
+	while (true) {
+		if (zt_game->android_app->window != nullptr ) {
+			break;
+		}
+		_zt_androidProcessEvents();
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void androidCleanup()
+{
+}
+
+// ================================================================================================================================================================================================
+
+bool androidMainLoop()
+{
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+// Process the next main command.
+void androidHandleCmd(android_app* app, int32_t cmd)
+{
+	switch (cmd) {
+		case APP_CMD_INIT_WINDOW: {
+		} break;
+
+		case APP_CMD_TERM_WINDOW: {
+			androidCleanup();
+		} break;
+
+		case APP_CMD_SAVE_STATE: {
+		} break;
+
+		case APP_CMD_GAINED_FOCUS: {
+			zt_game->app_has_focus = true;
+			ztsl_contextResumeAll(zt_game->sl_context);
+			if (zt_game->game_details.current_frame > 1) {
+				ztgl_android_contextUpdateAfterResume(zt_game->win_details[0].gl_context);
+			}
+		} break;
+
+		case APP_CMD_LOST_FOCUS: {
+			zt_game->app_has_focus = false;
+			ztsl_contextPauseAll(zt_game->sl_context);
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+int32_t androidHandleInput(struct android_app* app, AInputEvent* evt)
+{
+	switch(AInputEvent_getType(evt))
+	{
+		case AINPUT_EVENT_TYPE_MOTION: {
+			int m_x = AMotionEvent_getX(evt, 0);
+			int m_y = AMotionEvent_getY(evt, 0);
+
+			zt_game->input_this_frame = true;
+
+			zt_game->input_mouse.delta_x = m_x - zt_game->input_mouse.screen_x;
+			zt_game->input_mouse.delta_y = m_y - zt_game->input_mouse.screen_y;
+
+			zt_game->input_mouse.screen_x = m_x;
+			zt_game->input_mouse.screen_y = m_y;
+
+			i32 action = AMotionEvent_getAction(evt);
+			i32 flags = action & AMOTION_EVENT_ACTION_MASK;
+
+			switch(flags)
+			{
+				case AMOTION_EVENT_ACTION_DOWN: {
+					if (!zt_bitIsSet(zt_game->input_mouse.button_state_left, ztInputMouseFlags_Pressed)) {
+						zt_game->input_mouse.button_state_left |= ztInputMouseFlags_JustPressed;
+					}
+					zt_game->input_mouse.button_state_left |= ztInputMouseFlags_Pressed;
+
+					zt_logDebug("mouse_x: %d; mouse_y: %d;", m_x, m_y);
+				} break;
+
+				case AMOTION_EVENT_ACTION_UP: {
+					zt_bitRemove(zt_game->input_mouse.button_state_left, ztInputMouseFlags_Pressed);
+					zt_game->input_mouse.button_state_left |= ztInputMouseFlags_JustReleased;
+				} break;
+
+				default: {
+				} break;
+			}
+		} break;
+	
+		default: {
+		} break;
+	}
+
+	return 0;
+}
+
+// ================================================================================================================================================================================================
 
 
 #endif
@@ -32716,8 +32987,20 @@ bool mainInitializationAndLoop()
 			game_settings->threaded_background_jobs += 1;
 		}
 
+#		if defined(ZT_ANDROID)
+		androidInit();
+#		endif
+
+
 		if (!_zt_callFuncSettings(&zt_game->game_details, game_settings))
 			return false;
+
+#	if defined(ZT_ANDROID)
+		game_settings->native_w = game_settings->screen_w = ANativeWindow_getWidth(zt_game->android_app->window);
+		game_settings->native_h = game_settings->screen_h = ANativeWindow_getHeight(zt_game->android_app->window);
+
+		zt_logInfo("Android window reported dimensions: %d x %d", game_settings->screen_w, game_settings->screen_h);
+#	endif
 
 		zt_logInfo("main: app path: %s", zt_game->game_details.app_path);
 		zt_logInfo("main: data path: %s", zt_game->game_details.data_path);
@@ -32750,6 +33033,7 @@ bool mainInitializationAndLoop()
 		zt_logDebug("main: initializing SDL");
 		SDL_Init(SDL_INIT_EVERYTHING);
 		zt_game->app_has_focus = true;
+
 #		endif
 
 		zt_game->renderer_memory_size = game_settings->renderer_memory;
@@ -32766,6 +33050,7 @@ bool mainInitializationAndLoop()
 		}
 
 		zt_fiz(zt_elementsOf(_zt_default_shaders)) {
+			zt_logInfo("main: loading default shader: %s", _zt_default_shaders_names[i]);
 			if (zt_shaderMake(_zt_default_shaders_names[i], _zt_default_shaders[i], zt_strLen(_zt_default_shaders[i])) == ztInvalidID) {
 				zt_logCritical("main: Failed to load default shader: %s", _zt_default_shaders_names[i]);
 				return false;
@@ -32776,7 +33061,8 @@ bool mainInitializationAndLoop()
 		{
 			u32 texture[] = { 0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff };
 
-			ztTextureID white_tex = zt_textureMakeFromPixelData(texture, 8, 8);
+			zt_debugOnly(ztTextureID white_tex =)
+				zt_textureMakeFromPixelData(texture, 8, 8);
 			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
 		}
 		// make the default font
@@ -32785,11 +33071,14 @@ bool mainInitializationAndLoop()
 		}
 
 		if (!_zt_callFuncInit(&zt_game->game_details, game_settings)) {
+			zt_logCritical("main: Failed to initialize game");
 			return false;
 		}
+		zt_logInfo("main: Game initialized successfully");
 
 #		if !defined(ZT_EMSCRIPTEN)
 		_zt_threadJobQueueInit(game_settings->threaded_frame_jobs, game_settings->threaded_background_jobs);
+		zt_logInfo("main: Thread job queue initialized");
 #		endif
 
 		_zt_callFuncScreenChange(game_settings);
@@ -32809,9 +33098,7 @@ bool mainInitializationAndLoop()
 		zt_emscriptenOnly(SDL_WarpMouse(0, 0));
 	}
 
-
-#	if defined(ZT_WINDOWS)
-	r32 dt = 0;
+#	if defined(ZT_WINDOWS) || defined(ZT_ANDROID)
 	r64 time_last = zt_getTime();
 
 	do {
@@ -32835,7 +33122,7 @@ int main(int argc, const char **argv)
 
 	char *data_path_temp = (char*)malloc(ztFileMaxPath);
 	char *data_path = (char*)malloc(ztFileMaxPath);
-#	if defined(ZT_EMSCRIPTEN)
+#	if defined(ZT_EMSCRIPTEN) || defined(ZT_ANDROID)
 	data_path_temp[0] = 0;
 #	else
 	zt_fileGetCurrentPath(data_path_temp, ztFileMaxPath);
@@ -32854,7 +33141,22 @@ int main(int argc, const char **argv)
 	char *user_path = (char*)malloc(ztFileMaxPath);
 
 	{
-#	if defined(ZT_EMSCRIPTEN)
+#	if defined(ZT_ANDROID)
+
+#		if !defined(ZT_ANDROID_PACKAGE_NAME)
+#		define ZT_ANDROID_PACKAGE_NAME "net.zeroTolerance.app"
+#		warning "ZT_ANDROID_PACKAGE_NAME has not been defined.  Using default " ZT_ANDROID_PACKAGE_NAME
+#		endif
+
+		zt_strCpy( app_path, ztFileMaxPath, "@");
+		zt_strCpy(data_path, ztFileMaxPath, "@data");
+		zt_strCpy(user_path, ztFileMaxPath, "data/data/" ZT_ANDROID_PACKAGE_NAME "/persistent_data");
+
+		if(!zt_directoryExists(user_path)) {
+			zt_directoryMake(user_path);
+		}
+
+#	elif defined(ZT_EMSCRIPTEN)
 		EM_ASM(
 			FS.mkdir('/persistent_data');
 			FS.mount(IDBFS,{},'/persistent_data');
@@ -32896,9 +33198,8 @@ int main(int argc, const char **argv)
 
 		zt_winOnly(zt_game->hinstance = _zt_hinstance);
 
-		char exe_name[ztFileMaxPath];
+		zt_winOnly(char exe_name[ztFileMaxPath]);
 		zt_winOnly(GetModuleFileNameA(NULL, exe_name, zt_elementsOf(exe_name)));
-		zt_emscriptenOnly(zt_strCpy(exe_name, zt_elementsOf(exe_name), argv[0]));
 		zt_winOnly(zt_game->exe_icon = ExtractIconA(_zt_hinstance, exe_name, 0));
 	}
 
@@ -32910,9 +33211,12 @@ int main(int argc, const char **argv)
 	zt_game->game_details.data_path = data_path;
 	zt_game->game_details.user_path = user_path;
 
+	zt_game->game_details.app_start_time = zt_getTime();
+
 	zt_game->main_thread_id = zt_threadGetCurrentID();
 
-#	if defined(ZT_WINDOWS)
+#	if defined(ZT_WINDOWS) || defined(ZT_ANDROID)
+
 	if (!mainInitializationAndLoop()) {
 		return 1;
 	}
@@ -32920,7 +33224,7 @@ int main(int argc, const char **argv)
 #	elif defined(ZT_EMSCRIPTEN)
 	EM_ASM(Module['noExitRuntime'] = true);
 
-	emscripten_set_main_loop(mainLoopEmscriptenWaitForFileSync, 0, true);
+	emscripten_set_main_loop(mainLoopEmscriptenWaitForFileSync, 0, false);
 	return 0;
 
 #	endif
@@ -32947,6 +33251,10 @@ int main(int argc, const char **argv)
 #		elif defined(ZT_OPENAL)
 		if (zt_game->al_context != nullptr) {
 			ztal_contextFree(zt_game->al_context);
+		}
+#		elif defined(ZT_OPENSL)
+		if (zt_game->sl_context != nullptr) {
+			ztsl_contextFree(zt_game->sl_context);
 		}
 
 #		endif
@@ -33017,6 +33325,7 @@ int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_
 }
 
 #endif // WinMain
+
 
 // ================================================================================================================================================================================================
 
@@ -33313,7 +33622,33 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 	return result;
 }
 
-#endif // ZT_WINDOWS
+// end ZT_WINDOWS
+#elif defined(ZT_ANDROID)
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// This is the main entry point of a native application that is using android_native_app_glue.
+// It runs in its own thread, with its own event loop for receiving input events and doing other things.
+
+void android_main(struct android_app* app)
+{
+	zt_android_app = app;
+	zt_android_app->onAppCmd     = androidHandleCmd;
+	zt_android_app->onInputEvent = androidHandleInput;
+
+	const char *argv[1] = {"/"};
+	main(1, argv);
+}
+
+#endif // ZT_ANDROID
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 // Embedded stb_image.h:
 #define STB_IMAGE_IMPLEMENTATION
@@ -43524,8 +43859,6 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	font->glyph_code_point = zt_mallocStructArray(i32, charset_size);
 	font->glyphs = zt_mallocStructArray(ztFont::Glyph, charset_size);
 
-	r32 min_size_x = 9999, max_size_x = 0;
-
 	bool font_info_kerning[2048];
 
 	i32 space_idx = -1;
@@ -43582,12 +43915,11 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 	zt_fiz(charset_size) {
 		if (font_info_kerning[i]) {
 			i32 code_point = zt_strCodepoint(charset, i);
-			int g = stbtt_FindGlyphIndex(&f, code_point);
 
 			zt_fjz(charset_size) {
 				if (j == i) continue;
 				i32 code_point_2 = zt_strCodepoint(charset, j);
-				int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
+				int adv = stbtt_GetGlyphKernAdvance(&f, code_point, code_point_2);
 				if (adv) {
 					kernings += 1;
 				}
@@ -43602,12 +43934,11 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 		zt_fiz(charset_size) {
 			if (font_info_kerning[i]) {
 				i32 code_point = zt_strCodepoint(charset, i);
-				int g = stbtt_FindGlyphIndex(&f, code_point);
 
 				zt_fjz(charset_size) {
 					if (j == i) continue;
 					i32 code_point_2 = zt_strCodepoint(charset, j);
-					int adv = stbtt_GetGlyphKernAdvance(&f, code_point, j);
+					int adv = stbtt_GetGlyphKernAdvance(&f, code_point, code_point_2);
 					if (adv) {
 						ztFont::Kerning *kerning = &font->kernings[kidx++];
 						kerning->next_code = code_point_2;
