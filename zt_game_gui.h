@@ -17427,18 +17427,23 @@ ztInternal void _zt_guiDebugTextureViewerRefresh()
 		switch (zt_currentRenderer())
 		{
 			case ztRenderer_OpenGL: {
+				zt_openGLSupport(if (zt_game->textures[i].gl_texture == nullptr) continue);
 				zt_openGLSupport(render_tex = ztgl_textureIsRenderTarget(zt_game->textures[i].gl_texture));
 				zt_openGLSupport(cubemap_tex = zt_bitIsSet(zt_game->textures[i].gl_texture->flags, ztTextureGLFlags_CubeMap));
 			} break;
 
 			case ztRenderer_DirectX: {
+				zt_directxSupport(if (zt_game->textures[i].dx_texture == nullptr) continue);
 				zt_directxSupport(render_tex = ztdx_textureIsRenderTarget(zt_game->textures[i].dx_texture));
 				zt_directxSupport(cubemap_tex = zt_bitIsSet(zt_game->textures[i].dx_texture->flags, ztTextureDXFlags_CubeMap));
 			} break;
 		}
-		zt_strMakePrintf(buffer, 256, "[%d] %d x %d %s %s", i, zt_game->textures[i].width, zt_game->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")), (zt_game->textures[i].name[0] == 0 ? "" : zt_game->textures[i].name));
+		zt_strMakePrintf(buffer, 512, "[%d] %d x %d %s %s", i, zt_game->textures[i].width, zt_game->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")), (zt_game->textures[i].name[0] == 0 ? "" : zt_game->textures[i].name));
 		zt_guiComboBoxAppend(dropdown, buffer, (void*)i);
 	}
+
+	dropdown->combobox.popup->size.y = zt_min(dropdown->combobox.popup->size.y, 12.f);
+
 }
 
 // ================================================================================================================================================================================================
