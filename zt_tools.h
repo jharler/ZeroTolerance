@@ -253,9 +253,9 @@ typedef unsigned long long size_t;
 #define zt_sizeof(type)                           ((i32)sizeof(type))
 
 #if defined(ZT_DEBUG)
-#	define zt_assert(cond)	                      if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
-#	define zt_assertReturnOnFail(cond)            if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return; }
-#	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); return (retval); }
+#	define zt_assert(cond)	                      if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); }
+#	define zt_assertReturnOnFail(cond)            if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); return; }
+#	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); return (retval); }
 
 #	define zt_debugOnly(code)	                  code
 #	define zt_releaseOnly(code)
@@ -268,7 +268,7 @@ typedef unsigned long long size_t;
 #	define zt_releaseOnly(code)	code
 #endif
 
-#define zt_assertAlways(cond)                     if (!(cond)) { zt_assert_raw(#cond, __FILE__, __LINE__); }
+#define zt_assertAlways(cond)                     if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); }
 #define zt_staticAssert(cond)                     typedef char _zt_static_assertion_##__COUNTER__[(cond)?1:-1]
 
 #define ztInline                                  inline
@@ -867,7 +867,7 @@ struct ztMat4
 	bool operator!=(const ztMat4& m) const { return !(*this == m); }
 
 	static ztMat4 makeOrthoProjection(r32 left, r32 right, r32 top, r32 bottom, r32 near_z, r32 far_z);
-	static ztMat4 makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z);
+	static ztMat4 makePerspectiveProjection(r32 angle_of_view_rad, r32 width, r32 height, r32 near_z, r32 far_z);
 
 	static const ztMat4 zero;
 	static const ztMat4 identity;
@@ -1026,7 +1026,7 @@ i32  zt_iunlerp             (i32 v1, i32 v2, r32 percent);
 
 // ================================================================================================================================================================================================
 
-void zt_assert_raw          (const char *condition_name, const char *file, int file_line);
+void zt_assertRaw          (const char *condition_name, const char *file, int file_line);
 
 
 // ================================================================================================================================================================================================
@@ -2206,6 +2206,7 @@ struct ztRandom
 	};
 };
 
+void zt_randomInit (ztRandom *random); // will generate seed from system time
 void zt_randomInit (ztRandom *random, i32 seed);
 
 i32  zt_randomInt  (ztRandom *random, i32 min, i32 max);
@@ -2625,7 +2626,7 @@ ztInline i32 zt_iunlerp(i32 v1, i32 v2, r32 value)
 
 // ================================================================================================================================================================================================
 
-ztInline void zt_assert_raw(const char *condition_name, const char *file, int file_line)
+ztInline void zt_assertRaw(const char *condition_name, const char *file, int file_line)
 {
 	zt_winOnly(zt_debugOnly(__debugbreak()));
 	zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
@@ -5535,8 +5536,8 @@ void ztMat4::lookAt(ztVec3 eye_pos, ztVec3 target_pos, ztVec3 up_vec)
 	l.values[3] =    0; l.values[7] =    0; l.values[11] =    0; l.values[15] = 1;
 
 	ztMat4 p = identity.getTranslate(-eye_pos.x, -eye_pos.y, -eye_pos.z);
-	//*this = l * p;
-	*this = p * l;
+	*this = l * p;
+	//*this = p * l;
 }
 
 // ================================================================================================================================================================================================
@@ -5664,11 +5665,11 @@ ztMat4& ztMat4::operator*=(const ztMat4& mat4)
 
 // ================================================================================================================================================================================================
 
-/*static*/ ztMat4 ztMat4::makePerspectiveProjection(r32 angle_of_view, r32 width, r32 height, r32 near_z, r32 far_z)
+/*static*/ ztMat4 ztMat4::makePerspectiveProjection(r32 angle_of_view_rad, r32 width, r32 height, r32 near_z, r32 far_z)
 {
 	ZT_PROFILE_TOOLS("ztMat4::makePerspectiveProjection");
 
-	const r32 k = 1.0f / tanf(angle_of_view / 2.0f);
+	const r32 k = 1.0f / tanf(angle_of_view_rad / 2.0f);
 	const r32 c = (near_z + far_z) / (far_z - near_z);
 
 	r32 m[16];
@@ -11627,6 +11628,14 @@ int zt_base64Decode(const char *data_to_decode, int data_len, byte *decoded_data
 #define ztRandom_MatrixA         0x9908b0df
 #define ztRandom_Twist(b,i,j)    ((b)[i] & ztRandom_UpperMask) | ((b)[j] & ztRandom_LowerMask)
 #define ztRandom_Magic(s)        (((s)&1) * ztRandom_MatrixA)
+
+// ================================================================================================================================================================================================
+
+void zt_randomInit(ztRandom *random)
+{
+	ZT_PROFILE_TOOLS("zt_randomInit");
+	zt_randomInit(random, (unsigned int)time(nullptr));
+}
 
 // ================================================================================================================================================================================================
 
