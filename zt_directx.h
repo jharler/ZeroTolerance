@@ -2246,7 +2246,7 @@ ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztS
 
 					if(!skip) {
 						bool left_is_empty = node->operation.left->type == ztShLangSyntaxNodeType_ValueEmpty;
-						bool right_is_empty = node->operation.right->type == ztShLangSyntaxNodeType_ValueEmpty;
+						bool right_is_empty = node->operation.right == nullptr || node->operation.right->type == ztShLangSyntaxNodeType_ValueEmpty;
 						if (!left_is_empty) {
 							write(node->operation.left, 0, s, s_len, vars);
 						}
@@ -2258,7 +2258,9 @@ ztInternal bool _zt_shaderLangConvertToHLSL(ztShLangSyntaxNode *global_node, ztS
 						if (!left_is_empty && !right_is_empty) {
 							zt_strCat(*s, s_len, " ");
 						}
-						write(node->operation.right, 0, s, s_len, vars);
+						if (node->operation.right != nullptr) {
+							write(node->operation.right, 0, s, s_len, vars);
+						}
 					}
 				} break;
 
