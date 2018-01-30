@@ -258,20 +258,43 @@ struct ztShaderGL
 
 	struct Uniform
 	{
-		GLint location;
-		GLenum type;
+		GLint    location;
+		GLenum   type;
 		ztString name;
-		u32 name_hash;
+		u32      name_hash;
 	};
 
-	Uniform *uniforms;
-	int      uniforms_count;
+	Uniform        *uniforms;
+	int             uniforms_count;
 
-	int      textures_bound;
+	struct Inputs
+	{
+		GLint    location;
+		GLenum   type;
+		ztString name;
+		u32      name_hash;
+	};
 
-	bool     in_use;
+	Inputs         *inputs;
+	int             inputs_count;
 
-	ztMemoryArena *arena;
+	struct Outputs
+	{
+		GLint    location;
+		GLenum   type;
+		ztString name;
+		u32      name_hash;
+	};
+
+	Outputs        *outputs;
+	int             outputs_count;
+
+	int             textures_bound;
+
+	bool            in_use;
+
+	ztMemoryArena  *arena;
+	ztContextGL *context;
 };
 
 // ================================================================================================================================================================================================
@@ -280,8 +303,8 @@ struct ztTextureGL;
 
 // ================================================================================================================================================================================================
 
-ztShaderGL *ztgl_shaderMake(const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
-ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
+ztShaderGL *ztgl_shaderMake(ztContextGL *context, const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
+ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src = nullptr);
 void        ztgl_shaderFree(ztShaderGL *shader);
 
 void        ztgl_shaderBegin(ztShaderGL *shader);
@@ -298,7 +321,9 @@ void        ztgl_shaderVariableMat4(ztShaderGL *shader, u32 name_hash, r32 value
 void        ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value[12]);
 void        ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex);
 
-ztShaderGL *ztgl_shaderMakePointLightShadows();
+int         ztgl_shaderGetOutputs(ztShaderGL *shader, ztVariant_Enum *types, int types_size);
+
+ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context);
 
 
 // ================================================================================================================================================================================================
@@ -364,6 +389,7 @@ struct ztTextureGL
 	i32 flags;
 
 	ztMemoryArena *arena;
+	ztContextGL *context;
 };
 
 // ================================================================================================================================================================================================
@@ -373,33 +399,33 @@ typedef ZT_FUNC_GL_TEXTURE_RENDER(ztTextureGLRender_Func);
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeFromPixelData(byte *pixels, int w, int h, int d, i32 flags);
-ztTextureGL *ztgl_textureMakeFromPixelData(ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags);
-ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(byte **pixels, int w, int h, int d);
-ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztMemoryArena *arena, byte **pixels, int w, int h, int d);
-ztTextureGL *ztgl_textureMakeCubeMapFromRender(int w, int h, int mip_map_levels, ztTextureGLRender_Func *render_func, void *user_data); // calls render_func for each side (6 total)
-ztTextureGL *ztgl_textureMakeCubeMapFromHDR(ztTextureGL *hdr_texture, int w, int h);
-ztTextureGL *ztgl_textureMakeCubeMapForDepth(i32 dimension);
-ztTextureGL *ztgl_textureMakeIrradianceCubeMapFromCubeMap(ztTextureGL *cube_map_texture);
-ztTextureGL *ztgl_textureMakePrefilterCubeMapFromCubeMap(ztTextureGL *cube_map_texture);
-ztTextureGL *ztgl_textureMakeRenderTarget(int w, int h, i32 flags);
-ztTextureGL *ztgl_textureMakeRenderTarget(ztMemoryArena *arena, int w, int h, i32 flags);
-ztTextureGL *ztgl_textureMakeDepthRenderTarget(int w, int h);
-ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztMemoryArena *arena, int w, int h);
+ztTextureGL *ztgl_textureMakeFromPixelData               (ztContextGL *context, byte *pixels, int w, int h, int d, i32 flags);
+ztTextureGL *ztgl_textureMakeFromPixelData               (ztContextGL *context, ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags);
+ztTextureGL *ztgl_textureMakeCubeMapFromPixelData        (ztContextGL *context, byte **pixels, int w, int h, int d);
+ztTextureGL *ztgl_textureMakeCubeMapFromPixelData        (ztContextGL *context, ztMemoryArena *arena, byte **pixels, int w, int h, int d);
+ztTextureGL *ztgl_textureMakeCubeMapFromRender           (ztContextGL *context, int w, int h, int mip_map_levels, ztTextureGLRender_Func *render_func, void *user_data); // calls render_func for each side (6 total)
+ztTextureGL *ztgl_textureMakeCubeMapFromHDR              (ztContextGL *context, ztTextureGL *hdr_texture, int w, int h);
+ztTextureGL *ztgl_textureMakeCubeMapForDepth             (ztContextGL *context, i32 dimension);
+ztTextureGL *ztgl_textureMakeIrradianceCubeMapFromCubeMap(ztContextGL *context, ztTextureGL *cube_map_texture);
+ztTextureGL *ztgl_textureMakePrefilterCubeMapFromCubeMap (ztContextGL *context, ztTextureGL *cube_map_texture);
+ztTextureGL *ztgl_textureMakeRenderTarget                (ztContextGL *context, int w, int h, i32 flags);
+ztTextureGL *ztgl_textureMakeRenderTarget                (ztContextGL *context, ztMemoryArena *arena, int w, int h, i32 flags);
+ztTextureGL *ztgl_textureMakeDepthRenderTarget           (ztContextGL *context, int w, int h);
+ztTextureGL *ztgl_textureMakeDepthRenderTarget           (ztContextGL *context, ztMemoryArena *arena, int w, int h);
 
-void         ztgl_textureFree(ztTextureGL *texture);
+void         ztgl_textureFree                            (ztTextureGL *texture);
 
-void	     ztgl_textureBindReset(ztShaderGL *shader);
-void	     ztgl_textureBind(ztTextureGL *texture, int as_idx);
+void	     ztgl_textureBindReset                       (ztShaderGL *shader);
+void	     ztgl_textureBind                            (ztTextureGL *texture, int as_idx);
 
-void         ztgl_textureRenderTargetPrepare(ztTextureGL *texture);
-void         ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context);
-ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextureGLColorFormat_Enum color_format);
-void         ztgl_textureRenderTargetAttachmentEnable(ztTextureGL *texture, int attachment_idx, bool enable);
+void         ztgl_textureRenderTargetPrepare             (ztTextureGL *texture);
+void         ztgl_textureRenderTargetCommit              (ztTextureGL *texture, ztContextGL *context);
+ztTextureGL *ztgl_textureRenderTargetAddAttachment       (ztTextureGL *texture, ztTextureGLColorFormat_Enum color_format);
+void         ztgl_textureRenderTargetAttachmentEnable    (ztTextureGL *texture, int attachment_idx, bool enable);
 
-bool         ztgl_textureIsRenderTarget(ztTextureGL *texture);
+bool         ztgl_textureIsRenderTarget                  (ztTextureGL *texture);
 
-void         ztgl_textureGetPixels(ztTextureGL *texture, ztContextGL *context, byte *pixels); // pixels = w * h * 4
+void         ztgl_textureGetPixels                       (ztTextureGL *texture, ztContextGL *context, byte *pixels); // pixels = w * h * 4
 
 
 // ================================================================================================================================================================================================
@@ -457,6 +483,8 @@ typedef void      (ZTGL_API *ztgl_glAttachShader_Func) (GLuint program, GLuint s
 typedef void      (ZTGL_API *ztgl_glLinkProgram_Func) (GLuint program);
 typedef void      (ZTGL_API *ztgl_glGetProgramiv_Func) (GLuint program, GLenum pname, GLint* param);
 typedef void      (ZTGL_API *ztgl_glGetProgramInfoLog_Func) (GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef void      (ZTGL_API *ztgl_glGetProgramResourceiv_Func) (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum* props, GLsizei bufSize, GLsizei *length, GLint *params);
+typedef void      (ZTGL_API *ztgl_glGetProgramResourceName_Func) (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei* length, GLchar *name);
 typedef void      (ZTGL_API *ztgl_glDeleteProgram_Func) (GLuint program);
 typedef void      (ZTGL_API *ztgl_glDetachShader_Func) (GLuint program, GLuint shader);
 typedef void      (ZTGL_API *ztgl_glUseProgram_Func) (GLuint program);
@@ -521,6 +549,8 @@ typedef void      (ZTGL_API *ztgl_glDebugMessageControl_Func) (GLenum source, GL
 	ZTGL_FUNC_OP(glLinkProgram) \
 	ZTGL_FUNC_OP(glGetProgramiv) \
 	ZTGL_FUNC_OP(glGetProgramInfoLog) \
+	ZTGL_FUNC_OP(glGetProgramResourceiv) \
+	ZTGL_FUNC_OP(glGetProgramResourceName) \
 	ZTGL_FUNC_OP(glDeleteProgram) \
 	ZTGL_FUNC_OP(glDetachShader) \
 	ZTGL_FUNC_OP(glUseProgram) \
@@ -591,6 +621,8 @@ typedef void      (ZTGL_API *ztgl_glAttachShader_Func) (GLuint program, GLuint s
 typedef void      (ZTGL_API *ztgl_glLinkProgram_Func) (GLuint program);
 typedef void      (ZTGL_API *ztgl_glGetProgramiv_Func) (GLuint program, GLenum pname, GLint* param);
 typedef void      (ZTGL_API *ztgl_glGetProgramInfoLog_Func) (GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef void      (ZTGL_API *ztgl_glGetProgramResourceiv_Func) (GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum* props, GLsizei bufSize, GLsizei *length, GLint *params);
+typedef void      (ZTGL_API *ztgl_glGetProgramResourceName_Func) (GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei* length, GLchar *name);
 typedef void      (ZTGL_API *ztgl_glDeleteProgram_Func) (GLuint program);
 typedef void      (ZTGL_API *ztgl_glDetachShader_Func) (GLuint program, GLuint shader);
 typedef void      (ZTGL_API *ztgl_glUseProgram_Func) (GLuint program);
@@ -646,6 +678,8 @@ typedef void      (ZTGL_API *ztgl_glDrawBuffers_Func) (GLsizei n, const GLenum* 
 	ZTGL_FUNC_OP(glLinkProgram) \
 	ZTGL_FUNC_OP(glGetProgramiv) \
 	ZTGL_FUNC_OP(glGetProgramInfoLog) \
+	ZTGL_FUNC_OP(glGetProgramResourceiv) \
+	ZTGL_FUNC_OP(glGetProgramResourceName) \
 	ZTGL_FUNC_OP(glDeleteProgram) \
 	ZTGL_FUNC_OP(glDetachShader) \
 	ZTGL_FUNC_OP(glUseProgram) \
@@ -754,6 +788,8 @@ struct ztContextGL
 	RECT screen_area;
 
 	ztMemoryArena *arena;
+
+	ztTextureGL *active_render_target;
 };
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
@@ -771,6 +807,8 @@ struct ztContextGL
 	ztVec4i screen_area;
 
 	ztMemoryArena *arena;
+
+	ztTextureGL *active_render_target;
 };
 
 #elif defined(ZT_ANDROID) // end ZT_EMSCRIPTEN
@@ -789,6 +827,8 @@ struct ztContextGL
 	android_app *game_android_app;
 
 	ztMemoryArena *arena;
+
+	ztTextureGL *active_render_target;
 };
 
 #endif // ZT_ANDROID
@@ -2200,14 +2240,14 @@ int ztgl_clearErrors()
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztShaderGL *ztgl_shaderMake(const char *vert_src, const char *frag_src, const char *geom_src)
+ztShaderGL *ztgl_shaderMake(ztContextGL *context, const char *vert_src, const char *frag_src, const char *geom_src)
 {
-	return ztgl_shaderMake(zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
+	return ztgl_shaderMake(context, zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
 }
 
 // ================================================================================================================================================================================================
 
-ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src)
+ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src)
 {
 	ZT_PROFILE_OPENGL("ztgl_shaderMake");
 
@@ -2322,6 +2362,7 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 	shader->textures_bound = 0;
 	shader->in_use = false;
 	shader->arena = arena;
+	shader->context = context;
 
 	// extract shader variables
 	int uniform_count = 0;
@@ -2374,9 +2415,13 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 		}
 	}
 
-#	if 0
+#	if 1
 	int attrib_count = 0;
 	ztgl_callAndReportOnErrorFast(glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &attrib_count));
+
+	shader->inputs_count = attrib_count;
+	shader->inputs = attrib_count ? zt_mallocStructArrayArena(ztShaderGL::Inputs, attrib_count, arena) : nullptr;
+
 	zt_fiz(attrib_count) {
 		int len = 0, size = 0;
 		GLenum type = 0;
@@ -2384,9 +2429,59 @@ ztShaderGL *ztgl_shaderMake(ztMemoryArena *arena, const char *vert_src, const ch
 		ztgl_callAndReportOnErrorFast(glGetActiveAttrib(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
 		varname[len] = 0;
 
-		int location = glGetAttribLocation(program, varname);
+		shader->inputs[i].name      = zt_stringMakeFrom(varname, arena);
+		shader->inputs[i].name_hash = zt_strHash(shader->inputs[i].name);
+		shader->inputs[i].type      = type;
+		shader->inputs[i].location  = glGetAttribLocation(program, varname);
 	}
 #	endif
+
+#	if 1
+#	define GL_LOCATION 0x930E
+#	define GL_PROGRAM_OUTPUT 0x92E4
+#	define GL_ARRAY_SIZE 0x92FB
+#	define GL_REFERENCED_BY_FRAGMENT_SHADER 0x930A
+#define GL_LOCATION_INDEX 0x930F
+#define GL_LOCATION_COMPONENT 0x934A
+#define GL_TYPE 0x92FA
+
+	int locations_count = 0;
+
+	zt_fiz(16) {
+		GLenum inputs[] = { GL_LOCATION };
+		GLint outputs[64];
+		int outputs_count = 0;
+		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
+		for (GLint error = glGetError(); error != 0; error = glGetError()) {}
+		if (outputs_count <= 0) break;
+
+		locations_count += 1;
+	}
+
+	shader->outputs_count = locations_count;
+	shader->outputs = locations_count ? zt_mallocStructArrayArena(ztShaderGL::Outputs, locations_count, arena) : nullptr;
+
+	zt_fiz(locations_count) {
+		GLenum inputs[] = { GL_LOCATION };
+		GLint outputs[64];
+		int outputs_count = 0;
+
+		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
+		shader->outputs[i].location = outputs[0];
+
+		inputs[0] = GL_TYPE;
+		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
+		shader->outputs[i].type = outputs[0];
+
+		char varname[256] = { 0 };
+		int len = 0;
+		glGetProgramResourceName(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(varname), &len, varname);
+
+		shader->outputs[i].name = zt_stringMakeFrom(varname, arena);
+		shader->outputs[i].name_hash = zt_strHash(shader->outputs[i].name);
+	}
+#	endif
+
 	return shader;
 }
 
@@ -2404,6 +2499,16 @@ void ztgl_shaderFree(ztShaderGL *shader)
 		zt_stringFree(shader->uniforms[i].name, shader->arena);
 	}
 	zt_freeArena(shader->uniforms, shader->arena);
+
+	zt_fiz(shader->inputs_count) {
+		zt_stringFree(shader->inputs[i].name, shader->arena);
+	}
+	zt_freeArena(shader->inputs, shader->arena);
+
+	zt_fiz(shader->outputs_count) {
+		zt_stringFree(shader->outputs[i].name, shader->arena);
+	}
+	zt_freeArena(shader->outputs, shader->arena);
 
 	GLuint ids[3] = { shader->vert_id, shader->frag_id, shader->geom_id };
 
@@ -2428,6 +2533,13 @@ void ztgl_shaderBegin(ztShaderGL *shader)
 	zt_returnOnNull(shader);
 	ztgl_callAndReportOnErrorFast(glUseProgram(shader->program_id));
 	ztgl_textureBindReset(shader);
+
+	if (shader->context && shader->context->active_render_target) {
+		zt_fize(shader->context->active_render_target->attachments) {
+			ztgl_textureRenderTargetAttachmentEnable(shader->context->active_render_target, i, (shader->outputs_count - 1) > i);
+		}
+	}
+
 	shader->in_use = true;
 }
 
@@ -2571,7 +2683,7 @@ void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 
 // ================================================================================================================================================================================================
 
-ztShaderGL *ztgl_shaderMakePointLightShadows()
+ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
 {
 	char *vert =
 		"#version 330 core\n"
@@ -2624,7 +2736,7 @@ ztShaderGL *ztgl_shaderMakePointLightShadows()
 		"	gl_FragDepth = light_distance;\n"
 		"}\n";
 
-	return ztgl_shaderMake(vert, frag, geom);
+	return ztgl_shaderMake(context, vert, frag, geom);
 }
 
 // ================================================================================================================================================================================================
@@ -2632,7 +2744,7 @@ ztShaderGL *ztgl_shaderMakePointLightShadows()
 // ================================================================================================================================================================================================
 
 
-ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags)
+ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryArena *arena, byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags)
 {
 	ZT_PROFILE_OPENGL("_ztgl_textureMakeBase");
 
@@ -2939,6 +3051,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 	texture->attachments_count = 0;
 	texture->flags             = flags;
 	texture->arena             = arena;
+	texture->context           = context;
 
 	zt_logDebug("opengl: made texture (id: %d; fbo: %d; dim: %d x %d)", tex_id, fb_id, width, height);
 
@@ -2947,30 +3060,30 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztMemoryArena *arena, byte *pixel_
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeFromPixelData(byte *pixels, int w, int h, int d, i32 flags)
+ztTextureGL *ztgl_textureMakeFromPixelData(ztContextGL *context, byte *pixels, int w, int h, int d, i32 flags)
 {
-	return ztgl_textureMakeFromPixelData(zt_memGetGlobalArena(), pixels, w, h, d, flags);
+	return ztgl_textureMakeFromPixelData(context, zt_memGetGlobalArena(), pixels, w, h, d, flags);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeFromPixelData(ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags)
+ztTextureGL *ztgl_textureMakeFromPixelData(ztContextGL *context, ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeFromPixelData");
 
-	return _ztgl_textureMakeBase(arena, pixels, w, h, d, flags);
+	return _ztgl_textureMakeBase(context, arena, pixels, w, h, d, flags);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(byte **pixels, int w, int h, int d)
+ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztContextGL *context, byte **pixels, int w, int h, int d)
 {
-	return ztgl_textureMakeCubeMapFromPixelData(zt_memGetGlobalArena(), pixels, w, h, d);
+	return ztgl_textureMakeCubeMapFromPixelData(context, zt_memGetGlobalArena(), pixels, w, h, d);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztMemoryArena *arena, byte **pixels, int w, int h, int d)
+ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztContextGL *context, ztMemoryArena *arena, byte **pixels, int w, int h, int d)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeCubeMapFromPixelData");
 
@@ -3023,13 +3136,14 @@ ztTextureGL *ztgl_textureMakeCubeMapFromPixelData(ztMemoryArena *arena, byte **p
 	texture->attachments_count = 0;
 	texture->flags             = ztTextureGLFlags_CubeMap;
 	texture->arena             = arena;
+	texture->context           = context;
 
 	return texture;
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeCubeMapFromRender(int w, int h, int mip_map_levels, ztTextureGLRender_Func *render_func, void *user_data)
+ztTextureGL *ztgl_textureMakeCubeMapFromRender(ztContextGL *context, int w, int h, int mip_map_levels, ztTextureGLRender_Func *render_func, void *user_data)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeCubeMapFromRender");
 
@@ -3117,13 +3231,14 @@ ztTextureGL *ztgl_textureMakeCubeMapFromRender(int w, int h, int mip_map_levels,
 	texture->attachments_count = 0;
 	texture->flags             = ztTextureGLFlags_CubeMap;
 	texture->arena             = arena;
+	texture->context           = context;
 
 	return texture;
 }
 
 // ================================================================================================================================================================================================
 
-ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztTextureGL *hdr_texture, ztTextureGL *cube_map_irradiance, ztTextureGL *cube_map_prefilter, int w, int h)
+ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztContextGL *context, ztTextureGL *hdr_texture, ztTextureGL *cube_map_irradiance, ztTextureGL *cube_map_prefilter, int w, int h)
 {
 	float vertices[] = {
 		-1.0f,  1.0f, -1.0f,       -1.0f, -1.0f, -1.0f,        1.0f, -1.0f, -1.0f,        1.0f, -1.0f, -1.0f,        1.0f,  1.0f, -1.0f,       -1.0f,  1.0f, -1.0f,
@@ -3178,19 +3293,19 @@ ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztTextureGL *hdr_textu
 	if (hdr_texture != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform sampler2D equirectangular_map;\n\nconst vec2 inv_atan = vec2(0.1591, 0.3183);\n\nvec2 sampleSphericalMap(vec3 v)\n{\n    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));\n    uv *= inv_atan;\n    uv += 0.5;\n    return uv;\n}\n\nvoid main()\n{		\n    vec2 uv = sampleSphericalMap(normalize(world_position));\n    vec3 clr = texture(equirectangular_map, uv).rgb;\n    \n    frag_color = vec4(clr, 1.0);\n}";
-		cube_render.shader = ztgl_shaderMake(vert_shader, frag_shader);
+		cube_render.shader = ztgl_shaderMake(context, vert_shader, frag_shader);
 		cube_render.texture = hdr_texture;
 	}
 	else if (cube_map_irradiance != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform samplerCube environment_map;\n\nconst float PI = 3.14159265359;\n\nvoid main()\n{		\n    vec3 npos = normalize(world_position);\n    vec3 irradiance = vec3(0.0);   \n    vec3 up    = vec3(0.0, 1.0, 0.0);\n    vec3 right = cross(up, npos);\n    up = cross(npos, right);\n       \n    float sample_delta = 0.025;\n    float cnt_samples = 0.0f;\n    for (float phi = 0.0; phi < 2.0 * PI; phi += sample_delta) {\n        for (float theta = 0.0; theta < 0.5 * PI; theta += sample_delta) {\n            vec3 tangent_simple = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));\n            vec3 sample_vec = tangent_simple.x * right + tangent_simple.y * up + tangent_simple.z * npos;\n\n            irradiance += texture(environment_map, sample_vec).rgb * cos(theta) * sin(theta);\n            cnt_samples++;\n        }\n    }\n    irradiance = PI * irradiance * (1.0 / float(cnt_samples));\n    \n    frag_color = vec4(irradiance, 1.0);\n}";
-		cube_render.shader = ztgl_shaderMake(vert_shader, frag_shader);
+		cube_render.shader = ztgl_shaderMake(context, vert_shader, frag_shader);
 		cube_render.texture = cube_map_irradiance;
 	}
 	else if(cube_map_prefilter != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform samplerCube environment_map;\nuniform float roughness;\n\nconst float PI = 3.14159265359;\n\n// ----------------------------------------------------------------------------\n\nfloat distributionGGX(vec3 N, vec3 H, float roughness)\n{\n    float a = roughness * roughness;\n    float a2 = a*a;\n    float n_dot_h = max(dot(N, H), 0.0);\n    float n_dot_h2 = n_dot_h * n_dot_h;\n\n    float nom   = a2;\n    float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n\n    return nom / denom;\n}\n\nfloat radicalInverseVdC(uint bits) \n{\n     bits = (bits << 16u) | (bits >> 16u);\n     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);\n     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);\n     bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);\n     bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);\n     return float(bits) * 2.3283064365386963e-10; // / 0x100000000\n}\n\n// ----------------------------------------------------------------------------\n\nvec2 hammersley(uint i, uint N)\n{\n	return vec2(float(i)/float(N), radicalInverseVdC(i));\n}\n\n// ----------------------------------------------------------------------------\n\nvec3 importanceSampleGGX(vec2 Xi, vec3 N, float roughness)\n{\n	float a = roughness * roughness;\n	\n	float phi = 2.0 * PI * Xi.x;\n	float cos_theta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));\n	float sin_theta = sqrt(1.0 - cos_theta*cos_theta);\n	\n	// from spherical coordinates to cartesian coordinates - halfway vector\n	vec3 H;\n	H.x = cos(phi) * sin_theta;\n	H.y = sin(phi) * sin_theta;\n	H.z = cos_theta;\n	\n	// from tangent-space H vector to world-space sample vector\n	vec3 up          = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);\n	vec3 tangent   = normalize(cross(up, N));\n	vec3 bitangent = cross(N, tangent);\n	\n	vec3 sample_vec = tangent * H.x + bitangent * H.y + N * H.z;\n	return normalize(sample_vec);\n}\n\n// ----------------------------------------------------------------------------\n\nvoid main()\n{		\n    vec3 N = normalize(world_position);\n    \n    // make the simplyfying assumption that V equals R equals the normal \n    vec3 R = N;\n    vec3 V = R;\n\n    const uint SAMPLE_COUNT = 1024u;\n    vec3 prefiltered_color = vec3(0.0);\n    float total_weight = 0.0;\n    \n    for (uint i = 0u; i < SAMPLE_COUNT; ++i) {\n        // generates a sample vector that's biased towards the preferred alignment direction (importance sampling).\n        vec2 Xi = hammersley(i, SAMPLE_COUNT);\n        vec3 H = importanceSampleGGX(Xi, N, roughness);\n        vec3 L  = normalize(2.0 * dot(V, H) * H - V);\n\n        float NdotL = max(dot(N, L), 0.0);\n        if(NdotL > 0.0)\n        {\n            // sample from the environment's mip level based on roughness/pdf\n            float D   = distributionGGX(N, H, roughness);\n            float n_dot_h = max(dot(N, H), 0.0);\n            float HdotV = max(dot(H, V), 0.0);\n            float pdf = D * n_dot_h / (4.0 * HdotV) + 0.0001; \n\n            float resolution = 512.0; // resolution of source cubemap (per face)\n            float sa_texel  = 4.0 * PI / (6.0 * resolution * resolution);\n            float sa_sample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);\n\n            float mip_level = roughness == 0.0 ? 0.0 : 0.5 * log2(sa_sample / sa_texel); \n            \n            prefiltered_color += textureLod(environment_map, L, mip_level).rgb * NdotL;\n            total_weight      += NdotL;\n        }\n    }\n\n    prefiltered_color = prefiltered_color / total_weight;\n\n    frag_color = vec4(prefiltered_color, 1.0);\n}";
-		cube_render.shader = ztgl_shaderMake(vert_shader, frag_shader);
+		cube_render.shader = ztgl_shaderMake(context, vert_shader, frag_shader);
 		cube_render.texture = cube_map_prefilter;
 		cube_render.mip_levels = 5;
 	}
@@ -3201,7 +3316,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztTextureGL *hdr_textu
 	}
 
 	ztgl_shaderBegin(cube_render.shader);
-	ztTextureGL *cube_map_result = ztgl_textureMakeCubeMapFromRender(w, h, cube_render.mip_levels, CubeRender::render, &cube_render);
+	ztTextureGL *cube_map_result = ztgl_textureMakeCubeMapFromRender(context, w, h, cube_render.mip_levels, CubeRender::render, &cube_render);
 	ztgl_shaderEnd(cube_render.shader);
 
 	ztgl_vertexArrayFree(&cube_render.va);
@@ -3212,14 +3327,14 @@ ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztTextureGL *hdr_textu
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeCubeMapFromHDR(ztTextureGL *hdr_texture, int w, int h)
+ztTextureGL *ztgl_textureMakeCubeMapFromHDR(ztContextGL *context, ztTextureGL *hdr_texture, int w, int h)
 {
-	return _ztgl_textureMakeCubeMapFromOther(hdr_texture, nullptr, nullptr, w, h);
+	return _ztgl_textureMakeCubeMapFromOther(context, hdr_texture, nullptr, nullptr, w, h);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeCubeMapForDepth(i32 dimension)
+ztTextureGL *ztgl_textureMakeCubeMapForDepth(ztContextGL *context, i32 dimension)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeCubeMapFromRender");
 
@@ -3276,54 +3391,55 @@ ztTextureGL *ztgl_textureMakeCubeMapForDepth(i32 dimension)
 	texture->attachments_count = 0;
 	texture->flags             = ztTextureGLFlags_CubeMap | ztTextureGLFlags_DepthMap;
 	texture->arena             = arena;
+	texture->context           = context;
 
 	return texture;
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeIrradianceCubeMapFromCubeMap(ztTextureGL *cube_map_texture)
+ztTextureGL *ztgl_textureMakeIrradianceCubeMapFromCubeMap(ztContextGL *context, ztTextureGL *cube_map_texture)
 {
-	return _ztgl_textureMakeCubeMapFromOther(nullptr, cube_map_texture, nullptr, 32, 32);
+	return _ztgl_textureMakeCubeMapFromOther(context, nullptr, cube_map_texture, nullptr, 32, 32);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakePrefilterCubeMapFromCubeMap(ztTextureGL *cube_map_texture)
+ztTextureGL *ztgl_textureMakePrefilterCubeMapFromCubeMap(ztContextGL *context, ztTextureGL *cube_map_texture)
 {
-	return _ztgl_textureMakeCubeMapFromOther(nullptr, nullptr, cube_map_texture, 128, 128);
+	return _ztgl_textureMakeCubeMapFromOther(context, nullptr, nullptr, cube_map_texture, 128, 128);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeRenderTarget(int w, int h, i32 flags)
+ztTextureGL *ztgl_textureMakeRenderTarget(ztContextGL *context, int w, int h, i32 flags)
 {
-	return ztgl_textureMakeRenderTarget(zt_memGetGlobalArena(), w, h, flags);
+	return ztgl_textureMakeRenderTarget(context, zt_memGetGlobalArena(), w, h, flags);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeRenderTarget(ztMemoryArena *arena, int w, int h, i32 flags)
+ztTextureGL *ztgl_textureMakeRenderTarget(ztContextGL *context, ztMemoryArena *arena, int w, int h, i32 flags)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeRenderTarget");
 
-	return _ztgl_textureMakeBase(arena, nullptr, w, h, 4, flags);
+	return _ztgl_textureMakeBase(context, arena, nullptr, w, h, 4, flags);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeDepthRenderTarget(int w, int h)
+ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztContextGL *context, int w, int h)
 {
-	return ztgl_textureMakeDepthRenderTarget(zt_memGetGlobalArena(), w, h);
+	return ztgl_textureMakeDepthRenderTarget(context, zt_memGetGlobalArena(), w, h);
 }
 
 // ================================================================================================================================================================================================
 
-ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztMemoryArena *arena, int w, int h)
+ztTextureGL *ztgl_textureMakeDepthRenderTarget(ztContextGL *context, ztMemoryArena *arena, int w, int h)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeDepthRenderTarget");
 
-	return ztgl_textureMakeRenderTarget(arena, w, h, ztTextureGLFlags_DepthMap);
+	return ztgl_textureMakeRenderTarget(context, arena, w, h, ztTextureGLFlags_DepthMap);
 }
 
 // ================================================================================================================================================================================================
@@ -3386,7 +3502,7 @@ void ztgl_textureBind(ztTextureGL *texture, int as_idx)
 
 // ================================================================================================================================================================================================
 
-ztInternal void _ztgl_textureRenderTargetSetDrawBuffers(ztTextureGL *texture)
+ztInternal void _ztgl_textureRenderTargetSetDrawBuffers(ztTextureGL *texture, bool force_on)
 {
 	GLenum targets[zt_elementsOf(texture->attachments)];
 
@@ -3394,7 +3510,7 @@ ztInternal void _ztgl_textureRenderTargetSetDrawBuffers(ztTextureGL *texture)
 	targets[target_idx++] = GL_COLOR_ATTACHMENT0;
 
 	zt_fize(texture->attachments) {
-		if (texture->attachments_enabled[i]) {
+		if (texture->attachments_enabled[i] || (texture->attachments[i] != 0 && force_on)) {
 			targets[target_idx++] = GL_COLOR_ATTACHMENT0 + 1 + i;
 		}
 	}
@@ -3409,13 +3525,17 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 	ZT_PROFILE_OPENGL("ztgl_textureRenderTargetPrepare");
 
 	zt_returnOnNull(texture);
+	zt_assertReturnOnFail(texture->context != nullptr && texture->context->active_render_target == nullptr);
 
 	ztgl_callAndReportOnErrorFast(glBindFramebuffer(texture->rb != 0 ? GL_DRAW_FRAMEBUFFER : GL_FRAMEBUFFER, texture->fbo));
 
 #	if !defined(ZT_GLES)
 
 	if (!zt_bitIsSet(texture->flags, ztTextureGLFlags_CubeMap) && !zt_bitIsSet(texture->flags, ztTextureGLFlags_DepthMap)) {
-		_ztgl_textureRenderTargetSetDrawBuffers(texture);
+		_ztgl_textureRenderTargetSetDrawBuffers(texture, true);
+		ztgl_callAndReportOnErrorFast(glClearColor(0, 0, 0, 0));
+		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+		_ztgl_textureRenderTargetSetDrawBuffers(texture, false);
 	}
 	else {
 		glDrawBuffer(GL_NONE);
@@ -3442,9 +3562,11 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 	}
 
-	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT));
+	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
 	texture->flags |= ztTextureGLFlags_RenderTargetWriting;
+
+	texture->context->active_render_target = texture;
 }
 
 // ================================================================================================================================================================================================
@@ -3452,6 +3574,8 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureRenderTargetCommit");
+
+	zt_assertReturnOnFail(texture->context != nullptr && texture->context->active_render_target == texture);
 
 	ztgl_callAndReportOnErrorFast(glBindFramebuffer(texture->rb != 0 ? GL_DRAW_FRAMEBUFFER : GL_FRAMEBUFFER, 0));
 
@@ -3492,6 +3616,7 @@ void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 	ztgl_setViewport(context);
 
 	zt_bitRemove(texture->flags, ztTextureGLFlags_RenderTargetWriting);
+	texture->context->active_render_target = nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -3559,7 +3684,7 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 		ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + texture->attachments_count, GL_TEXTURE_2D, attachment, 0), nullptr);
 	}
 
-	_ztgl_textureRenderTargetSetDrawBuffers(texture);
+	_ztgl_textureRenderTargetSetDrawBuffers(texture, false);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		zt_assertReturnValOnFail(false, nullptr);
@@ -3644,10 +3769,14 @@ void ztgl_textureRenderTargetAttachmentEnable(ztTextureGL *texture, int attachme
 		return;
 	}
 
+	if (texture->attachments_enabled[attachment_idx] == enable) {
+		return;
+	}
+
 	texture->attachments_enabled[attachment_idx] = enable;
 
 	if (zt_bitIsSet(texture->flags, ztTextureGLFlags_RenderTargetWriting)) {
-		_ztgl_textureRenderTargetSetDrawBuffers(texture);
+		_ztgl_textureRenderTargetSetDrawBuffers(texture, false);
 	}
 }
 
