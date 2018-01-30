@@ -2556,7 +2556,7 @@ bool     zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimContro
 bool     zt_modelMakeFromParticleEmitter     (ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 void     zt_modelFree(ztModel *model);
 
-bool     zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id);
+bool     zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id, bool owns_texture = false);
 
 void     zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
 
@@ -2653,7 +2653,7 @@ void     zt_sceneFree(ztScene *scene);
 
 bool     zt_sceneMakeVertexArray(ztScene *scene, int max_vertices);
 
-void     zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res = 4096);
+void     zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res = 1024);
 void     zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
 void     zt_sceneAddDepthPass(ztScene *scene, i32 w, i32 h);
 
@@ -5193,8 +5193,8 @@ struct ztShader
 	zt_openGLSupport(ztShaderGL *gl_shader);
 	zt_directxSupport(ztShaderDX *dx_shader);
 
-	char name[64];
-	ztRenderer_Enum renderer;
+	char                  name[64];
+	ztRenderer_Enum       renderer;
 	ztShaderLoadType_Enum load_type;
 
 	union {
@@ -13145,7 +13145,7 @@ void zt_modelFree(ztModel *model)
 
 // ================================================================================================================================================================================================
 
-bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id)
+bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id, bool owns_texture)
 {
 	ZT_PROFILE_RENDERING("zt_modelMakeSkybox");
 	ztVec3 skybox_verts[] = {
@@ -13162,7 +13162,7 @@ bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id)
 		return false;
 	}
 
-	ztMaterial material = zt_materialMake(texture_id);
+	ztMaterial material = zt_materialMake(texture_id, ztColor_White, owns_texture ? ztMaterialFlags_OwnsTexture : 0);
 
 	return zt_modelMakeFromMesh(model, mesh, &material, zt_shaderGetDefault(ztShaderDefault_Skybox), nullptr, ztModelFlags_OwnsMesh | ztModelFlags_OwnsMaterials);
 }
@@ -13408,6 +13408,10 @@ void zt_sceneFree(ztScene *scene)
 	}
 
 	zt_textureFree(scene->tex_directional_shadow_map);
+	zt_textureFree(scene->tex_depth);
+	zt_textureFree(scene->tex_irradiance_map);
+	zt_textureFree(scene->tex_prefilter_map);
+	zt_textureFree(scene->tex_brdf_lut);
 
 	zt_freeArena(scene->models, scene->arena);
 	zt_freeArena(scene->list_std, scene->arena);
@@ -14400,6 +14404,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 		}
 	}
 	zt_shaderEnd(shader);
+	shader = ztInvalidID;
 
 	//glEnable(GL_BLEND);
 
@@ -17943,7 +17948,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 				shader_id = _zt_shaderGetNextID();
 			}
 
-			ztShaderGL *gl_shader = ztgl_shaderMake(vert_src, frag_src, geom_src);
+			ztShaderGL *gl_shader = ztgl_shaderMake(zt_game->win_details[0].gl_context, vert_src, frag_src, geom_src);
 			if (gl_shader != nullptr) {
 				if (replace != ztInvalidID) {
 					zt_shaderFree(replace);
@@ -18754,7 +18759,7 @@ ztShaderID zt_shaderMakePointLightShadows()
 	{
 		case ztRenderer_OpenGL: {
 #		if defined(ZT_OPENGL)
-			ztShaderGL *gl_shader = ztgl_shaderMakePointLightShadows();
+			ztShaderGL *gl_shader = ztgl_shaderMakePointLightShadows(zt_game->win_details[0].gl_context);
 			if (gl_shader != nullptr) {
 				ztShaderID shader_id = _zt_shaderGetNextID();
 				zt_game->shaders[shader_id].gl_shader = gl_shader;
@@ -19126,7 +19131,10 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"	vec3 H = normalize(view_dir + light_dir);\n"
 		"	vec3 radiance;\n"
 		"	if (directional) {\n"
-		"		radiance = light_color * (1 - shadow);\n"
+		"		float distance = 1;//normalize(light_pos);\n"
+		"		float attenuation = 1.0 / (distance * distance);\n"
+		"		radiance = light_color * attenuation * (1 - shadow) * light_intensity;\n"
+		//"		radiance = light_color * (1 - shadow) * light_intensity;\n"
 		"	}\n"
 		"	else {\n"
 		"		float distance = length(light_pos - world_pos);\n"
@@ -19202,11 +19210,11 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"\n"
 		"		// directional light\n"
 		"		if (true) {\n"
-		"			vec3 light_dir = normalize(uniforms.light_pos - world_pos);\n"
+		"			vec3 light_dir = normalize(uniforms.light_pos);\n"
 		"			float shadow = min(1 - uniforms.light_ambient, shadowCalculation(light_dir, normal, _input, textures));\n"
 		"			//float shadow = shadowCalculation(light_dir, normal, _input, textures);\n"
 		"			vec4 light_color = uniforms.light_color;\n"
-		"			Lo += calculateLighting(light_dir, view_dir, normal, F0, uniforms.light_pos, world_pos, light_color.rgb, uniforms.light_intensity, shadow, albedo, metallic, roughness, true);\n"
+		"			Lo += calculateLighting(light_dir, view_dir, normal, F0, uniforms.light_pos, vec3(0), light_color.rgb, uniforms.light_intensity, shadow, albedo, metallic, roughness, true);\n"
 		"		}\n"
 		"\n"
 		);
@@ -19222,7 +19230,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			"				PointLight light = uniforms.point_lights[i];\n"
 			"				vec3 light_dir = normalize(light.pos - world_pos);\n"
 			"				float shadow = shadowCalculationPointLight(light, textures.point_lights_shadowmap[i], normal, _input, textures);\n"
-			"				Lo += calculateLighting(light_dir, view_dir, normal, F0, light.pos, world_pos, light.ambient_color, light.intensity, shadow, albedo, metallic, roughness, true);\n"
+			"				Lo += calculateLighting(light_dir, view_dir, normal, F0, light.pos, world_pos, light.ambient_color, light.intensity, shadow, albedo, metallic, roughness, false);\n"
 			"			}\n"
 			"		}\n"
 			"\n",
@@ -19241,7 +19249,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			"				SpotLight light = uniforms.spot_lights[i];\n"
 			"				vec3 light_dir = normalize(light.pos - world_pos);\n"
 			"				float shadow = shadowCalculationSpotLight(light, textures.spot_lights_shadowmap[i], normal, _input, textures);\n"
-			"				Lo += calculateLighting(light_dir, view_dir, normal, F0, light.pos, world_pos, light.ambient_color, light.intensity, shadow, albedo, metallic, roughness, true);\n"
+			"				Lo += calculateLighting(light_dir, view_dir, normal, F0, light.pos, world_pos, light.ambient_color, light.intensity, shadow, albedo, metallic, roughness, false);\n"
 			"			}\n"
 			"		}\n"
 			"\n",
@@ -19271,9 +19279,9 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"		vec3 color = ambient + Lo;\n"
 		"\n"
 		"		// HDR tonemapping\n"
-		"		//color = color / (color + vec3(1.0));\n"
+		"		color = color / (color + vec3(1.0));\n"
 		"		// gamma correct\n"
-		"		//color = pow(color, vec3(1.0/2.2)); \n"
+		"		color = pow(color, vec3(1.0/2.2)); \n"
 		"\n"
 		"\n"
 		"		_output.color = vec4(color, 1.0);\n"
@@ -19295,7 +19303,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"}\n"
 		);
 
-	ztShaderID result = zt_shaderMake("PyhsicallyBasedRendering", buffer, zt_strLen(buffer));
+	ztShaderID result = zt_shaderMake("PhysicallyBasedRendering", buffer, zt_strLen(buffer));
 
 	zt_freeArena(buffer, zt->mem_arena_stack);
 
@@ -19527,6 +19535,13 @@ ztShaderID zt_shaderBuildTonemap(ztShaderTonemapSettings *settings)
 
 	zt_freeArena(buffer, zt->mem_arena_stack);
 
+	if (result != ztInvalidID) {
+		//zt_shaderSetVariableFloat(result, zt_strHash("gamma"), 5.f * 0.0464514941f);
+		//zt_shaderSetVariableFloat(result, zt_strHash("exposure"), 5.f * 0.805032253f);
+		zt_shaderSetVariableFloat(result, zt_strHash("gamma"), 2.2f);
+		zt_shaderSetVariableFloat(result, zt_strHash("exposure"), 1.f);
+	}
+
 	return result;
 }
 
@@ -19553,7 +19568,7 @@ ztInternal void _zt_textureAdjustScreenTargets()
 				case ztRenderer_OpenGL: {
 #					if defined(ZT_OPENGL)
 					ztgl_textureFree(zt_game->textures[i].gl_texture);
-					zt_game->textures[i].gl_texture = ztgl_textureMakeRenderTarget(width, height, zt_game->textures[i].flags);
+					zt_game->textures[i].gl_texture = ztgl_textureMakeRenderTarget(zt_game->win_details[0].gl_context, width, height, zt_game->textures[i].flags);
 #					endif
 				} break;
 
@@ -19610,10 +19625,10 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 			if (pixel_data) {
-				texture->gl_texture = ztgl_textureMakeFromPixelData(pixel_data, width, height, depth, flags);
+				texture->gl_texture = ztgl_textureMakeFromPixelData(zt_game->win_details[0].gl_context, pixel_data, width, height, depth, flags);
 			}
 			else {
-				texture->gl_texture = ztgl_textureMakeRenderTarget(width, height, flags);
+				texture->gl_texture = ztgl_textureMakeRenderTarget(zt_game->win_details[0].gl_context, width, height, flags);
 			}
 			if (texture->gl_texture == nullptr) {
 				zt_game->textures_count -= 1;
@@ -19807,6 +19822,7 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 	const char *error = nullptr;
 
 	int width, height, depth;
+	stbi_set_flip_vertically_on_load(true);
 	byte *pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, &width, &height, &depth, 4);
 	ztTextureID texture_id = ztInvalidID;
 
@@ -19942,6 +19958,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 	int width, height, depth;
 	byte *pixel_data[ztTextureGLCubeMapFiles_MAX];
 	zt_fiz(ztTextureGLCubeMapFiles_MAX) {
+		stbi_set_flip_vertically_on_load(true);
 		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
 
@@ -19969,7 +19986,7 @@ ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMap
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(pixel_data, width, height, depth);
+			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(zt_game->win_details[0].gl_context, pixel_data, width, height, depth);
 			if (texture->gl_texture == nullptr) {
 				return ztInvalidID;
 			}
@@ -20020,7 +20037,7 @@ ztTextureID zt_textureMakeCubeMapFromHDR(ztAssetManager *asset_mgr, ztAssetID as
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapFromHDR(texture_hdr->gl_texture, w, h);
+			texture->gl_texture = ztgl_textureMakeCubeMapFromHDR(zt_game->win_details[0].gl_context, texture_hdr->gl_texture, w, h);
 			if (texture->gl_texture == nullptr) {
 				texture->renderer = ztRenderer_Invalid;
 				zt_textureFree(tex);
@@ -20037,7 +20054,7 @@ ztTextureID zt_textureMakeCubeMapFromHDR(ztAssetManager *asset_mgr, ztAssetID as
 		} break;
 	}
 
-	//zt_textureFree(tex);
+	zt_textureFree(tex);
 
 	texture->width  = w;
 	texture->height = h;
@@ -20061,7 +20078,7 @@ ztTextureID zt_textureMakeCubeMapForDepth(i32 dimension)
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapForDepth(dimension);
+			texture->gl_texture = ztgl_textureMakeCubeMapForDepth(zt_game->win_details[0].gl_context, dimension);
 			if (texture->gl_texture == nullptr) {
 				texture->renderer = ztRenderer_Invalid;
 				zt_textureFree(texture_id);
@@ -20100,7 +20117,7 @@ ztTextureID zt_textureMakeIrradianceCubeMapFromCubeMap(ztTextureID cube_map_text
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeIrradianceCubeMapFromCubeMap(cube_map_texture->gl_texture);
+			texture->gl_texture = ztgl_textureMakeIrradianceCubeMapFromCubeMap(zt_game->win_details[0].gl_context, cube_map_texture->gl_texture);
 			if (texture->gl_texture == nullptr) {
 				texture->renderer = ztRenderer_Invalid;
 				zt_textureFree(texture_id);
@@ -20139,7 +20156,7 @@ ztTextureID zt_textureMakePrefilterCubeMapFromCubeMap(ztTextureID cube_map_textu
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakePrefilterCubeMapFromCubeMap(cube_map_texture->gl_texture);
+			texture->gl_texture = ztgl_textureMakePrefilterCubeMapFromCubeMap(zt_game->win_details[0].gl_context, cube_map_texture->gl_texture);
 			if (texture->gl_texture == nullptr) {
 				texture->renderer = ztRenderer_Invalid;
 				zt_textureFree(texture_id);
@@ -20229,7 +20246,7 @@ ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h)
 	{
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeFromPixelData((byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR | ztTextureGLFlags_PixelPerfect);
+			texture->gl_texture = ztgl_textureMakeFromPixelData(zt_game->win_details[0].gl_context, (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR | ztTextureGLFlags_PixelPerfect);
 			if (texture->gl_texture == nullptr) {
 				zt_free(pixels);
 				return ztInvalidID;
@@ -20293,6 +20310,7 @@ byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32
 
 	{
 		ztBlockProfiler bp_tex("stbi_load_from_memory");
+		stbi_set_flip_vertically_on_load(true);
 		pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, width, height, depth, 4);
 	}
 
@@ -20329,6 +20347,7 @@ byte *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height
 
 	{
 		ztBlockProfiler bp_tex("stbi_load_from_memory");
+		stbi_set_flip_vertically_on_load(true);
 		pixel_data = stbi_load_from_memory((const stbi_uc*)data, data_size, width, height, depth, 4);
 	}
 
@@ -21150,7 +21169,7 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 	zt_memSet(&controller, zt_sizeof(ztCameraControllerFPS), 0);
 
 	controller.camera = camera;
-	controller.mouse_sensitivity = 0.05f;
+	controller.mouse_sensitivity = 0.005f;
 	controller.speed = 10.f;
 	controller.boosted_speed = 30.f;
 	controller.sneaking_speed = 2.f;
@@ -23615,6 +23634,15 @@ void zt_materialFree(ztMaterial *material)
 	material->height_tex = ztInvalidID;
 	material->height_flags = 0;
 	material->height_tex_override = 0;
+
+	material->shininess_override = 0;
+
+	if (zt_bitIsSet(material->roughness_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->roughness_tex);
+	}
+	material->roughness_tex = ztInvalidID;
+	material->roughness_flags = 0;
+	material->roughness_tex_override = 0;
 
 	material->shininess_override = 0;
 }
@@ -34413,9 +34441,6 @@ bool mainLoopCall(r64 *time_last)
 	ZT_PROFILE_PLATFORM("Game Loop");
 
 	static bool mouse_look = zt_game->input_mouse_look;
-#	if defined(ZT_WINDOWS)
-	static POINT mouse_prev_frame = { 0, 0 };
-#	endif
 
 	{
 		ZT_PROFILE_INPUT("Mouse Handling");
@@ -34423,39 +34448,30 @@ bool mainLoopCall(r64 *time_last)
 		if (mouse_look != zt_game->input_mouse_look) {
 			mouse_look = zt_game->input_mouse_look;
 			if (mouse_look) {
-				zt_winOnly(GetCursorPos(&mouse_prev_frame));
+#				if defined(ZT_WINDOWS)
+				if(zt_game->app_has_focus) {
+					RECT client_rect; GetClientRect(zt_game->win_details[0].handle, &client_rect);
+					RECT window_rect; GetWindowRect(zt_game->win_details[0].handle, &window_rect);
+					RECT clip_rect;
+					clip_rect.left   = window_rect.left + zt_convertToi32Floor(((window_rect.right - window_rect.left) - (client_rect.right)) / 2.f);
+					clip_rect.right  = clip_rect.left + client_rect.right;
+					clip_rect.top    = window_rect.top + zt_convertToi32Floor(((window_rect.bottom - window_rect.top) - (client_rect.bottom)) / 2.f);
+					clip_rect.bottom = clip_rect.top + client_rect.bottom;
+					ClipCursor(&clip_rect);
+				}
+#				endif
 
 				zt_emscriptenOnly(_ems_request_pointer_lock = true);
 			}
 			else {
+				zt_winOnly(ClipCursor(NULL));
 				zt_emscriptenOnly(_ems_request_pointer_lock = false);
 			}
 		}
 		if (zt_game->input_mouse_look) {
-			zt_winOnly(POINT mouse_this_frame);
-			zt_winOnly(GetCursorPos(&mouse_this_frame));
-
-			zt_winOnly(ztWindowDetails *win_details = &zt_game->win_details[0]);
-			if (zt_winOnly(GetFocus() == win_details->handle) zt_emscriptenOnly(zt_game->app_has_focus) zt_androidOnly(true)) {
+			if (zt_winOnly(zt_game->app_has_focus) zt_emscriptenOnly(zt_game->app_has_focus) zt_androidOnly(true)) {
 				zt_game->input_mouse.screen_x = 0;
 				zt_game->input_mouse.screen_y = 0;
-
-#				if defined(ZT_WINDOWS)
-				zt_game->input_mouse.delta_x = mouse_this_frame.x - mouse_prev_frame.x;
-				zt_game->input_mouse.delta_y = mouse_this_frame.y - mouse_prev_frame.y;
-
-				mouse_prev_frame = mouse_this_frame;
-
-				bool change_cursor = false;
-				if(mouse_prev_frame.x > win_details->window_rect.right  - 100) { mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2); change_cursor = true; }
-				if(mouse_prev_frame.x < win_details->window_rect.left   + 100) { mouse_prev_frame.x = win_details->window_rect.left + ((win_details->window_rect.right - win_details->window_rect.left) / 2); change_cursor = true; }
-				if(mouse_prev_frame.y > win_details->window_rect.bottom - 100) { mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2); change_cursor = true; }
-				if(mouse_prev_frame.y < win_details->window_rect.top    + 100) { mouse_prev_frame.y = win_details->window_rect.top + ((win_details->window_rect.bottom - win_details->window_rect.top) / 2); change_cursor = true; }
-
-				if(change_cursor) {
-					SetCursorPos(mouse_prev_frame.x, mouse_prev_frame.y);
-				}
-#				endif
 
 				zt_emscriptenOnly(SDL_WarpMouse(0, 0));
 			}
@@ -34464,6 +34480,8 @@ bool mainLoopCall(r64 *time_last)
 				zt_game->input_mouse.screen_y = 0;
 				zt_game->input_mouse.delta_x  = 0;
 				zt_game->input_mouse.delta_y  = 0;
+				mouse_look = false;
+				zt_winOnly(ClipCursor(NULL));
 			}
 		}
 	}
@@ -35327,11 +35345,8 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 			switch (msg)
 			{
 				case WM_MOUSEMOVE: {
-					int x = GET_X_LPARAM(l_param);// - window_details->window_rect.left;
-					int y = GET_Y_LPARAM(l_param);// - window_details->window_rect.top;
-
-					zt_game->input_mouse.delta_x = x - zt_game->input_mouse.screen_x;
-					zt_game->input_mouse.delta_y = y - zt_game->input_mouse.screen_y;
+					int x = GET_X_LPARAM(l_param);
+					int y = GET_Y_LPARAM(l_param);
 
 					zt_game->input_mouse.screen_x = x;
 					zt_game->input_mouse.screen_y = y;
@@ -35349,6 +35364,42 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 				case WM_MOUSEWHEEL: {
 					zt_game->input_mouse.wheel_delta = GET_WHEEL_DELTA_WPARAM(w_param) / 120;
 				} break;
+			}
+		} break;
+
+		case WM_INPUT: {
+			if (w_param == RIM_INPUT) {
+				UINT size;
+				GetRawInputData((HRAWINPUT)l_param, RID_INPUT, NULL, &size, sizeof(RAWINPUTHEADER));
+				
+				byte buffer[zt_kilobytes(1)];
+				zt_assert(size < zt_elementsOf(buffer));
+				
+				if (GetRawInputData((HRAWINPUT)l_param, RID_INPUT, buffer, &size, sizeof(RAWINPUTHEADER)) != size) {
+					zt_assert(false);
+				}
+
+				RAWINPUT* raw = (RAWINPUT*)buffer;
+
+				if (raw->header.dwType == RIM_TYPEMOUSE) {
+					zt_game->input_this_frame = true;
+
+					if (raw->data.mouse.usFlags == MOUSE_MOVE_RELATIVE) {
+
+						struct mouse_cfg
+						{
+							int speed;
+							mouse_cfg() { SystemParametersInfo(SPI_GETMOUSESPEED, 0, &speed, 0); }
+						};
+
+						static mouse_cfg mouse;
+
+						zt_game->input_mouse.delta_x += raw->data.mouse.lLastX * mouse.speed;
+						zt_game->input_mouse.delta_y += raw->data.mouse.lLastY * mouse.speed;
+					}
+
+					return 0;
+				} 
 			}
 		} break;
 
@@ -35493,10 +35544,31 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		case WM_KILLFOCUS: {
 			_zt_inputClearState(true);
 			zt_game->app_has_focus = false;
+
+			RAWINPUTDEVICE rid[1];
+			rid[0].usUsagePage = 0x01; 
+			rid[0].usUsage     = 0x02; 
+			rid[0].dwFlags     = RIDEV_REMOVE;
+			rid[0].hwndTarget  = 0;
+
+			if (RegisterRawInputDevices(rid, 1, zt_sizeof(rid[0])) == FALSE) {
+				zt_logCritical("Unable to deregister raw input devices");
+			}
 		} break;
 
 		case WM_SETFOCUS: {
 			zt_game->app_has_focus = true;
+
+			RAWINPUTDEVICE rid[1];
+			rid[0].usUsagePage = 0x01; 
+			rid[0].usUsage     = 0x02; 
+			rid[0].dwFlags     = 0;
+			rid[0].hwndTarget  = handle;
+
+			if (RegisterRawInputDevices(rid, 1, zt_sizeof(rid[0])) == FALSE) {
+				zt_logCritical("Unable to register raw input devices");
+			}
+
 		} break;
 
 		default: {
