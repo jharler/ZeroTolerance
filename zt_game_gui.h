@@ -773,6 +773,8 @@ bool             zt_guiItemTopLevelIsOverlapping       (ztGuiItem *item);
 
 void             zt_guiWindowSetMenuBar                (ztGuiItem *window, ztGuiItem *menubar);
 ztGuiItem       *zt_guiWindowGetContentParent          (ztGuiItem *window);
+void             zt_guiWindowCollapse                  (ztGuiItem *window, bool collapse);
+bool             zt_guiWindowIsCollapsed               (ztGuiItem *window);
 
 // ================================================================================================================================================================================================
 
@@ -4246,31 +4248,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonToggle, ztInternal ZT_FUNC_GUI
 	ZT_PROFILE_GUI("_zt_guiWindowOnButtonToggle");
 
 	ztGuiItem  *window = zt_guiItemGetTopLevelParent(button);
-	ztGuiTheme *theme  = zt_guiItemGetTheme(window);
-
-	if (zt_bitIsSet(window->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed))) {
-		zt_bitRemove(window->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed));
-
-		r32 y_diff = window->window.size[1] - window->size.y;
-		window->pos.y -= y_diff / 2;
-
-		window->size.x = window->window.size[0];
-		window->size.y = window->window.size[1];
-
-		zt_guiItemShow(window->window.content);
-	}
-	else {
-		window->state_flags |= zt_bit(ztGuiWindowInternalStates_Collapsed);
-		zt_guiItemHide(window->window.content);
-		window->window.size[0] = window->size.x;
-		window->window.size[1] = window->size.y;
-		window->size.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_WindowTitleHeight, window) + zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_WindowPaddingY, window) * 2;
-
-		r32 y_diff = window->window.size[1] - window->size.y;
-		window->pos.y += y_diff / 2;
-	}
-
-	window->state_flags |= zt_bit(ztGuiItemStates_Resized);
+	zt_guiWindowCollapse(window, !zt_guiWindowIsCollapsed(window));
 }
 
 // ================================================================================================================================================================================================
@@ -4442,6 +4420,50 @@ void zt_guiWindowSetMenuBar(ztGuiItem *window, ztGuiItem *menubar)
 	if (menubar) {
 		zt_guiItemReparent(menubar, window);
 	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiWindowCollapse(ztGuiItem *window, bool collapse)
+{
+	ZT_PROFILE_GUI("zt_guiWindowCollapse");
+	zt_assertReturnOnFail(window->type == ztGuiItemType_Window);
+
+	ztGuiTheme *theme = zt_guiItemGetTheme(window);
+
+	if (zt_bitIsSet(window->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed))) {
+		zt_bitRemove(window->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed));
+
+		r32 y_diff = window->window.size[1] - window->size.y;
+		window->pos.y -= y_diff / 2;
+
+		window->size.x = window->window.size[0];
+		window->size.y = window->window.size[1];
+
+		zt_guiItemShow(window->window.content);
+	}
+	else {
+		window->state_flags |= zt_bit(ztGuiWindowInternalStates_Collapsed);
+		zt_guiItemHide(window->window.content);
+		window->window.size[0] = window->size.x;
+		window->window.size[1] = window->size.y;
+		window->size.y = zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_WindowTitleHeight, window) + zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_WindowPaddingY, window) * 2;
+
+		r32 y_diff = window->window.size[1] - window->size.y;
+		window->pos.y += y_diff / 2;
+	}
+
+	window->state_flags |= zt_bit(ztGuiItemStates_Resized);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_guiWindowIsCollapsed(ztGuiItem *window)
+{
+	ZT_PROFILE_GUI("zt_guiWindowIsCollapsed");
+	zt_assertReturnValOnFail(window->type == ztGuiItemType_Window, false);
+
+	return zt_bitIsSet(window->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed));
 }
 
 // ================================================================================================================================================================================================
@@ -9934,13 +9956,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_gu
 	ztGuiEditorValue *vptr = (ztGuiEditorValue*)item->panel.user_data;
 
 	if (vptr->type == ztGuiEditorType_i32) {
-		if (*vptr->val_i32.value != vptr->val_i32.value_last) {
+		if (vptr->val_i32.value && *vptr->val_i32.value != vptr->val_i32.value_last) {
 			vptr->val_i32.value_last = *vptr->val_i32.value;
 			vptr->needs_update_from_spinner = true;
 		}
 	}
 	else if (vptr->type == ztGuiEditorType_r32) {
-		if (*vptr->val_r32.value != vptr->val_r32.value_last) {
+		if (vptr->val_r32.value && *vptr->val_r32.value != vptr->val_r32.value_last) {
 			vptr->val_r32.value_last = *vptr->val_r32.value;
 			vptr->needs_update_from_spinner = true;
 		}
@@ -10189,7 +10211,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, r32 *value, r3
 
 	ztGuiEditorValue *val = zt_mallocStructArena(ztGuiEditorValue, parent->gm->arena);
 	val->type = ztGuiEditorType_r32;
-	val->val_r32.value_last = *value;
+	val->val_r32.value_last = value == nullptr ? 0 : *value;
 	val->val_r32.value = value;
 	val->val_r32.min = min;
 	val->val_r32.max = max;
@@ -10206,7 +10228,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, i32 *value, i3
 
 	ztGuiEditorValue *val = zt_mallocStructArena(ztGuiEditorValue, parent->gm->arena);
 	val->type = ztGuiEditorType_i32;
-	val->val_i32.value_last = *value;
+	val->val_i32.value_last = value == nullptr ? 0 : *value;
 	val->val_i32.value = value;
 	val->val_i32.min = min;
 	val->val_i32.max = max;
@@ -10291,12 +10313,12 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value,
 	ZT_PROFILE_GUI("zt_guiMakeEditor");
 
 	ztGuiItem *panel = zt_guiMakePanel(parent);
-	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	ztGuiItem *sizer = zt_guiMakeSizer(panel, label_above ? ztGuiItemOrient_Vert : ztGuiItemOrient_Horz);
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec4);
 
 	r32 padding = 3 / zt_pixelsPerUnit();
 	if (label != nullptr) {
-		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
 	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
@@ -21613,7 +21635,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 	zt_strMakePrintf(window_title, 512, "Particle System Editor - %s%s", work_file, editor->has_changed ? "*" : "");
 	zt_guiItemSetLabel(zt_guiItemGetTopLevelParent(editor->billboard_sprite_button), window_title);
 
-	zt_cameraControlUpdateArcball(&editor->camera_controller, &editor->input_mouse, editor->input_keys, dt);
+	zt_cameraControlUpdateArcball(&editor->camera_controller, &editor->input_mouse, editor->input_keys, dt, 0);
 
 	zt_drawListPushShader(&editor->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 	zt_drawListPushTexture(&editor->draw_list, ztTextureDefault);
