@@ -60,7 +60,7 @@ struct ztVrTrackedDevice
 	ztVrTrackedDeviceType_Enum type;
 	int index;
 
-	ztModel *model;
+	ztModel model;
 	bool actively_tracking;
 
 	ztTransform transform;
@@ -210,7 +210,7 @@ ztInternal void _zt_vrConvertMatrix(vr::HmdMatrix34_t& hmat, ztMat4& m)
 
 // ------------------------------------------------------------------------------------------------
 
-ztInternal ztModel *_zt_vrLoadModel(ztVrInternal *vr, int tracking_device_index, ztShaderID shader_id)
+ztInternal bool _zt_vrLoadModel(ztModel *model, ztVrInternal *vr, int tracking_device_index, ztShaderID shader_id)
 {
 	char buffer[1024] = { 0 };
 	vr::TrackedPropertyError* error = nullptr;
@@ -224,7 +224,7 @@ ztInternal ztModel *_zt_vrLoadModel(ztVrInternal *vr, int tracking_device_index,
 
 	if (vr::VRRenderModels()->LoadRenderModel_Async(buffer, &render_model) != vr::VRRenderModelError_None || render_model == nullptr) {
 		zt_logCritical("vr: unable to load render model %s\n", buffer);
-		return nullptr;
+		return false;
 	}
 
 	vr::RenderModel_TextureMap_t *texture = NULL;
@@ -235,13 +235,13 @@ ztInternal ztModel *_zt_vrLoadModel(ztVrInternal *vr, int tracking_device_index,
 	if (vr::VRRenderModels()->LoadTexture_Async(render_model->diffuseTextureId, &texture) != vr::VRRenderModelError_None || texture == nullptr) {
 		zt_logCritical("vr: unable to load render texture id: %d for render model %s\n", render_model->diffuseTextureId, buffer);
 		vr::VRRenderModels()->FreeRenderModel(render_model);
-		return nullptr;
+		return false;
 	}
 
 	ztTextureID tex_id = zt_textureMakeFromPixelData((void*)texture->rubTextureMapData, (i32)texture->unWidth, (i32)texture->unHeight, 0);
 	if (tex_id == ztInvalidID) {
 		vr::VRRenderModels()->FreeRenderModel(render_model);
-		return nullptr;
+		return false;
 	}
 
 	ztMaterial material = zt_materialMake(tex_id, ztVec4::one, ztMaterialFlags_OwnsTexture);
@@ -269,17 +269,17 @@ ztInternal ztModel *_zt_vrLoadModel(ztVrInternal *vr, int tracking_device_index,
 	if (mesh_id == ztInvalidID) {
 		zt_textureFree(tex_id);
 		vr::VRRenderModels()->FreeRenderModel(render_model);
-		return nullptr;
+		return false;
 	}
 
-	ztModel *model = zt_modelMake(zt_memGetGlobalArena(), mesh_id, &material, shader_id, nullptr, ztModelFlags_CastsShadows);
-	if (model == nullptr) {
+	if (!zt_modelMakeFromMesh(model, mesh_id, &material, shader_id, nullptr, ztModelFlags_CastsShadows)) {
 		zt_textureFree(tex_id);
+		return false;
 	}
 
 	vr::VRRenderModels()->FreeRenderModel(render_model);
 
-	return model;
+	return true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -295,9 +295,7 @@ ztInternal void _zt_vrProcessEvent(ztVrInternal* vr, const vr::VREvent_t& vr_eve
 					zt_logDebug("vr: headset tracking activated");
 
 					vr->parent->headset.actively_tracking = true;
-					if (vr->parent->headset.model == nullptr) {
-						vr->parent->headset.model = _zt_vrLoadModel(vr, vr_event.trackedDeviceIndex, zt_shaderGetDefault(ztShaderDefault_LitShadow)); // todo: make the shader configurable
-					}
+					_zt_vrLoadModel(&vr->parent->headset.model, vr, vr_event.trackedDeviceIndex, zt_shaderGetDefault(ztShaderDefault_LitShadow)); // todo: make the shader configurable
 				} break;
 
 				case vr::TrackedDeviceClass_Controller: {
@@ -306,9 +304,7 @@ ztInternal void _zt_vrProcessEvent(ztVrInternal* vr, const vr::VREvent_t& vr_eve
 							vr->parent->controllers[i].index = vr_event.trackedDeviceIndex;
 							zt_logDebug("vr: controller %d tracking activated (device index %d)", i + 1, vr_event.trackedDeviceIndex);
 							vr->parent->controllers[i].actively_tracking = true;
-							if (vr->parent->controllers[i].model == nullptr) {
-								vr->parent->controllers[i].model = _zt_vrLoadModel(vr, vr_event.trackedDeviceIndex, zt_shaderGetDefault(ztShaderDefault_LitShadow)); // todo: see above
-							}
+							_zt_vrLoadModel(&vr->parent->controllers[i].model, vr, vr_event.trackedDeviceIndex, zt_shaderGetDefault(ztShaderDefault_LitShadow)); // todo: see above
 							break;
 						}
 					}
@@ -419,7 +415,7 @@ ztVrSystem *zt_vrMake()
 
 	int controller_idx = 0;
 	zt_fiz(vr::k_unMaxTrackedDeviceCount) {
-		ztModel ** model = nullptr;
+		ztModel * model = nullptr;
 
 		switch (vr_system->GetTrackedDeviceClass(i))
 		{
@@ -441,7 +437,7 @@ ztVrSystem *zt_vrMake()
 
 		if (model == nullptr) continue;
 
-		*model = _zt_vrLoadModel(vr_internal, i, zt_shaderGetDefault(ztShaderDefault_LitShadow));
+		_zt_vrLoadModel(model, vr_internal, i, zt_shaderGetDefault(ztShaderDefault_LitShadow));
 	}
 
 	return vr_parent;
@@ -457,17 +453,17 @@ void zt_vrFree(ztVrSystem *vr_system)
 
 	//vr::VR_Shutdown();
 
-	if (vr_system->headset.model) {
-		zt_materialFree(&vr_system->headset.model->material);
-		zt_meshFree(vr_system->headset.model->mesh_id);
-		zt_modelFree(vr_system->headset.model);
+	if (zt_bitIsSet(vr_system->headset.model.flags, ztModelFlags_Initialized)) {
+		zt_materialFree(&vr_system->headset.model.material);
+		zt_meshFree(vr_system->headset.model.mesh_id);
+		zt_modelFree(&vr_system->headset.model);
 	}
 
 	zt_fiz(vr_system->controllers_count) {
-		if (vr_system->controllers[i].model) {
-			zt_materialFree(&vr_system->controllers[i].model->material);
-			zt_meshFree(vr_system->controllers[i].model->mesh_id);
-			zt_modelFree(vr_system->controllers[i].model);
+		if (zt_bitIsSet(vr_system->controllers[i].model.flags, ztModelFlags_Initialized)) {
+			zt_materialFree(&vr_system->controllers[i].model.material);
+			zt_meshFree(vr_system->controllers[i].model.mesh_id);
+			zt_modelFree(&vr_system->controllers[i].model);
 		}
 	}
 
@@ -510,15 +506,15 @@ void zt_vrUpdateScene(ztVrSystem *vr_system, ztScene *scene, i32 flags)
 	{
 		static void checkDeviceModel(ztVrTrackedDevice *device, ztScene *scene)
 		{
-			if (device->model == nullptr) {
+			if (!zt_bitIsSet(device->model.flags, ztModelFlags_Initialized)) {
 				return;
 			}
 
-			if (device->actively_tracking && !zt_sceneHasModel(scene, device->model)) {
-				zt_sceneAddModel(scene, device->model);
+			if (device->actively_tracking && !zt_sceneHasModel(scene, &device->model)) {
+				zt_sceneAddModel(scene, &device->model);
 			}
-			else if (!device->actively_tracking && zt_sceneHasModel(scene, device->model)) {
-				zt_sceneRemoveModel(scene, device->model);
+			else if (!device->actively_tracking && zt_sceneHasModel(scene, &device->model)) {
+				zt_sceneRemoveModel(scene, &device->model);
 			}
 		}
 	};
@@ -556,8 +552,8 @@ bool zt_vrUpdate(ztVrSystem *vr_system)
 			case vr::TrackedDeviceClass_HMD: {
 				_zt_vrConvertMatrix(devices_poses[i].mDeviceToAbsoluteTracking, vr->headset_matrix);
 				zt_transformFromMat4(&vr_system->headset.transform, &vr->headset_matrix);
-				if (vr_system->headset.model) {
-					vr_system->headset.model->transform = vr_system->headset.transform;
+				if (zt_bitIsSet(vr_system->headset.model.flags, ztModelFlags_Initialized)) {
+					vr_system->headset.model.transform = vr_system->headset.transform;
 				}
 
 				found_hmd = true;
@@ -568,8 +564,8 @@ bool zt_vrUpdate(ztVrSystem *vr_system)
 					if (vr_system->controllers[j].index == i) {
 						_zt_vrConvertMatrix(devices_poses[i].mDeviceToAbsoluteTracking, vr->controllers_matrix[j]);
 						zt_transformFromMat4(&vr_system->controllers[j].transform, &vr->controllers_matrix[j]);
-						if (vr_system->controllers[j].model) {
-							vr_system->controllers[j].model->transform = vr_system->controllers[j].transform;
+						if (zt_bitIsSet(vr_system->controllers[j].model.flags, ztModelFlags_Initialized)) {
+							vr_system->controllers[j].model.transform = vr_system->controllers[j].transform;
 						}
 
 						vr::VRControllerState_t controller_state;
