@@ -841,6 +841,7 @@ struct ztMat4
 	void multiply(const ztMat4& mat);
 	ztMat4 getMultiply(const ztMat4& mat) const;
 	ztVec3 getMultiply(const ztVec3& vec) const;
+	ztVec4 getMultiply(const ztVec4& vec) const;
 
 	void transpose();
 	ztMat4 getTranspose() const;
@@ -1738,7 +1739,7 @@ i32           zt_fileGetUserPath                 (char *buffer, int buffer_size,
 i32           zt_fileGetCurrentPath              (char *buffer, int buffer_size);
 void          zt_fileSetCurrentPath              (const char *path);
 
-i32           zt_fileGetFileInOtherFileDirectory (char * buffer, int buffer_size, char *file_only, char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
+i32           zt_fileGetFileInOtherFileDirectory (char *buffer, int buffer_size, const char *file_only, const char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
 i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, const char *file);
 i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, int path_len, const char *file, int file_len);
 
@@ -2281,6 +2282,8 @@ bool   operator>  (ztDate& d1, ztDate& d2);
 bool   operator== (ztDate& d1, ztDate& d2);
 bool   operator!= (ztDate& d1, ztDate& d2);
 
+bool   zt_serialWrite(ztSerial *serial, ztDate date);
+bool   zt_serialRead(ztSerial *serial, ztDate *date);
 
 // ================================================================================================================================================================================================
 
@@ -4560,18 +4563,13 @@ ztMemoryArena *zt_memMakeArena(i32 total_size, ztMemoryArena *from, i32 flags)
 	ztMemoryArena *arena = nullptr;
 	if (from == nullptr) {
 #if defined(ZT_COMPILER_MSVC)
-		arena = (ztMemoryArena*)VirtualAlloc((VOID*)zt_gigabytes(1), total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		arena = (ztMemoryArena*)VirtualAlloc((VOID*)0, total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 		if (arena == nullptr) {
-			zt_strMakePrintf(error, 1024, "VirtualAlloc failed with code: %d\n", GetLastError());
+			zt_strMakePrintf(error, 1024, "VirtualAlloc failed again with code: %d\n", GetLastError());
 			OutputDebugStringA(error);
 
-			arena = (ztMemoryArena*)VirtualAlloc((VOID*)0, total_size + zt_sizeof(ztMemoryArena), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-			if (arena == nullptr) {
-				zt_strMakePrintf(error, 1024, "VirtualAlloc failed again with code: %d\n", GetLastError());
-				OutputDebugStringA(error);
-
-				arena = (ztMemoryArena*)(total_size + sizeof(ztMemoryArena));
-			}
+			//arena = (ztMemoryArena*)(total_size + sizeof(ztMemoryArena));
+			arena = (ztMemoryArena*)malloc(total_size + sizeof(ztMemoryArena));
 		}
 #elif defined(ZT_ANDROID)
 		arena = (ztMemoryArena*)mmap((void*)zt_gigabytes(1), total_size + zt_sizeof(ztMemoryArena), PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
@@ -5436,8 +5434,20 @@ ztVec3 ztMat4::getMultiply(const ztVec3& v) const
 	ZT_PROFILE_TOOLS("ztMat4::getMultiply");
 
 	return zt_vec3((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + values[ztMat4_Col3Row0],
-	              (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
-	              (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
+	               (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + values[ztMat4_Col3Row1],
+	               (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + values[ztMat4_Col3Row2]);
+}
+
+// ================================================================================================================================================================================================
+
+ztVec4 ztMat4::getMultiply(const ztVec4& v) const
+{
+	ZT_PROFILE_TOOLS("ztMat4::getMultiply");
+
+	return zt_vec4((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + (v.w * values[ztMat4_Col3Row0]),
+	               (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + (v.w * values[ztMat4_Col3Row1]),
+	               (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + (v.w * values[ztMat4_Col3Row2]),
+	               (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + (v.w * values[ztMat4_Col3Row2]));
 }
 
 // ================================================================================================================================================================================================
@@ -5472,6 +5482,7 @@ void ztMat4::inverse()
 
 	ztMat4 m(*this);
 
+#if 0
 	values[ztMat4_Col0Row0] = ( m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3]) - (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2]) - (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3]) + (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2]) + (m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3]) - (m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2]);
 	values[ztMat4_Col1Row0] = (-m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3]) + (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row2]) + (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3]) - (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row2]) - (m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3]) + (m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2]);
 	values[ztMat4_Col2Row0] = ( m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3]) - (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] * m.values[ztMat4_Col3Row1]) - (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row3]) + (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col3Row1]) + (m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3]) - (m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row1]);
@@ -5491,6 +5502,27 @@ void ztMat4::inverse()
 	values[ztMat4_Col1Row3] = ( m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3]) - (m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row2]) - (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row3]) + (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row2]) + (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row3]) - (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row2]);
 	values[ztMat4_Col2Row3] = (-m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3]) + (m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row3] * m.values[ztMat4_Col2Row1]) + (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row3]) - (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col2Row1]) - (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row3]) + (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row3] * m.values[ztMat4_Col1Row1]);
 	values[ztMat4_Col3Row3] = ( m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2]) - (m.values[ztMat4_Col0Row0] * m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row1]) - (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col2Row2]) + (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col2Row1]) + (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row1] * m.values[ztMat4_Col1Row2]) - (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col0Row2] * m.values[ztMat4_Col1Row1]);
+#else
+	values[ztMat4_Col0Row0] = +(m.values[ztMat4_Col1Row1] * (m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col1Row2] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col1Row3] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row2]));
+	values[ztMat4_Col1Row0] = -(m.values[ztMat4_Col1Row0] * (m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col1Row2] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col1Row3] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row2]));
+	values[ztMat4_Col2Row0] = +(m.values[ztMat4_Col1Row0] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col1Row1] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col1Row3] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row1]));
+	values[ztMat4_Col3Row0] = -(m.values[ztMat4_Col1Row0] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row2]) - m.values[ztMat4_Col1Row1] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row2]) + m.values[ztMat4_Col1Row2] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row1]));
+
+	values[ztMat4_Col0Row1] = -(m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row2]));
+	values[ztMat4_Col1Row1] = +(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row2]));
+	values[ztMat4_Col2Row1] = -(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row3]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row1]));
+	values[ztMat4_Col3Row1] = +(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col2Row2]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row2]) + m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col2Row1]));
+
+	values[ztMat4_Col0Row2] = +(m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row2]));
+	values[ztMat4_Col1Row2] = -(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row2] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row2]));
+	values[ztMat4_Col2Row2] = +(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row3] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row1]));
+	values[ztMat4_Col3Row2] = -(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row1] * m.values[ztMat4_Col1Row2]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row2] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row2]) + m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col3Row1] - m.values[ztMat4_Col3Row0] * m.values[ztMat4_Col1Row1]));
+
+	values[ztMat4_Col0Row3] = -(m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row2]));
+	values[ztMat4_Col1Row3] = +(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row2] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row2] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row2]));
+	values[ztMat4_Col2Row3] = -(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row3]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row3] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row3]) + m.values[ztMat4_Col0Row3] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row1] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row1]));
+	values[ztMat4_Col3Row3] = +(m.values[ztMat4_Col0Row0] * (m.values[ztMat4_Col1Row1] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col2Row1] * m.values[ztMat4_Col1Row2]) - m.values[ztMat4_Col0Row1] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row2] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row2]) + m.values[ztMat4_Col0Row2] * (m.values[ztMat4_Col1Row0] * m.values[ztMat4_Col2Row1] - m.values[ztMat4_Col2Row0] * m.values[ztMat4_Col1Row1]));
+#endif
 
 	r32 det = m.values[ztMat4_Col0Row0] * values[ztMat4_Col0Row0] +
 	          m.values[ztMat4_Col0Row1] * values[ztMat4_Col1Row0] +
@@ -5723,9 +5755,9 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 {
 	ZT_PROFILE_TOOLS("ztQuat::makeFromEuler");
 
-	x = zt_degreesToRadians(-x) * .5f;
-	y = zt_degreesToRadians(-y) * .5f;
-	z = zt_degreesToRadians(-z) * .5f;
+	x = zt_degreesToRadians(x) * .5f;
+	y = zt_degreesToRadians(y) * .5f;
+	z = zt_degreesToRadians(z) * .5f;
 
 	r32 t0 = zt_cos(z);
 	r32 t1 = zt_sin(z);
@@ -6084,6 +6116,7 @@ int zt_striCmp(const char *s1, int s1_len, const char *s2, int s2_len)
 		--s1_len; --s2_len;
 	}
 
+	if (s1_len + s2_len == 0) return 0;
 	if (*s1 == *s2) return 0;
 	if (*s1 < *s2) return -1;
 	return 1;
@@ -6154,7 +6187,6 @@ int zt_strCat(char *scat, int scat_len, const char *scopy, int scopy_len)
 		return 0;
 	}
 	if (!scopy || scopy_len <= 0) {
-		scat[0] = 0;
 		return 0;
 	}
 
@@ -8355,7 +8387,7 @@ void zt_fileSetCurrentPath(const char *path)
 
 // ================================================================================================================================================================================================
 
-i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, char *file_only, char *other_file_full_path)
+i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, const char *file_only, const char *other_file_full_path)
 {
 	ZT_PROFILE_TOOLS("zt_fileGetFileInOtherFileDirectory");
 
@@ -11359,8 +11391,12 @@ bool zt_serialWrite(ztSerial *serial, void *value, i32 value_len)
 
 	byte* bvalue = (byte*)value;
 	zt_fiz(value_len) {
-		if (!_zt_writeByte(serial, bvalue[i]))
-			return false;
+		byte b = bvalue[i];
+		_zt_serialAddToChecksum(serial, b);
+	}
+
+	if (value_len != zt_fileWrite(&serial->file, value, value_len)) {
+		return false;
 	}
 
 	if (!_zt_writeByte(serial, ztSerialEntryType_DataEnd))
@@ -13186,6 +13222,37 @@ bool operator!=(ztDate& d1, ztDate& d2)
 	return !(d1 == d2);
 }
 
+// ================================================================================================================================================================================================
+
+bool zt_serialWrite(ztSerial *serial, ztDate date)
+{
+	zt_returnValOnNull(serial, false);
+	if (!zt_serialGroupPush(serial)) return false;
+	if (!zt_serialWrite(serial, date.year)) return false;
+	if (!zt_serialWrite(serial, date.month)) return false;
+	if (!zt_serialWrite(serial, date.day)) return false;
+	if (!zt_serialWrite(serial, date.hour)) return false;
+	if (!zt_serialWrite(serial, date.minute)) return false;
+	if (!zt_serialWrite(serial, date.second)) return false;
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialRead(ztSerial *serial, ztDate *date)
+{
+	zt_returnValOnNull(serial, false);
+	if (!zt_serialGroupPush(serial)) return false;
+	if (!zt_serialRead(serial, &date->year)) return false;
+	if (!zt_serialRead(serial, &date->month)) return false;
+	if (!zt_serialRead(serial, &date->day)) return false;
+	if (!zt_serialRead(serial, &date->hour)) return false;
+	if (!zt_serialRead(serial, &date->minute)) return false;
+	if (!zt_serialRead(serial, &date->second)) return false;
+	if (!zt_serialGroupPop(serial)) return false;
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
