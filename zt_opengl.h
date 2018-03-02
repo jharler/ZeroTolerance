@@ -338,6 +338,7 @@ enum ztTextureGLFlags_Enum
 	ztTextureGLFlags_HDR                 = (1<<5),
 	ztTextureGLFlags_Repeat              = (1<<6),
 	ztTextureGLFlags_Multisample         = (1<<7),
+	ztTextureGLFlags_FlipOnLoad          = (1<<8),
 
 	ztTextureGLFlags_RenderTargetWriting = (1<<30),
 	ztTextureGLFlags_Attachment          = (1<<31),
@@ -418,7 +419,7 @@ void         ztgl_textureFree                            (ztTextureGL *texture);
 void	     ztgl_textureBindReset                       (ztShaderGL *shader);
 void	     ztgl_textureBind                            (ztTextureGL *texture, int as_idx);
 
-void         ztgl_textureRenderTargetPrepare             (ztTextureGL *texture);
+void         ztgl_textureRenderTargetPrepare             (ztTextureGL *texture, bool clear);
 void         ztgl_textureRenderTargetCommit              (ztTextureGL *texture, ztContextGL *context);
 ztTextureGL *ztgl_textureRenderTargetAddAttachment       (ztTextureGL *texture, ztTextureGLColorFormat_Enum color_format);
 void         ztgl_textureRenderTargetAttachmentEnable    (ztTextureGL *texture, int attachment_idx, bool enable);
@@ -2748,8 +2749,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 {
 	ZT_PROFILE_OPENGL("_ztgl_textureMakeBase");
 
-#if 0
-	if (pixel_data && !zt_bitIsSet(flags, ztTextureGLFlags_HDR) && (depth == 4 || depth == 3)) {
+	if (pixel_data && zt_bitIsSet(flags, ztTextureGLFlags_FlipOnLoad)) {
 		int half_height = height / 2;
 		u32* pix_u32 = ((u32*)pixel_data);
 		for (int y = 0; y < half_height; ++y) {
@@ -2762,7 +2762,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 			}
 		}
 	}
-#endif
+
 	bool render_target = pixel_data == nullptr;
 
 	struct OpenGL
@@ -3520,7 +3520,7 @@ ztInternal void _ztgl_textureRenderTargetSetDrawBuffers(ztTextureGL *texture, bo
 
 // ================================================================================================================================================================================================
 
-void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
+void ztgl_textureRenderTargetPrepare(ztTextureGL *texture, bool clear)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureRenderTargetPrepare");
 
@@ -3532,10 +3532,12 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 #	if !defined(ZT_GLES)
 
 	if (!zt_bitIsSet(texture->flags, ztTextureGLFlags_CubeMap) && !zt_bitIsSet(texture->flags, ztTextureGLFlags_DepthMap)) {
-		_ztgl_textureRenderTargetSetDrawBuffers(texture, true);
-		ztgl_callAndReportOnErrorFast(glClearColor(0, 0, 0, 0));
-		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
-		_ztgl_textureRenderTargetSetDrawBuffers(texture, false);
+		if (clear) {
+			_ztgl_textureRenderTargetSetDrawBuffers(texture, true);
+			ztgl_callAndReportOnErrorFast(glClearColor(0, 0, 0, 0));
+			ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+			_ztgl_textureRenderTargetSetDrawBuffers(texture, false);
+		}
 	}
 	else {
 		glDrawBuffer(GL_NONE);
@@ -3562,7 +3564,9 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture)
 		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 	}
 
-	ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+	if (clear) {
+		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+	}
 
 	texture->flags |= ztTextureGLFlags_RenderTargetWriting;
 
