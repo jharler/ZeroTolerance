@@ -5083,6 +5083,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITE
 
 	if (item->slider.live_value && !item->slider.drag_state.dragging) {
 		item->slider.value = *item->slider.live_value;
+		_zt_guiSliderBaseCalcHandleSizeAndPos(item);
 
 		if (item->type == ztGuiItemType_Scrollbar) {
 			if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegPressed)) && zt_bitIsSet(item->state_flags, zt_bit(ztGuiSliderInternalStates_NegHighlight))) {
@@ -5462,7 +5463,7 @@ bool zt_guiScrollbarStepNeg(ztGuiItem *scrollbar)
 
 	zt_assertReturnValOnFail(scrollbar->type == ztGuiItemType_Scrollbar, false);
 
-	if (scrollbar->slider.value == 0) {
+	if (scrollbar->slider.value == 0 || !zt_guiItemIsVisible(scrollbar)) {
 		return false;
 	}
 
@@ -5483,7 +5484,7 @@ bool zt_guiScrollbarStepPageNeg(ztGuiItem *scrollbar)
 
 	zt_assertReturnValOnFail(scrollbar->type == ztGuiItemType_Scrollbar, false);
 
-	if (scrollbar->slider.value == 0) {
+	if (scrollbar->slider.value == 0 || !zt_guiItemIsVisible(scrollbar)) {
 		return false;
 	}
 
@@ -5504,7 +5505,7 @@ bool zt_guiScrollbarStepPos(ztGuiItem *scrollbar)
 
 	zt_assertReturnValOnFail(scrollbar->type == ztGuiItemType_Scrollbar, false);
 
-	if (scrollbar->slider.value == 1) {
+	if (scrollbar->slider.value == 1 || !zt_guiItemIsVisible(scrollbar)) {
 		return false;
 	}
 
@@ -5525,7 +5526,7 @@ bool zt_guiScrollbarStepPagePos(ztGuiItem *scrollbar)
 
 	zt_assertReturnValOnFail(scrollbar->type == ztGuiItemType_Scrollbar, false);
 
-	if (scrollbar->slider.value == 1) {
+	if (scrollbar->slider.value == 1 || !zt_guiItemIsVisible(scrollbar)) {
 		return false;
 	}
 
@@ -9499,7 +9500,9 @@ void zt_guiListBoxScrollToItem(ztGuiItem *listbox, int item_idx)
 
 	// check for partial visibility at the bottom
 	while (listbox->listbox.items[item_idx]->pos.y - (listbox->listbox.items[item_idx]->size.y / 2.f) < (listbox->listbox.container->pos.y - (listbox->listbox.container->size.y / 2.f)) && listbox->listbox.scrollbar_vert->slider.value < 1) {
-		zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert);
+		if (!zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert)) {
+			break;
+		}
 		_zt_guiListBoxAdjustItemsPositions(listbox);
 	}
 }
