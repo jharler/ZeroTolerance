@@ -868,6 +868,7 @@ enum ztAssetManagerType_Enum
 	ztAssetManagerType_MeshOBJ,
 	ztAssetManagerType_MeshFBX,
 	ztAssetManagerType_Material,
+	ztAssetManagerType_ModelZTM,
 
 	ztAssetManagerType_Xml,
 
@@ -997,7 +998,7 @@ enum ztShaderVariable_Enum
 // ================================================================================================================================================================================================
 
 #ifndef ZT_SHADER_MAX_VARIABLES
-#define ZT_SHADER_MAX_VARIABLES		128
+#define ZT_SHADER_MAX_VARIABLES		512
 #endif
 
 // ================================================================================================================================================================================================
@@ -1235,6 +1236,8 @@ struct ztShaderPhysicallyBasedRenderingSettings
 	bool directional_light = true;
 	int  max_point_lights  = 4;
 	int  max_spot_lights   = 4;
+	bool support_bones     = false;
+	int  max_bones         = 0;
 
 	bool write_position    = true;
 	bool write_normal      = true;
@@ -1319,6 +1322,7 @@ enum ztTextureFlags_Enum
 	ztTextureFlags_HDR                = (1<<5),
 	ztTextureFlags_Repeat             = (1<<6), // default behavior is to clamp
 	ztTextureFlags_Multisample        = (1<<7),
+	ztTextureFlags_FlipOnLoad         = (1<<8),
 };
 
 // ================================================================================================================================================================================================
@@ -1365,15 +1369,15 @@ ztTextureID zt_textureMakePrefilterCubeMapFromCubeMap(ztTextureID cube_map_textu
 ztTextureID zt_textureMakeBidirectionalReflectanceDistributionFunctionLUT(i32 w, i32 h);
 ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h);
 
-byte       *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth);
-byte       *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth);
+byte       *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth, bool should_flip = true);
+byte       *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth, bool should_flip = true);
 void        zt_textureFreePixelData(byte *pixels);
 
 void        zt_textureFree(ztTextureID texture_id);
 
 void        zt_textureSetName(ztTextureID texture_id, const char *name);
 
-void        zt_textureRenderTargetPrepare(ztTextureID texture_id);
+void        zt_textureRenderTargetPrepare(ztTextureID texture_id, bool clear);
 void        zt_textureRenderTargetCommit(ztTextureID texture_id);
 ztTextureID zt_textureRenderTargetAddAttachment(ztTextureID texture_id, ztTextureColorFormat_Enum color_format);
 void        zt_textureRenderTargetAttachmentEnable(ztTextureID texture_id, int attachment_idx, bool enable);
@@ -1713,6 +1717,8 @@ ztVec2   zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy);
 ztVec2i  zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 pos);
 
 void     zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction);
+void     zt_cameraPerspGetMouseRayLocalToMatrix(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction, ztMat4 *matrix_inv);
+ztVec2i  zt_cameraPerspWorldToScreen(ztCamera *camera, ztVec3 pos);
 
 void     zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up = zt_vec3(0,1,0));
 
@@ -1866,6 +1872,11 @@ void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controll
 
 // ================================================================================================================================================================================================
 
+enum ztCameraControllerArcballUpdateFlags_Enum
+{
+	ztCameraControllerArcballUpdateFlags_IgnoreKeys = (1 << 0),
+};
+
 struct ztCameraControllerArcball
 {
 	// settings:
@@ -1890,7 +1901,7 @@ struct ztCameraControllerArcball
 // ================================================================================================================================================================================================
 
 ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target = ztVec3::zero);
-void                      zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt);
+void                      zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt, i32 flags);
 
 
 
@@ -2197,12 +2208,14 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, co
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4]);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se);
 bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztVec2 &uv_nw, const ztVec2 &uv_se, const ztVec4 colors[4]);
+bool zt_drawListAddFilledCubeFromCenterSize(ztDrawList *draw_list, const ztVec3 &pos, const ztVec3 &size);
+bool zt_drawListAddFilledCubeFromMinMax(ztDrawList *draw_list, const ztVec3 &min, const ztVec3 &max);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor colors[4]);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color);
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor color[4]);
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color);
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color);
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, ztQuat *apply_rotation = nullptr);
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color, ztQuat *apply_rotation = nullptr);
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color);
 bool zt_drawListAddSolidOutlinedRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, const ztVec2 &size, const ztColor& color, const ztColor& outline_color);
 bool zt_drawListAddSolidOutlinedCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, const ztColor& outline_color);
@@ -2430,6 +2443,9 @@ struct ztBone
 	ztMat4      mat_inverse_bind_transform;
 };
 
+// ================================================================================================================================================================================================
+
+#define ZT_MAX_BONES	200
 
 // ================================================================================================================================================================================================
 // models
@@ -2445,6 +2461,7 @@ enum ztModelFlags_Enum
 	ztModelFlags_Hidden         = (1<<4),
 	ztModelFlags_OwnsMaterials  = (1<<5),
 	ztModelFlags_OwnsMesh       = (1<<6),
+	ztModelFlags_NoCalcBones    = (1<<7), // sometimes models share bones, and only one needs to do the transform calculations
 
 	ztModelFlags_DebugDrawAxis  = (1<<16),
 	ztModelFlags_DrawOrigin     = (1<<17),
@@ -2466,6 +2483,7 @@ enum ztModelType_Enum
 {
 	ztModelType_Invalid,
 
+	ztModelType_Empty,
 	ztModelType_Mesh,
 	ztModelType_VertexArray,
 	ztModelType_Sprite,
@@ -2554,7 +2572,79 @@ bool     zt_modelMakeFromVertexArray         (ztModel *model, ztVertexArrayID va
 bool     zt_modelMakeFromSprite              (ztModel *model, ztSprite *sprite, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 bool     zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimController *sprite_anim_controller, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 bool     zt_modelMakeFromParticleEmitter     (ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
-void     zt_modelFree(ztModel *model);
+void     zt_modelFree                        (ztModel *model);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztModelEditWidgetMode_Enum
+{
+	ztModelEditWidgetMode_Translate,
+	ztModelEditWidgetMode_Rotate,
+	ztModelEditWidgetMode_Scale,
+
+	ztModelEditWidgetMode_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztModelEditWidget
+{
+	ztModelEditWidgetMode_Enum current_mode;
+
+	ztModel                   *model;
+	ztBone                    *bone;
+
+	ztVec3                     euler;
+
+	bool                       hover;
+	int                        hover_axis;
+	bool                       dragging;
+
+	r32                        ray_intersect_dist;
+	ztVec3                     ray_intersect_offset;
+	ztVec3                     start_value;
+	r32                        accum_value;
+};
+
+// ================================================================================================================================================================================================
+
+ztModelEditWidget zt_modelEditWidgetMake      (ztModel *model);
+ztModelEditWidget zt_modelEditWidgetMake      (ztBone  *bone);
+bool              zt_modelEditWidgetUpdate    (ztModelEditWidget *widget, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztCamera *camera, r32 dt);
+void              zt_modelEditWidgetRender    (ztModelEditWidget *widget, ztCamera *camera, ztDrawList *draw_list);
+void              zt_modelEditWidgetRenderText(ztModelEditWidget *widget, ztCamera *camera_3d, ztCamera *camera_2d, /*ztFontID*/i32 font_id, ztVec2 offset, ztDrawList *draw_list);
+void              zt_modelEditWidgetChangeMode(ztModelEditWidget *widget, ztModelEditWidgetMode_Enum new_mode);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztAnimController;
+
+struct ztModelLoaderInput
+{
+	ztModel          *models;         // pointer to cache of models available for use
+	int               models_size;    // size of cache
+
+	ztBone           *bones;          // pointer to cache of bones available for use
+	int               bones_size;     // size of cache
+
+	int               models_used;    // (OUT) number of models used out of cache
+	int               bones_used;     // (OUT) number of bones used out of cache
+
+	ztModel          *root_model;     // (OUT) the root model of the hierarchy
+
+	ztAnimController *animations;
+};
+
+bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, ztAssetManager *asset_manager, ztAssetID asset_id, ztShaderID shader, int flags);
+bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, const char *file_name, ztShaderID shader, int flags);
+bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_size, ztShaderID shader, int flags);
+
+// ================================================================================================================================================================================================
 
 bool     zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id, bool owns_texture = false);
 
@@ -2563,6 +2653,8 @@ void     zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset = ztVec3:
 void     zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size);
 void     zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size);
 
+void     zt_modelChildAdd(ztModel *parent_model, ztModel *child_model);
+void     zt_modelChildRemove(ztModel *parent_model, ztModel *child_model);
 
 // ================================================================================================================================================================================================
 // scenes
@@ -3418,17 +3510,13 @@ bool              zt_serialWrite                (ztSerial *serial, ztAnimCurve *
 
 struct ztAnimKey
 {
-	ztVariantPointer  target;
-
-	ztVariant         value_beg;
-	ztVariant         value_end;
-
+	ztVariant         value;
 	r32               time;
 };
 
 // ================================================================================================================================================================================================
 
-ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time);
+ztAnimKey zt_animKeyMake(ztVariant value, r32 time);
 
 
 // ================================================================================================================================================================================================
@@ -3448,6 +3536,10 @@ enum ztAnimLayerState_Enum
 
 struct ztAnimLayer
 {
+	ztVariantPointer      target;
+
+	ztString              name;
+
 	ztAnimKey            *keys;
 	int                   keys_count;
 
@@ -3462,8 +3554,11 @@ struct ztAnimLayer
 
 // ================================================================================================================================================================================================
 
-ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count);
+ztAnimLayer zt_animLayerMake(ztVariantPointer target, ztAnimKey *keys, int keys_count, const char *name = nullptr);
 void        zt_animLayerFree(ztAnimLayer *layer);
+
+r32         zt_animLayerRunTime(ztAnimLayer *layer);
+r32         zt_animLayerPercentComplete(ztAnimLayer *layer);
 
 
 // ================================================================================================================================================================================================
@@ -3483,14 +3578,6 @@ enum ztAnimSequenceType_Enum
 
 // ================================================================================================================================================================================================
 
-enum ztAnimTransition_Enum
-{
-	ztAnimTransition_Snap,      // the target value snaps to the beginning value at the start of the animation
-	ztAnimTransition_Interp,    // the target value will move to the beginning value over the transition time
-};
-
-// ================================================================================================================================================================================================
-
 struct ztAnimSequence
 {
 	ztAnimSequenceType_Enum type;
@@ -3498,18 +3585,17 @@ struct ztAnimSequence
 	ztAnimLayer            *layers;
 	int                     layers_count;
 
-	ztAnimTransition_Enum   transition_type;
-	r32                     transition_time;
-
 	bool                    loops;
 };
 
 // ================================================================================================================================================================================================
 
-ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops);
+ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, bool loops);
 void            zt_animSequenceFree(ztAnimSequence *sequence);
 
+r32             zt_animSequenceRunTime(ztAnimSequence *sequence);
 r32             zt_animSequencePercentComplete(ztAnimSequence *sequence);
+void            zt_animSequenceSetPercentComplete(ztAnimSequence *sequence, r32 percent);
 
 
 // ================================================================================================================================================================================================
@@ -3538,7 +3624,7 @@ struct ztAnimController
 ztAnimController *zt_animControllerMake(int max_sequences, int max_async = 4);
 void              zt_animControllerFree(ztAnimController *controller);
 i32               zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence);
-int               zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash);
+int               zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash, r32 transition_time);
 void              zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt);
 
 
@@ -5367,6 +5453,45 @@ struct ztMesh
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#define ZT_MODEL_FILE_IDENTIFIER            "ZeroTolerance.Model"
+#define ZT_MODEL_FILE_VERSION               1000
+#define ZT_MODEL_FILE_GUID                  zt_guidMake(0x2f7b8d04, 0xe86344b2, 0xa3275a4a, 0x0fbc74e0)
+
+#define ZT_MODEL_FILE_GUID_END_OF_SECTION   zt_guidMake(0, 1, 2, 3)
+
+#define ZT_MODEL_FILE_GUID_BONES            zt_guidMake(0xeb718b7b, 0xfcc44bd8, 0xae4af8e0, 0x58ba5322)
+
+#define ZT_MODEL_FILE_GUID_MESH             zt_guidMake(0x426a2a3a, 0xebfd4dda, 0xa46a8f47, 0xf0c8a843)
+#define ZT_MODEL_FILE_GUID_MESH_VERTICES    zt_guidMake(0x21ebf7a9, 0xfd194301, 0x82febc0a, 0x1dcd9909)
+#define ZT_MODEL_FILE_GUID_MESH_UVS         zt_guidMake(0x1b59a959, 0xb8b041da, 0x885b1980, 0xe2921e14)
+#define ZT_MODEL_FILE_GUID_MESH_NORMALS     zt_guidMake(0xe5c3488a, 0x12994a1c, 0xabd3a2ac, 0x635f650c)
+#define ZT_MODEL_FILE_GUID_MESH_COLORS      zt_guidMake(0xd0910d89, 0x4eb04ac6, 0xbca147df, 0x1f568658)
+#define ZT_MODEL_FILE_GUID_MESH_TANGENTS    zt_guidMake(0x8e002469, 0xbbad42db, 0xa5087224, 0x3e9cc00b)
+#define ZT_MODEL_FILE_GUID_MESH_INDICES     zt_guidMake(0xdd687266, 0x7d1a4c8b, 0xa203577a, 0xae66127f)
+#define ZT_MODEL_FILE_GUID_MESH_BONES       zt_guidMake(0x5f9aa150, 0x083c467c, 0x81062f4f, 0xa4e5dbb0)
+
+#define ZT_MODEL_FILE_GUID_TEXTURE          zt_guidMake(0xd8adcfdc, 0x061f4699, 0xb117c359, 0x7169632f)
+#define ZT_MODEL_FILE_TEXTURE_IMAGE_FILE    (i32)0
+#define ZT_MODEL_FILE_TEXTURE_IMAGE_PIXELS  (i32)1
+
+#define ZT_MODEL_FILE_GUID_HIERARCHY        zt_guidMake(0x87cc882f, 0x517f423d, 0x868af26b, 0xbc340fa6)
+
+#define ZT_MODEL_FILE_GUID_MATERIAL         zt_guidMake(0xf6e8c175, 0xd8554037, 0x9380bcb2, 0xb542643f)
+
+#define ZT_MODEL_FILE_MATTEXTYPE_DIFFUSE    1
+#define ZT_MODEL_FILE_MATTEXTYPE_NORMALS    2
+#define ZT_MODEL_FILE_MATTEXTYPE_SPECULAR   3
+#define ZT_MODEL_FILE_MATTEXTYPE_HEIGHT     4
+#define ZT_MODEL_FILE_MATTEXTYPE_REFLECTION 5
+#define ZT_MODEL_FILE_MATTEXTYPE_EMISSIVE   6
+
+#define ZT_MODEL_FILE_GUID_ANIMATION        zt_guidMake(0x15682e4c, 0x586142ed, 0xbd8416a1, 0x14a35318)
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 enum ztAudioClipFlags_Enum
 {
 	ztAudioClipFlags_Playing = (1<<0),
@@ -6734,6 +6859,7 @@ ztInternal ztAssetManagerType_Enum _zt_assetGetFileType(const char *file_name)
 	else if (zt_striEndsWith(file_name, ".obj")) return ztAssetManagerType_MeshOBJ;
 	else if (zt_striEndsWith(file_name, ".fbx")) return ztAssetManagerType_MeshFBX;
 	else if (zt_striEndsWith(file_name, ".mtl")) return ztAssetManagerType_Material;
+	else if (zt_striEndsWith(file_name, ".ztm")) return ztAssetManagerType_ModelZTM;
 	else if (zt_striEndsWith(file_name, ".xml")) return ztAssetManagerType_Xml;
 	else return ztAssetManagerType_Unknown;
 }
@@ -7440,8 +7566,8 @@ ztInternal const char *_zt_default_shaders[] = {
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
 	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.directional_light_shadowmap);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.directional_light_shadowmap, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
-	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
-	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.light_matrix * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
+	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = uniforms.model * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
+	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	vec2  uv : 1;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = uniforms.model * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
 #	endif
 	"// shader-depth\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nprogram DefaultDepth\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(vec3(_input.position.z), 1.0);\n	}\n}",
 	"// shader-depthtextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(1 - _input.position.z, 1 - _input.position.z, 1 - _input.position.z, 1);\n		}\n	}\n}",
@@ -8862,6 +8988,70 @@ bool zt_drawListAddFilledRect2D(ztDrawList *draw_list, const ztVec3 &p, const zt
 
 // ================================================================================================================================================================================================
 
+bool zt_drawListAddFilledCubeFromCenterSize(ztDrawList *draw_list, const ztVec3 &pos, const ztVec3 &size)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddFilledCubeFromCenterSize");
+	r32 half_x = size.x / 2.f;
+	r32 half_y = size.y / 2.f;
+	r32 half_z = size.z / 2.f;
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x - half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec3(pos.x - half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0)); // top face
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x - half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec3(pos.x - half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, -1, 0), zt_vec3(0, -1, 0), zt_vec3(0, -1, 0), zt_vec3(0, -1, 0)); // bottom face
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x - half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec3(pos.x - half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0)); // front face
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x + half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x - half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x - half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0)); // back face
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x - half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec3(pos.x - half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x - half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec3(pos.x - half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0)); // left face
+
+	zt_drawListAddFilledQuad(draw_list, zt_vec3(pos.x + half_x, pos.y + half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z + half_z),
+										zt_vec3(pos.x + half_x, pos.y - half_y, pos.z - half_z),
+										zt_vec3(pos.x + half_x, pos.y + half_y, pos.z - half_z),
+										zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0), zt_vec3(0, 1, 0)); // right face
+
+
+	zt_drawListAddLine(draw_list, zt_vec3(pos.x - half_x, pos.y + half_y, pos.z + half_z), zt_vec3(pos.x - half_x, pos.y - half_y, pos.z + half_z));
+	zt_drawListAddLine(draw_list, zt_vec3(pos.x - half_x, pos.y + half_y, pos.z - half_z), zt_vec3(pos.x - half_x, pos.y - half_y, pos.z - half_z));
+	zt_drawListAddLine(draw_list, zt_vec3(pos.x + half_x, pos.y + half_y, pos.z - half_z), zt_vec3(pos.x + half_x, pos.y - half_y, pos.z - half_z));
+	zt_drawListAddLine(draw_list, zt_vec3(pos.x + half_x, pos.y + half_y, pos.z + half_z), zt_vec3(pos.x + half_x, pos.y - half_y, pos.z + half_z));
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_drawListAddFilledCubeFromMinMax(ztDrawList *draw_list, const ztVec3 &min, const ztVec3 &max)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddFilledCubeFromMinMax");
+	ztVec3 size = zt_vec3((max.x - min.x), (max.y - min.y), (max.z - min.z));
+	ztVec3 pos  = min + (size * .5f);
+	return zt_drawListAddFilledCubeFromCenterSize(draw_list, pos, size);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, const ztVec2 &size, const ztColor& color)
 {
 	return zt_drawListAddSolidRect2D(draw_list, zt_vec3(pos_ctr, 0), size, color);
@@ -8895,14 +9085,14 @@ bool zt_drawListAddSolidRect2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, con
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color)
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec2 &pos_ctr, r32 radius, int points, const ztColor& color, ztQuat *apply_rotation)
 {
-	return zt_drawListAddSolidCircle2D(draw_list, zt_vec3(pos_ctr, 0), radius, points, color);
+	return zt_drawListAddSolidCircle2D(draw_list, zt_vec3(pos_ctr, 0), radius, points, color, apply_rotation);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color)
+bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r32 radius, int points, const ztColor& color, ztQuat *apply_rotation)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSolidCircle2D");
 
@@ -8916,12 +9106,22 @@ bool zt_drawListAddSolidCircle2D(ztDrawList *draw_list, const ztVec3 &pos_ctr, r
 	r32 theta = ztMathPi2 / points;
 
 	for (int i = 0; i < points; ++i) {
-		r32 x = pos_ctr.x + (zt_cos(i * theta) * radius);
-		r32 y = pos_ctr.y + (zt_sin(i * theta) * radius);
+		r32 x = (zt_cos(i * theta) * radius);
+		r32 y = (zt_sin(i * theta) * radius);
 
-		p[i] = zt_vec3(x, y, pos_ctr.z);
+		p[i] = zt_vec3(x, y, 0);
 		u[i] = ztVec2::zero;
 		n[i] = zt_vec3(0, 0, 1);
+	}
+
+	if (apply_rotation) {
+		zt_fiz(points) {
+			apply_rotation->rotatePosition(&p[i]);
+		}
+	}
+
+	zt_fiz(points) {
+		p[i] += pos_ctr;
 	}
 
 	zt_drawListAddFilledPoly(draw_list, p, u, n, points);
@@ -9282,12 +9482,14 @@ bool zt_drawListAddScreenRenderTexture(ztDrawList *draw_list, ztTextureID tex, z
 		}
 	}
 
+	zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_Zero);
 	if (zt_rendererUvsFlipYRenderTarget()) {
 		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, zt_vec2(0, 1), zt_vec2(1, 0));
 	}
 	else {
 		zt_drawListAddFilledRect2D(draw_list, ztVec3::zero, cam_ext, ztVec2::zero, ztVec2::one);
 	}
+	zt_drawListPopBlendMode(draw_list);
 	zt_drawListPopTexture(draw_list);
 	zt_drawListPopShader(draw_list);
 	return true;
@@ -10525,10 +10727,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	if (zt_game->win_game_settings[0].renderer == ztRenderer_OpenGL) {
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetPrepare(render_target_id);
-			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
-				zt_rendererClear(clear);
-			}
+			zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -11000,10 +11199,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 #if defined(ZT_DIRECTX)
 
 		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetPrepare(render_target_id);
-			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
-				zt_rendererClear(clear);
-			}
+			zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
@@ -13037,23 +13233,22 @@ ztInternal bool _zt_modelMakeBase(ztModel *model, ztMeshID mesh_id, ztVertexArra
 		model->particle_emitter = emitter;
 	}
 	else {
-		zt_logCritical("Nothing to make a model from.");
-		return false;
+		model->type = ztModelType_Empty; // we'll just be an empty model (perhaps a non-visible root node)
 	}
 
-	model->flags = flags | ztModelFlags_Initialized;
-	model->shader = shader;
-	model->shader_vars = shader_vars;
-	model->material = material ? *material : zt_materialMake();
+	model->flags              = flags | ztModelFlags_Initialized;
+	model->shader             = shader;
+	model->shader_vars        = shader_vars;
+	model->material           = material ? *material : zt_materialMake();
 	model->transform.position = ztVec3::zero;
 	model->transform.rotation = ztQuat::identity;
-	model->transform.scale = ztVec3::one;
-	model->next = nullptr;
-	model->first_child = nullptr;
-	model->parent = parent;
-	model->calculated_mat = ztMat4::identity;
-	model->aabb_size = model->aabb_center = ztVec3::min;
-	model->obb_size = model->obb_center = ztVec3::min;
+	model->transform.scale    = ztVec3::one;
+	model->next               = nullptr;
+	model->first_child        = nullptr;
+	model->parent             = parent;
+	model->calculated_mat     = ztMat4::identity;
+	model->aabb_size          = model->aabb_center = ztVec3::min;
+	model->obb_size           = model->obb_center = ztVec3::min;
 
 	if (parent != nullptr) {
 		zt_singleLinkAddToEnd(parent->first_child, model);
@@ -13131,7 +13326,7 @@ void zt_modelFree(ztModel *model)
 	if (zt_bitIsSet(model->flags, ztModelFlags_OwnsMaterials)) {
 		zt_materialFree(&model->material);
 	}
-	if (model->mesh_id != ztInvalidID && zt_bitIsSet(model->flags, ztModelFlags_OwnsMesh)) {
+	if (model->type == ztModelType_Mesh && model->mesh_id != ztInvalidID && zt_bitIsSet(model->flags, ztModelFlags_OwnsMesh)) {
 		zt_meshFree(model->mesh_id);
 	}
 
@@ -13141,6 +13336,1082 @@ void zt_modelFree(ztModel *model)
 	//if (model->bones) {
 	//	zt_freeArena(model->bones, model->arena);
 	//}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, ztAssetManager *asset_mgr, ztAssetID asset_id, ztShaderID shader, i32 flags)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromZtmFile");
+	ztBlockProfiler bp("zt_modelMakeFromZtmFile (from asset)");
+
+	zt_returnValOnNull(input, false);
+	zt_returnValOnNull(asset_mgr, false);
+	if (asset_id == ztInvalidID) {
+		return false;
+	}
+	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, false);
+
+	zt_logInfo("loading model asset: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
+
+	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ModelZTM) {
+		return false;
+	}
+
+	i32 size = zt_assetSize(asset_mgr, asset_id);
+	if (size <= 0) {
+		return false;
+	}
+
+	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
+	if (!data) {
+		return false;
+	}
+
+	const char *error = nullptr;
+
+	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
+		error = "Unable to load asset contents";
+		goto on_error;
+	}
+
+	bool result = zt_modelMakeFromZtmFile(input, data, size, shader);
+
+	zt_freeArena(data, asset_mgr->arena);
+	return result;
+
+on_error:
+	zt_logCritical("Unable to load model (%s). %s.", asset_mgr->asset_name[asset_id], error);
+	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, const char *file_name, ztShaderID shader, i32 flags)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromZtmFile");
+	ztBlockProfiler bp("zt_modelMakeFromZtmFile (from file)");
+
+	zt_returnValOnNull(input, false);
+
+	if (!zt_fileExists(file_name)) {
+		zt_logCritical("model file does not exist: %s", file_name);
+		return false;
+	}
+
+	i32 file_size = 0;
+	void *file_data = zt_readEntireFile(file_name, &file_size);
+
+	if (file_data == nullptr) {
+		zt_logCritical("model file could not be read: %s", file_name);
+		return false;
+	}
+
+	bool result = zt_modelMakeFromZtmFile(input, file_data, file_size, shader, flags);
+
+	zt_free(file_data);
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_size, ztShaderID shader, i32 flags)
+{
+	ZT_PROFILE_RENDERING("zt_modelMakeFromZtmFile");
+	ztBlockProfiler bp("zt_modelMakeFromZtmFile (from data)");
+
+	zt_returnValOnNull(input, false);
+	zt_returnValOnNull(data, false);
+	zt_assertReturnValOnFail(data_size > 0, false);
+
+	input->models_used = input->bones_used = 0;
+
+	zt_memSet(input->models, zt_sizeof(ztModel) * input->models_size, 0);
+	zt_memSet(input->bones, zt_sizeof(ztBone) * input->bones_size, 0);
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, data_size, ZT_MODEL_FILE_IDENTIFIER)) {
+		zt_logCritical("model file is invalid or corrupt");
+		return false;
+	}
+
+#	define serialCheck(code) if(!code) { zt_serialClose(&serial); zt_logCritical("model file serialization failed"); return false; }
+#	define serialError(error) { zt_serialClose(&serial); zt_logCritical("model file serialization failed (%s)", error); return false; }
+
+	// read header
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		ztGuid file_guid;
+		serialCheck(zt_serialRead(&serial, &file_guid));
+		if (file_guid != ZT_MODEL_FILE_GUID) {
+			serialError("File GUID mismatch");
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	const char *error_msg = nullptr;
+	int *model_material_indexes = zt_mallocStructArray(int, input->models_size);
+
+	zt_fiz(input->models_size) {
+		model_material_indexes[i] = -1;
+	}
+
+	ztMaterial *materials = nullptr;
+	i32 materials_count = 0;
+
+	ztTextureID *textures = nullptr;
+	i32 textures_count = 0;
+
+	i32 root_bone_idx = -1;
+
+	// read bones
+	zt_serialGroupPush(&serial);
+	{
+		zt_serialGroupPush(&serial);
+		{
+			ztGuid guid;
+			serialCheck(zt_serialRead(&serial, &guid));
+			if (guid != ZT_MODEL_FILE_GUID_BONES) {
+				error_msg = "Bones GUID mismatch"; goto end_processing;
+			}
+			i32 bones_count;
+			serialCheck(zt_serialRead(&serial, &bones_count));
+
+			zt_assert(bones_count <= input->bones_size);
+			if (bones_count > input->bones_size) {
+				error_msg = "Model import insufficient bone cache size"; goto end_processing;
+			}
+			if (bones_count > ZT_MAX_BONES) {
+				error_msg = "Model has more bones than is supported"; goto end_processing;
+			}
+
+			zt_serialGroupPush(&serial);
+			{
+				zt_fiz(bones_count) {
+					zt_serialGroupPush(&serial);
+					{
+						char bone_name[256] = { 0 };
+						i32 bone_name_len = 0;
+
+						serialCheck(zt_serialRead(&serial, bone_name, zt_elementsOf(bone_name), &bone_name_len));
+
+						input->bones[i].name = zt_stringMakeFrom(bone_name);
+						input->bones[i].index = i;
+
+						ztTransform transform;
+						serialCheck(zt_serialRead(&serial, &transform.position));
+						serialCheck(zt_serialRead(&serial, &transform.rotation));
+						serialCheck(zt_serialRead(&serial, &transform.scale));
+
+						input->bones[i].mat_inverse_bind_transform = zt_transformToMat4(&transform);
+
+						i32 parent_idx = -1;
+						serialCheck(zt_serialRead(&serial, &parent_idx));
+
+						zt_assert(parent_idx < i);
+
+						if (parent_idx != -1) {
+							ztBone *parent = &input->bones[parent_idx];
+							ztBone *child = &input->bones[i];
+							zt_singleLinkAddToEnd(parent->first_child, child);
+							child->parent = parent;
+						}
+						else {
+							zt_assert(root_bone_idx == -1);
+							root_bone_idx = i;
+						}
+					}
+					zt_serialGroupPop(&serial);
+				}
+			}
+			zt_serialGroupPop(&serial);
+
+			input->bones_used = bones_count;
+
+			if (bones_count > 0) {
+				struct BoneCalcs
+				{
+					static void calcInverseBindTransform(ztBone *bone)
+					{
+						bone->mat_model = bone->mat_inverse_bind_transform.getInverse();
+						{
+							ztTransform transform = zt_transformFromMat4(&bone->mat_model);
+							transform.rotation = ztQuat::makeFromEuler(transform.rotation.euler());
+							transform.scale = ztVec3::one;
+							bone->mat_model = zt_transformToMat4(&transform);
+						}
+
+						bone->mat_local_bind_transform = bone->mat_model;
+						bone->mat_inverse_bind_transform = bone->mat_local_bind_transform.getInverse();
+
+						ztMat4 mat_local = bone->parent ? bone->parent->mat_model.getInverse() * bone->mat_model : bone->mat_model;
+						bone->transform = zt_transformFromMat4(&mat_local);
+						bone->transform.rotation = ztQuat::makeFromEuler(bone->transform.rotation.euler());
+						bone->transform.scale = ztVec3::one;
+
+						zt_flink(child, bone->first_child) {
+							calcInverseBindTransform(child);
+						}
+					}
+				};
+
+				BoneCalcs::calcInverseBindTransform(&input->bones[root_bone_idx]);
+			}
+		}
+		zt_serialGroupPop(&serial);
+	}
+	zt_serialGroupPop(&serial);
+
+	// read meshes
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		i32 meshes_count = 0;
+		serialCheck(zt_serialGroupPush(&serial));
+		{
+			serialCheck(zt_serialRead(&serial, &meshes_count));
+		}
+		serialCheck(zt_serialGroupPop(&serial));
+
+		zt_fiz(meshes_count) {
+			serialCheck(zt_serialGroupPush(&serial));
+			{
+				ztGuid guid;
+				serialCheck(zt_serialRead(&serial, &guid));
+				if (guid != ZT_MODEL_FILE_GUID_MESH) {
+					error_msg = "Mesh GUID mismatch"; goto end_processing;
+				}
+
+				char mesh_name[128];
+				i32 mesh_name_len = 0;
+				serialCheck(zt_serialRead(&serial, mesh_name, zt_elementsOf(mesh_name), &mesh_name_len));
+
+				i32 material_idx  = 0; serialCheck(zt_serialRead(&serial, &material_idx));
+				i32 vert_count    = 0; serialCheck(zt_serialRead(&serial, &vert_count));
+				i32 uv_count      = 0; serialCheck(zt_serialRead(&serial, &uv_count));
+				i32 norm_count    = 0; serialCheck(zt_serialRead(&serial, &norm_count));
+				i32 color_count   = 0; serialCheck(zt_serialRead(&serial, &color_count));
+				i32 tangent_count = 0; serialCheck(zt_serialRead(&serial, &tangent_count));
+				i32 indices_count = 0; serialCheck(zt_serialRead(&serial, &indices_count));
+				i32 bone_count    = 0; serialCheck(zt_serialRead(&serial, &bone_count));
+
+				ztVec3 *verts    = zt_mallocStructArray(ztVec3, vert_count);
+				ztVec2 *uvs      = uv_count      != 0 ? zt_mallocStructArray(ztVec2, uv_count) : nullptr;
+				ztVec3 *norms    = norm_count    != 0 ? zt_mallocStructArray(ztVec3, norm_count) : nullptr;
+				ztVec4 *colors   = color_count   != 0 ? zt_mallocStructArray(ztVec4, color_count) : nullptr;
+				ztVec3 *tangents = tangent_count != 0 ? zt_mallocStructArray(ztVec3, tangent_count) : nullptr;
+				u32    *indices  = indices_count != 0 ? zt_mallocStructArray(u32, indices_count) : nullptr;
+
+#				pragma pack(push, 1)
+				struct ztBoneInfo
+				{
+					ztVec4i bones;
+					ztVec4  weights;
+				};
+#				pragma pack(pop)
+
+				ztBoneInfo *vert_bones = bone_count != 0 ? zt_mallocStructArray(ztBoneInfo, vert_count) : nullptr;
+				ztBone* root_bone = nullptr;
+				i32 bone_start_idx = input->bones_used;
+				i32 bone_root_idx = 0;
+
+				serialCheck(zt_serialGroupPush(&serial));
+				{
+					serialCheck(zt_serialGroupPush(&serial));
+					{
+						ztGuid guid_verts;
+						serialCheck(zt_serialRead(&serial, &guid_verts));
+						if (guid_verts != ZT_MODEL_FILE_GUID_MESH_VERTICES) {
+							error_msg = "Mesh vertices GUID mismatch"; goto end_processing;
+						}
+
+						zt_fxz(vert_count) {
+							serialCheck(zt_serialRead(&serial, &verts[x]));
+						}
+					}
+					serialCheck(zt_serialGroupPop(&serial));
+
+					if (uv_count > 0) {
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_uvs;
+							serialCheck(zt_serialRead(&serial, &guid_uvs));
+							if (guid_uvs != ZT_MODEL_FILE_GUID_MESH_UVS) {
+								error_msg = "Mesh uvs GUID mismatch"; goto end_processing;
+							}
+
+							zt_fxz(uv_count) {
+								serialCheck(zt_serialRead(&serial, &uvs[x]));
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+
+					if (norm_count > 0) {
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_norms;
+							serialCheck(zt_serialRead(&serial, &guid_norms));
+							if (guid_norms != ZT_MODEL_FILE_GUID_MESH_NORMALS) {
+								error_msg = "Mesh normals GUID mismatch"; goto end_processing;
+							}
+
+							zt_fxz(norm_count) {
+								serialCheck(zt_serialRead(&serial, &norms[x]));
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+
+					if (color_count > 0) {
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_color;
+							serialCheck(zt_serialRead(&serial, &guid_color));
+							if (guid_color != ZT_MODEL_FILE_GUID_MESH_COLORS) {
+								error_msg = "Mesh colors GUID mismatch"; goto end_processing;
+							}
+
+							zt_fxz(color_count) {
+								serialCheck(zt_serialRead(&serial, &colors[x]));
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+
+					if (tangent_count > 0) {
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_tang;
+							serialCheck(zt_serialRead(&serial, &guid_tang));
+							if (guid_tang != ZT_MODEL_FILE_GUID_MESH_TANGENTS) {
+								error_msg = "Mesh tangents GUID mismatch"; goto end_processing;
+							}
+
+							zt_fxz(tangent_count) {
+								serialCheck(zt_serialRead(&serial, &tangents[x]));
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+
+					if (indices_count > 0) {
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_tang;
+							serialCheck(zt_serialRead(&serial, &guid_tang));
+							if (guid_tang != ZT_MODEL_FILE_GUID_MESH_INDICES) {
+								error_msg = "Mesh indices GUID mismatch"; goto end_processing;
+							}
+
+							zt_fxz(indices_count) {
+								serialCheck(zt_serialRead(&serial, &indices[x]))
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+
+					if (bone_count > 0) {
+						zt_memSet(vert_bones, zt_sizeof(ztBoneInfo) * vert_count, 0);
+						serialCheck(zt_serialGroupPush(&serial));
+						{
+							ztGuid guid_bone;
+							serialCheck(zt_serialRead(&serial, &guid_bone));
+							if (guid_bone != ZT_MODEL_FILE_GUID_MESH_BONES) {
+								error_msg = "Mesh bones GUID mismatch"; goto end_processing;
+							}
+
+							zt_fkz(bone_count) {
+								serialCheck(zt_serialGroupPush(&serial));
+								{
+									char bone_name[128];
+									i32 bone_name_len = 0;
+									serialCheck(zt_serialRead(&serial, bone_name, zt_elementsOf(bone_name), &bone_name_len));
+
+									i32 bone_idx = -1;
+									zt_fiz(input->bones_used) {
+										if (zt_strEquals(input->bones[i].name, bone_name)) {
+											bone_idx = i;
+											break;
+										}
+									}
+									zt_assert(bone_idx >= 0 && bone_idx < input->bones_used);
+
+									i32 weights = 0;
+									serialCheck(zt_serialRead(&serial, &weights));
+
+									zt_fiz(weights) {
+										i32 vertex_idx;
+										r32 weight;
+										serialCheck(zt_serialRead(&serial, &vertex_idx));
+										serialCheck(zt_serialRead(&serial, &weight));
+
+										if (vertex_idx >= 0 && vertex_idx < vert_count) {
+											bool found = false;
+											zt_fxze(vert_bones[vertex_idx].bones.values) {
+												if (vert_bones[vertex_idx].bones.values[x] == 0) {
+													vert_bones[vertex_idx].bones.values[x] = zt_max(0, bone_idx);
+													vert_bones[vertex_idx].weights.values[x] = weight;
+													found = true;
+													break;
+												}
+											}
+											zt_assert(found);
+										}
+										else zt_assert(false);
+									}
+								}
+								serialCheck(zt_serialGroupPop(&serial));
+							}
+
+							zt_fkz(vert_count) {
+#								if 0
+								int total_bones = 0;
+								r32 total_weights = 0;
+
+								zt_fize(vert_bones[k].bones.values) {
+									if (vert_bones[k].bones.values[i] == 0 && vert_bones[k].weights.values[i] != 0) {
+										zt_assert(false);
+									}
+									if (vert_bones[k].bones.values[i] != 0 && vert_bones[k].weights.values[i] == 0) {
+										zt_assert(false);
+									}
+									total_bones += vert_bones[k].bones.values[i];
+									total_weights += vert_bones[k].weights.values[i];
+								}
+
+								if (total_bones == 0 || total_weights == 0) {
+									zt_assert(false);
+								}
+#								endif
+
+								r32 weight_total = 0;
+								zt_fize(vert_bones[k].weights.values) {
+									weight_total += vert_bones[k].weights.values[i];
+								}
+
+								if (!zt_real32Eq(weight_total, 1)) {
+									zt_fize(vert_bones[k].weights.values) {
+										vert_bones[k].weights.values[i] = vert_bones[k].weights.values[i] / weight_total;
+									}
+								}
+							}
+						}
+						serialCheck(zt_serialGroupPop(&serial));
+					}
+				}
+				serialCheck(zt_serialGroupPop(&serial));
+
+				if (input->models_used >= input->models_size) {
+					zt_assert(false);
+					error_msg = "Input models array not large enough"; goto end_processing;
+				}
+
+				// todo(josh): need to support colors in zt_meshMake...
+
+				ztMeshID mesh_id = ztInvalidID;
+				
+				if (bone_count > 0) {
+					ztVertexArrayEntry bones_entries[] = {
+						{ ztVertexArrayDataType_Int, 4 },
+						{ ztVertexArrayDataType_Float, 4 },
+					};
+
+					mesh_id = zt_meshMake(verts, uvs, norms, vert_count, indices, indices_count, vert_bones, bones_entries, zt_elementsOf(bones_entries), ztColor_White);
+				}
+				else {
+					mesh_id = zt_meshMake(verts, uvs, norms, vert_count, indices, indices_count, ztColor_White);
+				}
+
+				model_material_indexes[input->models_used] = material_idx;
+
+				ztModel *model = &input->models[input->models_used++];
+				ztMaterial material = zt_materialMake();
+				zt_modelMakeFromMesh(model, mesh_id, &material, shader, nullptr, flags | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
+
+				if(bone_count > 0) {
+					model->bones = &input->bones[0];
+					model->bones_count = input->bones_used;
+					model->bones_root_idx = bone_root_idx;
+					model->flags |= ztModelFlags_NoCalcBones;
+				}
+
+				if (mesh_name_len > 0) {
+					model->name = zt_stringMakeFrom(mesh_name);
+				}
+
+				if (indices)    zt_free(indices);
+				if (tangents)   zt_free(tangents);
+				if (colors)     zt_free(colors);
+				if (norms)      zt_free(norms);
+				if (uvs)        zt_free(uvs);
+				if (verts)      zt_free(verts);
+				if (vert_bones) zt_free(vert_bones);
+			}
+			serialCheck(zt_serialGroupPop(&serial));
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	// read model hierarchy
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		i32 models_that_can_have_bones = input->models_used;
+
+		struct ModelHierarchy
+		{
+			static bool process(ztModelLoaderInput *input, ztSerial *serial, ztShaderID shader, i32 flags, ztModel *parent)
+			{
+				if (!zt_serialGroupPush(serial)) return false;
+				{
+					ztTransform transform;
+					i32         meshes = 0;
+					i32         children = 0;
+					char        name[128];
+					int         name_len = 0;
+
+					if (!zt_serialGroupPush(serial)) return false;
+					{
+						if (!zt_serialRead(serial, &transform.position)) return false;
+						if (!zt_serialRead(serial, &transform.rotation)) return false;
+						if (!zt_serialRead(serial, &transform.scale)) return false;
+
+						if (!zt_serialRead(serial, &meshes)) return false;
+						if (!zt_serialRead(serial, &children)) return false;
+						if (!zt_serialRead(serial, name, zt_elementsOf(name), &name_len)) return false;
+					}
+					if (!zt_serialGroupPop(serial)) return false;
+
+					ztModel *this_model = nullptr;
+
+					if (meshes > 1 || children > 1) {
+						if (input->models_used >= input->models_size) {
+							zt_assert(false);
+							zt_logCritical("model input cache overflow");
+							return false;
+						}
+
+						this_model = &input->models[input->models_used++];
+						zt_modelMakeFromMesh(this_model, ztInvalidID, nullptr, shader, nullptr, flags, parent);
+						this_model->transform = transform;
+					}
+
+					if (!zt_serialGroupPush(serial)) return false;
+					{
+						zt_fiz(meshes) {
+							if (!zt_serialGroupPush(serial)) return false;
+							{
+								i32 mesh_idx = -1;
+								if (!zt_serialRead(serial, &mesh_idx)) return false;
+								if(mesh_idx < 0 || mesh_idx > input->models_size) return false;
+
+								ztModel *model = &input->models[mesh_idx];
+
+								if (this_model != nullptr) {
+									zt_modelChildAdd(this_model, model);
+								}
+								else {
+									this_model = model;
+									this_model->transform = transform;
+
+									if (parent) {
+										zt_modelChildAdd(parent, this_model);
+									}
+								}
+							}
+							if (!zt_serialGroupPop(serial)) return false;
+						}
+					}
+					if (!zt_serialGroupPop(serial)) return false;
+
+					if (!zt_serialGroupPush(serial)) return false;
+					{
+						if (this_model == nullptr) {
+							if (input->models_used >= input->models_size) {
+								zt_assert(false);
+								zt_logCritical("model input cache overflow");
+								return false;
+							}
+
+							this_model = &input->models[input->models_used++];
+							zt_modelMakeFromMesh(this_model, ztInvalidID, nullptr, shader, nullptr, flags, parent);
+							this_model->transform = transform;
+						}
+
+						zt_fiz(children) {
+							if (!process(input, serial, shader, flags, this_model)) {
+								return false;
+							}
+						}
+					}
+					if (!zt_serialGroupPop(serial)) return false;
+
+					if (name_len > 0) {
+						if (this_model->name == nullptr) {
+							this_model->name = zt_stringMakeFrom(name);
+						}
+					}
+
+					if (parent == nullptr) {
+						input->root_model = this_model;
+					}
+				}
+				if (!zt_serialGroupPop(serial)) return false;
+
+				return true;
+			}
+		};
+
+		ztGuid guid_hier;
+		serialCheck(zt_serialRead(&serial, &guid_hier));
+		if (guid_hier != ZT_MODEL_FILE_GUID_HIERARCHY) {
+			error_msg = "Model hierarchy GUID mismatch"; goto end_processing;
+		}
+
+		if (!ModelHierarchy::process(input, &serial, shader, flags, nullptr)) {
+			error_msg = "Model hierarchy read error"; goto end_processing;
+		}
+
+		if (input->bones_used > 0) {
+			zt_assert(input->root_model);
+			if (input->root_model) {
+				input->root_model->bones           = &input->bones[0];
+				input->root_model->bones_count     = input->bones_used;
+				input->root_model->bones_root_idx  = root_bone_idx;
+
+				zt_bitRemove(input->root_model->flags, ztModelFlags_NoCalcBones);
+			}
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	// read materials
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		serialCheck(zt_serialGroupPush(&serial));
+		{
+			serialCheck(zt_serialRead(&serial, &materials_count));
+		}
+		serialCheck(zt_serialGroupPop(&serial));
+
+		if (materials_count > 0) {
+			materials = zt_mallocStructArray(ztMaterial, materials_count);
+
+			zt_fiz(materials_count) {
+				materials[i] = zt_materialMake();
+
+				serialCheck(zt_serialGroupPush(&serial));
+				{
+					ztGuid guid;
+					serialCheck(zt_serialRead(&serial, &guid));
+					if (guid != ZT_MODEL_FILE_GUID_MATERIAL) {
+						error_msg = "Material GUID mismatch"; goto end_processing;
+					}
+
+					serialCheck(zt_serialRead(&serial, &materials[i].diffuse_color));
+					serialCheck(zt_serialRead(&serial, &materials[i].specular_color));
+					serialCheck(zt_serialRead(&serial, &materials[i].shininess));
+
+					i32 textures_count = 0;
+					serialCheck(zt_serialRead(&serial, &textures_count));
+
+					serialCheck(zt_serialGroupPush(&serial));
+					{
+						zt_fxz(textures_count) {
+							i32 tex_type = 0, tex_idx = 0;
+							serialCheck(zt_serialGroupPush(&serial));
+							serialCheck(zt_serialRead(&serial, &tex_type));
+							serialCheck(zt_serialRead(&serial, &tex_idx));
+							serialCheck(zt_serialGroupPop(&serial));
+
+							switch(tex_type)
+							{
+								case ZT_MODEL_FILE_MATTEXTYPE_DIFFUSE:    materials[i].diffuse_tex   = tex_idx; break;
+								case ZT_MODEL_FILE_MATTEXTYPE_NORMALS:    materials[i].normal_tex    = tex_idx; break;
+								case ZT_MODEL_FILE_MATTEXTYPE_SPECULAR:   materials[i].specular_tex  = tex_idx; break;
+								case ZT_MODEL_FILE_MATTEXTYPE_HEIGHT:     materials[i].height_tex    = tex_idx; break;
+								case ZT_MODEL_FILE_MATTEXTYPE_REFLECTION: materials[i].roughness_tex = tex_idx; break; //!
+								case ZT_MODEL_FILE_MATTEXTYPE_EMISSIVE:   break; // todo
+								default: zt_assert(false);
+							}
+						}
+					}
+					serialCheck(zt_serialGroupPop(&serial));
+				}
+				serialCheck(zt_serialGroupPop(&serial));
+			}
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	// read textures
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		serialCheck(zt_serialGroupPush(&serial));
+		{
+			serialCheck(zt_serialRead(&serial, &textures_count));
+		}
+		serialCheck(zt_serialGroupPop(&serial));
+
+		textures = zt_mallocStructArray(ztTextureID, textures_count);
+
+		zt_fiz(textures_count) {
+			textures[i] = ztInvalidID;
+
+			serialCheck(zt_serialGroupPush(&serial));
+			{
+				ztGuid guid;
+				serialCheck(zt_serialRead(&serial, &guid));
+				if (guid != ZT_MODEL_FILE_GUID_TEXTURE) {
+					error_msg = "Texture GUID mismatch"; goto end_processing;
+				}
+
+				i32 texture_type = 0;
+				serialCheck(zt_serialRead(&serial, &texture_type));
+
+				if (texture_type == ZT_MODEL_FILE_TEXTURE_IMAGE_FILE) {
+					char format[32]; i32 format_len = 0;
+					serialCheck(zt_serialRead(&serial, format, zt_elementsOf(format), &format_len));
+
+					i32 data_size = 0;
+					serialCheck(zt_serialRead(&serial, &data_size));
+
+					if (data_size > 0) {
+						byte *data = zt_mallocStructArray(byte, data_size);
+						i32 data_read = 0;
+						serialCheck(zt_serialRead(&serial, data, data_size, &data_read));
+
+						if (data_read != data_size) {
+							zt_free(data);
+							error_msg = "Texture size mismatch"; goto end_processing;
+						}
+
+						ztTextureID tex_id = zt_textureMakeFromFileData(data, data_read); // todo: texture flags
+						textures[i] = tex_id;
+
+						zt_free(data);
+					}
+				}
+				else if (texture_type == ZT_MODEL_FILE_TEXTURE_IMAGE_PIXELS) {
+					i32 width = 0, height = 0;
+					serialCheck(zt_serialRead(&serial, &width));
+					serialCheck(zt_serialRead(&serial, &height));
+
+					i32 data_size = width * height * 4;
+					if(data_size > 0) {
+						byte *data = zt_mallocStructArray(byte, data_size);
+						i32 data_read = 0;
+						serialCheck(zt_serialRead(&serial, data, data_size, &data_read));
+
+						if (data_read != data_size) {
+							zt_free(data);
+							error_msg = "Texture size mismatch"; goto end_processing;
+						}
+
+						ztTextureID tex_id = zt_textureMakeFromPixelData(data, width, height); // todo: texture flags
+						textures[i] = tex_id;
+
+						zt_free(data);
+					}
+				}
+			}
+			serialCheck(zt_serialGroupPop(&serial));
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	// animations
+	serialCheck(zt_serialGroupPush(&serial));
+	{
+		i32 animations_count = 0;
+		serialCheck(zt_serialGroupPush(&serial));
+		{
+			serialCheck(zt_serialRead(&serial, &animations_count));
+
+			if (animations_count > 0) {
+				input->animations = zt_animControllerMake(animations_count + 1); // +1 to always include a "TPose" animation which positions the model in the default vertex position
+
+				struct BoneAnim
+				{
+					static void addStaticLayer(ztAnimLayer *layers, int layers_size, int *layers_count, ztBone *bone)
+					{
+						if(*layers_count + 3 >= layers_size) {
+							return;
+						}
+
+						ztAnimKey keys[1];
+
+						zt_debugOnly(zt_strMakePrintf(layer_name_pos, 128, "%s.position", bone->name)) zt_releaseOnly(const char *layer_name_pos = nullptr);
+						keys[0] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.position), 0);
+						layers[(*layers_count)++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.position), keys, 1, layer_name_pos);
+
+						zt_debugOnly(zt_strMakePrintf(layer_name_rot, 128, "%s.rotation", bone->name)) zt_releaseOnly(const char *layer_name_rot = nullptr);
+						keys[0] = zt_animKeyMake(zt_variantMake_quat(bone->transform.rotation), 0);
+						layers[(*layers_count)++] = zt_animLayerMake(zt_variantPointerMake_quat(&bone->transform.rotation), keys, 1, layer_name_rot);
+
+						zt_debugOnly(zt_strMakePrintf(layer_name_sca, 128, "%s.scale", bone->name)) zt_releaseOnly(const char *layer_name_sca = nullptr);
+						keys[0] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.scale), 0);
+						layers[(*layers_count)++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.scale), keys, 1, layer_name_sca);
+					}
+				};
+
+				if(input->bones_used > 0) {
+					ztAnimLayer layers[1024];
+					int         layers_count = 0;
+
+					zt_assert(zt_elementsOf(layers) > input->bones_used * 3);
+
+					zt_fiz(input->bones_used) {
+						BoneAnim::addStaticLayer(layers, zt_elementsOf(layers), &layers_count, &input->bones[i]);
+					}
+
+					ztAnimSequence *sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, layers, layers_count, false);
+					zt_animControllerAddSequence(input->animations, "TPose", sequence);
+				}
+			}
+		}
+		serialCheck(zt_serialGroupPop(&serial));
+
+		zt_fiz(animations_count) {
+			serialCheck(zt_serialGroupPush(&serial));
+			{
+				ztGuid guid;
+				serialCheck(zt_serialRead(&serial, &guid));
+				if (guid != ZT_MODEL_FILE_GUID_ANIMATION) {
+					error_msg = "Animation GUID mismatch"; goto end_processing;
+				}
+
+				char anim_name[256];
+				i32 anim_name_len = 0;
+				serialCheck(zt_serialRead(&serial, anim_name, zt_elementsOf(anim_name), &anim_name_len));
+
+				double anim_duration = 0;
+				serialCheck(zt_serialRead(&serial, &anim_duration));
+
+				i32 ticks_per_second = 0;
+				serialCheck(zt_serialRead(&serial, &ticks_per_second));
+
+				anim_duration = anim_duration / ticks_per_second;
+
+				i32 num_channels = 0;
+				serialCheck(zt_serialRead(&serial, &num_channels));
+
+				ztAnimLayer layers[1024];
+				int         layers_count = 0;
+
+				zt_fjz(num_channels) { // each channel is a bone
+
+					serialCheck(zt_serialGroupPush(&serial));
+					{
+						char channel_name[128];
+						i32 channel_name_len = 0;
+						serialCheck(zt_serialRead(&serial, channel_name, zt_elementsOf(channel_name), &channel_name_len));
+
+						struct Bone
+						{
+							static ztBone *findBone(ztModelLoaderInput *input, const char *bone_name)
+							{
+								zt_fiz(input->bones_used) {
+									if (zt_strEquals(input->bones[i].name, bone_name)) {
+										return &input->bones[i];
+									}
+								}
+
+								return nullptr;
+							}
+
+							static ztModel *findModel(ztModelLoaderInput *input, ztBone *bone)
+							{
+								if (bone == nullptr) {
+									return nullptr;
+								}
+
+								while (bone->parent) {
+									bone = bone->parent;
+								}
+
+								zt_fiz(input->models_used) {
+									if (input->models[i].bones_count > 0 && bone == &input->models[i].bones[input->models[i].bones_root_idx]) {
+										return &input->models[i];
+									}
+								}
+
+								return nullptr;
+							}
+						};
+
+						ztBone *bone = Bone::findBone(input, channel_name);
+						ztModel *model = Bone::findModel(input, bone);
+						if (bone && model) {
+							ztAnimKey keys[1024];
+							int       keys_count = 0;
+
+							i32 position_keys = 0;
+							r64 prev_time = 0;
+							serialCheck(zt_serialRead(&serial, &position_keys));
+							zt_fkz(position_keys) {
+								serialCheck(zt_serialGroupPush(&serial));
+								{
+									r64 time = 0;
+									serialCheck(zt_serialRead(&serial, &time));
+
+									ztVec3 position;
+									serialCheck(zt_serialRead(&serial, &position));
+
+									if (k == 0 && !zt_real32Eq(time, 0)) {
+										zt_assert(keys_count < zt_elementsOf(keys));
+										if (keys_count < zt_elementsOf(keys)) {
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.position), 0);
+										}
+									}
+
+									zt_assert(keys_count < zt_elementsOf(keys));
+									if (keys_count < zt_elementsOf(keys)) {
+										keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(position), (r32)(time - prev_time) / ticks_per_second);
+									}
+									prev_time = time;
+								}
+								serialCheck(zt_serialGroupPop(&serial));
+							}
+							if (position_keys > 0) {
+								zt_assert(layers_count < zt_elementsOf(layers));
+								if (layers_count < zt_elementsOf(layers)) {
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.position", bone->name)) zt_releaseOnly(const char *layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.position), keys, keys_count, layer_name);
+								}
+								keys_count = 0;
+							}
+
+							i32 rotation_keys = 0;
+							serialCheck(zt_serialRead(&serial, &rotation_keys));
+							prev_time = 0;
+							zt_fkz(rotation_keys) {
+								serialCheck(zt_serialGroupPush(&serial));
+								{
+									r64 time = 0;
+									serialCheck(zt_serialRead(&serial, &time));
+
+									ztQuat rotation;
+									serialCheck(zt_serialRead(&serial, &rotation));
+
+									if (k == 0 && !zt_real32Eq(time, 0)) {
+										zt_assert(keys_count < zt_elementsOf(keys));
+										if (keys_count < zt_elementsOf(keys)) {
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_quat(bone->transform.rotation), 0);
+										}
+									}
+
+									zt_assert(keys_count < zt_elementsOf(keys));
+									if (keys_count < zt_elementsOf(keys)) {
+										keys[keys_count++] = zt_animKeyMake(zt_variantMake_quat(rotation), (r32)(time - prev_time) / ticks_per_second);
+									}
+									prev_time = time;
+								}
+								serialCheck(zt_serialGroupPop(&serial));
+							}
+							if (rotation_keys > 0) {
+								zt_assert(layers_count < zt_elementsOf(layers));
+								if (layers_count < zt_elementsOf(layers)) {
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.rotation", bone->name)) zt_releaseOnly(const char* layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_quat(&bone->transform.rotation), keys, keys_count, layer_name);
+								}
+								keys_count = 0;
+							}
+
+							i32 scale_keys = 0;
+							serialCheck(zt_serialRead(&serial, &scale_keys));
+							prev_time = 0;
+							zt_fkz(scale_keys) {
+								serialCheck(zt_serialGroupPush(&serial));
+								{
+									r64 time = 0;
+									serialCheck(zt_serialRead(&serial, &time));
+
+									ztVec3 scale;
+									serialCheck(zt_serialRead(&serial, &scale));
+
+									if (k == 0 && !zt_real32Eq(time, 0)) {
+										zt_assert(keys_count < zt_elementsOf(keys));
+										if (keys_count < zt_elementsOf(keys)) {
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.scale), 0);
+										}
+									}
+
+									zt_assert(keys_count < zt_elementsOf(keys));
+									if (keys_count < zt_elementsOf(keys)) {
+										keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(scale), (r32)(time - prev_time) / ticks_per_second);
+									}
+									prev_time = time;
+								}
+								serialCheck(zt_serialGroupPop(&serial));
+							}
+							if (scale_keys > 0) {
+								zt_assert(layers_count < zt_elementsOf(layers));
+								if (layers_count < zt_elementsOf(layers)) {
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.scale", bone->name)) zt_releaseOnly(const char *layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.scale), keys, keys_count, layer_name);
+								}
+								keys_count = 0;
+							}
+						}
+					}
+					serialCheck(zt_serialGroupPop(&serial));
+				}
+
+				if (layers_count > 0) {
+					ztAnimSequence *sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, layers, layers_count, true);
+					zt_animControllerAddSequence(input->animations, anim_name, sequence);
+				}
+			}
+			serialCheck(zt_serialGroupPop(&serial));
+		}
+	}
+	serialCheck(zt_serialGroupPop(&serial));
+
+	zt_fiz(materials_count) {
+		if (materials[i].diffuse_tex >= 0 && materials[i].diffuse_tex < textures_count) {
+			materials[i].diffuse_tex  = textures[materials[i].diffuse_tex];
+		}
+		if (materials[i].normal_tex >= 0 && materials[i].normal_tex < textures_count) {
+			materials[i].normal_tex  = textures[materials[i].normal_tex];
+		}
+		if (materials[i].specular_tex >= 0 && materials[i].specular_tex < textures_count) {
+			materials[i].specular_tex  = textures[materials[i].specular_tex];
+		}
+		if (materials[i].height_tex >= 0 && materials[i].height_tex < textures_count) {
+			materials[i].height_tex  = textures[materials[i].height_tex];
+		}
+		if (materials[i].roughness_tex >= 0 && materials[i].roughness_tex < textures_count) {
+			materials[i].roughness_tex  = textures[materials[i].roughness_tex];
+		}
+	}
+
+	zt_fiz(input->models_used) {
+		if(model_material_indexes[i] != -1) {
+			input->models[i].material = materials[model_material_indexes[i]];
+		}
+	}
+	
+
+end_processing:
+#	undef serialCheck
+	zt_serialClose(&serial);
+
+	if (error_msg) {
+		zt_logCritical("model serialization failure: %s", error_msg);
+	}
+
+	zt_free(model_material_indexes);
+
+	if (materials) {
+		zt_free(materials);
+	}
+	if (textures) {
+		zt_free(textures);
+	}
+
+	return error_msg == nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -13177,19 +14448,21 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 	{
 		static void calculateBone(ztBone *bone, const ztMat4 *parent_mat)
 		{
-			ztMat4 bone_transform = zt_transformToMat4SRT(&bone->transform);
-			ztMat4 current_local_transform = bone_transform;
-			ztMat4 current_transform = (*parent_mat) * current_local_transform;
+			ztMat4 bone_transform = zt_transformToMat4(&bone->transform);
+			ztMat4 current_transform = (*parent_mat) * bone_transform;
 
-			bone->mat_offset = bone_transform * bone->mat_inverse_bind_transform;
-			if (bone->parent) {
-				bone->mat_offset = bone->parent->mat_offset * bone->mat_offset;
-			}
-			bone->mat_offset.cleanup(5);
+			//bone_transform *= bone->mat_local_bind_transform;
+
+			//bone->mat_offset = bone->mat_local_bind_transform * bone->mat_offset;
+
+			//bone->mat_offset = bone->mat_offset * bone->mat_inverse_bind_transform;
 
 			zt_flink(child, bone->first_child) {
 				calculateBone(child, &current_transform);
 			}
+
+			bone->mat_offset = current_transform * bone->mat_inverse_bind_transform;
+			bone->mat_offset.cleanup(5);
 
 			//bone->mat_offset = bone->mat_inverse_bind_transform * current_transform;
 		}
@@ -13212,7 +14485,7 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 				model->aabb_center = model->obb_center = ztVec3::min;	// mark aabb and obb as needing recalculated
 			}
 
-			if (model->bones_count) {
+			if (model->bones_count && !zt_bitIsSet(model->flags, ztModelFlags_NoCalcBones)) {
 				calculateBone(&model->bones[model->bones_root_idx], &ztMat4::identity);
 			}
 		}
@@ -13302,26 +14575,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	local::getExtents(model, &min, &max, model->calculated_mat);
 
 	*size = max - min;
-
 	*center = zt_vec3(min.x + size->x / 2, min.y + size->y / 2, min.z + size->z / 2);
-
-	ztModel *scale_test = model;
-	while(scale_test) {
-		if (scale_test->transform.scale != ztVec3::one) {
-			size->x /= scale_test->transform.scale.x;
-			size->y /= scale_test->transform.scale.y;
-			size->z /= scale_test->transform.scale.z;
-		}
-		scale_test = scale_test->parent;
-	}
-
-	ztVec3 zero = ztVec3::zero;//model->calculated_mat.getMultiply(model->transform.position);
-
-	if (model->parent) {
-		zero = model->parent->calculated_mat.getMultiply(model->transform.position);
-	}
-
-	*center = *center - zero;//model->calculated_mat.getInverse().getMultiply(*center);
 }
 
 // ================================================================================================================================================================================================
@@ -13339,6 +14593,579 @@ void zt_modelGetOBB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	zt_meshGetOBB(model->mesh_id, center, size);
 	return;
 
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelChildAdd(ztModel *parent_model, ztModel *child_model)
+{
+	zt_returnOnNull(parent_model);
+	zt_returnOnNull(child_model);
+
+	if (child_model->parent) {
+		zt_modelChildRemove(child_model->parent, child_model);
+	}
+
+	child_model->parent = parent_model;
+	zt_singleLinkAddToEnd(parent_model->first_child, child_model);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelChildRemove(ztModel *parent_model, ztModel *child_model)
+{
+	zt_returnOnNull(parent_model);
+	zt_returnOnNull(child_model);
+
+	ztModel *prev = nullptr;
+	zt_flink(child, parent_model->first_child) {
+		if (child == child_model) {
+			if (prev) {
+				prev->next = child->next;
+			}
+			else {
+				parent_model->first_child = nullptr;
+			}
+			break;
+		}
+	}	
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztModelEditWidget zt_modelEditWidgetMake(ztModel *model)
+{
+	ztModelEditWidget widget = {};
+	zt_memSet(&widget, zt_sizeof(ztModelEditWidget), 0);
+	widget.model = model;
+	widget.current_mode = ztModelEditWidgetMode_Translate;
+	widget.euler = model ? model->transform.rotation.euler() : ztVec3::zero;
+	widget.dragging = false;
+	widget.hover = false;
+
+	return widget;
+}
+
+// ================================================================================================================================================================================================
+
+ztModelEditWidget zt_modelEditWidgetMake(ztBone *bone)
+{
+	ztModelEditWidget widget = {};
+	zt_memSet(&widget, zt_sizeof(ztModelEditWidget), 0);
+	widget.bone = bone;;
+	widget.current_mode = ztModelEditWidgetMode_Translate;
+	widget.euler = bone ? bone->transform.rotation.euler() : ztVec3::zero;
+	widget.dragging = false;
+	widget.hover = false;
+
+	return widget;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_modelEditWidgetGetAxisAABBs(ztModelEditWidget *widget, ztVec3 camera_pos, ztVec3 *x_axis_pos, ztVec3 *x_axis_size, ztVec3 *y_axis_pos, ztVec3 *y_axis_size, ztVec3 *z_axis_pos, ztVec3 *z_axis_size)
+{
+	r32 cam_dist = zt_abs(camera_pos.distance(ztVec3::zero));
+
+	r32 length = 3.f * (cam_dist * .05f);
+	r32 width = .075f * (cam_dist * .05f);
+
+	*x_axis_pos = zt_vec3(length * .5f + width * .5f, 0, 0);
+	*x_axis_size = zt_vec3(length, width, width);
+	*y_axis_pos = zt_vec3(0, length * .5f + width * .5f, 0);
+	*y_axis_size = zt_vec3(width, length, width);
+	*z_axis_pos = zt_vec3(0, 0, length * .5f + width * .5f);
+	*z_axis_size = zt_vec3(width, width, length);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_modelEditWidgetGetAxisRotationSphere(ztModelEditWidget *widget, ztVec3 camera_pos, ztVec3 *x_axis_pos, ztVec3 *y_axis_pos, ztVec3 *z_axis_pos, r32 *radius)
+{
+	r32 cam_dist = zt_abs(camera_pos.distance(ztVec3::zero));
+
+	ztVec3 unit_vector = widget->model ? widget->model->calculated_mat.getInverse().getMultiply(ztVec3::one.getNormal()) :
+		(widget->bone ? widget->bone->mat_offset.getInverse().getMultiply(ztVec3::one.getNormal()) : ztVec3::one);
+
+	r32 width = .5f * (cam_dist * .05f);
+	r32 length = unit_vector.length() * 3 * (cam_dist * .05f);
+	*radius = unit_vector.length() * .7f * (cam_dist * .05f);
+
+	*x_axis_pos = zt_vec3(length, 0, 0);
+	*y_axis_pos = zt_vec3(0, length, 0);
+	*z_axis_pos = zt_vec3(0, 0, length);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_modelEditWidgetGetAxisScaleAABBs(ztModelEditWidget *widget, ztVec3 camera_pos, ztVec3 *x_axis_pos, ztVec3 *x_axis_size, ztVec3 *y_axis_pos, ztVec3 *y_axis_size, ztVec3 *z_axis_pos, ztVec3 *z_axis_size)
+{
+	r32 cam_dist = zt_abs(camera_pos.distance(ztVec3::zero));
+
+	r32 length = 3.f * (cam_dist * .05f);
+	r32 width = .25f * (cam_dist * .05f);
+
+	*x_axis_pos  = zt_vec3(length + width * .5f, 0, 0);
+	*x_axis_size = zt_vec3(width, width, width);
+	*y_axis_pos  = zt_vec3(0, length + width * .5f, 0);
+	*y_axis_size = zt_vec3(width, width, width);
+	*z_axis_pos  = zt_vec3(0, 0, length + width * .5f);
+	*z_axis_size = zt_vec3(width, width, width);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztCamera *camera, r32 dt)
+{
+	zt_returnValOnNull(widget, false);
+	zt_returnValOnNull(input_mouse, false);
+	zt_returnValOnNull(camera, false);
+
+	if (widget->model == nullptr && widget->bone == nullptr) {
+		return false;
+	}
+
+	bool snap = input_keys[ztInputKeys_Control].pressed();
+
+	static ztMat4 orig_mat_inv;
+
+	ztVec3 ray_pos, ray_dir;
+	ztMat4 calc_mat_inv = widget->model ? widget->model->calculated_mat.getInverse() : widget->bone->mat_local_bind_transform.getInverse();
+	zt_cameraPerspGetMouseRayLocalToMatrix(camera, input_mouse->screen_x, input_mouse->screen_y, &ray_pos, &ray_dir, widget->dragging ? &orig_mat_inv : &calc_mat_inv);
+
+	if (!widget->dragging) {
+		r32 lowest_intersect_time = ztReal32Max;calc_mat_inv.getMultiply(ray_dir).getNormal();
+		i32 lowest_intersect_axis = -1;
+		ztVec3 lowest_intersect_point = ztVec3::max;
+
+		if (widget->current_mode == ztModelEditWidgetMode_Translate) {
+			ztVec3 camera_pos = calc_mat_inv.getMultiply(camera->position);
+
+			r32 camera_dist = camera_pos.distance(ztVec3::zero);
+			ztVec3 ray_pos_zero = ray_pos + ray_dir * camera_dist;
+
+			ztVec3 x_axis_pos, x_axis_size, y_axis_pos, y_axis_size, z_axis_pos, z_axis_size;
+			_zt_modelEditWidgetGetAxisAABBs(widget, camera_pos, &x_axis_pos, &x_axis_size, &y_axis_pos, &y_axis_size, &z_axis_pos, &z_axis_size);
+
+			r32 intersect_time = ztReal32Max;
+			ztVec3 intersect_point = ztVec3::max;
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, x_axis_pos, x_axis_size, &intersect_time, &intersect_point)) {
+				lowest_intersect_time = intersect_time;
+				lowest_intersect_axis = 0;
+				lowest_intersect_point = intersect_point;
+			}
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, y_axis_pos, y_axis_size, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 1;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, z_axis_pos, z_axis_size, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 2;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+		}
+		else if (widget->current_mode == ztModelEditWidgetMode_Rotate) {
+			ztVec3 camera_pos = camera->position;
+			ztTransform calculated_transform = zt_transformFromMat4(widget->model ? &widget->model->calculated_mat : &widget->bone->mat_local_bind_transform);
+			ztVec3 scale = zt_vec3(1.f / calculated_transform.scale.x, 1.f / calculated_transform.scale.y, 1.f / calculated_transform.scale.z);
+
+			ztVec3 x_axis_pos, y_axis_pos, z_axis_pos;
+			r32 radius;
+			_zt_modelEditWidgetGetAxisRotationSphere(widget, camera_pos, &x_axis_pos, &y_axis_pos, &z_axis_pos, &radius);
+
+			r32 intersect_time = ztReal32Max;
+			ztVec3 intersect_point = ztVec3::max;
+
+			if (zt_collisionLineSegmentSphere(ray_pos, ray_pos + ray_dir * 1000, x_axis_pos, radius, &intersect_time, &intersect_point)) {
+				lowest_intersect_time = intersect_time;
+				lowest_intersect_axis = 0;
+				lowest_intersect_point = intersect_point;
+			}
+
+			if (zt_collisionLineSegmentSphere(ray_pos, ray_pos + ray_dir * 1000, y_axis_pos, radius, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 1;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+
+			if (zt_collisionLineSegmentSphere(ray_pos, ray_pos + ray_dir * 1000, z_axis_pos, radius, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 2;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+
+			widget->start_value = widget->model ? widget->model->transform.rotation.euler() : widget->bone->transform.rotation.euler();
+		}
+		else if (widget->current_mode == ztModelEditWidgetMode_Scale) {
+			ztVec3 camera_pos = calc_mat_inv.getMultiply(camera->position);
+
+			ztVec3 x_axis_pos, x_axis_size, y_axis_pos, y_axis_size, z_axis_pos, z_axis_size;
+			_zt_modelEditWidgetGetAxisScaleAABBs(widget, camera_pos, &x_axis_pos, &x_axis_size, &y_axis_pos, &y_axis_size, &z_axis_pos, &z_axis_size);
+
+			r32 intersect_time = ztReal32Max;
+			ztVec3 intersect_point = ztVec3::max;
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, x_axis_pos, x_axis_size, &intersect_time, &intersect_point)) {
+				lowest_intersect_time = intersect_time;
+				lowest_intersect_axis = 0;
+				lowest_intersect_point = intersect_point;
+			}
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, y_axis_pos, y_axis_size, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 1;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, z_axis_pos, z_axis_size, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 2;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+
+			if (zt_collisionRayInAABB(ray_pos, ray_dir, ztVec3::zero, z_axis_size, &intersect_time, &intersect_point)) {
+				if (intersect_time < lowest_intersect_time) {
+					lowest_intersect_time = intersect_time;
+					lowest_intersect_axis = 3;
+					lowest_intersect_point = intersect_point;
+				}
+			}
+			widget->start_value = widget->model ? widget->model->transform.scale : widget->bone->transform.scale;
+		}
+
+		if (lowest_intersect_axis >= 0) {
+			widget->hover = true;
+			widget->hover_axis = lowest_intersect_axis;
+
+			if (input_mouse->leftJustPressed()) {
+				widget->dragging = true;
+				widget->ray_intersect_dist = lowest_intersect_point.distance(ray_pos);
+				widget->ray_intersect_offset = lowest_intersect_point - (widget->model ? widget->model->transform.position : widget->bone->transform.position);
+				widget->accum_value = 0;
+				orig_mat_inv = calc_mat_inv;
+			}
+		}
+		else {
+			widget->hover = false;
+		}
+	}
+	else {
+		if (input_mouse->leftJustReleased()) {
+			widget->dragging = false;
+			return false;
+		}
+		else {
+			if (widget->current_mode == ztModelEditWidgetMode_Translate) {
+				ztVec3 plane_coord = ztVec3::zero;
+				ztVec3 plane_normal;
+
+				if (widget->hover_axis == 0 || widget->hover_axis == 1) { // moving x or y axis
+					if (camera->position.z > plane_coord.z) {
+						plane_normal = zt_vec3(0, 0, 1);
+					}
+					else {
+						plane_normal = zt_vec3(0, 0, -1);
+					}
+				}
+				else { // moving z-axis
+					if (camera->position.y > plane_coord.y) {
+						plane_normal = zt_vec3(0, 1, 0);
+					}
+					else {
+						plane_normal = zt_vec3(0, -1, 0);
+					}
+				}
+
+				ztVec3 intersect_point = ztVec3::zero;
+				zt_collisionLineInPlane(ray_pos, ray_pos + (ray_dir * 1000), plane_coord, plane_normal, &intersect_point);
+				ztVec3 move_dist = intersect_point - widget->ray_intersect_offset;
+
+				if (snap) {
+					move_dist.x = (r32)zt_convertToi32Floor(move_dist.x);
+					move_dist.y = (r32)zt_convertToi32Floor(move_dist.y);
+					move_dist.z = (r32)zt_convertToi32Floor(move_dist.z);
+				}
+
+				if (widget->model) {
+					if (widget->hover_axis == 0) { move_dist.y = widget->model->transform.position.y; move_dist.z = widget->model->transform.position.z; }
+					if (widget->hover_axis == 1) { move_dist.x = widget->model->transform.position.x; move_dist.z = widget->model->transform.position.z; }
+					if (widget->hover_axis == 2) { move_dist.x = widget->model->transform.position.x; move_dist.y = widget->model->transform.position.y; }
+					widget->model->transform.position = move_dist;
+				}
+				else {
+					if (widget->hover_axis == 0) { move_dist.y = widget->bone->transform.position.y; move_dist.z = widget->bone->transform.position.z; }
+					if (widget->hover_axis == 1) { move_dist.x = widget->bone->transform.position.x; move_dist.z = widget->bone->transform.position.z; }
+					if (widget->hover_axis == 2) { move_dist.x = widget->bone->transform.position.x; move_dist.y = widget->bone->transform.position.y; }
+					widget->bone->transform.position = move_dist;
+				}
+			}
+			else if (widget->current_mode == ztModelEditWidgetMode_Rotate) {
+				r32 max_delta = (r32)input_mouse->delta_x;
+				if (zt_abs(max_delta) < zt_abs((r32)input_mouse->delta_y)) {
+					max_delta = (r32)input_mouse->delta_y;
+				}
+
+				if (input_keys[ztInputKeys_Shift].pressed()) {
+					max_delta *= .1f;
+				}
+
+				widget->accum_value += max_delta;
+
+				ztVec3 delta_euler = zt_vec3(widget->hover_axis == 0 ? widget->accum_value : 0, widget->hover_axis == 1 ? widget->accum_value : 0, widget->hover_axis == 2 ? widget->accum_value : 0);
+
+				if (widget->model) {
+					widget->model->transform.rotation = ztQuat::makeFromEuler(widget->start_value) * ztQuat::makeFromEuler(delta_euler * .05f);
+				}
+				else {
+					//widget->bone->transform.rotation = ztQuat::makeFromEuler(widget->start_value) * ztQuat::makeFromEuler(delta_euler * .05f);
+					widget->bone->transform.rotation = ztQuat::makeFromEuler(widget->start_value + delta_euler * .05f);
+				}
+
+				ztVec3 rot_euler = widget->model ? widget->model->transform.rotation.euler() : widget->bone->transform.rotation.euler();
+
+				if (snap) {
+					struct SnapRotation
+					{
+						static r32 snap(r32 value)
+						{
+							while (value > 360) {
+								value -= 360.f;
+							}
+							while (value < 0) {
+								value += 360.f;
+							}
+
+							r32 closest_diff = ztReal32Max;
+							i32 closest_idx = -1;
+
+							r32 snap_locations[16];
+							zt_fize(snap_locations) {
+								snap_locations[i] = 22.5f * i;
+
+								r32 diff = zt_abs(snap_locations[i] - value);
+								if (diff < closest_diff) {
+									closest_diff = diff;
+									closest_idx = i;
+								}
+							}
+
+							if (closest_idx == -1) {
+								return value;
+							}
+
+							return snap_locations[closest_idx];
+						}
+					};
+
+
+					if (widget->hover_axis == 0) { rot_euler.x = SnapRotation::snap(rot_euler.x); }
+					if (widget->hover_axis == 1) { rot_euler.y = SnapRotation::snap(rot_euler.y); }
+					if (widget->hover_axis == 2) { rot_euler.z = SnapRotation::snap(rot_euler.z); }
+				}
+
+				zt_fize(rot_euler.values) {
+					while (rot_euler.values[i] > 360.f) rot_euler.values[i] -= 360.f;
+					while (rot_euler.values[i] < 0.f) rot_euler.values[i] += 360.f;
+				}
+
+				if (widget->model) {
+					widget->model->transform.rotation = ztQuat::makeFromEuler(rot_euler);
+				}
+				else {
+					widget->bone->transform.rotation = ztQuat::makeFromEuler(rot_euler);
+				}
+			}
+			else if (widget->current_mode == ztModelEditWidgetMode_Scale) {
+				r32 max_delta = (r32)input_mouse->delta_x;
+				if (zt_abs(max_delta) < zt_abs((r32)input_mouse->delta_y)) {
+					max_delta = -(r32)input_mouse->delta_y;
+				}
+
+				if (input_keys[ztInputKeys_Shift].pressed()) {
+					max_delta *= .1f;
+				}
+
+				max_delta *= .005f;
+
+				r32 scale = 1;
+				ztTransform calculated_transform = zt_transformFromMat4(widget->model ? &widget->model->calculated_mat : &widget->bone->mat_offset);
+				if (widget->hover_axis == 0 || widget->hover_axis == 3) scale = calculated_transform.scale.x;
+				if (widget->hover_axis == 1 || widget->hover_axis == 3) scale = calculated_transform.scale.y;
+				if (widget->hover_axis == 2 || widget->hover_axis == 3) scale = calculated_transform.scale.z;
+
+				widget->accum_value += max_delta * scale;
+
+				if (widget->model) {
+					if (widget->hover_axis == 0 || widget->hover_axis == 3) widget->model->transform.scale.x = widget->start_value.x + widget->accum_value;
+					if (widget->hover_axis == 1 || widget->hover_axis == 3) widget->model->transform.scale.y = widget->start_value.y + widget->accum_value;
+					if (widget->hover_axis == 2 || widget->hover_axis == 3) widget->model->transform.scale.z = widget->start_value.z + widget->accum_value;
+
+					if (snap) {
+						r32 snap_value = .5f;
+						if (widget->hover_axis == 0 || widget->hover_axis == 3) widget->model->transform.scale.x -= zt_fmod(widget->model->transform.scale.x, snap_value);
+						if (widget->hover_axis == 1 || widget->hover_axis == 3) widget->model->transform.scale.y -= zt_fmod(widget->model->transform.scale.y, snap_value);
+						if (widget->hover_axis == 2 || widget->hover_axis == 3) widget->model->transform.scale.z -= zt_fmod(widget->model->transform.scale.z, snap_value);
+					}
+				}
+				else {
+					if (widget->hover_axis == 0 || widget->hover_axis == 3) widget->bone->transform.scale.x = widget->start_value.x + widget->accum_value;
+					if (widget->hover_axis == 1 || widget->hover_axis == 3) widget->bone->transform.scale.y = widget->start_value.y + widget->accum_value;
+					if (widget->hover_axis == 2 || widget->hover_axis == 3) widget->bone->transform.scale.z = widget->start_value.z + widget->accum_value;
+
+					if (snap) {
+						r32 snap_value = .5f;
+						if (widget->hover_axis == 0 || widget->hover_axis == 3) widget->bone->transform.scale.x -= zt_fmod(widget->bone->transform.scale.x, snap_value);
+						if (widget->hover_axis == 1 || widget->hover_axis == 3) widget->bone->transform.scale.y -= zt_fmod(widget->bone->transform.scale.y, snap_value);
+						if (widget->hover_axis == 2 || widget->hover_axis == 3) widget->bone->transform.scale.z -= zt_fmod(widget->bone->transform.scale.z, snap_value);
+					}
+				}
+			}
+		}
+	}
+
+	return widget->dragging;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDrawList *draw_list)
+{
+	zt_returnOnNull(widget);
+	zt_returnOnNull(camera);
+	zt_returnOnNull(draw_list);
+
+	if (widget->model == nullptr && widget->bone == nullptr) {
+		return;
+	}
+
+	ztTransform calculated_transform = zt_transformFromMat4(widget->model ? &widget->model->calculated_mat : &widget->bone->mat_local_bind_transform);
+	ztVec3 scale = zt_vec3(1.f / calculated_transform.scale.x, 1.f / calculated_transform.scale.y, 1.f / calculated_transform.scale.z);
+	ztMat4 calculated_mat = widget->model ? widget->model->calculated_mat : widget->bone->mat_local_bind_transform;
+	if (widget->current_mode == ztModelEditWidgetMode_Translate) {
+		ztVec3 x_axis_pos, x_axis_size, y_axis_pos, y_axis_size, z_axis_pos, z_axis_size;
+		_zt_modelEditWidgetGetAxisAABBs(widget, camera->position, &x_axis_pos, &x_axis_size, &y_axis_pos, &y_axis_size, &z_axis_pos, &z_axis_size);
+
+		zt_drawListPushTransform(draw_list, calculated_mat);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, x_axis_pos * scale, x_axis_size * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, y_axis_pos * scale, y_axis_size * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, z_axis_pos * scale, z_axis_size * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPopTransform(draw_list);
+	}
+	else if (widget->current_mode == ztModelEditWidgetMode_Rotate) {
+		ztVec3 x_axis_pos, y_axis_pos, z_axis_pos;
+		r32 radius;
+		_zt_modelEditWidgetGetAxisRotationSphere(widget, camera->position, &x_axis_pos, &y_axis_pos, &z_axis_pos, &radius);
+
+		zt_drawListPushTransform(draw_list, calculated_mat);
+		zt_drawListPushColor(draw_list, ztColor_Red);
+		zt_drawListAddLine(draw_list, ztVec3::zero, x_axis_pos);
+		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &ztQuat::makeFromEuler(0, 90, 0));
+		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &ztQuat::makeFromEuler(0, -90, 0));
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, ztColor_Green);
+		zt_drawListAddLine(draw_list, ztVec3::zero, y_axis_pos);
+		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &ztQuat::makeFromEuler(90, 0, 0));
+		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &ztQuat::makeFromEuler(-90, 0, 0));
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, ztColor_Blue);
+		zt_drawListAddLine(draw_list, ztVec3::zero, z_axis_pos);
+		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &ztQuat::makeFromEuler(0, 0, 0));
+		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &ztQuat::makeFromEuler(-180, 0, 0));
+		zt_drawListPopColor(draw_list);
+		zt_drawListPopTransform(draw_list);
+	}
+	else if (widget->current_mode == ztModelEditWidgetMode_Scale) {
+		ztVec3 x_axis_pos, x_axis_size, y_axis_pos, y_axis_size, z_axis_pos, z_axis_size;
+		_zt_modelEditWidgetGetAxisScaleAABBs(widget, camera->position, &x_axis_pos, &x_axis_size, &y_axis_pos, &y_axis_size, &z_axis_pos, &z_axis_size);
+
+		zt_drawListPushTransform(draw_list, calculated_mat);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, x_axis_pos * scale, x_axis_size * scale);
+		zt_drawListAddLine(draw_list, ztVec3::zero, x_axis_pos * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, y_axis_pos * scale, y_axis_size * scale);
+		zt_drawListAddLine(draw_list, ztVec3::zero, y_axis_pos * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, z_axis_pos * scale, z_axis_size * scale);
+		zt_drawListAddLine(draw_list, ztVec3::zero, z_axis_pos * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPushColor(draw_list, widget->hover && widget->hover_axis == 3 ? ztColor_White : ztColor_Yellow);
+		zt_drawListAddFilledCubeFromCenterSize(draw_list, ztVec3::zero, z_axis_size * scale);
+		zt_drawListPopColor(draw_list);
+		zt_drawListPopTransform(draw_list);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelEditWidgetRenderText(ztModelEditWidget *widget, ztCamera *camera_3d, ztCamera *camera_2d, /*ztFontID*/i32 font_id, ztVec2 offset, ztDrawList *draw_list)
+{
+	zt_returnOnNull(widget);
+	zt_returnOnNull(camera_3d);
+	zt_returnOnNull(camera_2d);
+	zt_returnOnNull(draw_list);
+
+	if ((widget->model == nullptr && widget->bone == nullptr) || widget->hover == false) {
+		return;
+	}
+
+	char display[128] = { 0 };
+
+	ztTransform *transform = widget->model == nullptr ? &widget->bone->transform : &widget->model->transform;
+
+	if (widget->current_mode == ztModelEditWidgetMode_Translate) {
+		zt_strPrintf(display, zt_elementsOf(display), "Position: %.2f, %.2f, %.2f", transform->position.x, transform->position.y, transform->position.z);
+	}
+	else if (widget->current_mode == ztModelEditWidgetMode_Rotate) {
+		ztVec3 euler = transform->rotation.euler();
+		zt_strPrintf(display, zt_elementsOf(display), "Rotation: %.2f, %.2f, %.2f", euler.x, euler.y, euler.z);
+	}
+	else if (widget->current_mode == ztModelEditWidgetMode_Scale) {
+		zt_strPrintf(display, zt_elementsOf(display), "Scale: %.2f, %.2f, %.2f", transform->scale.x, transform->scale.y, transform->scale.z);
+	}
+
+	ztVec3 world_pos = widget->model != nullptr ? widget->model->calculated_mat.getMultiply(ztVec3::zero) : widget->bone->mat_local_bind_transform.getMultiply(ztVec3::zero);
+
+	ztVec2i screen_pos = zt_cameraPerspWorldToScreen(camera_3d, world_pos);
+	ztVec2 text_pos = zt_cameraOrthoScreenToWorld(camera_2d, screen_pos.x, screen_pos.y);
+
+	zt_drawListAddText2D(draw_list, font_id, display, text_pos + offset);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelEditWidgetChangeMode(ztModelEditWidget *widget, ztModelEditWidgetMode_Enum new_mode)
+{
+	zt_returnOnNull(widget);
+
+	widget->hover = false;
+	widget->current_mode = new_mode;
 }
 
 // ================================================================================================================================================================================================
@@ -13767,8 +15594,8 @@ ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *ca
 	switch (facing)
 	{
 		case ztModelSpriteFacing_Billboard: nml = zt_vec3(0, 0, 1); break;
-		case ztModelSpriteFacing_NegX: rot = zt_vec3(0, 90, 0); nml = zt_vec3(-1, 0, 0); break;
-		case ztModelSpriteFacing_PosX: rot = zt_vec3(0, -90, 0); nml = zt_vec3(1, 0, 0); break;
+		case ztModelSpriteFacing_NegX: rot = zt_vec3(0, -90, 0); nml = zt_vec3(-1, 0, 0); break;
+		case ztModelSpriteFacing_PosX: rot = zt_vec3(0, 90, 0); nml = zt_vec3(1, 0, 0); break;
 		case ztModelSpriteFacing_NegY: rot = zt_vec3(-90, 0, 0); nml = zt_vec3(0, -1, 0); break;
 		case ztModelSpriteFacing_PosY: rot = zt_vec3(90, 0, 0); nml = zt_vec3(0, 1, 0); break;
 		case ztModelSpriteFacing_NegZ: rot = zt_vec3(0, 180, 0); nml = zt_vec3(0, 0, -1); break;
@@ -13852,6 +15679,25 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 						zt_shaderSetModelMatrices(shader, ztMat4::identity);
 					}
 					else {
+
+						static u32 bones_count_hash = 0;
+						static u32 bones_names_hash[ZT_MAX_BONES];
+
+						if (bones_count_hash == 0) {
+							bones_count_hash = zt_strHash("bones_count");
+
+							zt_fiz(ZT_MAX_BONES) {
+								zt_strMakePrintf(bones_name, 128, "bones[%d]", i);
+								bones_names_hash[i] = zt_strHash(bones_name);
+							}
+						}
+
+						zt_shaderSetVariableInt(shader, bones_count_hash, model->bones_count);
+
+						zt_fiz(model->bones_count) {
+							zt_shaderSetVariableMat4(shader, bones_names_hash[i], model->bones[i].mat_offset);
+						}
+
 						zt_shaderSetModelMatrices(shader, model->calculated_mat);
 					}
 
@@ -13907,7 +15753,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 		_zt_rendererCheckToResetStats();
 
-		zt_textureRenderTargetPrepare(scene->tex_directional_shadow_map);
+		zt_textureRenderTargetPrepare(scene->tex_directional_shadow_map, true);
 		zt_rendererClear(zt_vec4(1, 1, 1, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
 		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
@@ -13957,7 +15803,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 		_zt_rendererCheckToResetStats();
 
-		zt_textureRenderTargetPrepare(scene->lights[k].shadowmap_tex);
+		zt_textureRenderTargetPrepare(scene->lights[k].shadowmap_tex, true);
 		zt_rendererClear(zt_vec4(0, 0, 0, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
 		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
@@ -14098,7 +15944,7 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 	if (scene->tex_depth != ztInvalidID) {
 		_zt_rendererCheckToResetStats();
 
-		zt_textureRenderTargetPrepare(scene->tex_depth);
+		zt_textureRenderTargetPrepare(scene->tex_depth, true);
 		zt_rendererClear(zt_vec4(1, 1, 1, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
 
@@ -14261,17 +16107,6 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 						zt_shaderSetVariableInt(*active_shader, spot_lights_count_hash, spot_lights);
 					}
 
-					if (shader_supports_bones) {
-						static u32 bones_count_hash = zt_strHash("bones_count");
-						zt_shaderSetVariableInt(*active_shader, bones_count_hash, model->bones_count);
-
-						zt_fiz(model->bones_count) {
-							zt_strMakePrintf(bones_name, 128, "bones[%d]", i);
-							zt_shaderSetVariableMat4(*active_shader, zt_strHash(bones_name), model->bones[i].mat_offset);
-						//	zt_shaderSetVariableMat4(*active_shader, zt_strHash(bones_name), model->calculated_mat);
-						}
-					}
-
 					zt_shaderSetCameraMatrices(*active_shader, camera->mat_proj, camera->mat_view);
 					if (model->shader_vars) {
 						zt_shaderApplyVariables(*active_shader, model->shader_vars);
@@ -14329,6 +16164,39 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 				}
 				else {
 					zt_materialPrepare(&model->material, *active_shader);
+				}
+
+				if (shader_supports_bones) {
+					static u32 bones_count_hash = 0;
+					static u32 bones_names_hash[ZT_MAX_BONES];
+
+					if (bones_count_hash == 0) {
+						bones_count_hash = zt_strHash("bones_count");
+
+						zt_fiz(ZT_MAX_BONES) {
+							zt_strMakePrintf(bones_name, 128, "bones[%d]", i);
+							bones_names_hash[i] = zt_strHash(bones_name);
+						}
+					}
+
+					zt_shaderSetVariableInt(*active_shader, bones_count_hash, model->bones_count);
+
+					zt_fiz(model->bones_count) {
+#						if defined(ZT_DEBUG)
+						if (i == 0 && !zt_shaderHasVariable(*active_shader, bones_names_hash[i], nullptr)) {
+							break;
+						}
+#						endif
+
+						zt_shaderSetVariableMat4(*active_shader, bones_names_hash[i], model->bones[i].mat_offset);
+
+#						if defined(ZT_DEBUG)
+						if (i == model->bones_count - 1) {
+							zt_assert(zt_shaderHasVariable(*active_shader, bones_names_hash[i], nullptr));
+						}
+#						endif
+						//	zt_shaderSetVariableMat4(*active_shader, zt_strHash(bones_name), model->calculated_mat);
+					}
 				}
 
 				if(model->type == ztModelType_ParticleSystem) {
@@ -14403,8 +16271,11 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 			local::renderModelAndChildren(scene, scene->list_std[i], scene->list_std[i]->model, camera, &light_mat, &shader, lighting_rules);
 		}
 	}
-	zt_shaderEnd(shader);
-	shader = ztInvalidID;
+
+	if (shader != ztInvalidID) {
+		zt_shaderEnd(shader);
+		shader = ztInvalidID;
+	}
 
 	//glEnable(GL_BLEND);
 
@@ -14479,37 +16350,97 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 		static void drawBone(ztDrawList *draw_list, ztBone *bone, ztModel *model, const ztMat4& parent_transform)
 		{
 			// todo(josh): this is wrong.  fix it
+			//return;
 
-			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform);
+#if 0
+//			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform);
+//			ztMat4 current_transform = parent_transform * current_local_transform;
+
+			ztMat4 current_local_transform = zt_transformToMat4(&bone->transform_base);
 			ztMat4 current_transform = parent_transform * current_local_transform;
 
-			/*
+			//*
 			zt_drawListPushTransform(draw_list, current_transform);
-			//zt_drawListPushTransform(draw_list, model->calculated_mat * mat);
 			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : (bone->transform.rotation.euler().equalsClose(bone->transform_base.rotation.euler()) ? ztColor_Green : ztColor_Cyan));
 
-			r32 size = .2f;
-			zt_drawListAddEmptyBone(draw_list, ztVec3::zero, 25 * size, 5 * size, 2 * size);
+			r32 size = .02f * bone->size / model->transform.scale.x;
+			zt_drawListAddEmptyBone(draw_list, ztVec3::zero, 12 * size, 1 * size, 2 * size);
+			zt_drawListAddEmptySimpleSphere(draw_list, zt_vec3(0, bone->size * .2f, 0), .025f, 8);
 			zt_drawListPopColor(draw_list);
 			zt_drawListPopTransform(draw_list);
-			*/
+			//*/
 
-			ztVec3 pos = bone->mat_model.getMultiply(ztVec3::zero);
-			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : ztColor_Green);
-			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, zt_vec3(.25f, .25f, .25f));
-			zt_drawListPopColor(draw_list);
+			if (true) {
+				zt_drawListPushTransform(draw_list, bone->mat_offset);
+				zt_drawListPushColor(draw_list, ztColor_Red);
 
-
-			pos = current_transform.getMultiply(ztVec3::zero);
-			//zt_drawListPushTransform(draw_list, model->calculated_mat * mat);
-			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Purple : (bone->transform.rotation.euler().equalsClose(bone->transform_base.rotation.euler()) ? ztColor_Blue : ztColor_Orange));
-			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, zt_vec3(.20f, .20f, .20f));
-			zt_drawListPopColor(draw_list);
-
+				r32 size = .025f * bone->size / model->transform.scale.x;
+				zt_drawListAddEmptyBone(draw_list, ztVec3::zero, 12 * size, 1 * size, 2 * size);
+				zt_drawListAddEmptySimpleSphere(draw_list, zt_vec3(0, bone->size * .2f, 0), .025f, 8);
+				zt_drawListPopColor(draw_list);
+				zt_drawListPopTransform(draw_list);
+			}
 
 			zt_flink(child, bone->first_child) {
-				drawBone(draw_list, child, model, current_transform);
+				drawBone(draw_list, child, model, current_transform);// parent_transform);
 			}
+#else
+			/*
+			// draw bones based on bind transforms
+			ztVec3 bone_pos = model->calculated_mat.getMultiply(bone->mat_local_bind_transform.getMultiply(ztVec3::zero));
+			
+			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : ztColor_Cyan);
+
+			r32 size = .025f;//.025f * bone->size / model->transform.scale.x;
+			zt_drawListAddEmptyBone(draw_list, bone_pos, 12 * size, 1 * size, 2 * size);
+
+			if (zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) && bone->parent) {
+				ztVec3 parent_bone_pos = model->calculated_mat.getMultiply(bone->parent->mat_local_bind_transform.getMultiply(ztVec3::zero));
+
+				zt_drawListAddLine(draw_list, bone_pos, parent_bone_pos);
+			}
+
+			zt_drawListPopColor(draw_list);
+
+			zt_flink(child, bone->first_child) {
+				drawBone(draw_list, child, model, model->calculated_mat);
+			}
+			// */
+			//*
+			// draw bones based on global position matrix:
+			ztMat4 from_bone_to_global = parent_transform * bone->mat_offset * bone->mat_model;
+			ztVec3 bone_global_pos = from_bone_to_global.getMultiply(ztVec3::zero);
+
+			zt_drawListPushTransform(draw_list, from_bone_to_global);
+			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : ztColor_Cyan);
+
+			r32 size = .025f * bone->size / model->transform.scale.x;
+			zt_drawListAddEmptyBone(draw_list, ztVec3::zero, 12 * size, 1 * size, 2 * size);
+			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Red : ztColor_Purple);
+			zt_drawListAddEmptySimpleSphere(draw_list, ztVec3::zero, size * .5f, 8);
+			zt_drawListPopColor(draw_list);
+			zt_drawListPopColor(draw_list);
+			zt_drawListPopTransform(draw_list);
+
+			zt_flink(child, bone->first_child) {
+				drawBone(draw_list, child, model, parent_transform);
+			}
+			//*/
+#endif
+
+//			ztVec3 pos = bone->mat_model.getMultiply(ztVec3::zero);
+//			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Yellow : ztColor_Green);
+//			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, zt_vec3(.25f, .25f, .25f));
+//			zt_drawListPopColor(draw_list);
+
+
+//			pos = current_transform.getMultiply(ztVec3::zero);
+//			//zt_drawListPushTransform(draw_list, model->calculated_mat * mat);
+//			zt_drawListPushColor(draw_list, zt_bitIsSet(bone->flags, ztBoneFlags_DebugDrawHighlight) ? ztColor_Purple : (bone->transform.rotation.euler().equalsClose(bone->transform_base.rotation.euler()) ? ztColor_Blue : ztColor_Orange));
+//			zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos, zt_vec3(.20f, .20f, .20f));
+//			zt_drawListPopColor(draw_list);
+
+
 		}
 
 		static void renderModelAndChildren(ztDrawList *draw_list, i32 debug_flags, ztScene *scene, ztScene::ModelInfo *scene_model_info, ztModel *model, ztCamera *camera)
@@ -14536,7 +16467,7 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 				ztVec3 aabb_center, aabb_size;
 
 				zt_modelGetAABB(model, &aabb_center, &aabb_size);
-				ztVec3 pos = model->calculated_mat.getMultiply(ztVec3::zero);
+				ztVec3 pos = ztVec3::zero;// model->calculated_mat.getMultiply(ztVec3::zero);
 				zt_drawListAddEmptyCubeFromCenterSize(draw_list, pos + aabb_center, aabb_size * totalScale(model));
 				zt_drawListPopColor(draw_list);
 			}
@@ -14552,8 +16483,8 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 				zt_drawListPopColor(draw_list);
 			}
 
-			//if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && bitIsSetInParentHierarchy(model, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
-			if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
+			if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && bitIsSetInParentHierarchy(model, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
+			//if (zt_bitIsSet(debug_flags, ztModelFlags_DebugDrawBones) && model->bones_count > 0) {
 				drawBone(draw_list, &model->bones[model->bones_root_idx], model, model->calculated_mat);
 			}
 
@@ -14567,7 +16498,8 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 
 	_zt_rendererCheckToResetStats();
 
-	zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
+	//zt_rendererSetDepthTest(false, ztRendererDepthTestFunction_LessEqual);
+	zt_rendererClearDepth();
 
 	zt_fiz(scene->models_count) {
 		local::renderModelAndChildren(draw_list, debug_flags, scene, &scene->models[i], scene->models[i].model, camera);
@@ -17833,6 +19765,10 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 	if (shader->renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
 			shader->variables.variables_count = shader->gl_shader->uniforms_count;
+			if(shader->variables.variables_count > zt_elementsOf(shader->variables.variables)) {
+				zt_logCritical("shader has too many uniforms");
+				shader->variables.variables_count = zt_elementsOf(shader->variables.variables);
+			}
 			zt_fiz(shader->variables.variables_count) {
 				ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
 				switch (shader->gl_shader->uniforms[i].type)
@@ -18805,12 +20741,22 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 	zt_strCat(buffer, buffer_len,
 		"struct VertexInput\n"
 		"{\n"
-		"	vec3 position : 0;\n"
-		"	vec2 uv : 1;\n"
-		"	vec3 normal : 2;\n"
-		"	vec4 color : 3;\n"
-		"	vec4 tangent : 4;\n"
-		"	vec4 bitangent : 5;\n"
+		"	vec3  position : 0;\n"
+		"	vec2  uv : 1;\n"
+		"	vec3  normal : 2;\n"
+		"	vec4  color : 3;\n"
+		"	vec4  tangent : 4;\n"
+		"	vec4  bitangent : 5;\n"
+		);
+
+	if (settings->support_bones) {
+		zt_strCat(buffer, buffer_len,
+			"	ivec4 bones : 6;\n"
+			"	vec4  weights : 7;\n"
+			);
+	}
+
+	zt_strCat(buffer, buffer_len,
 		"}\n"
 		"\n"
 		"struct PixelInput\n"
@@ -18949,6 +20895,14 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			"	SpotLight spot_lights[%d];\n"
 			"	int       spot_lights_count;\n",
 			settings->max_spot_lights
+			);
+	}
+
+	if (settings->support_bones) {
+		zt_strCatf(buffer, buffer_len,
+			"	mat4      bones[%d];\n"
+			"	int       bones_count;\n",
+			settings->max_bones
 			);
 	}
 
@@ -19164,9 +21118,25 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"{\n"
 		"	vertex_shader vertexShader(VertexInput _input : input, Uniforms uniforms : uniforms, PixelInput _output : output)\n"
 		"	{\n"
-		"		_output.position             = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1);\n"
-		"		_output.frag_pos             = vec3(uniforms.model * vec4(_input.position, 1.0));\n"
-		"		_output.normal               = mat3(uniforms.model) * _input.normal;\n"
+		"		mat4 model_mat = uniforms.model;\n"
+		);
+
+	if (settings->support_bones) {
+		zt_strCat(buffer, buffer_len,
+			"		if (uniforms.bones_count > 0) {\n"
+			"			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n"
+			"			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n"
+			"			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n"
+			"			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n\n"
+			"			model_mat = uniforms.model * bone_mat;\n"
+			"		}\n"
+		);
+	}
+
+	zt_strCat(buffer, buffer_len,
+		"		_output.position             = uniforms.projection * uniforms.view * model_mat * vec4(_input.position, 1.0);\n"
+		"		_output.frag_pos             = vec3(model_mat * vec4(_input.position, 1.0));\n"
+		"		_output.normal               = mat3(model_mat) * _input.normal;\n"
 		"		_output.uv                   = _input.uv;\n"
 		"		_output.color                = _input.color;\n"
 		"		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n"
@@ -19174,12 +21144,12 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 
 	if (settings->write_position) {
 		zt_strCat(buffer, buffer_len,
-			"		_output.frag_pos_view = uniforms.view * uniforms.model * vec4(_input.position, 1);\n"
+			"		_output.frag_pos_view = uniforms.view * model_mat * vec4(_input.position, 1);\n"
 			);
 	}
 	if (settings->write_normal) {
 		zt_strCat(buffer, buffer_len,
-			"		_output.normal_view = mat3(uniforms.view) * mat3(uniforms.model) * _input.normal;\n"
+			"		_output.normal_view = mat3(uniforms.view) * mat3(model_mat) * _input.normal;\n"
 			);
 	}
 
@@ -19831,17 +21801,18 @@ ztTextureID zt_textureMakeFromFileData(void *data, i32 size, i32 flags)
 		goto on_error;
 	}
 
+	depth = 4; // we tell stb to use 4
 	texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
 	if (texture_id != ztInvalidID) {
 		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
 
 		// we copy this so we can reload if necessary
-		texture->arena = zt_memGetGlobalArena();
-		texture->data_len = width * height * depth;
-		texture->data = zt_mallocStructArray(byte, texture->data_len);
-		texture->file_name[0] = 0;
-		zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
+		//texture->arena = zt_memGetGlobalArena();
+		//texture->data_len = width * height * depth;
+		//texture->data = zt_mallocStructArray(byte, texture->data_len);
+		//texture->file_name[0] = 0;
+		//zt_memCpy(texture->data, texture->data_len, pixel_data, texture->data_len);
 	}
 
 	stbi_image_free(pixel_data);
@@ -20214,7 +22185,7 @@ ztTextureID zt_textureMakeBidirectionalReflectanceDistributionFunctionLUT(i32 w,
 		return ztInvalidID;
 	}
 
-	zt_textureRenderTargetPrepare(render_tex);
+	zt_textureRenderTargetPrepare(render_tex, true);
 
 	zt_rendererClear(ztColor_Green);
 	zt_shaderBegin(shader);
@@ -20276,7 +22247,7 @@ ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h)
 
 // ================================================================================================================================================================================================
 
-byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth)
+byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth, bool should_flip)
 {
 	zt_returnValOnNull(asset_mgr, nullptr);
 	zt_returnValOnNull(width, nullptr);
@@ -20310,7 +22281,7 @@ byte *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32
 
 	{
 		ztBlockProfiler bp_tex("stbi_load_from_memory");
-		stbi_set_flip_vertically_on_load(true);
+		stbi_set_flip_vertically_on_load(should_flip);
 		pixel_data = stbi_load_from_memory((const stbi_uc*)data, size, width, height, depth, 4);
 	}
 
@@ -20333,7 +22304,7 @@ on_error:
 
 // ================================================================================================================================================================================================
 
-byte *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth)
+byte *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth, bool should_flip)
 {
 	zt_returnValOnNull(width, nullptr);
 	zt_returnValOnNull(height, nullptr);
@@ -20347,7 +22318,7 @@ byte *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height
 
 	{
 		ztBlockProfiler bp_tex("stbi_load_from_memory");
-		stbi_set_flip_vertically_on_load(true);
+		stbi_set_flip_vertically_on_load(should_flip);
 		pixel_data = stbi_load_from_memory((const stbi_uc*)data, data_size, width, height, depth, 4);
 	}
 
@@ -20429,7 +22400,7 @@ void zt_textureSetName(ztTextureID texture_id, const char *name)
 
 // ================================================================================================================================================================================================
 
-void zt_textureRenderTargetPrepare(ztTextureID texture_id)
+void zt_textureRenderTargetPrepare(ztTextureID texture_id, bool clear)
 {
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetPrepare");
 	zt_assert(zt_game->textures_active_render_target == false); // cannot render to a render target if we're already doing that
@@ -20437,7 +22408,7 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id)
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureRenderTargetPrepare(zt_game->textures[texture_id].gl_texture));
+			zt_openGLSupport(ztgl_textureRenderTargetPrepare(zt_game->textures[texture_id].gl_texture, clear));
 		} break;
 
 		case ztRenderer_DirectX: {
@@ -20931,6 +22902,44 @@ void zt_cameraPerspGetMouseRay(ztCamera *camera, int sx, int sy, ztVec3 *point, 
 
 // ================================================================================================================================================================================================
 
+void zt_cameraPerspGetMouseRayLocalToMatrix(ztCamera *camera, int sx, int sy, ztVec3 *point, ztVec3 *direction, ztMat4 *matrix_inv)
+{
+	ZT_PROFILE_RENDERING("zt_cameraPerspGetMouseRayLocalToMatrix");
+
+	ztVec3 ray_pos, ray_dir;
+	zt_cameraPerspGetMouseRay(camera, sx, sy, &ray_pos, &ray_dir);
+
+	ztVec3 ray_pos_plus_dir = ray_pos + ray_dir;
+
+	ray_pos = matrix_inv->getMultiply(ray_pos);
+	ray_pos_plus_dir = matrix_inv->getMultiply(ray_pos_plus_dir);
+
+	ray_dir = (ray_pos_plus_dir - ray_pos).getNormal();
+
+	*point = ray_pos;
+	*direction = ray_dir;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec2i zt_cameraPerspWorldToScreen(ztCamera *camera, ztVec3 pos)
+{
+	ZT_PROFILE_RENDERING("zt_cameraPerspWorldToScreen");
+	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
+
+	ztVec4 result = mat_final.getMultiply(zt_vec4(pos, 1));
+	result.xyz *= 1 / result.w;
+
+	result.y *= -.5f;
+	result.x *= .5f;
+	result.x += .5f;
+	result.y += .5f;
+	
+	return zt_vec2i(zt_convertToi32Floor(camera->width * result.x), zt_convertToi32Floor(camera->height * result.y));
+}
+
+// ================================================================================================================================================================================================
+
 void zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up)
 {
 	ZT_PROFILE_RENDERING("zt_cameraLookAt");
@@ -21200,8 +23209,8 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 	if (controller->mouse_delta_x != 0 || controller->mouse_delta_y != 0) {
 		cam_moved = true;
 
-		r32 delta_x = -controller->mouse_delta_x * controller->mouse_sensitivity;
-		r32 delta_y = -controller->mouse_delta_y * controller->mouse_sensitivity;
+		r32 delta_x = controller->mouse_delta_x * controller->mouse_sensitivity;
+		r32 delta_y = controller->mouse_delta_y * controller->mouse_sensitivity;
 
 		controller->rotation.y += delta_x;
 		if (controller->rotation.y <   0) controller->rotation.y += 360;
@@ -21285,7 +23294,7 @@ ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec
 	zt_memSet(&controller, zt_sizeof(ztCameraControllerArcball), 0);
 
 	controller.camera            = camera;
-	controller.mouse_sensitivity = 0.5f;
+	controller.mouse_sensitivity = 0.05f;
 	controller.target            = target;
 	controller.rotation          = ztQuat::identity;
 
@@ -21298,14 +23307,16 @@ ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec
 
 // ================================================================================================================================================================================================
 
-void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt)
+void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_cameraControlUpdateArcball");
 	zt_returnOnNull(controller);
 	zt_returnOnNull(input_mouse);
 	zt_returnOnNull(input_keys);
 
-	if (input_mouse->middlePressed() || input_keys[ztInputKeys_Control].pressed() || input_mouse->wheel_delta) {
+	bool ignore_keys = zt_bitIsSet(flags, ztCameraControllerArcballUpdateFlags_IgnoreKeys);
+
+	if (input_mouse->middlePressed() || (!ignore_keys && input_keys[ztInputKeys_Control].pressed()) || input_mouse->wheel_delta) {
 
 		if (input_keys[ztInputKeys_Shift].pressed()) {
 			// move the target
@@ -21315,8 +23326,8 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 			r32 distance = zt_abs(controller->camera->position.distance(controller->target));
 
-			r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * 2;
-			r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * 2;
+			r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * .125f;
+			r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * .125f;
 
 			controller->target += side * x_move;
 			controller->camera->position += side * x_move;
@@ -23832,7 +25843,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 		if (add_data_size) {
 			byte *add_data_dst = ((byte*)vertex) + zt_sizeof(ztVertex);
-			byte *add_data_src = ((byte*)additional_data) + add_data_size * i;
+			byte *add_data_src = ((byte*)additional_data) + add_data_size * indices[i];
 			zt_memCpy(add_data_dst, add_data_size, add_data_src, add_data_size);
 		}
 
@@ -24415,7 +26426,7 @@ ztInternal int _zt_meshLoadOBJBase(ztAssetManager *asset_mgr, ztAssetID asset_id
 				// we need to redo the vert/normal/uv arrays
 				ztVec3* new_verts = zt_mallocStructArray(ztVec3, indices_idx);
 				ztVec2* new_uvs = has_uv_indices ? zt_mallocStructArray(ztVec2, indices_idx) : nullptr;
-				ztVec3* new_normals = has_norm_indices ? zt_mallocStructArray(ztVec3, indices_idx) : nullptr;
+				ztVec3* new_normals = has_norm_indices && normals ? zt_mallocStructArray(ztVec3, indices_idx) : nullptr;
 
 				for (int i = 0; i < indices_idx; ++i) {
 					new_verts[i] = verts[indices[i]];
@@ -28204,14 +30215,12 @@ bool zt_serialWrite(ztSerial *serial, ztAnimCurve *curve)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant value_end, r32 time)
+ztAnimKey zt_animKeyMake(ztVariant value, r32 time)
 {
 	ZT_PROFILE_ANIMATION("zt_animKeyMake");
 	ztAnimKey anim_key;
-	anim_key.target    = target;
-	anim_key.value_beg = value_beg;
-	anim_key.value_end = value_end;
-	anim_key.time      = time;
+	anim_key.value   = value;
+	anim_key.time = time;
 
 	return anim_key;
 }
@@ -28221,10 +30230,19 @@ ztAnimKey zt_animKeyMake(ztVariantPointer target, ztVariant value_beg, ztVariant
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztAnimLayer zt_animLayerMake(ztAnimKey *keys, int keys_count)
+ztAnimLayer zt_animLayerMake(ztVariantPointer target, ztAnimKey *keys, int keys_count, const char *name)
 {
 	ZT_PROFILE_ANIMATION("zt_animLayerMake");
 	ztAnimLayer layer;
+
+	layer.target = target;
+
+	if (name) {
+		layer.name = zt_stringMakeFrom(name);
+	}
+	else {
+		layer.name = nullptr;
+	}
 
 	layer.keys = zt_mallocStructArray(ztAnimKey, keys_count);
 	layer.keys_count = keys_count;
@@ -28250,6 +30268,11 @@ void zt_animLayerFree(ztAnimLayer *layer)
 	}
 
 	zt_free(layer->keys);
+
+	if (layer->name) {
+		zt_stringFree(layer->name);
+		layer->name = nullptr;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -28257,11 +30280,11 @@ void zt_animLayerFree(ztAnimLayer *layer)
 ztInternal ztInline void _zt_animLayerTransitionInto(ztAnimLayer *layer, r32 transition_time)
 {
 	ZT_PROFILE_ANIMATION("_zt_animLayerTransitionInto");
-	zt_variantAssignValue(&layer->value_beg, zt_variantMake(&layer->keys[0].target));
-	zt_variantAssignValue(&layer->value_end, layer->keys[0].value_beg);
+	zt_variantAssignValue(&layer->value_beg, zt_variantMake(&layer->target));
+	zt_variantAssignValue(&layer->value_end, layer->keys[0].value);
 	layer->state        = ztAnimLayerState_Transitioning;
 	layer->current_time = 0;
-	layer->current_key  = 0;
+	layer->current_key  = -1;
 	layer->target_time  = transition_time;
 }
 
@@ -28270,9 +30293,9 @@ ztInternal ztInline void _zt_animLayerTransitionInto(ztAnimLayer *layer, r32 tra
 ztInternal ztInline void _zt_animLayerStart(ztAnimLayer *layer)
 {
 	ZT_PROFILE_ANIMATION("_zt_animLayerStart");
-	zt_variantAssignValue(&layer->value_beg, layer->keys[0].value_beg);
-	zt_variantAssignValue(&layer->value_end, layer->keys[0].value_end);
-	zt_variantAssignValue(&layer->keys[0].target, layer->keys[0].value_beg);
+	zt_variantAssignValue(&layer->value_beg, layer->keys[0].value);
+	zt_variantAssignValue(&layer->value_end, layer->keys[0].value);
+	zt_variantAssignValue(&layer->target, layer->keys[0].value);
 	layer->state        = ztAnimLayerState_Playing;
 	layer->current_time = 0;
 	layer->current_key  = 0;
@@ -28290,11 +30313,9 @@ ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 
 	layer->current_time += dt;
 
-	ztAnimKey *key = &layer->keys[layer->current_key];
+	zt_variantAssignValue(&layer->target, zt_variantLerp(&layer->value_beg, &layer->value_end, zt_min(1, layer->current_time / layer->target_time)));
 
-	zt_variantAssignValue(&key->target, zt_variantLerp(&layer->value_beg, &layer->value_end, zt_min(1, layer->current_time / layer->target_time)));
-
-	if (layer->current_time > layer->target_time) {
+	if (layer->current_time >= layer->target_time) {
 		layer->current_time -= layer->target_time;
 
 		if (layer->state == ztAnimLayerState_Transitioning) {
@@ -28310,13 +30331,54 @@ ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 				layer->target_time = layer->keys[layer->current_key].time;
 			}
 
-			zt_variantAssignValue(&layer->value_beg, layer->keys[layer->current_key].value_beg);
-			zt_variantAssignValue(&layer->value_end, layer->keys[layer->current_key].value_end);
-			zt_variantAssignValue(&layer->keys[layer->current_key].target, layer->keys[layer->current_key].value_beg);
+			zt_variantAssignValue(&layer->value_beg, zt_variantMake(&layer->target));
+			zt_variantAssignValue(&layer->value_end, layer->keys[layer->current_key].value);
 		}
 	}
 
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_animLayerRunTime(ztAnimLayer *layer)
+{
+	ZT_PROFILE_ANIMATION("zt_animLayerRunTime");
+
+	r32 total_time = 0;
+	zt_fiz(layer->keys_count) {
+		total_time += layer->keys[i].time;
+	}
+
+	return total_time;
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_animLayerPercentComplete(ztAnimLayer *layer)
+{
+	ZT_PROFILE_ANIMATION("zt_animLayerPercentComplete");
+	if (layer->state == ztAnimLayerState_Sleeping) {
+		return 1.f;
+	}
+
+	r32 total_time = 0;
+	r32 current_time = 0;
+	zt_fiz(layer->keys_count) {
+		total_time += layer->keys[i].time;
+		if (i < layer->current_key) {
+			current_time += layer->keys[i].time;
+		}
+		else if (i == layer->current_key) {
+			current_time += layer->current_time;
+		}
+	}
+
+	if (total_time == 0) {
+		return 1.f;
+	}
+
+	return current_time / total_time;
 }
 
 
@@ -28324,7 +30386,7 @@ ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, ztAnimTransition_Enum transition_type, r32 transition_time, bool loops)
+ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *layers, int layers_count, bool loops)
 {
 	ZT_PROFILE_ANIMATION("zt_animSequenceMake");
 	ztAnimSequence *sequence = zt_mallocStruct(ztAnimSequence);
@@ -28337,8 +30399,6 @@ ztAnimSequence *zt_animSequenceMake(ztAnimSequenceType_Enum type, ztAnimLayer *l
 		sequence->layers[i] = layers[i];
 	}
 
-	sequence->transition_type = transition_type;
-	sequence->transition_time = transition_time;
 	sequence->loops = loops;
 
 	return sequence;
@@ -28361,34 +30421,44 @@ void zt_animSequenceFree(ztAnimSequence *sequence)
 
 // ================================================================================================================================================================================================
 
-r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
+r32 zt_animSequenceRunTime(ztAnimSequence *sequence)
 {
-	ZT_PROFILE_ANIMATION("zt_animSequencePercentComplete");
-	r32 longest_layer_time = 0;
-	r32 longest_layer_curr = 0;
+	ZT_PROFILE_ANIMATION("zt_animSequenceRunTime");
+
+	r32 max_length = 0;
 
 	zt_fiz(sequence->layers_count) {
-		if (sequence->layers[i].state != ztAnimLayerState_Sleeping) {
-			longest_layer_time = zt_max(longest_layer_time, sequence->layers[i].target_time);
-			longest_layer_curr = zt_max(longest_layer_curr, sequence->layers[i].current_time);
-		}
+		r32 length = zt_animLayerRunTime(&sequence->layers[i]);
+		max_length = zt_max(max_length, length);
 	}
 
-	if (longest_layer_time == 0) {
-		return 1;
-	}
-
-	return longest_layer_curr / longest_layer_time;
+	return max_length;
 }
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence)
+r32 zt_animSequencePercentComplete(ztAnimSequence *sequence)
+{
+	ZT_PROFILE_ANIMATION("zt_animSequencePercentComplete");
+
+	r32 min_percent_complete = ztReal32Max;
+
+	zt_fiz(sequence->layers_count) {
+		r32 percent_complete = zt_animLayerPercentComplete(&sequence->layers[i]);
+		min_percent_complete = zt_min(min_percent_complete, percent_complete);
+	}
+
+	return min_percent_complete;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_animSequenceStart(ztAnimSequence *sequence, bool transition, r32 transition_time)
 {
 	ZT_PROFILE_ANIMATION("_zt_animSequenceStart");
-	if (sequence->transition_type == ztAnimTransition_Interp) {
+	if (transition) {
 		zt_fiz(sequence->layers_count) {
-			_zt_animLayerTransitionInto(&sequence->layers[i], sequence->transition_time);
+			_zt_animLayerTransitionInto(&sequence->layers[i], transition_time);
 		}
 	}
 	else {
@@ -28415,11 +30485,31 @@ ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
 	}
 
 	if (layers_processed == 0 && sequence->loops) {
-		_zt_animSequenceStart(sequence);
+		_zt_animSequenceStart(sequence, false, 0);
 		return true;
 	}
 
 	return layers_processed != 0;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_animSequenceSetPercentComplete(ztAnimSequence *sequence, r32 percent)
+{
+	ZT_PROFILE_ANIMATION("zt_animSequenceSetPercentComplete");
+	int longest_layer_idx = -1;
+	r32 longest_layer_time = -1;
+
+	zt_fiz(sequence->layers_count) {
+		r32 layer_time = zt_animLayerRunTime(&sequence->layers[i]);
+		if (layer_time > longest_layer_time) {
+			longest_layer_time = layer_time;
+			longest_layer_idx = i;
+		}
+	}
+
+	_zt_animSequenceStart(sequence, false, 0);
+	_zt_animSequenceUpdate(sequence, longest_layer_time * percent);
 }
 
 
@@ -28500,7 +30590,7 @@ i32 zt_animControllerAddSequence(ztAnimController *controller, const char *seque
 
 // ================================================================================================================================================================================================
 
-int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash)
+int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_name_hash, r32 transition_time)
 {
 	ZT_PROFILE_ANIMATION("zt_animControllerStartSequence");
 	ztAnimSequence *sequence = nullptr;
@@ -28553,7 +30643,7 @@ int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_na
 		}
 	}
 
-	_zt_animSequenceStart(sequence);
+	_zt_animSequenceStart(sequence, transition_time > 0.0001f, transition_time);
 
 	return result;
 }
@@ -28571,7 +30661,7 @@ void zt_animControllerUpdate(ztAnimController **controllers, int controllers_cou
 				if (controller->queued != 0) {
 					i32 queued = controller->queued;
 					controller->queued = 0;
-					zt_animControllerStartSequence(controller, queued);
+					zt_animControllerStartSequence(controller, queued, 0);
 				}
 				else {
 					controller->anim_sync = nullptr;
@@ -28640,16 +30730,17 @@ void zt_spriteAnimControllerAddSequence(ztSpriteAnimController *controller, cons
 
 	ztSpriteAnimController::Sequence *sequence = &controller->sequences[controller->sequences_count++];
 
-	ztAnimKey *keys = zt_mallocStructArray(ztAnimKey, sprites_count);
+	ztAnimKey *keys = zt_mallocStructArray(ztAnimKey, sprites_count + 1);
+	keys[0] = zt_animKeyMake(zt_variantMake_i32(0), 0);
 	zt_fiz(sprites_count) {
-		keys[i] = zt_animKeyMake(zt_variantPointerMake_i32(&sequence->current_sprite), zt_variantMake_i32(i), zt_variantMake_i32(i+1), times[i]);
+		keys[i+1] = zt_animKeyMake(zt_variantMake_i32(i+1), times[i]);
 	}
 
-	ztAnimLayer layer = zt_animLayerMake(keys, sprites_count);
+	ztAnimLayer layer = zt_animLayerMake(zt_variantPointerMake_i32(&sequence->current_sprite), keys, sprites_count + 1);
 
 	zt_free(keys);
 
-	ztAnimSequence *a_sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, &layer, 1, ztAnimTransition_Snap, 0, loops);
+	ztAnimSequence *a_sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, &layer, 1, loops);
 	zt_animControllerAddSequence(controller->controller, sequence_name, a_sequence);
 
 	sequence->sprites = zt_mallocStructArray(ztSprite, sprites_count);
@@ -28668,7 +30759,7 @@ void zt_spriteAnimControllerStartSequence(ztSpriteAnimController *controller, i3
 	ZT_PROFILE_ANIMATION("zt_spriteAnimControllerStartSequence");
 	zt_returnOnNull(controller);
 
-	int active = zt_animControllerStartSequence(controller->controller, sequence_name_hash);
+	int active = zt_animControllerStartSequence(controller->controller, sequence_name_hash, 0);
 	if (active == -1 ) {
 		return;
 	}
@@ -31752,13 +33843,13 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 					pos[2] = zt_vec3(+sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
 					pos[3] = zt_vec3(+sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
 
-					ztQuat quat = ztQuat::makeFromEuler(particle->rotation.x * 0, particle->rotation.y * 0, -90 + particle->rotation.z + (particle->velocity.x > 0 ? 180.f : 0.f));
-
+					ztQuat quat = ztQuat::makeFromEuler(0, 0, -(particle->rotation.z + (particle->velocity.x > 0 ? 90.f : -90.f)));
 					quat.rotatePosition(&pos[0]);
 					quat.rotatePosition(&pos[1]);
 					quat.rotatePosition(&pos[2]);
 					quat.rotatePosition(&pos[3]);
 					quat.rotatePosition(&normal);
+
 
 					pos[0] += particle->position;
 					pos[1] += particle->position;
