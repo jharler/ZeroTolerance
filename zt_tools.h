@@ -734,6 +734,8 @@ ztInline ztColor               zt_colorHsvToRgb(ztColor hsva);
 // ================================================================================================================================================================================================
 // Matrix multiplication notes:
 //
+// This matrix is column-major.
+//
 // If you want to have the object rotated around its center, then moved:
 //     matrix = translation_matrix;
 //     matrix = rotation_matrix * matrix (put the rotation into the existing matrix)
@@ -3430,28 +3432,34 @@ ztInline void ztQuat::convertToMat4(ztMat4 *mat) const
 
 /*static*/ ztInline ztQuat ztQuat::sLerp(const ztQuat& q1, const ztQuat&  q2, r32 percent)
 {
+	r32 cosom = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+
 	ztQuat z = q2;
-	r32 cos_theta = q1.dot(q2);
-
-	if (cos_theta < 0.f) {
-		z = zt_quat(-q2.x, -q2.y, -q2.z, -q2.w);
-		cos_theta = -cos_theta;
+	if (cosom < 0.0f) {
+		cosom = -cosom;
+		z.x = -z.x;
+		z.y = -z.y;
+		z.z = -z.z;
+		z.w = -z.w;
 	}
 
-	if (cos_theta > 1.0f) {
-		return lerp(q1, q2, percent);
+	r32 sclp, sclq;
+	if ((1.0f - cosom) > 0.0001f) {
+		r32 omega = zt_acos(cosom);
+		r32 sinom = zt_sin(omega);
+		sclp  = zt_sin((1.0f - percent) * omega) / sinom;
+		sclq  = zt_sin(percent * omega) / sinom;
+	} else {
+		sclp = 1.0f - percent;
+		sclq = percent;
 	}
 
-	r32 angle = zt_acos(cos_theta);
+	z.x = sclp * q1.x + sclq * z.x;
+	z.y = sclp * q1.y + sclq * z.y;
+	z.z = sclp * q1.z + sclq * z.z;
+	z.w = sclp * q1.w + sclq * z.w;
 
-	r32 s1 = zt_sin(1.f - percent * angle);
-	r32 s0 = zt_sin(percent * angle);
-	r32 sa = zt_sin(angle);
-	r32 is = sa == 0 ? 0 : 1.f / sa;
-
-	ztQuat x = z * s1;
-	ztQuat y = z * s0;
-	return (x + y) * is;
+	return z;
 }
 
 // ================================================================================================================================================================================================
@@ -3718,7 +3726,7 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 		case ztVariant_vec3 : return zt_variantMake_vec3(ztVec3::lerp(beg->v_vec3, end->v_vec3, pct));
 		case ztVariant_vec4 : return zt_variantMake_vec4(ztVec4::lerp(beg->v_vec4, end->v_vec4, pct));
 		case ztVariant_mat4 : zt_assert(false); // can't lerp mat4s... use quats instead
-		case ztVariant_quat : return zt_variantMake_quat(ztQuat::lerp(beg->v_quat, end->v_quat, pct));
+		case ztVariant_quat : return zt_variantMake_quat(ztQuat::sLerp(beg->v_quat, end->v_quat, pct));
 		case ztVariant_bool : return zt_variantMake_bool(pct < .5 ? beg->v_bool : end->v_bool);
 	}
 
