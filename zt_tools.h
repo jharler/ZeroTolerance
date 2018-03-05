@@ -7927,31 +7927,37 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	zt_memSet(file, zt_sizeof(ztFile), 0);
 
 #	if defined(ZT_WINDOWS)
-	OFSTRUCT ofs;
-	u32 style = 0;
+
+	u32 access = 0, creation = 0;
 
 	switch (file_open_method)
 	{
-	case ztFileOpenMethod_ReadOnly    : style |= OF_READ; break;
-	case ztFileOpenMethod_WriteAppend : style |= OF_WRITE; break;
-	case ztFileOpenMethod_WriteOver   : style |= OF_CREATE; break;
+		case ztFileOpenMethod_ReadOnly:    access |= GENERIC_READ;  creation = OPEN_EXISTING; break;
+		case ztFileOpenMethod_WriteAppend: access |= GENERIC_WRITE; creation = OPEN_ALWAYS;   break;
+		case ztFileOpenMethod_WriteOver:   access |= GENERIC_WRITE; creation = CREATE_ALWAYS; break;
 	}
 
-	HFILE hfile = OpenFile(file_name, &ofs, style);
-	if (hfile == HFILE_ERROR) {
-		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)ofs.nErrCode);
+	HANDLE hfile = CreateFile(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hfile == INVALID_HANDLE_VALUE) {
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
 		return false;
 	}
 
-	i32 path_len = zt_strLen(ofs.szPathName);
+	char file_name_full[MAX_PATH] = {0};
+	GetFinalPathNameByHandle(hfile, file_name_full, MAX_PATH, VOLUME_NAME_DOS);
+
+	i32 path_len = zt_strLen(file_name_full);
+	if(path_len > 4) {
+		path_len -= 4;
+	}
 
 	file->full_name = (char *)zt_memAllocFromArena(arena, path_len + 1);
 	if (file->full_name == nullptr) {
 		zt_logCritical("zt_fileOpen: unable to allocate memory for file information (file: '%s')", file_name);
-		CloseHandle((HANDLE)hfile);
+		CloseHandle(hfile);
 		return false;
 	}
-	zt_strCpy(file->full_name, path_len + 1, ofs.szPathName, path_len);
+	zt_strCpy(file->full_name, path_len + 1, file_name_full + 4, path_len);
 	file->arena = arena;
 
 	file->open_method = file_open_method;
@@ -7965,6 +7971,7 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 	}
 
 	return true;
+
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
 #	if defined(ZT_ANDROID)
@@ -8495,13 +8502,13 @@ bool zt_fileExists(const char *file_name)
 	ZT_PROFILE_TOOLS("zt_fileExists");
 
 #	if defined(ZT_WINDOWS)
-	OFSTRUCT ofs;
 
-	HFILE hfile = OpenFile(file_name, &ofs, OF_READ);
-	if (hfile == HFILE_ERROR) {
+	HANDLE hfile = CreateFile(file_name, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hfile == INVALID_HANDLE_VALUE) {
+		int err = GetLastError();
 		return false;
 	}
-	CloseHandle((HANDLE)hfile);
+	CloseHandle(hfile);
 	return true;
 
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
