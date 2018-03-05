@@ -1008,9 +1008,9 @@ struct ztShaderVariableValues
 	struct Variable
 	{
 		ztShaderVariable_Enum type;
-		char name[64];
-		u32 name_hash;
-		bool changed;
+		char                  name[64];
+		u32                   name_hash;
+		bool                  changed;
 
 		union {
 			r32 val_float;
@@ -1025,7 +1025,7 @@ struct ztShaderVariableValues
 	};
 
 	Variable variables[ZT_SHADER_MAX_VARIABLES];
-	int variables_count;
+	int      variables_count;
 };
 
 // ================================================================================================================================================================================================
@@ -1157,7 +1157,7 @@ ztShaderID zt_shaderMakePointLightShadows();
 // ================================================================================================================================================================================================
 
 /*
-	Physically Based Rendering (PBR) shader
+	Standard shader.  Supports PBR (Physically Based Rendering)
 
 	Requires vertex information:
 		vec3        position : 0
@@ -1166,6 +1166,8 @@ ztShaderID zt_shaderMakePointLightShadows();
 		vec4        color : 3
 		vec4        tangent : 4
 		vec4        bitangent : 5
+		ivec4       bones : 6
+		vec4        weights : 7
 
 
 	Requires input textures:
@@ -1173,11 +1175,11 @@ ztShaderID zt_shaderMakePointLightShadows();
 		texture2d   specular_tex (metallic)
 		texture2d   normal_tex
 		texture2d   height_tex
-		texture2d   roughness_tex
+		texture2d   roughness_tex (pbr only)
 
-		textureCube irradiance_map_tex
-		textureCube prefilter_map_tex
-		texture2d   brdf_lut_tex
+		textureCube irradiance_map_tex (pbr only)
+		textureCube prefilter_map_tex (pbr only)
+		texture2d   brdf_lut_tex (pbr only)
 
 		texture2d   directional_light_shadowmap
 		textureCube point_lights_shadowmap[] (only if shadowmap_use != 0)
@@ -1205,6 +1207,9 @@ ztShaderID zt_shaderMakePointLightShadows();
 		SpotLight   spot_lights[];
 		int         spot_lights_count;
 
+		mat4        bones[]
+		int         bones_count
+
 
 	Lights
 
@@ -1231,8 +1236,9 @@ ztShaderID zt_shaderMakePointLightShadows();
 
 */
 
-struct ztShaderPhysicallyBasedRenderingSettings
+struct ztShaderStandardSettings
 {
+	bool use_pbr           = false;
 	bool directional_light = true;
 	int  max_point_lights  = 4;
 	int  max_spot_lights   = 4;
@@ -1245,7 +1251,7 @@ struct ztShaderPhysicallyBasedRenderingSettings
 
 // ==============================================
 
-ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderingSettings *settings);
+ztShaderID zt_shaderMakeStandard(ztShaderStandardSettings *settings);
 
 
 // ================================================================================================================================================================================================
@@ -1310,7 +1316,9 @@ ztShaderID zt_shaderBuildTonemap(ztShaderTonemapSettings *settings);
 
 typedef i32 ztTextureID;
 
-#define ztTextureDefault	0
+#define ztTextureDefault	    0
+#define ztTextureDefaultWhite   0
+#define ztTextureDefaultBlack   1
 
 enum ztTextureFlags_Enum
 {
@@ -13458,11 +13466,16 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 		model_material_indexes[i] = -1;
 	}
 
-	ztMaterial *materials = nullptr;
-	i32 materials_count = 0;
+	ztMaterial  *materials = nullptr;
+	i32          materials_count = 0;
 
 	ztTextureID *textures = nullptr;
-	i32 textures_count = 0;
+	i32          textures_count = 0;
+
+	ztMeshID    *mesh_ids = nullptr;
+	ztMaterial  *mesh_materials = nullptr;
+	i32         *mesh_references = nullptr;
+	i32          mesh_count = 0;
 
 	i32 root_bone_idx = -1;
 
@@ -13567,14 +13580,19 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 	// read meshes
 	serialCheck(zt_serialGroupPush(&serial));
 	{
-		i32 meshes_count = 0;
 		serialCheck(zt_serialGroupPush(&serial));
 		{
-			serialCheck(zt_serialRead(&serial, &meshes_count));
+			serialCheck(zt_serialRead(&serial, &mesh_count));
 		}
 		serialCheck(zt_serialGroupPop(&serial));
 
-		zt_fiz(meshes_count) {
+		if (mesh_count > 0) {
+			mesh_ids = zt_mallocStructArray(ztMeshID, mesh_count);
+			mesh_materials = zt_mallocStructArray(ztMaterial, mesh_count);
+			mesh_references = zt_mallocStructArray(i32, mesh_count);
+		}
+
+		zt_fiz(mesh_count) {
 			serialCheck(zt_serialGroupPush(&serial));
 			{
 				ztGuid guid;
@@ -13825,21 +13843,9 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 				}
 
 				model_material_indexes[input->models_used] = material_idx;
-
-				ztModel *model = &input->models[input->models_used++];
-				ztMaterial material = zt_materialMake();
-				zt_modelMakeFromMesh(model, mesh_id, &material, shader, nullptr, flags | ztModelFlags_OwnsMaterials | ztModelFlags_OwnsMesh);
-
-				if(bone_count > 0) {
-					model->bones = &input->bones[0];
-					model->bones_count = input->bones_used;
-					model->bones_root_idx = bone_root_idx;
-					model->flags |= ztModelFlags_NoCalcBones;
-				}
-
-				if (mesh_name_len > 0) {
-					model->name = zt_stringMakeFrom(mesh_name);
-				}
+				mesh_ids[i]        = mesh_id;
+				mesh_materials[i]  = zt_materialMake();
+				mesh_references[i] = 0;
 
 				if (indices)    zt_free(indices);
 				if (tangents)   zt_free(tangents);
@@ -13861,7 +13867,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 
 		struct ModelHierarchy
 		{
-			static bool process(ztModelLoaderInput *input, ztSerial *serial, ztShaderID shader, i32 flags, ztModel *parent)
+			static bool process(ztModelLoaderInput *input, ztMeshID *mesh_ids, i32 *mesh_references, i32 mesh_count, ztSerial *serial, ztShaderID shader, i32 flags, ztModel *parent)
 			{
 				if (!zt_serialGroupPush(serial)) return false;
 				{
@@ -13904,14 +13910,20 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							{
 								i32 mesh_idx = -1;
 								if (!zt_serialRead(serial, &mesh_idx)) return false;
-								if(mesh_idx < 0 || mesh_idx > input->models_size) return false;
+								if(mesh_idx < 0 || mesh_idx > mesh_count) return false;
 
-								ztModel *model = &input->models[mesh_idx];
-
-								if (this_model != nullptr) {
-									zt_modelChildAdd(this_model, model);
+								if (input->models_used >= input->models_size) {
+									zt_assert(false);
+									zt_logCritical("model input cache overflow");
+									return false;
 								}
-								else {
+
+								mesh_references[mesh_idx] += 1;
+
+								ztModel *model = &input->models[input->models_used++];
+								zt_modelMakeFromMesh(model, mesh_ids[mesh_idx], nullptr, shader, nullptr, flags | (mesh_references[mesh_idx] == 1 ? ztModelFlags_OwnsMesh : 0), this_model);
+
+								if (this_model == nullptr) {
 									this_model = model;
 									this_model->transform = transform;
 
@@ -13940,7 +13952,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 						}
 
 						zt_fiz(children) {
-							if (!process(input, serial, shader, flags, this_model)) {
+							if (!process(input, mesh_ids, mesh_references, mesh_count, serial, shader, flags, this_model)) {
 								return false;
 							}
 						}
@@ -13969,18 +13981,18 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 			error_msg = "Model hierarchy GUID mismatch"; goto end_processing;
 		}
 
-		if (!ModelHierarchy::process(input, &serial, shader, flags, nullptr)) {
+		if (!ModelHierarchy::process(input, mesh_ids, mesh_references, mesh_count, &serial, shader, flags, nullptr)) {
 			error_msg = "Model hierarchy read error"; goto end_processing;
 		}
 
 		if (input->bones_used > 0) {
 			zt_assert(input->root_model);
-			if (input->root_model) {
-				input->root_model->bones           = &input->bones[0];
-				input->root_model->bones_count     = input->bones_used;
-				input->root_model->bones_root_idx  = root_bone_idx;
 
-				zt_bitRemove(input->root_model->flags, ztModelFlags_NoCalcBones);
+			zt_fiz(input->models_used) {
+				input->models[i].bones           = &input->bones[0];
+				input->models[i].bones_count     = input->bones_used;
+				input->models[i].bones_root_idx  = root_bone_idx;
+				input->models[i].flags           = input->root_model == &input->models[i] ? 0 : ztModelFlags_NoCalcBones;
 			}
 		}
 	}
@@ -14239,11 +14251,34 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 
 								return nullptr;
 							}
+
+							static ztModel *findModel(ztModelLoaderInput *input, const char *model_name)
+							{
+								zt_fiz(input->models_used) {
+									if (zt_strEquals(input->models[i].name, model_name)) {
+										return &input->models[i];
+									}
+								}
+
+								return nullptr;
+							}
 						};
+
+						ztTransform *anim_transform = nullptr;
 
 						ztBone *bone = Bone::findBone(input, channel_name);
 						ztModel *model = Bone::findModel(input, bone);
 						if (bone && model) {
+							anim_transform = &bone->transform;
+						}
+						else {
+							model = Bone::findModel(input, channel_name);
+							if (model) {
+								anim_transform = &model->transform;
+							}
+						}
+
+						if (anim_transform) {
 							ztAnimKey keys[1024];
 							int       keys_count = 0;
 
@@ -14262,7 +14297,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 									if (k == 0 && !zt_real32Eq(time, 0)) {
 										zt_assert(keys_count < zt_elementsOf(keys));
 										if (keys_count < zt_elementsOf(keys)) {
-											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.position), 0);
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(anim_transform->position), 0);
 										}
 									}
 
@@ -14277,8 +14312,8 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							if (position_keys > 0) {
 								zt_assert(layers_count < zt_elementsOf(layers));
 								if (layers_count < zt_elementsOf(layers)) {
-									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.position", bone->name)) zt_releaseOnly(const char *layer_name = nullptr);
-									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.position), keys, keys_count, layer_name);
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.position", channel_name)) zt_releaseOnly(const char *layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&anim_transform->position), keys, keys_count, layer_name);
 								}
 								keys_count = 0;
 							}
@@ -14298,7 +14333,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 									if (k == 0 && !zt_real32Eq(time, 0)) {
 										zt_assert(keys_count < zt_elementsOf(keys));
 										if (keys_count < zt_elementsOf(keys)) {
-											keys[keys_count++] = zt_animKeyMake(zt_variantMake_quat(bone->transform.rotation), 0);
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_quat(anim_transform->rotation), 0);
 										}
 									}
 
@@ -14313,8 +14348,8 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							if (rotation_keys > 0) {
 								zt_assert(layers_count < zt_elementsOf(layers));
 								if (layers_count < zt_elementsOf(layers)) {
-									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.rotation", bone->name)) zt_releaseOnly(const char* layer_name = nullptr);
-									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_quat(&bone->transform.rotation), keys, keys_count, layer_name);
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.rotation", channel_name)) zt_releaseOnly(const char* layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_quat(&anim_transform->rotation), keys, keys_count, layer_name);
 								}
 								keys_count = 0;
 							}
@@ -14334,7 +14369,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 									if (k == 0 && !zt_real32Eq(time, 0)) {
 										zt_assert(keys_count < zt_elementsOf(keys));
 										if (keys_count < zt_elementsOf(keys)) {
-											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(bone->transform.scale), 0);
+											keys[keys_count++] = zt_animKeyMake(zt_variantMake_vec3(anim_transform->scale), 0);
 										}
 									}
 
@@ -14349,11 +14384,14 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							if (scale_keys > 0) {
 								zt_assert(layers_count < zt_elementsOf(layers));
 								if (layers_count < zt_elementsOf(layers)) {
-									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.scale", bone->name)) zt_releaseOnly(const char *layer_name = nullptr);
-									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&bone->transform.scale), keys, keys_count, layer_name);
+									zt_debugOnly(zt_strMakePrintf(layer_name, 128, "%s.scale", channel_name)) zt_releaseOnly(const char *layer_name = nullptr);
+									layers[layers_count++] = zt_animLayerMake(zt_variantPointerMake_vec3(&anim_transform->scale), keys, keys_count, layer_name);
 								}
 								keys_count = 0;
 							}
+						}
+						else {
+							zt_logCritical("model animation missing channel object: %s", channel_name);
 						}
 					}
 					serialCheck(zt_serialGroupPop(&serial));
@@ -14372,23 +14410,35 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 	zt_fiz(materials_count) {
 		if (materials[i].diffuse_tex >= 0 && materials[i].diffuse_tex < textures_count) {
 			materials[i].diffuse_tex  = textures[materials[i].diffuse_tex];
+			materials[i].diffuse_flags = ztMaterialFlags_OwnsTexture;
 		}
 		if (materials[i].normal_tex >= 0 && materials[i].normal_tex < textures_count) {
 			materials[i].normal_tex  = textures[materials[i].normal_tex];
+			materials[i].normal_flags = ztMaterialFlags_OwnsTexture;
 		}
 		if (materials[i].specular_tex >= 0 && materials[i].specular_tex < textures_count) {
 			materials[i].specular_tex  = textures[materials[i].specular_tex];
+			materials[i].specular_flags = ztMaterialFlags_OwnsTexture;
 		}
 		if (materials[i].height_tex >= 0 && materials[i].height_tex < textures_count) {
 			materials[i].height_tex  = textures[materials[i].height_tex];
+			materials[i].height_flags = ztMaterialFlags_OwnsTexture;
 		}
 		if (materials[i].roughness_tex >= 0 && materials[i].roughness_tex < textures_count) {
 			materials[i].roughness_tex  = textures[materials[i].roughness_tex];
+			materials[i].roughness_flags = ztMaterialFlags_OwnsTexture;
 		}
+	}
+
+	zt_fiz(mesh_count) {
+		mesh_references[i] = 0;
 	}
 
 	zt_fiz(input->models_used) {
 		if(model_material_indexes[i] != -1) {
+			if( mesh_references[model_material_indexes[i]]++ == 0) {
+				input->models[i].flags |= ztModelFlags_OwnsMaterials;
+			}
 			input->models[i].material = materials[model_material_indexes[i]];
 		}
 	}
@@ -14409,6 +14459,15 @@ end_processing:
 	}
 	if (textures) {
 		zt_free(textures);
+	}
+	if (mesh_ids) {
+		zt_free(mesh_ids);
+	}
+	if (mesh_materials) {
+		zt_free(mesh_materials);
+	}
+	if (mesh_references) {
+		zt_free(mesh_references);
 	}
 
 	return error_msg == nullptr;
@@ -19791,6 +19850,7 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 					shader->variables.variables[i].type = var_type;
 					zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), shader->gl_shader->uniforms[i].name);
 					shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+					shader->variables.variables[i].changed = true;
 				}
 			}
 #		endif // ZT_OPENGL
@@ -19820,6 +19880,7 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 					shader->variables.variables[i].type = var_type;
 					zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), dx_shader->variables[i].name);
 					shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+					shader->variables.variables[i].changed = true;
 				}
 			}
 #		endif // ZT_DIRECTX
@@ -20076,6 +20137,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 				shader->variables.variables[i].type = var_type;
 				zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), dx_shader->variables[i].name);
 				shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
+				shader->variables.variables[i].changed = true;
 			}
 		}
 
@@ -20219,6 +20281,10 @@ void zt_shaderBegin(ztShaderID shader_id)
 		}
 	}
 
+	zt_fiz(zt_game->shaders[shader_id].variables.variables_count) {
+		zt_game->shaders[shader_id].variables.variables[i].changed = true;
+	}
+
 	ZT_FUNCTION_POINTER_ACCESS_SAFE(zt_game->shaders[shader_id].callbacks.begin_func, ztShaderBegin_Func)(shader_id, zt_game->shaders[shader_id].callbacks.begin_user_data);
 }
 
@@ -20315,8 +20381,78 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 		zt_assertReturnOnFail(zt_strEquals(shader->variables[i].name, shader_vars->variables[i].name));
 	}
 #	endif
+	zt_fiz(shader->variables_count) {
+		switch(shader->variables[i].type)
+		{
+			case ztShaderVariable_Float: {
+				if(shader->variables[i].val_float != shader_vars->variables[i].val_float) {
+					shader->variables[i].val_float = shader_vars->variables[i].val_float;
+					shader->variables[i].changed = true;
+				}
+			} break;
 
-	zt_memCpy(&shader->variables, zt_sizeof(ztShaderVariableValues), shader_vars, zt_sizeof(ztShaderVariableValues));
+			case ztShaderVariable_Int: {
+				if(shader->variables[i].val_int != shader_vars->variables[i].val_int) {
+					shader->variables[i].val_int = shader_vars->variables[i].val_int;
+					shader->variables[i].changed = true;
+				}
+			} break;
+
+			case ztShaderVariable_Vec2: {
+				zt_fkze(shader->variables[i].val_vec2) {
+					if(shader->variables[i].val_vec2[k] != shader_vars->variables[i].val_vec2[k]) {
+						shader->variables[i].val_vec2[k] = shader_vars->variables[i].val_vec2[k];
+						shader->variables[i].changed = true;
+					}
+				}
+			} break;
+
+			case ztShaderVariable_Vec3: {
+				zt_fkze(shader->variables[i].val_vec3) {
+					if(shader->variables[i].val_vec3[k] != shader_vars->variables[i].val_vec3[k]) {
+						shader->variables[i].val_vec3[k] = shader_vars->variables[i].val_vec3[k];
+						shader->variables[i].changed = true;
+					}
+				}
+			} break;
+
+			case ztShaderVariable_Vec4: {
+				zt_fkze(shader->variables[i].val_vec4) {
+					if(shader->variables[i].val_vec4[k] != shader_vars->variables[i].val_vec4[k]) {
+						shader->variables[i].val_vec4[k] = shader_vars->variables[i].val_vec4[k];
+						shader->variables[i].changed = true;
+					}
+				}
+			} break;
+
+			case ztShaderVariable_Mat3: {
+				zt_fkze(shader->variables[i].val_mat3) {
+					if(shader->variables[i].val_mat3[k] != shader_vars->variables[i].val_mat3[k]) {
+						shader->variables[i].val_mat3[k] = shader_vars->variables[i].val_mat3[k];
+						shader->variables[i].changed = true;
+					}
+				}
+			} break;
+
+			case ztShaderVariable_Mat4: {
+				zt_fkze(shader->variables[i].val_mat4) {
+					if(shader->variables[i].val_mat4[k] != shader_vars->variables[i].val_mat4[k]) {
+						shader->variables[i].val_mat4[k] = shader_vars->variables[i].val_mat4[k];
+						shader->variables[i].changed = true;
+					}
+				}
+			} break;
+
+			case ztShaderVariable_TexCube:
+			case ztShaderVariable_Tex: {
+				if(shader->variables[i].val_tex != shader_vars->variables[i].val_tex) {
+					shader->variables[i].val_tex = shader_vars->variables[i].val_tex;
+					shader->variables[i].changed = true;
+				}
+			} break;
+		}
+	}
+
 	zt_shaderApplyVariables(shader_id);
 }
 
@@ -20333,9 +20469,8 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 			if (shader_vars->variables_count) {
-				{
-					ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
-
+				ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
+				if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
 					switch (val->type)
 					{
 						case ztShaderVariable_Float: ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
@@ -20348,6 +20483,7 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 						case ztShaderVariable_Tex: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
 						case ztShaderVariable_TexCube: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
 					}
+					val->changed = false;
 				}
 			}
 #			endif
@@ -20358,21 +20494,23 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 			// populate cbuffer data
 			if (shader_vars->variables_count) {
 				ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
+				if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
+					switch (val->type)
+					{
+						case ztShaderVariable_Float: ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
+						case ztShaderVariable_Int: ztdx_shaderVariableInt(shader->dx_shader, val->name_hash, val->val_int); break;
+						case ztShaderVariable_Vec2: ztdx_shaderVariableVec2(shader->dx_shader, val->name_hash, val->val_vec2); break;
+						case ztShaderVariable_Vec3: ztdx_shaderVariableVec3(shader->dx_shader, val->name_hash, val->val_vec3); break;
+						case ztShaderVariable_Vec4: ztdx_shaderVariableVec4(shader->dx_shader, val->name_hash, val->val_vec4); break;
+						case ztShaderVariable_Mat3: ztdx_shaderVariableMat3(shader->dx_shader, val->name_hash, val->val_mat3); break;
+						case ztShaderVariable_Mat4: ztdx_shaderVariableMat4(shader->dx_shader, val->name_hash, val->val_mat4); break;
+						case ztShaderVariable_Tex: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+						case ztShaderVariable_TexCube: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+					}
+					val->changed = false;
 
-				switch (val->type)
-				{
-					case ztShaderVariable_Float: ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
-					case ztShaderVariable_Int: ztdx_shaderVariableInt(shader->dx_shader, val->name_hash, val->val_int); break;
-					case ztShaderVariable_Vec2: ztdx_shaderVariableVec2(shader->dx_shader, val->name_hash, val->val_vec2); break;
-					case ztShaderVariable_Vec3: ztdx_shaderVariableVec3(shader->dx_shader, val->name_hash, val->val_vec3); break;
-					case ztShaderVariable_Vec4: ztdx_shaderVariableVec4(shader->dx_shader, val->name_hash, val->val_vec4); break;
-					case ztShaderVariable_Mat3: ztdx_shaderVariableMat3(shader->dx_shader, val->name_hash, val->val_mat3); break;
-					case ztShaderVariable_Mat4: ztdx_shaderVariableMat4(shader->dx_shader, val->name_hash, val->val_mat4); break;
-					case ztShaderVariable_Tex: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
-					case ztShaderVariable_TexCube: ztdx_shaderVariableTex(shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+					ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
 				}
-
-				ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
 			}
 #			endif
 		} break;
@@ -20401,18 +20539,20 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 
 					zt_fiz(shader_vars->variables_count) {
 						ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
-
-						switch (val->type)
-						{
-							case ztShaderVariable_Float  : ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
-							case ztShaderVariable_Int    : ztgl_shaderVariableInt  (shader->gl_shader, val->name_hash, val->val_int  ); break;
-							case ztShaderVariable_Vec2   : ztgl_shaderVariableVec2 (shader->gl_shader, val->name_hash, val->val_vec2 ); break;
-							case ztShaderVariable_Vec3   : ztgl_shaderVariableVec3 (shader->gl_shader, val->name_hash, val->val_vec3 ); break;
-							case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, val->val_vec4 ); break;
-							case ztShaderVariable_Mat3   : ztgl_shaderVariableMat3 (shader->gl_shader, val->name_hash, val->val_mat3 ); break;
-							case ztShaderVariable_Mat4   : ztgl_shaderVariableMat4 (shader->gl_shader, val->name_hash, val->val_mat4 ); break;
-							case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
-							case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+						if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
+							switch (val->type)
+							{
+								case ztShaderVariable_Float  : ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
+								case ztShaderVariable_Int    : ztgl_shaderVariableInt  (shader->gl_shader, val->name_hash, val->val_int  ); break;
+								case ztShaderVariable_Vec2   : ztgl_shaderVariableVec2 (shader->gl_shader, val->name_hash, val->val_vec2 ); break;
+								case ztShaderVariable_Vec3   : ztgl_shaderVariableVec3 (shader->gl_shader, val->name_hash, val->val_vec3 ); break;
+								case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, val->val_vec4 ); break;
+								case ztShaderVariable_Mat3   : ztgl_shaderVariableMat3 (shader->gl_shader, val->name_hash, val->val_mat3 ); break;
+								case ztShaderVariable_Mat4   : ztgl_shaderVariableMat4 (shader->gl_shader, val->name_hash, val->val_mat4 ); break;
+								case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+								case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
+							}
+							val->changed = false;
 						}
 					}
 				}
@@ -20424,24 +20564,30 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 #			if defined(ZT_DIRECTX)
 			// populate cbuffer data
 			if (shader_vars->variables_count) {
+				int changed = 0;
 				zt_fiz(shader_vars->variables_count) {
 					ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
-
-					switch (val->type)
-					{
-						case ztShaderVariable_Float  : ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
-						case ztShaderVariable_Int    : ztdx_shaderVariableInt  (shader->dx_shader, val->name_hash, val->val_int  ); break;
-						case ztShaderVariable_Vec2   : ztdx_shaderVariableVec2 (shader->dx_shader, val->name_hash, val->val_vec2 ); break;
-						case ztShaderVariable_Vec3   : ztdx_shaderVariableVec3 (shader->dx_shader, val->name_hash, val->val_vec3 ); break;
-						case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4 ); break;
-						case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3 ); break;
-						case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4 ); break;
-						case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
-						case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+					if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
+						changed += 1;
+						switch (val->type)
+						{
+							case ztShaderVariable_Float  : ztdx_shaderVariableFloat(shader->dx_shader, val->name_hash, val->val_float); break;
+							case ztShaderVariable_Int    : ztdx_shaderVariableInt  (shader->dx_shader, val->name_hash, val->val_int  ); break;
+							case ztShaderVariable_Vec2   : ztdx_shaderVariableVec2 (shader->dx_shader, val->name_hash, val->val_vec2 ); break;
+							case ztShaderVariable_Vec3   : ztdx_shaderVariableVec3 (shader->dx_shader, val->name_hash, val->val_vec3 ); break;
+							case ztShaderVariable_Vec4   : ztdx_shaderVariableVec4 (shader->dx_shader, val->name_hash, val->val_vec4 ); break;
+							case ztShaderVariable_Mat3   : ztdx_shaderVariableMat3 (shader->dx_shader, val->name_hash, val->val_mat3 ); break;
+							case ztShaderVariable_Mat4   : ztdx_shaderVariableMat4 (shader->dx_shader, val->name_hash, val->val_mat4 ); break;
+							case ztShaderVariable_Tex    : ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+							case ztShaderVariable_TexCube: ztdx_shaderVariableTex  (shader->dx_shader, val->name_hash, zt_game->textures[val->val_tex].dx_texture); break;
+						}
+						val->changed = false;
 					}
 				}
 
-				ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
+				if (changed > 0) {
+					ztdx_shaderPopulateConstantBuffers(zt_game->win_details[0].dx_context, shader->dx_shader);
+				}
 			}
 #			endif
 		} break;
@@ -20512,7 +20658,10 @@ int zt_shaderSetVariableFloat(ztShaderVariableValues *shader_vars, u32 variable_
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableFloat");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Float);
-	shader_vars->variables[idx].val_float = value;
+	if (shader_vars->variables[idx].val_float != value) {
+		shader_vars->variables[idx].changed = true;
+		shader_vars->variables[idx].val_float = value;
+	}
 	return idx;
 }
 
@@ -20522,7 +20671,10 @@ int zt_shaderSetVariableInt(ztShaderVariableValues *shader_vars, u32 variable_ha
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableInt");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Int);
-	shader_vars->variables[idx].val_int = value;
+	if (shader_vars->variables[idx].val_int != value) {
+		shader_vars->variables[idx].changed = true;
+		shader_vars->variables[idx].val_int = value;
+	}
 	return idx;
 }
 
@@ -20532,8 +20684,15 @@ int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_h
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec2");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec2);
-	shader_vars->variables[idx].val_vec2[0] = value.values[0];
-	shader_vars->variables[idx].val_vec2[1] = value.values[1];
+
+	zt_fize(value.values) {
+		if(shader_vars->variables[idx].val_vec2[i] != value.values[i]) {
+			shader_vars->variables[idx].changed = true;
+			shader_vars->variables[idx].val_vec2[0] = value.values[0];
+			shader_vars->variables[idx].val_vec2[1] = value.values[1];
+			break;
+		}
+	}
 	return idx;
 }
 
@@ -20543,9 +20702,15 @@ int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_h
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec3);
-	shader_vars->variables[idx].val_vec3[0] = value.values[0];
-	shader_vars->variables[idx].val_vec3[1] = value.values[1];
-	shader_vars->variables[idx].val_vec3[2] = value.values[2];
+	zt_fize(value.values) {
+		if(shader_vars->variables[idx].val_vec3[i] != value.values[i]) {
+			shader_vars->variables[idx].changed = true;
+			shader_vars->variables[idx].val_vec3[0] = value.values[0];
+			shader_vars->variables[idx].val_vec3[1] = value.values[1];
+			shader_vars->variables[idx].val_vec3[2] = value.values[2];
+			break;
+		}
+	}
 	return idx;
 }
 
@@ -20555,10 +20720,16 @@ int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_h
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec4);
-	shader_vars->variables[idx].val_vec4[0] = value.values[0];
-	shader_vars->variables[idx].val_vec4[1] = value.values[1];
-	shader_vars->variables[idx].val_vec4[2] = value.values[2];
-	shader_vars->variables[idx].val_vec4[3] = value.values[3];
+	zt_fize(value.values) {
+		if(shader_vars->variables[idx].val_vec4[i] != value.values[i]) {
+			shader_vars->variables[idx].changed = true;
+			shader_vars->variables[idx].val_vec4[0] = value.values[0];
+			shader_vars->variables[idx].val_vec4[1] = value.values[1];
+			shader_vars->variables[idx].val_vec4[2] = value.values[2];
+			shader_vars->variables[idx].val_vec4[3] = value.values[3];
+			break;
+		}
+	}
 	return idx;
 }
 
@@ -20568,8 +20739,14 @@ int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_h
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat4);
-	zt_fiz(zt_elementsOf(value.values)) {
-		shader_vars->variables[idx].val_mat4[i] = value.values[i];
+	zt_fize(value.values) {
+		if(shader_vars->variables[idx].val_mat4[i] != value.values[i]) {
+			shader_vars->variables[idx].changed = true;
+			zt_fiz(zt_elementsOf(value.values)) {
+				shader_vars->variables[idx].val_mat4[i] = value.values[i];
+			}
+			break;
+		}
 	}
 	return idx;
 }
@@ -20581,8 +20758,15 @@ int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_h
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat3);
 	zt_fiz(12) {
-		shader_vars->variables[idx].val_mat3[i] = value[i];
+		if(shader_vars->variables[idx].val_mat3[i] != value[i]) {
+			shader_vars->variables[idx].changed = true;
+			zt_fiz(12) {
+				shader_vars->variables[idx].val_mat3[i] = value[i];
+			}
+			break;
+		}
 	}
+
 	return idx;
 }
 
@@ -20592,9 +20776,14 @@ int zt_shaderSetVariableTex(ztShaderVariableValues *shader_vars, u32 variable_ha
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableTex");
 	_zt_shaderCheckHash(shader_vars);
+
 	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
-		shader_vars->variables[idx].val_tex = texture;
+		if (shader_vars->variables[idx].val_tex != texture) {
+			shader_vars->variables[idx].changed = true;
+			shader_vars->variables[idx].val_tex = texture;
+		}
 	}
+
 	return idx;
 }
 
@@ -20604,9 +20793,14 @@ int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variabl
 {
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableTexCube");
 	_zt_shaderCheckHash(shader_vars);
+
 	if (shader_vars->variables[idx].type == ztShaderVariable_Tex || shader_vars->variables[idx].type == ztShaderVariable_TexCube) {
-		shader_vars->variables[idx].val_tex = texture;
+		if (shader_vars->variables[idx].val_tex != texture) {
+			shader_vars->variables[idx].changed = true;
+			shader_vars->variables[idx].val_tex = texture;
+		}
 	}
+
 	return idx;
 }
 
@@ -20727,7 +20921,7 @@ ztShaderID zt_shaderMakePointLightShadows()
 
 // ================================================================================================================================================================================================
 
-ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderingSettings *settings)
+ztShaderID zt_shaderMakeStandard(ztShaderStandardSettings *settings)
 {
 	zt_returnValOnNull(settings, ztInvalidID);
 
@@ -20810,10 +21004,18 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"	texture2d   height_tex;\n"
 		"	texture2d   roughness_tex;\n"
 		"\n"
-		"	textureCube irradiance_map_tex;\n"
-		"	textureCube prefilter_map_tex;\n"
-		"	texture2d   brdf_lut_tex;\n"
-		"\n"
+		);
+
+	if (settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"	textureCube irradiance_map_tex;\n"
+			"	textureCube prefilter_map_tex;\n"
+			"	texture2d   brdf_lut_tex;\n"
+			"\n"
+			);
+	}
+
+	zt_strCat(buffer, buffer_len,
 		"	texture2d   directional_light_shadowmap;\n"
 		);
 
@@ -20906,64 +21108,82 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			);
 	}
 
+	if (!settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"	float     shininess;\n"
+			"	vec4      diffuse_color;\n"
+			);
+	}
+
+	if (settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"}\n"
+			"\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"vec3 fresnelSchlick(float cos_theta, vec3 v)\n"
+			"{\n"
+			"	return v + (1.0 - v) * pow(1.0 - cos_theta, 3.0);\n"
+			"}\n"
+			"\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"vec3 fresnelSchlickRoughness(float cos_theta, vec3 v, float roughness)\n"
+			"{\n"
+			"	return v + (max(vec3(1.0 - roughness), v) - v) * pow(1.0 - cos_theta, 3.0);\n"
+			"}\n"
+			"\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"float distributionGGX(vec3 n, vec3 h, float roughness)\n"
+			"{\n"
+			"	float a = roughness * roughness;\n"
+			"	float a2 = a * a;\n"
+			"	float n_dot_h = max(dot(n, h), 0.0);\n"
+			"	float n_dot_h2 = n_dot_h * n_dot_h;\n"
+			"\n"
+			"	float nom = a2;\n"
+			"	float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n"
+			"	denom = 3.14159265359 * denom * denom;\n"
+			"\n"
+			"	return nom / denom;\n"
+			"}\n"
+			"\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"float geometrySchlickGGX(float n_dot_v, float roughness)\n"
+			"{\n"
+			"	float r = (roughness + 1.0);\n"
+			"	float k = (r * r) / 8.0;\n"
+			"\n"
+			"	float nom = n_dot_v;\n"
+			"	float denom = n_dot_v * (1.0 - k) + k;\n"
+			"\n"
+			"	return nom / denom;\n"
+			"}\n"
+			"\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)\n"
+			"{\n"
+			"	float n_dot_v = max(dot(n, v), 0.0);\n"
+			"	float n_dot_l = max(dot(n, l), 0.0);\n"
+			"	float ggx2 = geometrySchlickGGX(n_dot_v, roughness);\n"
+			"	float ggx1 = geometrySchlickGGX(n_dot_l, roughness);\n"
+			"\n"
+			"	return ggx1 * ggx2;\n"
+			"}\n"
+			"\n"
+			);
+	}
+	else {
+		zt_strCat(buffer, buffer_len,
+			"}\n"
+			"\n"
+			);
+	}
+
 	zt_strCat(buffer, buffer_len,
-		"}\n"
-		"\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"vec3 fresnelSchlick(float cos_theta, vec3 v)\n"
-		"{\n"
-		"	return v + (1.0 - v) * pow(1.0 - cos_theta, 3.0);\n"
-		"}\n"
-		"\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"vec3 fresnelSchlickRoughness(float cos_theta, vec3 v, float roughness)\n"
-		"{\n"
-		"	return v + (max(vec3(1.0 - roughness), v) - v) * pow(1.0 - cos_theta, 3.0);\n"
-		"}\n"
-		"\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"float distributionGGX(vec3 n, vec3 h, float roughness)\n"
-		"{\n"
-		"	float a = roughness * roughness;\n"
-		"	float a2 = a * a;\n"
-		"	float n_dot_h = max(dot(n, h), 0.0);\n"
-		"	float n_dot_h2 = n_dot_h * n_dot_h;\n"
-		"\n"
-		"	float nom = a2;\n"
-		"	float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n"
-		"	denom = 3.14159265359 * denom * denom;\n"
-		"\n"
-		"	return nom / denom;\n"
-		"}\n"
-		"\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"float geometrySchlickGGX(float n_dot_v, float roughness)\n"
-		"{\n"
-		"	float r = (roughness + 1.0);\n"
-		"	float k = (r * r) / 8.0;\n"
-		"\n"
-		"	float nom = n_dot_v;\n"
-		"	float denom = n_dot_v * (1.0 - k) + k;\n"
-		"\n"
-		"	return nom / denom;\n"
-		"}\n"
-		"\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"float geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)\n"
-		"{\n"
-		"	float n_dot_v = max(dot(n, v), 0.0);\n"
-		"	float n_dot_l = max(dot(n, l), 0.0);\n"
-		"	float ggx2 = geometrySchlickGGX(n_dot_v, roughness);\n"
-		"	float ggx1 = geometrySchlickGGX(n_dot_l, roughness);\n"
-		"\n"
-		"	return ggx1 * ggx2;\n"
-		"}\n"
-		"\n"
 		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
 		"\n"
 		"vec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n"
@@ -20978,7 +21198,13 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"vec3 normalCalculation(PixelInput _input, Textures textures)\n"
 		"{\n"
 		"	vec3 tangent_normal = textureSample(textures.normal_tex, _input.uv).xyz;\n"
-		"	tangent_normal = tangent_normal * 2.0 - 1.0;\n"
+		"	if (tangent_normal == vec3(1)) {\n"
+		"		tangent_normal = _input.normal;\n"
+		"		return tangent_normal;\n"
+		"	}\n"
+		"	else {\n"
+		"		tangent_normal = tangent_normal * 2.0 - 1.0;\n"
+		"	}\n"
 		"\n"
 		"	vec3 Q1 = dFdx(_input.position.xyz);\n"
 		"	vec3 Q2 = dFdy(_input.position.xyz);\n"
@@ -21024,7 +21250,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"\n"
 		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
 		"\n"
-	);
+		);
 
 	zt_fiz(2) {
 		if ((i == 0 && settings->max_point_lights > 0) || (i == 1 && settings->max_spot_lights > 0)) {
@@ -21077,43 +21303,77 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		}
 	}
 
+	if (settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			"vec3 calculateLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 f0, vec3 light_pos, vec3 world_pos, vec3 light_color, float light_intensity, float shadow, vec3 albedo, float metallic, float roughness, bool directional)\n"
+			"{\n"
+			"	vec3 H = normalize(view_dir + light_dir);\n"
+			"	vec3 radiance;\n"
+			"	if (directional) {\n"
+			"		float distance = 1;//normalize(light_pos);\n"
+			"		float attenuation = 1.0 / (distance * distance);\n"
+			"		radiance = light_color * attenuation * (1 - shadow) * light_intensity;\n"
+			//"		radiance = light_color * (1 - shadow) * light_intensity;\n"
+			"	}\n"
+			"	else {\n"
+			"		float distance = length(light_pos - world_pos);\n"
+			"		float attenuation = 1.0 / (distance * distance);\n"
+			"		radiance = light_color * attenuation * (1 - shadow) * light_intensity;\n"
+			"	}\n"
+			"\n"
+			"	float NDF = distributionGGX(normal, H, roughness);\n"
+			"	float G   = geometrySmith(normal, view_dir, light_dir, roughness);\n"
+			"	vec3  F   = fresnelSchlick(max(dot(H, view_dir), 0.0), f0);\n"
+			"\n"
+			"	vec3  nominator   = NDF * G * F;\n"
+			"	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n"
+			"	vec3  specular    = nominator / denominator;\n"
+			"\n"
+			"	vec3 kS = F;\n"
+			"	vec3 kD = vec3(1.0) - kS;\n"
+			"	kD *= 1.0 - metallic;\n"
+			"\n"
+			"	float NdotL = max(dot(normal, light_dir), 0.0);\n"
+			"\n"
+			"	return (kD * albedo / 3.14159265359 + specular) * radiance * NdotL; // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again\n"
+			"}\n"
+			"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+			"\n"
+			);
+	}
+	else {
+		zt_strCat(buffer, buffer_len,
+			"		// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n"
+			"		float specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, float spec_value, float shininess)\n"
+			"		{\n"
+			"			vec3 halfway_dir = normalize(light_dir + view_dir);\n"
+			"			return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * shininess * 5.0 * spec_value;\n"
+			"		}\n\n"
+			"		// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n"
+			"		vec3 calculateLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 f0, vec3 light_pos, vec3 world_pos, vec3 light_color, float light_intensity, float shadow, vec3 albedo, float metallic, float roughness, bool directional)\n"
+			"		{\n"
+			"			vec3 light_clr = light_color * light_intensity;\n"
+			"			float diff = max(dot(light_dir, normal), 0.0);\n"
+			"			vec3 diffuse = diff * light_clr;\n"
+			"\n"
+			"			float distance;\n"
+			"			if (directional) {\n"
+			"				distance = 1;\n"
+			"			}\n"
+			"			else {\n"
+			"				distance = length(light_pos - world_pos);\n"
+			"			}\n"
+			"\n"
+			"			float attenuation = 1.0 / (distance * distance);\n"
+			"			vec3 specular = specularCalculation(light_dir, normal, view_dir, metallic, roughness) * light_color;\n"
+			"			return ((1.0 - shadow) * (diffuse + specular)) * albedo * attenuation;\n"
+			"		}\n"
+			);
+	}
+
 	zt_strCat(buffer, buffer_len,
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
-		"vec3 calculateLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 f0, vec3 light_pos, vec3 world_pos, vec3 light_color, float light_intensity, float shadow, vec3 albedo, float metallic, float roughness, bool directional)\n"
-		"{\n"
-		"	vec3 H = normalize(view_dir + light_dir);\n"
-		"	vec3 radiance;\n"
-		"	if (directional) {\n"
-		"		float distance = 1;//normalize(light_pos);\n"
-		"		float attenuation = 1.0 / (distance * distance);\n"
-		"		radiance = light_color * attenuation * (1 - shadow) * light_intensity;\n"
-		//"		radiance = light_color * (1 - shadow) * light_intensity;\n"
-		"	}\n"
-		"	else {\n"
-		"		float distance = length(light_pos - world_pos);\n"
-		"		float attenuation = 1.0 / (distance * distance);\n"
-		"		radiance = light_color * attenuation * (1 - shadow) * light_intensity;\n"
-		"	}\n"
-		"\n"
-		"	float NDF = distributionGGX(normal, H, roughness);\n"
-		"	float G   = geometrySmith(normal, view_dir, light_dir, roughness);\n"
-		"	vec3  F   = fresnelSchlick(max(dot(H, view_dir), 0.0), f0);\n"
-		"\n"
-		"	vec3  nominator   = NDF * G * F;\n"
-		"	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n"
-		"	vec3  specular    = nominator / denominator;\n"
-		"\n"
-		"	vec3 kS = F;\n"
-		"	vec3 kD = vec3(1.0) - kS;\n"
-		"	kD *= 1.0 - metallic;\n"
-		"\n"
-		"	float NdotL = max(dot(normal, light_dir), 0.0);\n"
-		"\n"
-		"	return (kD * albedo / 3.14159265359 + specular) * radiance * NdotL; // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again\n"
-		"}\n"
-		"// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
-		"\n"
 		"program DefaultLit\n"
 		"{\n"
 		"	vertex_shader vertexShader(VertexInput _input : input, Uniforms uniforms : uniforms, PixelInput _output : output)\n"
@@ -21130,7 +21390,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			"			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n\n"
 			"			model_mat = uniforms.model * bone_mat;\n"
 			"		}\n"
-		);
+			);
 	}
 
 	zt_strCat(buffer, buffer_len,
@@ -21162,15 +21422,40 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"	pixel_shader pixelShader(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n"
 		"	{\n"
 		"		vec3 world_pos = _input.frag_pos;\n"
-		"\n"
-		"		vec3 albedo = pow(textureSample(textures.diffuse_tex, _input.uv).rgb, vec3(2.2));\n"
-		"		//vec3 albedo = textureSample(textures.diffuse_tex, _input.uv).rgb;\n"
-		"		float metallic = textureSample(textures.specular_tex, _input.uv).r;\n"
-		"		float roughness = textureSample(textures.roughness_tex, _input.uv).r;\n"
-		"		float ao = .005;//texture(aoMap, TexCoords).r;\n"
+		"		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n"
+		);
+
+	if (settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"\n"
+			"		vec3 albedo = pow(textureSample(textures.diffuse_tex, _input.uv).rgb, vec3(2.2));\n"
+			"		//vec3 albedo = textureSample(textures.diffuse_tex, _input.uv).rgb;\n"
+			"		float metallic = textureSample(textures.specular_tex, _input.uv).r;\n"
+			"		float roughness = textureSample(textures.roughness_tex, _input.uv).r;\n"
+			"		float ao = .005;//texture(aoMap, TexCoords).r;\n"
+			);
+	}
+	else {
+		zt_strCat(buffer, buffer_len,
+			"		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n"
+			"		if (uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n"
+			"			discard();\n"
+			"		}\n"
+			"\n"
+			"		vec4 albedo_full = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n"
+			"		if (albedo_full.a < .1) {\n"
+			"			discard();\n"
+			"		}\n"
+			"		vec3 albedo = albedo_full.rgb;\n"
+			"\n"
+			"		float metallic = textureSample(textures.specular_tex, uv).r;\n"
+			"		float roughness = uniforms.shininess;\n"
+			);
+	}
+
+	zt_strCat(buffer, buffer_len,
 		"\n"
 		"		vec3 normal = normalCalculation(_input, textures);\n"
-		"		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n"
 		"		vec3 reflection = reflect(-view_dir, normal);\n"
 		"\n"
 		"		vec3 F0 = vec3(0.04);\n"
@@ -21227,35 +21512,46 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 			);
 	}
 
-	zt_strCat(buffer, buffer_len,
-		"		// ambient lighting (we now use IBL as the ambient term)\n"
-		"		vec3 F = fresnelSchlickRoughness(max(dot(normal, view_dir), 0.0), F0, roughness);\n"
-		"\n"
-		"		vec3 kS = F;\n"
-		"		vec3 kD = 1.0 - kS;\n"
-		"		kD *= 1.0 - metallic;\n"
-		"\n"
-		"		vec3 irradiance = textureSample(textures.irradiance_map_tex, normal).rgb;\n"
-		"		vec3 diffuse = irradiance * albedo * uniforms.light_ambient;\n"
-		"\n"
-		"		// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.\n"
-		"		const float MAX_REFLECTION_LOD = 4.0;\n"
-		"		vec3 prefilteredColor = textureSampleLOD(textures.prefilter_map_tex, reflection, roughness * MAX_REFLECTION_LOD).rgb;\n"
-		"		vec2 brdf = textureSample(textures.brdf_lut_tex, vec2(max(dot(normal, view_dir), 0.0), roughness)).xy;\n"
-		"		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);\n"
-		"\n"
-		"		vec3 ambient = (kD * diffuse + specular) * ao;\n"
-		"\n"
-		"		vec3 color = ambient + Lo;\n"
-		"\n"
-		"		// HDR tonemapping\n"
-		"		color = color / (color + vec3(1.0));\n"
-		"		// gamma correct\n"
-		"		color = pow(color, vec3(1.0/2.2)); \n"
-		"\n"
-		"\n"
-		"		_output.color = vec4(color, 1.0);\n"
-		);
+	if (settings->use_pbr) {
+		zt_strCat(buffer, buffer_len,
+			"		// ambient lighting (we now use IBL as the ambient term)\n"
+			"		vec3 F = fresnelSchlickRoughness(max(dot(normal, view_dir), 0.0), F0, roughness);\n"
+			"\n"
+			"		vec3 kS = F;\n"
+			"		vec3 kD = 1.0 - kS;\n"
+			"		kD *= 1.0 - metallic;\n"
+			"\n"
+			"		vec3 irradiance = textureSample(textures.irradiance_map_tex, normal).rgb;\n"
+			"		vec3 diffuse = irradiance * albedo * uniforms.light_ambient;\n"
+			"\n"
+			"		// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.\n"
+			"		const float MAX_REFLECTION_LOD = 4.0;\n"
+			"		vec3 prefilteredColor = textureSampleLOD(textures.prefilter_map_tex, reflection, roughness * MAX_REFLECTION_LOD).rgb;\n"
+			"		vec2 brdf = textureSample(textures.brdf_lut_tex, vec2(max(dot(normal, view_dir), 0.0), roughness)).xy;\n"
+			"		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);\n"
+			"\n"
+			"		vec3 ambient = (kD * diffuse + specular) * ao;\n"
+			"\n"
+			"		vec3 color = ambient + Lo;\n"
+			"\n"
+			"		// HDR tonemapping\n"
+			"		color = color / (color + vec3(1.0));\n"
+			"		// gamma correct\n"
+			"		color = pow(color, vec3(1.0/2.2)); \n"
+			"\n"
+			"\n"
+			"		_output.color = vec4(color, 1.0);\n"
+			);
+	}
+	else {
+		zt_strCat(buffer, buffer_len,
+			"		vec3 color = (albedo * uniforms.light_ambient) + Lo;\n"
+			"		\n"
+			"		_output.color = vec4(min(color.x, 1), min(color.y, 1), min(color.z, 1), 1.0);\n"
+			"		_output.position = _input.frag_pos_view;\n"
+			"		_output.normal = vec4(normalize(_input.normal_view), 1);\n"
+			);
+	}
 
 	if (settings->write_position) {
 		zt_strCat(buffer, buffer_len,
@@ -21273,7 +21569,7 @@ ztShaderID zt_shaderMakePhysicallyBasedRendering(ztShaderPhysicallyBasedRenderin
 		"}\n"
 		);
 
-	ztShaderID result = zt_shaderMake("PhysicallyBasedRendering", buffer, zt_strLen(buffer));
+	ztShaderID result = zt_shaderMake("StandardShader", buffer, zt_strLen(buffer));
 
 	zt_freeArena(buffer, zt->mem_arena_stack);
 
@@ -25683,28 +25979,28 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 			ztgl_textureBindReset(zt_game->shaders[shader].gl_shader);
 
 			int tex_count = 0;
-			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
+			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, ztTextureDefaultWhite);
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
 			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
-			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
+			ztTextureID specular_tex = zt_max(material->specular_tex, ztTextureDefaultBlack);
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 specular_tex_hash = zt_strHash("specular_tex");
 			ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
 			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
 
-			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
+			ztTextureID normal_tex = zt_max(material->normal_tex, ztTextureDefaultWhite);
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 normal_tex_hash = zt_strHash("normal_tex");
 			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
-			ztTextureID height_tex = zt_max(material->height_tex, 0);
+			ztTextureID height_tex = zt_max(material->height_tex, ztTextureDefaultBlack);
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 height_tex_hash = zt_strHash("height_tex");
 			zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
 
-			ztTextureID roughness_tex = zt_max(material->roughness_tex, 0);
+			ztTextureID roughness_tex = zt_max(material->roughness_tex, ztTextureDefaultBlack);
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 roughness_tex_hash = zt_strHash("roughness_tex");
 			zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
@@ -30333,6 +30629,10 @@ ztInternal ztInline bool _zt_animLayerUpdate(ztAnimLayer *layer, r32 dt)
 
 			zt_variantAssignValue(&layer->value_beg, zt_variantMake(&layer->target));
 			zt_variantAssignValue(&layer->value_end, layer->keys[layer->current_key].value);
+
+			if (layer->current_time >= layer->target_time) {
+				_zt_animLayerUpdate(layer, 0);
+			}
 		}
 	}
 
@@ -37058,6 +37358,14 @@ bool mainInitializationAndLoop()
 			zt_debugOnly(ztTextureID white_tex =)
 				zt_textureMakeFromPixelData(texture, 8, 8);
 			zt_debugOnly(zt_textureSetName(white_tex, "Solid White"));
+
+			zt_fize(texture) {
+				texture[i] = 0xff000000;
+			}
+
+			zt_debugOnly(ztTextureID black_tex =)
+				zt_textureMakeFromPixelData(texture, 8, 8);
+			zt_debugOnly(zt_textureSetName(black_tex, "Solid Black"));
 		}
 		// make the default font
 		{
