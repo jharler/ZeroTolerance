@@ -5788,30 +5788,39 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 {
 	ZT_PROFILE_TOOLS("ztQuat::makeFromMat4");
 
-	r32 four_x_squared_minus_1 = mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col2Row2];
-	r32 four_y_squared_minus_1 = mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col2Row2];
-	r32 four_z_squared_minus_1 = mat.values[ztMat4_Col2Row2] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1];
-	r32 four_w_squared_minus_1 = mat.values[ztMat4_Col0Row0] + mat.values[ztMat4_Col1Row1] + mat.values[ztMat4_Col2Row2];
+	r32 t = mat.values[ztMat4_Col0Row0] + mat.values[ztMat4_Col1Row1] + mat.values[ztMat4_Col2Row2];
 
-	int biggest_index = 0;
-	r32 four_biggest_squared_minus_1 = four_w_squared_minus_1;
-	if (four_x_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_x_squared_minus_1; biggest_index = 1; }
-	if (four_y_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_y_squared_minus_1; biggest_index = 2; }
-	if (four_z_squared_minus_1 > four_biggest_squared_minus_1) { four_biggest_squared_minus_1 = four_z_squared_minus_1; biggest_index = 3; }
+	ztQuat result;
 
-	r32 biggest_value = zt_sqrt(four_biggest_squared_minus_1 + 1.f) * .5f;
-	r32 mult = .25f / biggest_value;
-
-	const r32 *m = mat.values;
-	switch (biggest_index) {
-		case 0: return zt_quat((m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult, biggest_value);
-		case 1: return zt_quat(biggest_value                                   , (m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, (m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] - m[ztMat4_Col2Row1]) * mult);
-		case 2: return zt_quat((m[ztMat4_Col0Row1] + m[ztMat4_Col1Row0]) * mult, biggest_value                                   , (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, (m[ztMat4_Col2Row0] - m[ztMat4_Col0Row2]) * mult);
-		case 3: return zt_quat((m[ztMat4_Col2Row0] + m[ztMat4_Col0Row2]) * mult, (m[ztMat4_Col1Row2] + m[ztMat4_Col2Row1]) * mult, biggest_value                                   , (m[ztMat4_Col0Row1] - m[ztMat4_Col1Row0]) * mult);
-		default: zt_assert(false);
+	if (t > 0.f) {
+		r32 s = zt_sqrt(1 + t) * 2.0f;
+		result.x = (mat.values[ztMat4_Col1Row2] - mat.values[ztMat4_Col2Row1]) / s;
+		result.y = (mat.values[ztMat4_Col2Row0] - mat.values[ztMat4_Col0Row2]) / s;
+		result.z = (mat.values[ztMat4_Col0Row1] - mat.values[ztMat4_Col1Row0]) / s;
+		result.w = 0.25f * s;
+	}
+	else if (mat.values[ztMat4_Col0Row0] > mat.values[ztMat4_Col1Row1] && mat.values[ztMat4_Col0Row0] > mat.values[ztMat4_Col2Row2]) {
+		r32 s = zt_sqrt( 1.0f + mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col2Row2]) * 2.0f;
+		result.x = 0.25f * s;
+		result.y = (mat.values[ztMat4_Col0Row1] + mat.values[ztMat4_Col1Row0]) / s;
+		result.z = (mat.values[ztMat4_Col2Row0] + mat.values[ztMat4_Col0Row2]) / s;
+		result.w = (mat.values[ztMat4_Col1Row2] - mat.values[ztMat4_Col2Row1]) / s;
+	}
+	else if( mat.values[ztMat4_Col1Row1] > mat.values[ztMat4_Col2Row2]) {
+		r32 s = zt_sqrt( 1.0f + mat.values[ztMat4_Col1Row1] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col2Row2]) * 2.0f;
+		result.x = (mat.values[ztMat4_Col0Row1] + mat.values[ztMat4_Col1Row0]) / s;
+		result.y = 0.25f * s;
+		result.z = (mat.values[ztMat4_Col1Row2] + mat.values[ztMat4_Col2Row1]) / s;
+		result.w = (mat.values[ztMat4_Col2Row0] - mat.values[ztMat4_Col0Row2]) / s;
+	} else {
+		r32 s = zt_sqrt(1.0f + mat.values[ztMat4_Col2Row2] - mat.values[ztMat4_Col0Row0] - mat.values[ztMat4_Col1Row1]) * 2.0f;
+		result.x = (mat.values[ztMat4_Col2Row0] + mat.values[ztMat4_Col0Row2]) / s;
+		result.y = (mat.values[ztMat4_Col1Row2] + mat.values[ztMat4_Col2Row1]) / s;
+		result.z = 0.25f * s;
+		result.w = (mat.values[ztMat4_Col0Row1] - mat.values[ztMat4_Col1Row0]) / s;
 	}
 
-	return ztQuat::identity;
+	return result;
 }
 
 // ================================================================================================================================================================================================
@@ -7937,14 +7946,14 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 		case ztFileOpenMethod_WriteOver:   access |= GENERIC_WRITE; creation = CREATE_ALWAYS; break;
 	}
 
-	HANDLE hfile = CreateFile(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
 		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
 		return false;
 	}
 
 	char file_name_full[MAX_PATH] = {0};
-	GetFinalPathNameByHandle(hfile, file_name_full, MAX_PATH, VOLUME_NAME_DOS);
+	GetFinalPathNameByHandleA(hfile, file_name_full, MAX_PATH, VOLUME_NAME_DOS);
 
 	i32 path_len = zt_strLen(file_name_full);
 	if(path_len > 4) {
@@ -8503,7 +8512,7 @@ bool zt_fileExists(const char *file_name)
 
 #	if defined(ZT_WINDOWS)
 
-	HANDLE hfile = CreateFile(file_name, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = CreateFileA(file_name, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
 		int err = GetLastError();
 		return false;
