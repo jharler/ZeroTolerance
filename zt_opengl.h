@@ -96,6 +96,7 @@ typedef char           GLchar;
 #endif
 
 #if !defined(ZT_ANDROID)
+typedef ptrdiff_t GLintptr;
 typedef ptrdiff_t GLsizeiptr;
 #endif
 
@@ -146,6 +147,7 @@ typedef ptrdiff_t GLsizeiptr;
 #define GL_RGBA16F 0x881A
 #define GL_RGB16F 0x881B
 #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
+#define GL_MAP_READ_BIT 0x0001
 
 #if defined(ZT_ANDROID)
 #define GL_INT 0x1404
@@ -450,6 +452,7 @@ struct ztVertexArrayGL
 	GLuint vbo;
 	int    vert_count;
 	int    vert_count_active;
+	int    entries_size;
 
 #	if !defined(ZT_OPENGL_HAS_VAOS)
 	ztVertexEntryGL entries[8];
@@ -459,10 +462,11 @@ struct ztVertexArrayGL
 
 // ================================================================================================================================================================================================
 
-bool ztgl_vertexArrayMake  (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void ztgl_vertexArrayFree  (ztVertexArrayGL *vertex_array);
-bool ztgl_vertexArrayUpdate(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void ztgl_vertexArrayDraw  (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
+bool ztgl_vertexArrayMake       (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayFree       (ztVertexArrayGL *vertex_array);
+bool ztgl_vertexArrayUpdate     (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayDraw       (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
+i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices, i32 vertices_size); // assumes entry 0 is a ztVec3 position
 
 // ================================================================================================================================================================================================
 
@@ -509,6 +513,9 @@ typedef void      (ZTGL_API *ztgl_glBindVertexArray_Func) (GLuint array);
 typedef void      (ZTGL_API *ztgl_glDeleteVertexArrays_Func) (GLsizei n, const GLuint* arrays);
 typedef void      (ZTGL_API *ztgl_glDeleteBuffers_Func) (GLsizei n, const GLuint* buffers);
 typedef void      (ZTGL_API *ztgl_glBufferData_Func) (GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+typedef void      (ZTGL_API *ztgl_glGetBufferSubData_Func)(GLenum target, GLintptr offset, GLsizeiptr size, GLvoid * data);
+typedef void*     (ZTGL_API *ztgl_glMapBufferRange_Func)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+typedef void      (ZTGL_API *ztgl_glUnmapBuffer_Func)(GLenum target);
 typedef void      (ZTGL_API *ztgl_glActiveTexture_Func) (GLenum texture);
 typedef void      (ZTGL_API *ztgl_glGenerateMipmap_Func) (GLenum target);
 typedef void      (ZTGL_API *ztgl_glDeleteRenderbuffers_Func) (GLsizei n, const GLuint* renderbuffers);
@@ -575,6 +582,9 @@ typedef void      (ZTGL_API *ztgl_glDebugMessageControl_Func) (GLenum source, GL
 	ZTGL_FUNC_OP(glDeleteVertexArrays) \
 	ZTGL_FUNC_OP(glDeleteBuffers) \
 	ZTGL_FUNC_OP(glBufferData) \
+	ZTGL_FUNC_OP(glGetBufferSubData) \
+	ZTGL_FUNC_OP(glMapBufferRange) \
+	ZTGL_FUNC_OP(glUnmapBuffer) \
 	ZTGL_FUNC_OP(glActiveTexture) \
 	ZTGL_FUNC_OP(glGenerateMipmap) \
 	ZTGL_FUNC_OP(glDeleteRenderbuffers) \
@@ -3898,7 +3908,7 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 	}
 
 	if (!create) {
-		if (vert_count > vertex_array->vert_count) {
+		if (vert_count > vertex_array->vert_count || vertex_array->entries_size != vert_size) {
 			ztgl_vertexArrayFree(vertex_array);
 			create = true;
 			zt_logDebug("had to recreate vertex array (%d not as big as %d)", vertex_array->vert_count, vert_count);
@@ -3916,6 +3926,8 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 #		if !defined(ZT_OPENGL_HAS_VAOS)
 		vertex_array->vert_data = zt_mallocStructArray(byte, vert_size * vert_count);
 #		endif
+
+		vertex_array->entries_size = vert_size;
 	}
 
 #	if defined(ZT_OPENGL_HAS_VAOS)
@@ -4026,6 +4038,38 @@ void ztgl_vertexArrayDraw(ztVertexArrayGL *vertex_array, GLenum mode)
 	ztgl_callAndReportOnErrorFast(glDrawArrays(mode, 0, vertex_array->vert_count_active));
 	ztgl_callAndReportOnErrorFast(glBindBuffer(GL_ARRAY_BUFFER, 0));
 #	endif
+}
+
+// ================================================================================================================================================================================================
+
+i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices, i32 vertices_size)
+{
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayGetVertices");
+
+	if(vertices_size < vertex_array->vert_count_active) {
+		return vertex_array->vert_count_active;
+	}
+
+	i32 data_size = vertices_size * zt_sizeof(ztVec3);
+	i32 buffer_data_size = vertex_array->vert_count * vertex_array->entries_size;
+
+	ztgl_callAndReturnValOnError(glBindVertexArray(vertex_array->vao), 0);
+	ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), 0);
+	byte *buffer_data = (byte*)glMapBufferRange(GL_ARRAY_BUFFER, 0, buffer_data_size, GL_MAP_READ_BIT);
+	ztgl_checkAndReportError("glMapBufferRange");
+
+
+	zt_fiz(zt_min(vertices_size, vertex_array->vert_count)) {
+		zt_memCpy(&vertices[i], zt_sizeof(ztVec3), buffer_data, zt_sizeof(ztVec3));
+		buffer_data += vertex_array->entries_size;
+	}
+
+	ztgl_callAndReportOnError(glUnmapBuffer(GL_ARRAY_BUFFER));
+
+	ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, 0), 0);
+	ztgl_callAndReturnValOnError(glBindVertexArray(0), 0);
+
+	return vertex_array->vert_count_active;
 }
 
 
