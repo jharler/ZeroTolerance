@@ -9522,6 +9522,8 @@ bool zt_directoryMonitorHasChanged(ztDirectoryMonitor *dir_mon)
 
 unsigned int __stdcall _zt_threadProc(LPVOID param)
 {
+	zt_sleep(1);
+
 	ztThread *thread = (ztThread*)param;
 
 	if (thread == nullptr || thread->thread == nullptr) {
