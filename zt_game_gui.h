@@ -22632,31 +22632,21 @@ ztInternal void _zt_guiDebugVariables()
 	ztGuiItem *window = zt_guiMakeWindow("Variables", ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
 
-	ztVec2 avg_size = zt_vec2(4.5, .5f);
+	ztVec2 avg_size = zt_vec2(3.5, .35f);
 
-	r32 ttl_avg_height = zt_game->debug_vars_count * avg_size.y;
+	r32 ttl_avg_width = zt_game->debug_vars_count * avg_size.x;
 
 	ztVec2 extents = zt_cameraOrthoGetViewportSize(window->gm->gui_camera);
 
-	int cols_needed = zt_max(1, zt_convertToi32Ceil(ttl_avg_height / (extents.y - 2)));
-	ztVec2 needed_size = ztVec2::zero;
-	while (true) {
-		needed_size = zt_vec2(avg_size.x * cols_needed, ttl_avg_height / cols_needed);
-		if (needed_size.y > needed_size.x) {
-			cols_needed += 1;
-		}
-		else break;
-	}
+	int cols_needed = zt_max(1, zt_convertToi32Ceil(ttl_avg_width / (extents.x - 2)));
 
-
-	zt_guiItemSetSize(window, needed_size + zt_vec2(0, .5f));
-
-	ztGuiItem *sizer = zt_guiMakeColumnSizer(zt_guiWindowGetContentParent(window), cols_needed, ztGuiColumnSizerType_FillColumn);
+	ztGuiItem *sizer = zt_guiMakeColumnSizer(zt_guiWindowGetContentParent(window), cols_needed, ztGuiColumnSizerType_FillRow);
 	zt_fiz(cols_needed) {
 		zt_guiColumnSizerSetProp(sizer, i, 1);
 	}
 
-	zt_guiSizerSizeToParent(sizer);
+	zt_guiSizerSizeParent(sizer, true, true);
+	//zt_guiSizerSizeToParent(sizer);
 
 	zt_fiz(zt_game->debug_vars_count) {
 		ztGuiItem *item_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
