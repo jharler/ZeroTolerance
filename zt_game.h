@@ -16980,7 +16980,7 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 			else { // split node and move down the tree
 				ztVec2 nsize = zt_vec2(node->size.x / 2.f, node->size.y / 2.f);
 
-				ztVec2 centers[8] = {
+				ztVec2 centers[4] = {
 					zt_vec2(node->center.x - nsize.x * .5f, node->center.y + nsize.y * .5f),
 					zt_vec2(node->center.x - nsize.x * .5f, node->center.y - nsize.y * .5f),
 					zt_vec2(node->center.x + nsize.x * .5f, node->center.y - nsize.y * .5f),
@@ -17021,8 +17021,8 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 	{
 		ztBlockProfiler profile("QuadTree count");
 		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &object_count, callback, user_data);
-		node_count += zt_convertToi32Floor(node_count * .1f);
-		object_count += zt_convertToi32Floor(object_count * .1f);
+		node_count += zt_max(32, zt_convertToi32Floor(node_count * .25f));
+		object_count += zt_max(32, zt_convertToi32Floor(object_count * .25f));
 	}
 
 	quadtree->nodes_cache = zt_mallocStructArray(ztQuadTree::Node, node_count);
@@ -24192,7 +24192,7 @@ void zt_cameraRecalcMatrices(ztCamera *camera)
 	zt_returnOnNull(camera);
 
 	if (camera->type == ztCameraType_Orthographic) {
-		camera->mat_view = ztMat4::identity.getTranslate(camera->position);
+		camera->mat_view = ztMat4::identity.getTranslate(camera->position * zt_vec3(-1,-1,-1));
 	}
 	else if (camera->type == ztCameraType_Perspective) {
 		camera->mat_view = ztMat4::identity.getTranslate(-camera->position.x, -camera->position.y, -camera->position.z);
