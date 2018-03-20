@@ -1841,6 +1841,16 @@ void      zt_mat4CalcViewFrustumOrtho(ztFrustum *frustum, ztMat4 *mat_view, ztMa
 
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+enum ztCameraControllerFPSFlags_Enum
+{
+	ztCameraControllerFPSFlags_LockYAxis      = (1<<0),
+	ztCameraControllerFPSFlags_MoveYDirection = (1<<1),
+};
+
+// ================================================================================================================================================================================================
 
 struct ztCameraControllerFPS
 {
@@ -1854,8 +1864,7 @@ struct ztCameraControllerFPS
 	r32 boosted_speed;
 	r32 sneaking_speed;
 
-	bool lock_y_axis;
-
+	i32 flags;
 
 	// per-frame input:
 	r32 mouse_delta_x;
@@ -1876,7 +1885,7 @@ struct ztCameraControllerFPS
 
 // ================================================================================================================================================================================================
 
-ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero);
+ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation = ztVec3::zero, i32 flags = ztCameraControllerFPSFlags_MoveYDirection);
 void                  zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
 void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
@@ -2812,10 +2821,65 @@ void     zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *sc
 
 
 // ================================================================================================================================================================================================
-// octtree
+// quadtree
 // ================================================================================================================================================================================================
 
-struct ztOctTree
+struct ztQuadTree
+{
+	struct Node
+	{
+		ztVec2 center;
+		ztVec2 size;
+
+		i32 *objects;
+		i32  objects_count;
+
+		Node *nodes[4];
+	};
+
+	i32 *objects_cache;
+	i32  objects_cache_size;
+	i32  objects_cache_used;
+
+	Node *nodes_cache;
+	i32   nodes_cache_size;
+	i32   nodes_cache_used;
+
+	Node *root_node;
+};
+
+// ================================================================================================================================================================================================
+
+enum ztQuadTreeItemContainedResult_Enum
+{
+	ztQuadTreeItemContainedResult_Outside,
+	ztQuadTreeItemContainedResult_Inside,
+	ztQuadTreeItemContainedResult_InvalidIndex,
+
+	ztQuadTreeItemContainedResult_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+#define ZT_FUNC_QUADTREE_ITEM_CONTAINED(name) ztQuadTreeItemContainedResult_Enum name(i32 object_idx, ztVec2 center, ztVec2 size, void *user_data)
+typedef ZT_FUNC_QUADTREE_ITEM_CONTAINED(zt_QuadTreeItemContained_Func);
+
+// ================================================================================================================================================================================================
+
+void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_node_levels, ztVec2 center, ztVec2 size, zt_QuadTreeItemContained_Func *callback, void *user_data);
+bool zt_quadTreeMake(ztQuadTree *quadtree, ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_quadTreeFree(ztQuadTree *quadtree);
+i32  zt_quadTreeFindNodesThatIntersect(ztQuadTree *quadtree, ztQuadTree::Node **nodes, i32 nodes_size, ztVec2 center, ztVec2 size);
+
+bool zt_quadTreeSaveToFile(ztQuadTree *quadtree, const char *file);
+bool zt_quadTreeSave(ztQuadTree *quadtree, ztSerial *serial);
+bool zt_quadTreeLoad(ztQuadTree *quadtree, ztSerial *serial);
+
+// ================================================================================================================================================================================================
+// octree
+// ================================================================================================================================================================================================
+
+struct ztOcTree
 {
 	struct Node
 	{
@@ -2841,34 +2905,34 @@ struct ztOctTree
 
 // ================================================================================================================================================================================================
 
-enum ztOctTreeItemContainedResult_Enum
+enum ztOcTreeItemContainedResult_Enum
 {
-	ztOctTreeItemContainedResult_Outside,
-	ztOctTreeItemContainedResult_Inside,
-	ztOctTreeItemContainedResult_InvalidIndex,
+	ztOcTreeItemContainedResult_Outside,
+	ztOcTreeItemContainedResult_Inside,
+	ztOcTreeItemContainedResult_InvalidIndex,
 
-	ztOctTreeItemContainedResult_MAX,
+	ztOcTreeItemContainedResult_MAX,
 };
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_OCTTREE_ITEM_CONTAINED(name) ztOctTreeItemContainedResult_Enum name(i32 object_idx, ztVec3 center, ztVec3 size, void *user_data)
-typedef ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContained_Func);
+#define ZT_FUNC_OCTREE_ITEM_CONTAINED(name) ztOcTreeItemContainedResult_Enum name(i32 object_idx, ztVec3 center, ztVec3 size, void *user_data)
+typedef ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_OcTreeItemContained_Func);
 
 // ================================================================================================================================================================================================
 
-void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_levels, ztVec3 center, ztVec3 size, zt_octTreeItemContained_Func *callback, void *user_data);
-bool zt_octTreeMake(ztOctTree *oct_tree, ztAssetManager *asset_mgr, ztAssetID asset_id);
-void zt_octTreeFree(ztOctTree *oct_tree);
-i32  zt_octTreeFindNodesThatIntersect(ztOctTree *oct_tree, ztOctTree::Node **nodes, i32 nodes_size, ztVec3 center, ztVec3 size);
+void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_levels, ztVec3 center, ztVec3 size, zt_OcTreeItemContained_Func *callback, void *user_data);
+bool zt_ocTreeMake(ztOcTree *octree, ztAssetManager *asset_mgr, ztAssetID asset_id);
+void zt_ocTreeFree(ztOcTree *octree);
+i32  zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 center, ztVec3 size);
 
-bool zt_octTreeSaveToFile(ztOctTree *oct_tree, const char *file);
-bool zt_octTreeSave(ztOctTree *oct_tree, ztSerial *serial);
-bool zt_octTreeLoad(ztOctTree *oct_tree, ztSerial *serial);
+bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file);
+bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial);
+bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial);
 
 // ================================================================================================================================================================================================
 
-struct ztOctTreeItemContainedTestModelData
+struct ztOcTreeItemContainedTestModelData
 {
 	ztModel **models;
 	i32       models_count;
@@ -2878,11 +2942,11 @@ struct ztOctTreeItemContainedTestModelData
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestModel);
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestModel);
 
 // ================================================================================================================================================================================================
 
-struct ztOctTreeItemContainedTestVerticesData
+struct ztOcTreeItemContainedTestVerticesData
 {
 	ztVec3 *vertices;
 	i32     vertices_count;
@@ -2890,8 +2954,27 @@ struct ztOctTreeItemContainedTestVerticesData
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestVertices);
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestTriangles);
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestVertices);
+
+// ================================================================================================================================================================================================
+
+struct ztTriangle
+{
+	ztVec3 points[3];
+	ztVec3 normal;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztOcTreeItemContainedTestTriangles
+{
+	ztTriangle *triangles;
+	i32         triangles_count;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestTriangles);
 
 
 // ================================================================================================================================================================================================
@@ -3226,6 +3309,7 @@ bool zt_collisionPointInRectLL(r32 p_x, r32 p_y, r32 rect_x, r32 rect_y, r32 rec
 
 bool zt_collisionPointInCircle(const ztVec2 &point, const ztVec2 &circle_pos, r32 radius);
 bool zt_collisionPointInSphere(const ztVec3 &point, const ztVec3 &sphere_pos, r32 radius);
+bool zt_collisionPointInTriangle(const ztVec3 &point, const ztVec3 &t0, const ztVec3 &t1, const ztVec3 &t2);
 
 bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point = nullptr);
 bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
@@ -3243,7 +3327,7 @@ bool zt_collisionTriangleInAABB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3
 bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2);
 bool zt_collisionOBBInOBB(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztVec3 obb_axis_1[3], const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztVec3 obb_axis_2[3]);
 int  zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2, ztVec3 *contacts, int contacts_size);
-bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2] = nullptr);
+bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, r32 *intersection_time = nullptr, ztVec3 intersections[2] = nullptr);
 
 bool zt_collisionPointInFrustum(const ztFrustum& frustum, const ztVec3 &point, bool check_near_far = true);
 bool zt_collisionLineInFrustum(const ztFrustum& frustum, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *intersection_point = nullptr);
@@ -3261,9 +3345,13 @@ bool zt_collisionSphereCapsule(const ztVec3 &sphere_pos, r32 sphere_radius, cons
 bool zt_collisionSpherePlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztPlane& plane); bool zt_collisionRaySphere(const ztVec3 &ray_pos, const ztVec3 &ray_dir, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
 bool zt_collisionSphereSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, const ztVec3 &sphere2_pos, r32 sphere2_radius);
 bool zt_collisionSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
+bool zt_collisionSphereInOBB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot);
 bool zt_collisionLineSegmentSphere(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
 bool zt_collisionLineSegmentCapsule(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &capsule_beg, const ztVec3 &capsule_end, r32 capsule_radius, r32 *intersection_time = nullptr);
 
+ztVec3 zt_closestPointLineSegmentPoint(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &point);
+ztVec3 zt_closestPointAABBPoint(const ztVec3 &aabb_center, const ztVec3 &aabb_size, const ztVec3& point);
+ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size, const ztQuat &obb_rot, const ztVec3& point);
 
 // ================================================================================================================================================================================================
 // physics manager
@@ -16792,30 +16880,444 @@ void zt_sceneRenderDebug(ztDrawList *draw_list, i32 debug_flags, ztScene *scene,
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#define ZT_QUADTREE_SERIAL_GUID      zt_guidMake(0x084a3e25, 0xa0c64f59, 0x86f0ac03, 0xd52c92d4)
+#define ZT_QUADTREE_SERIAL_VERSION   10000
+#define ZT_QUADTREE_SERIAL_FILE_ID   "ZT QuadTree File"
+
 // ================================================================================================================================================================================================
 
-#define ZT_OCTTREE_SERIAL_GUID      zt_guidMake(0x4bc57cb4, 0x94074d69, 0xb9693ac2, 0xe433bea1)
-#define ZT_OCTTREE_SERIAL_VERSION   10000
-#define ZT_OCTTREE_SERIAL_FILE_ID   "ZT OctTree File"
-
-void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_levels, ztVec3 center, ztVec3 size, zt_octTreeItemContained_Func *callback, void *user_data)
+void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_node_levels, ztVec2 center, ztVec2 size, zt_QuadTreeItemContained_Func *callback, void *user_data)
 {
 	struct local
 	{
-		static void count(ztVec3 center, ztVec3 size, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, i32 *node_count, i32 *object_count, zt_octTreeItemContained_Func *callback, void *user_data)
+		static void count(ztVec2 center, ztVec2 size, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, i32 *node_count, i32 *object_count, zt_QuadTreeItemContained_Func *callback, void *user_data)
 		{
 			i32 objects_in_this_node = 0;
 			i32 object_idx = 0;
 			while (true) {
 				bool object_is_valid = false;
-				ztOctTreeItemContainedResult_Enum result = (callback)(object_idx++, center, size, user_data);
-				if (result == ztOctTreeItemContainedResult_Inside) {
+				ztQuadTreeItemContainedResult_Enum result = (callback)(object_idx++, center, size, user_data);
+				if (result == ztQuadTreeItemContainedResult_Inside) {
 					objects_in_this_node += 1;
 					if (objects_in_this_node > max_objects_per_node && current_node_level != max_node_levels) {
 						break;
 					}
 				}
-				else if (result == ztOctTreeItemContainedResult_InvalidIndex) {
+				else if (result == ztQuadTreeItemContainedResult_InvalidIndex) {
+					break;
+				}
+			}
+
+			if (objects_in_this_node <= max_objects_per_node || current_node_level == max_node_levels) { // final node
+				*object_count += objects_in_this_node;
+				return;
+			}
+			else { // split node and move down the tree
+				ztVec2 nsize = zt_vec2(size.x / 2.f, size.y / 2.f);
+
+				ztVec2 centers[4] = {
+					zt_vec2(center.x - nsize.x * .5f, center.y + nsize.y * .5f),
+					zt_vec2(center.x - nsize.x * .5f, center.y - nsize.y * .5f),
+					zt_vec2(center.x + nsize.x * .5f, center.y - nsize.y * .5f),
+					zt_vec2(center.x + nsize.x * .5f, center.y + nsize.y * .5f),
+				};
+
+				zt_fize(centers) {
+					i32 sub_object_count = 0;
+					count(centers[i], nsize, max_objects_per_node, max_node_levels, current_node_level + 1, node_count, &sub_object_count, callback, user_data);
+
+					if (sub_object_count > 0) {
+						*object_count += sub_object_count;
+						*node_count += 1;
+					}
+				}
+			}
+		}
+
+		static void populate(ztQuadTree *tree, ztQuadTree::Node *node, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, zt_QuadTreeItemContained_Func *callback, void *user_data)
+		{
+			i32 objects_in_this_node = 0;
+			i32 object_idx = 0;
+			while (true) {
+				bool object_is_valid = false;
+				ztQuadTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
+				if (result == ztQuadTreeItemContainedResult_Inside) {
+					objects_in_this_node += 1;
+
+					if (objects_in_this_node > max_objects_per_node && current_node_level != max_node_levels) {
+						break;
+					}
+				}
+				else if (result == ztQuadTreeItemContainedResult_InvalidIndex) {
+					break;
+				}
+			}
+
+			if (objects_in_this_node < max_objects_per_node || current_node_level == max_node_levels) { // final node
+				if (objects_in_this_node == 0) {
+					return;
+				}
+
+				node->objects = tree->objects_cache + tree->objects_cache_used;
+				node->objects_count = 0;
+				tree->objects_cache_used += objects_in_this_node;
+				zt_assert(tree->objects_cache_used <= tree->objects_cache_size);
+
+				object_idx = 0;
+				while (true) {
+					bool object_is_valid = false;
+					ztQuadTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
+					if (result == ztQuadTreeItemContainedResult_Inside) {
+						node->objects[node->objects_count++] = object_idx - 1;
+					}
+					else if (result == ztQuadTreeItemContainedResult_InvalidIndex) {
+						break;
+					}
+				}
+				zt_assert(node->objects_count == objects_in_this_node);
+				return;
+			}
+			else { // split node and move down the tree
+				ztVec2 nsize = zt_vec2(node->size.x / 2.f, node->size.y / 2.f);
+
+				ztVec2 centers[8] = {
+					zt_vec2(node->center.x - nsize.x * .5f, node->center.y + nsize.y * .5f),
+					zt_vec2(node->center.x - nsize.x * .5f, node->center.y - nsize.y * .5f),
+					zt_vec2(node->center.x + nsize.x * .5f, node->center.y - nsize.y * .5f),
+					zt_vec2(node->center.x + nsize.x * .5f, node->center.y + nsize.y * .5f),
+				};
+
+				zt_fize(centers) {
+					zt_assert(tree->nodes_cache_used < tree->nodes_cache_size);
+					ztQuadTree::Node *cnode = &tree->nodes_cache[tree->nodes_cache_used++];
+					cnode->center = centers[i];
+					cnode->size = nsize;
+
+					populate(tree, cnode, max_objects_per_node, max_node_levels, current_node_level + 1, callback, user_data);
+
+					if (cnode->objects_count == 0) {
+						bool has_child_nodes = false;
+						zt_fjze(cnode->nodes) {
+							if (cnode->nodes[j] != nullptr) {
+								has_child_nodes = true;
+								break;
+							}
+						}
+						if (!has_child_nodes) {
+							tree->nodes_cache_used -= 1;
+							cnode = nullptr;
+						}
+					}
+
+					node->nodes[i] = cnode;
+				}
+			}
+		}
+	};
+
+	zt_memSet(quadtree, zt_sizeof(ztQuadTree), 0);
+
+	i32 node_count = 1, object_count = 0;
+	{
+		ztBlockProfiler profile("QuadTree count");
+		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &object_count, callback, user_data);
+		node_count += zt_convertToi32Floor(node_count * .1f);
+		object_count += zt_convertToi32Floor(object_count * .1f);
+	}
+
+	quadtree->nodes_cache = zt_mallocStructArray(ztQuadTree::Node, node_count);
+	quadtree->nodes_cache_size = node_count;
+	quadtree->nodes_cache_used = 0;
+	quadtree->objects_cache = zt_mallocStructArray(i32, object_count);
+	quadtree->objects_cache_size = object_count;
+	quadtree->objects_cache_used = 0;
+
+	ztQuadTree::Node *root_node = &quadtree->nodes_cache[quadtree->nodes_cache_used++];
+	root_node->center = center;
+	root_node->size = size;
+
+	{
+		ztBlockProfiler profile("QuadTree populate");
+		local::populate(quadtree, root_node, max_objects_per_node, max_node_levels, 0, callback, user_data);
+	}
+
+	quadtree->root_node = root_node;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_quadTreeMake(ztQuadTree *quadtree, ztAssetManager *asset_mgr, ztAssetID asset_id)
+{
+	zt_returnValOnNull(quadtree, false);
+	zt_returnValOnNull(asset_mgr, false);
+
+	if (asset_id < 0 || asset_id >= asset_mgr->asset_count) {
+		return false;
+	}
+
+	void *data = nullptr;
+	i32   size = 0;
+
+	if (!_zt_assetLoadData(asset_mgr, asset_id, nullptr, 0, &data, &size)) {
+		return false;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, data, size, ZT_QUADTREE_SERIAL_FILE_ID)) {
+		return false;
+	}
+
+	bool result = zt_quadTreeLoad(quadtree, &serial);
+
+	zt_serialClose(&serial);
+
+	_zt_assetFreeData(asset_mgr, data);
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_quadTreeFree(ztQuadTree *quadtree)
+{
+	if (quadtree == nullptr) {
+		return;
+	}
+
+	if (quadtree->nodes_cache) {
+		zt_free(quadtree->nodes_cache);
+		quadtree->nodes_cache = nullptr;
+		quadtree->nodes_cache_size = quadtree->nodes_cache_used = 0;
+	}
+
+	if (quadtree->objects_cache) {
+		zt_free(quadtree->objects_cache);
+		quadtree->objects_cache = nullptr;
+		quadtree->objects_cache_size = quadtree->objects_cache_used = 0;
+	}
+
+	quadtree->root_node = nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_quadTreeFindNodesThatIntersect(ztQuadTree *quadtree, ztQuadTree::Node **nodes, i32 nodes_size, ztVec2 center, ztVec2 size)
+{
+	zt_returnValOnNull(quadtree, 0);
+	zt_returnValOnNull(quadtree->root_node, 0);
+
+	struct local
+	{
+		static void testIntersect(ztQuadTree::Node *node, ztQuadTree::Node **nodes, i32 nodes_size, i32 *nodes_idx, ztVec2 center, ztVec2 size)
+		{
+			if (!zt_collisionAABBInAABB(zt_vec3(center, 0), zt_vec3(size, 1), zt_vec3(node->center, 0), zt_vec3(node->size, 1))) {
+				return;
+			}
+
+			if (node->objects_count > 0) {
+				int idx = (*nodes_idx)++;
+				if (idx < nodes_size) {
+					nodes[idx] = node;
+				}
+			}
+			else {
+				zt_fize(node->nodes) {
+					if (node->nodes[i]) {
+						testIntersect(node->nodes[i], nodes, nodes_size, nodes_idx, center, size);
+					}
+				}
+			}
+		}
+	};
+
+	i32 nodes_idx = 0;
+	local::testIntersect(quadtree->root_node, nodes, nodes_size, &nodes_idx, center, size);
+	return nodes_idx;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_quadTreeSaveToFile(ztQuadTree *quadtree, const char *file)
+{
+	zt_returnValOnNull(quadtree, false);
+
+	if (zt_fileExists(file)) {
+		return false;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeWriter(&serial, file, ZT_QUADTREE_SERIAL_FILE_ID, ZT_QUADTREE_SERIAL_VERSION)) {
+		return false;
+	}
+
+	bool result = zt_quadTreeSave(quadtree, &serial);
+
+	zt_serialClose(&serial);
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_quadTreeSave(ztQuadTree *quadtree, ztSerial *serial)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		if (!zt_serialWrite(serial, ZT_QUADTREE_SERIAL_GUID)) return false;
+		if (!zt_serialWrite(serial, (i32)ZT_QUADTREE_SERIAL_VERSION)) return false;
+
+		if (!zt_serialWrite(serial, quadtree->objects_cache_used)) return false;
+		zt_fiz(quadtree->objects_cache_used) {
+			if (!zt_serialWrite(serial, quadtree->objects_cache[i])) return false;
+		}
+
+		if (!zt_serialWrite(serial, quadtree->nodes_cache_used)) return false;
+		zt_fiz(quadtree->nodes_cache_used) {
+			if (!zt_serialGroupPush(serial)) return false;
+			{
+				if (!zt_serialWrite(serial, quadtree->nodes_cache[i].center)) return false;
+				if (!zt_serialWrite(serial, quadtree->nodes_cache[i].size)) return false;
+				if (!zt_serialWrite(serial, quadtree->nodes_cache[i].objects_count)) return false;
+
+				if (quadtree->nodes_cache[i].objects_count > 0) {
+					i32 start = quadtree->nodes_cache[i].objects - quadtree->objects_cache;
+					if (!zt_serialWrite(serial, start)) return false;
+				}
+
+				zt_fjz(4) {
+					i32 node_idx = -1;
+					if (quadtree->nodes_cache[i].nodes[j] != nullptr) {
+						zt_fkz(quadtree->nodes_cache_used) {
+							if (quadtree->nodes_cache[i].nodes[j] == &quadtree->nodes_cache[k]) {
+								node_idx = k;
+								break;
+							}
+						}
+					}
+
+					if (!zt_serialWrite(serial, node_idx)) return false;
+				}
+			}
+			if (!zt_serialGroupPop(serial)) return false;
+		}
+
+		i32 root_node_idx = -1;
+		zt_fkz(quadtree->nodes_cache_used) {
+			if (quadtree->root_node == &quadtree->nodes_cache[k]) {
+				root_node_idx = k;
+				break;
+			}
+		}
+		if (!zt_serialWrite(serial, root_node_idx)) return false;
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_quadTreeLoad(ztQuadTree *quadtree, ztSerial *serial)
+{
+	if (!zt_serialGroupPush(serial)) return false;
+	{
+		ztGuid guid;
+		if (!zt_serialRead(serial, &guid)) return false;
+		zt_assertReturnValOnFail(guid == ZT_QUADTREE_SERIAL_GUID, false);
+
+		i32 version = 0;
+		if (!zt_serialRead(serial, &version)) return false;
+		zt_assertReturnValOnFail(version >= 0 && version <= ZT_QUADTREE_SERIAL_VERSION, false);
+
+		if (!zt_serialRead(serial, &quadtree->objects_cache_used)) return false;
+		zt_assertReturnValOnFail(quadtree->objects_cache_used > 0, false);
+
+		quadtree->objects_cache_size = quadtree->objects_cache_used;
+		quadtree->objects_cache = zt_mallocStructArray(i32, quadtree->objects_cache_used);
+
+		zt_fiz(quadtree->objects_cache_used) {
+			if (!zt_serialRead(serial, &quadtree->objects_cache[i])) return false;
+		}
+
+		if (!zt_serialRead(serial, &quadtree->nodes_cache_used)) return false;
+		zt_assertReturnValOnFail(quadtree->nodes_cache_used > 0, false);
+
+		quadtree->nodes_cache_size = quadtree->nodes_cache_used;
+		quadtree->nodes_cache = zt_mallocStructArray(ztQuadTree::Node, quadtree->nodes_cache_size);
+
+		zt_fiz(quadtree->nodes_cache_used) {
+			if (!zt_serialGroupPush(serial)) return false;
+			{
+				if (!zt_serialRead(serial, &quadtree->nodes_cache[i].center)) return false;
+				if (!zt_serialRead(serial, &quadtree->nodes_cache[i].size)) return false;
+				if (!zt_serialRead(serial, &quadtree->nodes_cache[i].objects_count)) return false;
+
+				if (quadtree->nodes_cache[i].objects_count) {
+					i32 start = -1;
+					if (!zt_serialRead(serial, &start)) return false;
+					zt_assertReturnValOnFail(start >= 0 && start < quadtree->objects_cache_size, false);
+
+					quadtree->nodes_cache[i].objects = quadtree->objects_cache + start;
+				}
+				else {
+					quadtree->nodes_cache[i].objects = nullptr;
+				}
+
+				zt_fjz(4) {
+					i32 node_idx = -1;
+					if (!zt_serialRead(serial, &node_idx)) return false;
+					zt_assertReturnValOnFail(node_idx >= -1 && node_idx < quadtree->nodes_cache_size, false);
+
+					if (node_idx < 0) {
+						quadtree->nodes_cache[i].nodes[j] = nullptr;
+					}
+					else {
+						quadtree->nodes_cache[i].nodes[j] = &quadtree->nodes_cache[node_idx];
+					}
+				}
+			}
+			if (!zt_serialGroupPop(serial)) return false;
+		}
+
+		i32 root_node_idx = -1;
+		if (!zt_serialRead(serial, &root_node_idx)) return false;
+		zt_assertReturnValOnFail(root_node_idx >= -1 && root_node_idx < quadtree->nodes_cache_size, false);
+
+		quadtree->root_node = &quadtree->nodes_cache[root_node_idx];
+	}
+	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#define ZT_OCTREE_SERIAL_GUID      zt_guidMake(0x4bc57cb4, 0x94074d69, 0xb9693ac2, 0xe433bea1)
+#define ZT_OCTREE_SERIAL_VERSION   10000
+#define ZT_OCTREE_SERIAL_FILE_ID   "ZT OcTree File"
+
+// ================================================================================================================================================================================================
+
+void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_levels, ztVec3 center, ztVec3 size, zt_OcTreeItemContained_Func *callback, void *user_data)
+{
+	struct local
+	{
+		static void count(ztVec3 center, ztVec3 size, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, i32 *node_count, i32 *object_count, zt_OcTreeItemContained_Func *callback, void *user_data)
+		{
+			i32 objects_in_this_node = 0;
+			i32 object_idx = 0;
+			while (true) {
+				bool object_is_valid = false;
+				ztOcTreeItemContainedResult_Enum result = (callback)(object_idx++, center, size, user_data);
+				if (result == ztOcTreeItemContainedResult_Inside) {
+					objects_in_this_node += 1;
+					if (objects_in_this_node > max_objects_per_node && current_node_level != max_node_levels) {
+						break;
+					}
+				}
+				else if (result == ztOcTreeItemContainedResult_InvalidIndex) {
 					break;
 				}
 			}
@@ -16850,21 +17352,21 @@ void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_
 			}
 		}
 
-		static void populate(ztOctTree *tree, ztOctTree::Node *node, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, zt_octTreeItemContained_Func *callback, void *user_data)
+		static void populate(ztOcTree *tree, ztOcTree::Node *node, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, zt_OcTreeItemContained_Func *callback, void *user_data)
 		{
 			i32 objects_in_this_node = 0;
 			i32 object_idx = 0;
 			while (true) {
 				bool object_is_valid = false;
-				ztOctTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
-				if (result == ztOctTreeItemContainedResult_Inside) {
+				ztOcTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
+				if (result == ztOcTreeItemContainedResult_Inside) {
 					objects_in_this_node += 1;
 
 					if (objects_in_this_node > max_objects_per_node && current_node_level != max_node_levels) {
 						break;
 					}
 				}
-				else if (result == ztOctTreeItemContainedResult_InvalidIndex) {
+				else if (result == ztOcTreeItemContainedResult_InvalidIndex) {
 					break;
 				}
 			}
@@ -16882,11 +17384,11 @@ void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_
 				object_idx = 0;
 				while (true) {
 					bool object_is_valid = false;
-					ztOctTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
-					if (result == ztOctTreeItemContainedResult_Inside) {
+					ztOcTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
+					if (result == ztOcTreeItemContainedResult_Inside) {
 						node->objects[node->objects_count++] = object_idx - 1;
 					}
-					else if (result == ztOctTreeItemContainedResult_InvalidIndex) {
+					else if (result == ztOcTreeItemContainedResult_InvalidIndex) {
 						break;
 					}
 				}
@@ -16909,7 +17411,7 @@ void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_
 
 				zt_fize(centers) {
 					zt_assert(tree->nodes_cache_used < tree->nodes_cache_size);
-					ztOctTree::Node *cnode = &tree->nodes_cache[tree->nodes_cache_used++];
+					ztOcTree::Node *cnode = &tree->nodes_cache[tree->nodes_cache_used++];
 					cnode->center = centers[i];
 					cnode->size = nsize;
 
@@ -16935,44 +17437,42 @@ void zt_octTreeMake(ztOctTree *oct_tree, i32 max_objects_per_node, i32 max_node_
 		}
 	};
 
-	zt_memSet(oct_tree, zt_sizeof(ztOctTree), 0);
+	zt_memSet(octree, zt_sizeof(ztOcTree), 0);
 
 	i32 node_count = 1, object_count = 0;
 	{
-		zt_logDebug("octtree count");
-		ztBlockProfiler profile("octtree count");
+		ztBlockProfiler profile("OcTree count");
 		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &object_count, callback, user_data);
 		node_count += zt_convertToi32Floor(node_count * .1f);
 		object_count += zt_convertToi32Floor(object_count * .1f);
 	}
 
-	oct_tree->nodes_cache = zt_mallocStructArray(ztOctTree::Node, node_count);
-	oct_tree->nodes_cache_size = node_count;
-	oct_tree->nodes_cache_used = 0;
-	oct_tree->objects_cache = zt_mallocStructArray(i32, object_count);
-	oct_tree->objects_cache_size = object_count;
-	oct_tree->objects_cache_used = 0;
+	octree->nodes_cache = zt_mallocStructArray(ztOcTree::Node, node_count);
+	octree->nodes_cache_size = node_count;
+	octree->nodes_cache_used = 0;
+	octree->objects_cache = zt_mallocStructArray(i32, object_count);
+	octree->objects_cache_size = object_count;
+	octree->objects_cache_used = 0;
 
-	ztOctTree::Node *root_node = &oct_tree->nodes_cache[oct_tree->nodes_cache_used++];
+	ztOcTree::Node *root_node = &octree->nodes_cache[octree->nodes_cache_used++];
 	root_node->center = center;
 	root_node->size = size;
 
 	{
-		zt_logDebug("octtree populate");
-		ztBlockProfiler profile("octtree populate");
-		local::populate(oct_tree, root_node, max_objects_per_node, max_node_levels, 0, callback, user_data);
+		ztBlockProfiler profile("OcTree populate");
+		local::populate(octree, root_node, max_objects_per_node, max_node_levels, 0, callback, user_data);
 	}
 
-	oct_tree->root_node = root_node;
+	octree->root_node = root_node;
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_octTreeMake(ztOctTree *oct_tree, ztAssetManager *asset_mgr, ztAssetID asset_id)
+bool zt_ocTreeMake(ztOcTree *octree, ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
-	zt_returnValOnNull(oct_tree, false);
+	zt_returnValOnNull(octree, false);
 	zt_returnValOnNull(asset_mgr, false);
-	
+
 	if (asset_id < 0 || asset_id >= asset_mgr->asset_count) {
 		return false;
 	}
@@ -16985,11 +17485,11 @@ bool zt_octTreeMake(ztOctTree *oct_tree, ztAssetManager *asset_mgr, ztAssetID as
 	}
 
 	ztSerial serial;
-	if (!zt_serialMakeReader(&serial, data, size, ZT_OCTTREE_SERIAL_FILE_ID)) {
+	if (!zt_serialMakeReader(&serial, data, size, ZT_OCTREE_SERIAL_FILE_ID)) {
 		return false;
 	}
 
-	bool result = zt_octTreeLoad(oct_tree, &serial);
+	bool result = zt_ocTreeLoad(octree, &serial);
 
 	zt_serialClose(&serial);
 
@@ -17000,37 +17500,37 @@ bool zt_octTreeMake(ztOctTree *oct_tree, ztAssetManager *asset_mgr, ztAssetID as
 
 // ================================================================================================================================================================================================
 
-void zt_octTreeFree(ztOctTree *oct_tree)
+void zt_ocTreeFree(ztOcTree *octree)
 {
-	if (oct_tree == nullptr) {
+	if (octree == nullptr) {
 		return;
 	}
 
-	if (oct_tree->nodes_cache) {
-		zt_free(oct_tree->nodes_cache);
-		oct_tree->nodes_cache = nullptr;
-		oct_tree->nodes_cache_size = oct_tree->nodes_cache_used = 0;
+	if (octree->nodes_cache) {
+		zt_free(octree->nodes_cache);
+		octree->nodes_cache = nullptr;
+		octree->nodes_cache_size = octree->nodes_cache_used = 0;
 	}
 
-	if (oct_tree->objects_cache) {
-		zt_free(oct_tree->objects_cache);
-		oct_tree->objects_cache = nullptr;
-		oct_tree->objects_cache_size = oct_tree->objects_cache_used = 0;
+	if (octree->objects_cache) {
+		zt_free(octree->objects_cache);
+		octree->objects_cache = nullptr;
+		octree->objects_cache_size = octree->objects_cache_used = 0;
 	}
 
-	oct_tree->root_node = nullptr;
+	octree->root_node = nullptr;
 }
 
 // ================================================================================================================================================================================================
 
-i32 zt_octTreeFindNodesThatIntersect(ztOctTree *oct_tree, ztOctTree::Node **nodes, i32 nodes_size, ztVec3 center, ztVec3 size)
+i32 zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 center, ztVec3 size)
 {
-	zt_returnValOnNull(oct_tree, 0);
-	zt_returnValOnNull(oct_tree->root_node, 0);
+	zt_returnValOnNull(octree, 0);
+	zt_returnValOnNull(octree->root_node, 0);
 
 	struct local
 	{
-		static void testIntersect(ztOctTree::Node *node, ztOctTree::Node **nodes, i32 nodes_size, i32 *nodes_idx, ztVec3 center, ztVec3 size)
+		static void testIntersect(ztOcTree::Node *node, ztOcTree::Node **nodes, i32 nodes_size, i32 *nodes_idx, ztVec3 center, ztVec3 size)
 		{
 			if (!zt_collisionAABBInAABB(center, size, node->center, node->size)) {
 				return;
@@ -17044,7 +17544,7 @@ i32 zt_octTreeFindNodesThatIntersect(ztOctTree *oct_tree, ztOctTree::Node **node
 			}
 			else {
 				zt_fize(node->nodes) {
-					if(node->nodes[i]) {
+					if (node->nodes[i]) {
 						testIntersect(node->nodes[i], nodes, nodes_size, nodes_idx, center, size);
 					}
 				}
@@ -17053,26 +17553,26 @@ i32 zt_octTreeFindNodesThatIntersect(ztOctTree *oct_tree, ztOctTree::Node **node
 	};
 
 	i32 nodes_idx = 0;
-	local::testIntersect(oct_tree->root_node, nodes, nodes_size, &nodes_idx, center, size);
+	local::testIntersect(octree->root_node, nodes, nodes_size, &nodes_idx, center, size);
 	return nodes_idx;
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_octTreeSaveToFile(ztOctTree *oct_tree, const char *file)
+bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file)
 {
-	zt_returnValOnNull(oct_tree, false);
+	zt_returnValOnNull(octree, false);
 
 	if (zt_fileExists(file)) {
 		return false;
 	}
 
 	ztSerial serial;
-	if (!zt_serialMakeWriter(&serial, file, ZT_OCTTREE_SERIAL_FILE_ID, ZT_OCTTREE_SERIAL_VERSION)) {
+	if (!zt_serialMakeWriter(&serial, file, ZT_OCTREE_SERIAL_FILE_ID, ZT_OCTREE_SERIAL_VERSION)) {
 		return false;
 	}
 
-	bool result = zt_octTreeSave(oct_tree, &serial);
+	bool result = zt_ocTreeSave(octree, &serial);
 
 	zt_serialClose(&serial);
 
@@ -17081,36 +17581,36 @@ bool zt_octTreeSaveToFile(ztOctTree *oct_tree, const char *file)
 
 // ================================================================================================================================================================================================
 
-bool zt_octTreeSave(ztOctTree *oct_tree, ztSerial *serial)
+bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial)
 {
 	if (!zt_serialGroupPush(serial)) return false;
 	{
-		if (!zt_serialWrite(serial, ZT_OCTTREE_SERIAL_GUID)) return false;
-		if (!zt_serialWrite(serial, (i32)ZT_OCTTREE_SERIAL_VERSION)) return false;
+		if (!zt_serialWrite(serial, ZT_OCTREE_SERIAL_GUID)) return false;
+		if (!zt_serialWrite(serial, (i32)ZT_OCTREE_SERIAL_VERSION)) return false;
 
-		if (!zt_serialWrite(serial, oct_tree->objects_cache_used)) return false;
-		zt_fiz(oct_tree->objects_cache_used) {
-			if (!zt_serialWrite(serial, oct_tree->objects_cache[i])) return false;
+		if (!zt_serialWrite(serial, octree->objects_cache_used)) return false;
+		zt_fiz(octree->objects_cache_used) {
+			if (!zt_serialWrite(serial, octree->objects_cache[i])) return false;
 		}
 
-		if (!zt_serialWrite(serial, oct_tree->nodes_cache_used)) return false;
-		zt_fiz(oct_tree->nodes_cache_used) {
+		if (!zt_serialWrite(serial, octree->nodes_cache_used)) return false;
+		zt_fiz(octree->nodes_cache_used) {
 			if (!zt_serialGroupPush(serial)) return false;
 			{
-				if (!zt_serialWrite(serial, oct_tree->nodes_cache[i].center)) return false;
-				if (!zt_serialWrite(serial, oct_tree->nodes_cache[i].size)) return false;
-				if (!zt_serialWrite(serial, oct_tree->nodes_cache[i].objects_count)) return false;
+				if (!zt_serialWrite(serial, octree->nodes_cache[i].center)) return false;
+				if (!zt_serialWrite(serial, octree->nodes_cache[i].size)) return false;
+				if (!zt_serialWrite(serial, octree->nodes_cache[i].objects_count)) return false;
 
-				if (oct_tree->nodes_cache[i].objects_count > 0) {
-					i32 start = oct_tree->nodes_cache[i].objects - oct_tree->objects_cache;
+				if (octree->nodes_cache[i].objects_count > 0) {
+					i32 start = octree->nodes_cache[i].objects - octree->objects_cache;
 					if (!zt_serialWrite(serial, start)) return false;
 				}
 
 				zt_fjz(8) {
 					i32 node_idx = -1;
-					if (oct_tree->nodes_cache[i].nodes[j] != nullptr) {
-						zt_fkz(oct_tree->nodes_cache_used) {
-							if (oct_tree->nodes_cache[i].nodes[j] == &oct_tree->nodes_cache[k]) {
+					if (octree->nodes_cache[i].nodes[j] != nullptr) {
+						zt_fkz(octree->nodes_cache_used) {
+							if (octree->nodes_cache[i].nodes[j] == &octree->nodes_cache[k]) {
 								node_idx = k;
 								break;
 							}
@@ -17124,8 +17624,8 @@ bool zt_octTreeSave(ztOctTree *oct_tree, ztSerial *serial)
 		}
 
 		i32 root_node_idx = -1;
-		zt_fkz(oct_tree->nodes_cache_used) {
-			if (oct_tree->root_node == &oct_tree->nodes_cache[k]) {
+		zt_fkz(octree->nodes_cache_used) {
+			if (octree->root_node == &octree->nodes_cache[k]) {
 				root_node_idx = k;
 				break;
 			}
@@ -17139,62 +17639,62 @@ bool zt_octTreeSave(ztOctTree *oct_tree, ztSerial *serial)
 
 // ================================================================================================================================================================================================
 
-bool zt_octTreeLoad(ztOctTree *oct_tree, ztSerial *serial)
+bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial)
 {
 	if (!zt_serialGroupPush(serial)) return false;
 	{
 		ztGuid guid;
 		if (!zt_serialRead(serial, &guid)) return false;
-		zt_assertReturnValOnFail(guid == ZT_OCTTREE_SERIAL_GUID, false);
+		zt_assertReturnValOnFail(guid == ZT_OCTREE_SERIAL_GUID, false);
 
 		i32 version = 0;
 		if (!zt_serialRead(serial, &version)) return false;
-		zt_assertReturnValOnFail(version >= 0 && version <= ZT_OCTTREE_SERIAL_VERSION, false);
+		zt_assertReturnValOnFail(version >= 0 && version <= ZT_OCTREE_SERIAL_VERSION, false);
 
-		if (!zt_serialRead(serial, &oct_tree->objects_cache_used)) return false;
-		zt_assertReturnValOnFail(oct_tree->objects_cache_used > 0, false);
+		if (!zt_serialRead(serial, &octree->objects_cache_used)) return false;
+		zt_assertReturnValOnFail(octree->objects_cache_used > 0, false);
 
-		oct_tree->objects_cache_size = oct_tree->objects_cache_used;
-		oct_tree->objects_cache = zt_mallocStructArray(i32, oct_tree->objects_cache_used);
+		octree->objects_cache_size = octree->objects_cache_used;
+		octree->objects_cache = zt_mallocStructArray(i32, octree->objects_cache_used);
 
-		zt_fiz(oct_tree->objects_cache_used) {
-			if (!zt_serialRead(serial, &oct_tree->objects_cache[i])) return false;
+		zt_fiz(octree->objects_cache_used) {
+			if (!zt_serialRead(serial, &octree->objects_cache[i])) return false;
 		}
 
-		if (!zt_serialRead(serial, &oct_tree->nodes_cache_used)) return false;
-		zt_assertReturnValOnFail(oct_tree->nodes_cache_used > 0, false);
+		if (!zt_serialRead(serial, &octree->nodes_cache_used)) return false;
+		zt_assertReturnValOnFail(octree->nodes_cache_used > 0, false);
 
-		oct_tree->nodes_cache_size = oct_tree->nodes_cache_used;
-		oct_tree->nodes_cache = zt_mallocStructArray(ztOctTree::Node, oct_tree->nodes_cache_size);
+		octree->nodes_cache_size = octree->nodes_cache_used;
+		octree->nodes_cache = zt_mallocStructArray(ztOcTree::Node, octree->nodes_cache_size);
 
-		zt_fiz(oct_tree->nodes_cache_used) {
+		zt_fiz(octree->nodes_cache_used) {
 			if (!zt_serialGroupPush(serial)) return false;
 			{
-				if (!zt_serialRead(serial, &oct_tree->nodes_cache[i].center)) return false;
-				if (!zt_serialRead(serial, &oct_tree->nodes_cache[i].size)) return false;
-				if (!zt_serialRead(serial, &oct_tree->nodes_cache[i].objects_count)) return false;
+				if (!zt_serialRead(serial, &octree->nodes_cache[i].center)) return false;
+				if (!zt_serialRead(serial, &octree->nodes_cache[i].size)) return false;
+				if (!zt_serialRead(serial, &octree->nodes_cache[i].objects_count)) return false;
 
-				if (oct_tree->nodes_cache[i].objects_count) {
+				if (octree->nodes_cache[i].objects_count) {
 					i32 start = -1;
 					if (!zt_serialRead(serial, &start)) return false;
-					zt_assertReturnValOnFail(start >= 0 && start < oct_tree->objects_cache_size, false);
+					zt_assertReturnValOnFail(start >= 0 && start < octree->objects_cache_size, false);
 
-					oct_tree->nodes_cache[i].objects = oct_tree->objects_cache + start;
+					octree->nodes_cache[i].objects = octree->objects_cache + start;
 				}
 				else {
-					oct_tree->nodes_cache[i].objects = nullptr;
+					octree->nodes_cache[i].objects = nullptr;
 				}
 
 				zt_fjz(8) {
 					i32 node_idx = -1;
 					if (!zt_serialRead(serial, &node_idx)) return false;
-					zt_assertReturnValOnFail(node_idx >= -1 && node_idx < oct_tree->nodes_cache_size, false);
+					zt_assertReturnValOnFail(node_idx >= -1 && node_idx < octree->nodes_cache_size, false);
 
 					if (node_idx < 0) {
-						oct_tree->nodes_cache[i].nodes[j] = nullptr;
+						octree->nodes_cache[i].nodes[j] = nullptr;
 					}
 					else {
-						oct_tree->nodes_cache[i].nodes[j] = &oct_tree->nodes_cache[node_idx];
+						octree->nodes_cache[i].nodes[j] = &octree->nodes_cache[node_idx];
 					}
 				}
 			}
@@ -17203,9 +17703,9 @@ bool zt_octTreeLoad(ztOctTree *oct_tree, ztSerial *serial)
 
 		i32 root_node_idx = -1;
 		if (!zt_serialRead(serial, &root_node_idx)) return false;
-		zt_assertReturnValOnFail(root_node_idx >= -1 && root_node_idx < oct_tree->nodes_cache_size, false);
+		zt_assertReturnValOnFail(root_node_idx >= -1 && root_node_idx < octree->nodes_cache_size, false);
 
-		oct_tree->root_node = &oct_tree->nodes_cache[root_node_idx];
+		octree->root_node = &octree->nodes_cache[root_node_idx];
 	}
 	if (!zt_serialGroupPop(serial)) return false;
 
@@ -17214,64 +17714,59 @@ bool zt_octTreeLoad(ztOctTree *oct_tree, ztSerial *serial)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestModel)
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestModel)
 {
-	ztOctTreeItemContainedTestModelData *model_data = (ztOctTreeItemContainedTestModelData*)user_data;
+	ztOcTreeItemContainedTestModelData *model_data = (ztOcTreeItemContainedTestModelData*)user_data;
 
 	if (object_idx < 0 || object_idx >= model_data->models_count) {
-		return ztOctTreeItemContainedResult_InvalidIndex;
+		return ztOcTreeItemContainedResult_InvalidIndex;
 	}
 
 	ztVec3 aabb_center, aabb_size;
 	zt_modelGetAABB(model_data->models[object_idx], &aabb_center, &aabb_size);
 
 	if (zt_collisionAABBInAABB(center, size, aabb_center, aabb_size)) {
-		return ztOctTreeItemContainedResult_Inside;
+		return ztOcTreeItemContainedResult_Inside;
 	}
 
-	return ztOctTreeItemContainedResult_Outside;
+	return ztOcTreeItemContainedResult_Outside;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestVertices)
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestVertices)
 {
-	ztOctTreeItemContainedTestVerticesData *test_data = (ztOctTreeItemContainedTestVerticesData*)user_data;
+	ztOcTreeItemContainedTestVerticesData *test_data = (ztOcTreeItemContainedTestVerticesData*)user_data;
 
 	if (object_idx < 0 || object_idx >= test_data->vertices_count) {
-		return ztOctTreeItemContainedResult_InvalidIndex;
+		return ztOcTreeItemContainedResult_InvalidIndex;
 	}
 
 	if (zt_collisionPointInAABB(test_data->vertices[object_idx], center, size)) {
-		return ztOctTreeItemContainedResult_Inside;
+		return ztOcTreeItemContainedResult_Inside;
 	}
 
 	zt_collisionPointInAABB(test_data->vertices[object_idx], center, size);
 
-	return ztOctTreeItemContainedResult_Outside;
+	return ztOcTreeItemContainedResult_Outside;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNC_OCTTREE_ITEM_CONTAINED(zt_octTreeItemContainedTestTriangles)
+ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestTriangles)
 {
-	ztOctTreeItemContainedTestVerticesData *test_data = (ztOctTreeItemContainedTestVerticesData*)user_data;
+	ztOcTreeItemContainedTestTriangles *test_data = (ztOcTreeItemContainedTestTriangles*)user_data;
 
-	zt_assert(test_data->vertices_count % 3 == 0);
-
-	if (object_idx < 0 || object_idx >= test_data->vertices_count / 3) {
-		return ztOctTreeItemContainedResult_InvalidIndex;
+	if (object_idx < 0 || object_idx >= test_data->triangles_count) {
+		return ztOcTreeItemContainedResult_InvalidIndex;
 	}
 
-	if (zt_collisionPointInAABB(test_data->vertices[object_idx], center, size)) {
-		return ztOctTreeItemContainedResult_Inside;
+	if (zt_collisionTriangleInAABB(test_data->triangles[object_idx].points[0], test_data->triangles[object_idx].points[1], test_data->triangles[object_idx].points[2], center, size)) {
+		return ztOcTreeItemContainedResult_Inside;
 	}
 
-	zt_collisionPointInAABB(test_data->vertices[object_idx], center, size);
-
-	return ztOctTreeItemContainedResult_Outside;
+	return ztOcTreeItemContainedResult_Outside;
 }
-
 
 
 // ================================================================================================================================================================================================
@@ -24175,7 +24670,7 @@ void zt_cameraShakePostRenderMultiple(ztCameraShake *camera_shake, int camera_sh
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation)
+ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initial_rotation, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_cameraControllerMakeFPS");
 	ztCameraControllerFPS controller;
@@ -24186,7 +24681,7 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 	controller.speed = 10.f;
 	controller.boosted_speed = 30.f;
 	controller.sneaking_speed = 2.f;
-	controller.lock_y_axis = false;
+	controller.flags = flags;
 
 	if (initial_rotation == ztVec3::zero) {
 		controller.rotation = initial_rotation;
@@ -24222,7 +24717,7 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 
 		controller->rotation.x = zt_clamp(controller->rotation.x + delta_y, -89, 89);
 
-		controller->camera->rotation = controller->lock_y_axis ? ztQuat::identity : ztQuat::makeFromEuler(controller->rotation.x, 0, 0);
+		controller->camera->rotation = zt_bitIsSet(controller->flags, ztCameraControllerFPSFlags_LockYAxis) ? ztQuat::identity : ztQuat::makeFromEuler(controller->rotation.x, 0, 0);
 		controller->camera->rotation *= ztQuat::makeFromEuler(0, controller->rotation.y, 0);
 	}
 
@@ -24247,9 +24742,21 @@ void zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt)
 		cam_moved = true;
 		if (movement_velocity.z != 0) {
 			r32 z_move = -1 * movement_velocity.z * movement_speed * dt;
-			controller->camera->position.x += controller->camera->direction.x * z_move;
-			controller->camera->position.y += controller->camera->direction.y * z_move;
-			controller->camera->position.z += controller->camera->direction.z * z_move;
+
+			if (zt_bitIsSet(controller->flags, ztCameraControllerFPSFlags_MoveYDirection)) {
+				controller->camera->position.x += controller->camera->direction.x * z_move;
+				controller->camera->position.y += controller->camera->direction.y * z_move;
+				controller->camera->position.z += controller->camera->direction.z * z_move;
+			}
+			else {
+				ztVec3 cam_dir = controller->camera->direction;
+				cam_dir.y = 0;
+				cam_dir.normalize();
+
+				controller->camera->position.x += cam_dir.x * z_move;
+				controller->camera->position.y += cam_dir.y * z_move;
+				controller->camera->position.z += cam_dir.z * z_move;
+			}
 		}
 		if (movement_velocity.x != 0) {
 			ztVec3 side = zt_vec3(0, 1, 0).cross(controller->camera->direction);
@@ -29178,6 +29685,30 @@ bool zt_collisionPointInSphere(const ztVec3 &point, const ztVec3 &sphere_pos, r3
 
 // ================================================================================================================================================================================================
 
+bool zt_collisionPointInTriangle(const ztVec3 &point, const ztVec3 &t0, const ztVec3 &t1, const ztVec3 &t2)
+{
+	ztVec3 a = t0 - point;
+	ztVec3 b = t1 - point;
+	ztVec3 c = t2 - point;
+
+	ztVec3 u = b.cross(c);
+	ztVec3 v = c.cross(a);
+
+	if (u.dot(v) < 0.f) {
+		return false;
+	}
+
+	ztVec3 w = a.cross(b);
+
+	if (u.dot(w) < 0.f) {
+		return false;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
@@ -29268,7 +29799,7 @@ bool zt_collisionLineInTriangle(const ztVec3 &line_beg, const ztVec3 &line_end, 
 		ip.z *= ood;
 		ip.x = 1.f - ip.y - ip.z;
 
-		if (intersection_point) *intersection_point = ip;
+		if (intersection_point) *intersection_point = (ip.x * p1) + (ip.y * p2) + (ip.z * p3);
 		if (intersection_time) *intersection_time = time;
 	}
 
@@ -29808,7 +30339,7 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec
 		}
 
 		ztVec3 line_intersects[2];
-		if (zt_collisionLineSegmentInOBB(line_0, line_1, obb_center_1, obb_extents_1, obb_rot_1, line_intersects)) {
+		if (zt_collisionLineSegmentInOBB(line_0, line_1, obb_center_1, obb_extents_1, obb_rot_1, nullptr, line_intersects)) {
 			zt_fjz(2) {
 				if (ct_idx < contacts_size && (j != 1 || !line_intersects[1].equalsClose(line_1))) {
 					contacts[ct_idx++] = line_intersects[j];
@@ -29823,13 +30354,15 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, ztVec3 intersections[2])
+bool zt_collisionLineSegmentInOBB(const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot, r32 *intersection_time, ztVec3 intersections[2])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInOBB");
 	ztQuat to_local = obb_rot.getInverse();
-	if (zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, nullptr, intersections)) {
-		intersections[0] = obb_rot.rotatePosition(intersections[0]) + obb_center;
-		intersections[1] = obb_rot.rotatePosition(intersections[1]) + obb_center;
+	if (zt_collisionLineSegmentInAABB(to_local.rotatePosition(line_0 - obb_center), to_local.rotatePosition(line_1 - obb_center), ztVec3::zero, obb_extents, intersection_time, intersections)) {
+		if (intersections) {
+			intersections[0] = obb_rot.rotatePosition(intersections[0]) + obb_center;
+			intersections[1] = obb_rot.rotatePosition(intersections[1]) + obb_center;
+		}
 		return true;
 	}
 
@@ -30154,6 +30687,21 @@ bool zt_collisionSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const
 
 // ================================================================================================================================================================================================
 
+bool zt_collisionSphereInOBB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat& obb_rot)
+{
+	ztVec3 p = zt_closestPointOBBPoint(obb_center, obb_extents, obb_rot, sphere_pos);
+
+	ztVec3 v = p - sphere_pos;
+
+	if (v.dot(v) <= sphere_radius * sphere_radius) {
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_collisionRaySphere(const ztVec3 &ray_pos, const ztVec3 &ray_dir, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionRaySphere");
@@ -30270,6 +30818,50 @@ bool zt_collisionLineSegmentCapsule(const ztVec3 &line_beg, const ztVec3 &line_e
 	if (intersection_time) *intersection_time = t;
 
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_closestPointLineSegmentPoint(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &point)
+{
+	ztVec3 diff = line_end - line_beg;
+
+	r32 t = (point - line_beg).dot(diff) / diff.dot(diff);
+
+	if (t < .0f) t = 0;
+	if (t > 1.f) t = 1.f;
+
+	return line_beg + diff * t;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_closestPointAABBPoint(const ztVec3 &aabb_center, const ztVec3 &aabb_size, const ztVec3& point)
+{
+	ztVec3 out;
+
+	zt_fiz(3) {
+		r32 v = point.values[i];
+		     if (v < aabb_center.values[i] - aabb_size.values[i] * .5f) out.values[i] = aabb_center.values[i] - aabb_size.values[i] * .5f;
+		else if (v > aabb_center.values[i] + aabb_size.values[i] * .5f) out.values[i] = aabb_center.values[i] + aabb_size.values[i] * .5f;
+		else out.values[i] = v;
+	}
+
+	return out;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size, const ztQuat &obb_rot, const ztVec3& point)
+{
+	ztQuat to_local = obb_rot.getInverse();
+
+	ztVec3 p = to_local.rotatePosition(point - obb_center);
+
+	ztVec3 cp = zt_closestPointAABBPoint(ztVec3::zero, obb_size, p);
+	obb_rot.rotatePosition(&cp);
+
+	return cp + obb_center;
 }
 
 // ================================================================================================================================================================================================
