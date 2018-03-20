@@ -494,8 +494,10 @@ struct ztVec2
 	bool operator==(const ztVec2& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y); }
 	bool operator!=(const ztVec2& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y); }
 
+	bool equalsClose(const ztVec2& v) const { return zt_real32Close(x, v.x) && zt_real32Close(y, v.y); }
+
 	r32 length() const;
-	r32 dot(const ztVec2& v) const;
+	r32 dot(const ztVec2& v) const;  // 1 parallel, same direction; 0 angle between 90 degrees; -1 parallel, opposite direction
 	r32 cross(const ztVec2& v) const;
 	r32 angle(const ztVec2& v) const;
 	r32 distance(const ztVec2& v) const;
@@ -574,7 +576,7 @@ struct ztVec3
 	bool equalsClose(const ztVec3& v) const { return zt_real32Close(x, v.x) && zt_real32Close(y, v.y) && zt_real32Close(z, v.z); }
 
 	r32 length() const;
-	r32 dot(const ztVec3& v) const;
+	r32 dot(const ztVec3& v) const;  // 1 parallel, same direction; 0 angle between 90 degrees; -1 parallel, opposite direction
 	r32 angle(const ztVec3& v) const;
 	r32 distance(const ztVec3& v) const;
 	r32 distanceForCompare(const ztVec3& v) const;
@@ -2600,9 +2602,9 @@ ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
 ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 {
 	if (appr >= var)
-		return zt_min(var + by, appr);
+		return zt_min(var + zt_abs(by), appr);
 
-	return zt_max(var - by, appr);
+	return zt_max(var - zt_abs(by), appr);
 }
 
 // ================================================================================================================================================================================================
