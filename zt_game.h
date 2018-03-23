@@ -567,6 +567,7 @@ enum ztInputKeyFlags_Enum
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztInputKeys
 {
 	ztInputKeys_Enum code;
@@ -590,6 +591,7 @@ struct ztInputKeys
 		return justPressed() || justRepeated();
 	}
 };
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -633,6 +635,7 @@ enum ztInputMouseFlags_Enum
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztInputMouse
 {
 	i32 screen_x;
@@ -672,6 +675,7 @@ struct ztInputMouse
 	bool middleJustPressed()  { return justPressed(2); }
 	bool middleJustReleased() { return justReleased(2); }
 };
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -720,6 +724,7 @@ enum ztInputControllerButton_Enum
 
 // ================================================================================================================================================================================================
 
+#pragma pack(push, 1)
 struct ztInputController
 {
 	bool connected;
@@ -792,8 +797,8 @@ struct ztInputController
 	bool pressed(int button)      { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_Pressed); }
 	bool justPressed(int button)  { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_JustPressed); }
 	bool justReleased(int button) { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputControllerFlags_JustReleased); }
-
 };
+#pragma pack(pop)
 
 // ================================================================================================================================================================================================
 
@@ -10955,7 +10960,9 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 #if defined(ZT_OPENGL)
 		if (render_target_id != ztInvalidID) {
 			zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
-			zt_rendererClear(clear);
+			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+				zt_rendererClear(clear);
+			}
 		}
 
 		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
