@@ -24355,7 +24355,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 	r32 x = (sx - (c_w / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit / (camera->zoom * spct_x);
 	r32 y = (sy - (c_h / 2.0f)) / zt_game->win_game_settings[0].pixels_per_unit * -1 / (camera->zoom * spct_y);
 
-	return zt_vec2(x - camera->position.x, y - camera->position.y);
+	return zt_vec2(x + camera->position.x, y + camera->position.y);
 }
 
 // ================================================================================================================================================================================================
