@@ -1356,6 +1356,7 @@ void    zt_logRemoveCallback(zt_logCallback_Func callback);
 void zt_memSet               (void *mem, i32 mem_len, byte value);
 void zt_memCpy               (void *dst, i32 dst_len, const void *src, i32 src_len);
 int  zt_memCmp               (const void *one, const void *two, i32 size);
+i32  zt_memHash(const void *mem, i32 mem_len);
 
 
 // ================================================================================================================================================================================================
@@ -2602,7 +2603,7 @@ ztInline r32 zt_normalize(r32 val, r32 min, r32 max)
 ztInline r32 zt_approach(r32 var, r32 appr, r32 by)
 {
 	if (appr >= var)
-		return zt_min(var + zt_abs(by), appr);
+		return zt_min(var + zt_abs(by), appr); 
 
 	return zt_max(var - zt_abs(by), appr);
 }
@@ -4539,6 +4540,23 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 	return 0;
 }
 
+// ================================================================================================================================================================================================
+
+i32 zt_memHash(const void *mem, i32 mem_len)
+{
+	const int mod_adler = 65521;
+
+	i16 sum1 = 1, sum2 = 0;
+
+	byte* chunk = (byte*)mem;
+	zt_fiz(mem_len) {
+		sum1 = (sum1 + chunk[i]) % mod_adler;
+		sum2 = (sum2 + sum1) % mod_adler;
+	}
+
+	i32 checksum_calc = (sum2 << 16) | sum1;
+	return checksum_calc;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
