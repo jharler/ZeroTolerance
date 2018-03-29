@@ -29962,9 +29962,6 @@ bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_exte
 bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInAABB");
-	zt_returnValOnNull(collision_normal, false);
-	zt_returnValOnNull(collision_depth, false);
-	zt_returnValOnNull(collision_face, false);
 
 	static ztVec3 faces[6] = {
 		zt_vec3(-1,  0,  0),
@@ -29990,15 +29987,18 @@ bool zt_collisionAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aabb_exte
 		(aabb_max_1.z - aabb_min_2.z)
 	};
 
+	r32 collision_depth_local = ztReal32Max;
+
 	zt_fiz(6) {
 		if (distances[i] < 0.0f) {
 			return false;
 		}
 
-		if ((i == 0) || (distances[i] < *collision_depth)) {
-			*collision_face   = i;
-			*collision_normal = faces[i];
-			*collision_depth  = distances[i];
+		if ((i == 0) || (distances[i] < collision_depth_local)) {
+			if (collision_face) *collision_face = i;
+			if (collision_normal) *collision_normal = faces[i];
+			if (collision_depth) *collision_depth = distances[i];
+			collision_depth_local = distances[i];
 		}
 	}
 
