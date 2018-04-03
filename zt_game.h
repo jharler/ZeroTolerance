@@ -17187,7 +17187,7 @@ bool zt_quadTreeSave(ztQuadTree *quadtree, ztSerial *serial)
 				if (!zt_serialWrite(serial, quadtree->nodes_cache[i].objects_count)) return false;
 
 				if (quadtree->nodes_cache[i].objects_count > 0) {
-					i32 start = quadtree->nodes_cache[i].objects - quadtree->objects_cache;
+					i32 start = (i32)(quadtree->nodes_cache[i].objects - quadtree->objects_cache);
 					if (!zt_serialWrite(serial, start)) return false;
 				}
 
@@ -17609,7 +17609,7 @@ bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial)
 				if (!zt_serialWrite(serial, octree->nodes_cache[i].objects_count)) return false;
 
 				if (octree->nodes_cache[i].objects_count > 0) {
-					i32 start = octree->nodes_cache[i].objects - octree->objects_cache;
+					i32 start = (i32)(octree->nodes_cache[i].objects - octree->objects_cache);
 					if (!zt_serialWrite(serial, start)) return false;
 				}
 
@@ -30093,56 +30093,56 @@ bool zt_collisionTriangleInAABB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3
 
 	ztVec3 a01 = zt_vec3(0, -f1.z, f1.y);
 	p = zt_vec3(t0.dot(a01), t1.dot(a01), t2.dot(a01));
-	r = aabb_size.y * zt_abs(f1.z) + aabb_size.z * zt_abs(f1.y);
+	r = ext.y * zt_abs(f1.z) + ext.z * zt_abs(f1.y);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a02 = zt_vec3(0, -f2.z, f2.y);
 	p = zt_vec3(t0.dot(a02), t1.dot(a02), t2.dot(a02));
-	r = aabb_size.y * zt_abs(f2.z) + aabb_size.z * zt_abs(f2.y);
+	r = ext.y * zt_abs(f2.z) + ext.z * zt_abs(f2.y);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a10 = zt_vec3(f0.z, 0, -f0.x);
 	p = zt_vec3(t0.dot(a10), t1.dot(a10), t2.dot(a10));
-	r = aabb_size.x * zt_abs(f0.z) + aabb_size.z * zt_abs(f0.x);
+	r = ext.x * zt_abs(f0.z) + ext.z * zt_abs(f0.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a11 = zt_vec3(f1.z, 0, -f1.x);
 	p = zt_vec3(t0.dot(a11), t1.dot(a11), t2.dot(a11));
-	r = aabb_size.x * zt_abs(f1.z) + aabb_size.z * zt_abs(f1.x);
+	r = ext.x * zt_abs(f1.z) + ext.z * zt_abs(f1.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a12 = zt_vec3(f2.z, 0, -f2.x);
 	p = zt_vec3(t0.dot(a12), t1.dot(a12), t2.dot(a12));
-	r = aabb_size.x * zt_abs(f2.z) + aabb_size.z * zt_abs(f2.x);
+	r = ext.x * zt_abs(f2.z) + ext.z * zt_abs(f2.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a20 = zt_vec3(-f0.y, f0.x, 0);
 	p = zt_vec3(t0.dot(a20), t1.dot(a20), t2.dot(a20));
-	r = aabb_size.x * zt_abs(f0.y) + aabb_size.y * zt_abs(f0.x);
+	r = ext.x * zt_abs(f0.y) + ext.y * zt_abs(f0.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a21 = zt_vec3(-f1.y, f1.x, 0);
 	p = zt_vec3(t0.dot(a21), t1.dot(a21), t2.dot(a21));
-	r = aabb_size.x * zt_abs(f1.y) + aabb_size.y * zt_abs(f1.x);
+	r = ext.x * zt_abs(f1.y) + ext.y * zt_abs(f1.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
 
 	ztVec3 a22 = zt_vec3(-f2.y, f2.x, 0);
 	p = zt_vec3(t0.dot(a22), t1.dot(a22), t2.dot(a22));
-	r = aabb_size.x * zt_abs(f2.y) + aabb_size.y * zt_abs(f2.x);
+	r = ext.x * zt_abs(f2.y) + ext.y * zt_abs(f2.x);
 	if (zt_max(-zt_max(p.x, zt_max(p.y, p.z)), zt_min(p.x, zt_min(p.y, p.z))) > r) {
 		return false;
 	}
