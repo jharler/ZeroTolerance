@@ -16897,7 +16897,7 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 {
 	struct local
 	{
-		static void count(ztVec2 center, ztVec2 size, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, i32 *node_count, i32 *object_count, zt_QuadTreeItemContained_Func *callback, void *user_data)
+		static void count(ztVec2 center, ztVec2 size, i32 max_objects_per_node, i32 max_node_levels, i32 current_node_level, i32 *node_count, i32 *max_node_count, i32 *object_count, zt_QuadTreeItemContained_Func *callback, void *user_data)
 		{
 			i32 objects_in_this_node = 0;
 			i32 object_idx = 0;
@@ -16929,9 +16929,11 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 					zt_vec2(center.x + nsize.x * .5f, center.y + nsize.y * .5f),
 				};
 
+				*max_node_count = zt_max(*max_node_count, *node_count + 4);
+
 				zt_fize(centers) {
 					i32 sub_object_count = 0;
-					count(centers[i], nsize, max_objects_per_node, max_node_levels, current_node_level + 1, node_count, &sub_object_count, callback, user_data);
+					count(centers[i], nsize, max_objects_per_node, max_node_levels, current_node_level + 1, node_count, max_node_count, &sub_object_count, callback, user_data);
 
 					if (sub_object_count > 0) {
 						*object_count += sub_object_count;
@@ -16960,7 +16962,7 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 				}
 			}
 
-			if (objects_in_this_node < max_objects_per_node || current_node_level == max_node_levels) { // final node
+			if (objects_in_this_node <= max_objects_per_node || current_node_level == max_node_levels) { // final node
 				if (objects_in_this_node == 0) {
 					return;
 				}
@@ -17024,12 +17026,12 @@ void zt_quadTreeMake(ztQuadTree *quadtree, i32 max_objects_per_node, i32 max_nod
 
 	zt_memSet(quadtree, zt_sizeof(ztQuadTree), 0);
 
-	i32 node_count = 1, object_count = 0;
+	i32 node_count = 1, max_node_count = 1, object_count = 0;
 	{
 		ztBlockProfiler profile("QuadTree count");
-		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &object_count, callback, user_data);
-		node_count += zt_max(32, zt_convertToi32Floor(node_count * .25f));
-		object_count += zt_max(32, zt_convertToi32Floor(object_count * .25f));
+		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &max_node_count, &object_count, callback, user_data);
+		node_count += zt_max(32, zt_convertToi32Floor(node_count * .5f));
+		object_count += zt_max(32, zt_convertToi32Floor(object_count * .5f));
 	}
 
 	quadtree->nodes_cache = zt_mallocStructArray(ztQuadTree::Node, node_count);
@@ -17378,7 +17380,7 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 				}
 			}
 
-			if (objects_in_this_node < max_objects_per_node || current_node_level == max_node_levels) { // final node
+			if (objects_in_this_node <= max_objects_per_node || current_node_level == max_node_levels) { // final node
 				if (objects_in_this_node == 0) {
 					return;
 				}
