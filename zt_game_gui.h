@@ -708,7 +708,7 @@ void             zt_guiItemSetSize                     (ztGuiItem *item, const z
 void             zt_guiItemSetMinSize                  (ztGuiItem *item, const ztVec2& size);
 void             zt_guiItemAutoSize                    (ztGuiItem *item);
 void             zt_guiItemSetPosition                 (ztGuiItem *item, const ztVec2& pos);
-void             zt_guiItemSetPosition                 (ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset = ztVec2::zero);
+void             zt_guiItemSetPosition                 (ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset = ztVec2::zero, bool one_time_only = false);
 
 void             zt_guiItemSetName                     (ztGuiItem *item, const char *name);
 void             zt_guiItemSetLabel                    (ztGuiItem *item, const char *label);
@@ -837,6 +837,7 @@ r32              zt_guiScrollContainerGetScroll        (ztGuiItem *scroll, ztGui
 
 int              zt_guiTextEditGetValue                (ztGuiItem *text, char *buffer, int buffer_len);
 void             zt_guiTextEditSetValue                (ztGuiItem *text, const char *value);
+void             zt_guiTextEditSetLiveBuffer           (ztGuiItem *text, char *buffer, i32 buffer_len);
 void             zt_guiTextEditSetSelection            (ztGuiItem *text, int sel_beg, int sel_end);
 void             zt_guiTextEditGetSelection            (ztGuiItem *text, int *sel_beg, int *sel_end);
 void             zt_guiTextEditSelectAll               (ztGuiItem *text);
@@ -991,7 +992,7 @@ struct ztGuiDialogMessageOption
 	void *user_data;
 };
 
-#define          ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(name) void name(ztGuiDialogMessageOption *option, void *user_data);
+#define          ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(name) void name(ztGuiDialogMessageOption *option, void *user_data)
 typedef          ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(zt_guiDialogMessageClosed_Func);
 
 void             zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogMessageOption *options, int options_count, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
@@ -1360,6 +1361,9 @@ struct ztGuiItem
 			r32                     content_size[2];
 			r32                     text_pos[2];
 			r32                     select_pos[4];
+
+			char                   *live_text_buffer;
+			i32                     live_text_buffer_size;
 
 			ZT_FUNCTION_POINTER_VAR(on_key, zt_guiTextEditKey_Func);
 			void                   *on_key_user_data;
@@ -5994,6 +5998,11 @@ ztInternal void _zt_guiTextEditCacheText(ztGuiItem *item)
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
 	zt_drawListAddText2D(item->draw_list, zt_guiThemeGetIValue(theme, ztGuiThemeValue_i32_TextEditFontID, item), item->textedit.text_buffer, ztVec2::zero, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top);
+
+	if (item->textedit.live_text_buffer && item->textedit.live_text_buffer_size > 0) {
+		item->textedit.live_text_buffer[0] = 0;
+		zt_strCat(item->textedit.live_text_buffer, item->textedit.live_text_buffer_size, item->textedit.text_buffer);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -6554,19 +6563,21 @@ ztGuiItem *zt_guiMakeTextEdit(ztGuiItem *parent, const char *value, i32 flags, i
 
 	zt_guiItemSetSize(item, zt_vec2(zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_TextEditDefaultW, item), zt_guiThemeGetRValue(theme, ztGuiThemeValue_r32_TextEditDefaultH, item)));
 
-	item->textedit.cursor_pos      = 0;
-	item->textedit.cursor_xy[0]    = item->textedit.cursor_xy[1] = 0;
-	item->textedit.cursor_vis      = false;
-	item->textedit.text_buffer     = zt_stringMake(&item->gm->string_pool, buffer_size);
-	item->textedit.text_buffer[0]  = 0;
-	item->textedit.select_beg      = -1;
-	item->textedit.select_end      = -1;
-	item->textedit.dragging        = false;
-	item->textedit.scroll_amt_horz = 0;
-	item->textedit.scroll_amt_vert = 0;
-	item->textedit.content_size[0] = 0;
-	item->textedit.content_size[1] = 0;
-	item->textedit.on_key          = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+	item->textedit.cursor_pos            = 0;
+	item->textedit.cursor_xy[0]          = item->textedit.cursor_xy[1] = 0;
+	item->textedit.cursor_vis            = false;
+	item->textedit.text_buffer           = zt_stringMake(&item->gm->string_pool, buffer_size);
+	item->textedit.text_buffer[0]        = 0;
+	item->textedit.live_text_buffer      = nullptr;
+	item->textedit.live_text_buffer_size = 0;
+	item->textedit.select_beg            = -1;
+	item->textedit.select_end            = -1;
+	item->textedit.dragging              = false;
+	item->textedit.scroll_amt_horz       = 0;
+	item->textedit.scroll_amt_vert       = 0;
+	item->textedit.content_size[0]       = 0;
+	item->textedit.content_size[1]       = 0;
+	item->textedit.on_key                = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 
 	if (zt_bitIsSet(flags, ztGuiTextEditBehaviorFlags_MultiLine)) {
 		item->textedit.scrollbar_horz = zt_guiMakeScrollbar(item, ztGuiItemOrient_Horz, &item->textedit.scroll_amt_horz);
@@ -6624,6 +6635,18 @@ void zt_guiTextEditSetValue(ztGuiItem *text, const char *value)
 	_zt_guiTextEditRecalcCursor(text);
 	_zt_guiTextEditAdjustViewForCursor(text);
 	_zt_guiTextEditCacheText(text);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiTextEditSetLiveBuffer(ztGuiItem *text, char *buffer, i32 buffer_size)
+{
+	ZT_PROFILE_GUI("zt_guiTextEditSetLiveBuffer");
+
+	zt_assertReturnOnFail(text->type == ztGuiItemType_TextEdit);
+
+	text->textedit.live_text_buffer      = buffer;
+	text->textedit.live_text_buffer_size = buffer_size;
 }
 
 // ================================================================================================================================================================================================
@@ -9486,7 +9509,7 @@ void zt_guiListBoxScrollToItem(ztGuiItem *listbox, int item_idx)
 				}
 			}
 		}
-		else {
+		else if(item_idx >= first_visible) {
 			while (zt_guiScrollbarGetValue(listbox->listbox.scrollbar_vert) < 1) {
 				zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert);
 				_zt_guiListBoxAdjustItemsPositions(listbox);
@@ -9499,7 +9522,8 @@ void zt_guiListBoxScrollToItem(ztGuiItem *listbox, int item_idx)
 	}
 
 	// check for partial visibility at the bottom
-	while (listbox->listbox.items[item_idx]->pos.y - (listbox->listbox.items[item_idx]->size.y / 2.f) < (listbox->listbox.container->pos.y - (listbox->listbox.container->size.y / 2.f)) && listbox->listbox.scrollbar_vert->slider.value < 1) {
+	int max_iterations = 100;
+	while (max_iterations-- > 0 && listbox->listbox.items[item_idx]->pos.y - (listbox->listbox.items[item_idx]->size.y / 2.f) < (listbox->listbox.container->pos.y - (listbox->listbox.container->size.y / 2.f)) && listbox->listbox.scrollbar_vert->slider.value < 1) {
 		if (!zt_guiScrollbarStepPos(listbox->listbox.scrollbar_vert)) {
 			break;
 		}
@@ -15788,16 +15812,28 @@ void zt_guiItemSetPosition(ztGuiItem *item, const ztVec2& pos)
 
 // ================================================================================================================================================================================================
 
-void zt_guiItemSetPosition(ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset)
+void zt_guiItemSetPosition(ztGuiItem *item, i32 align_flags, i32 anchor_flags, ztVec2 offset, bool one_time_only)
 {
 	ZT_PROFILE_GUI("zt_guiItemSetPosition");
 
 	zt_returnOnNull(item);
+
+	i32 prev_align_flags = item->pos_align_flags;
+	i32 prev_anchor_flags = item->pos_anchor_flags;
+	ztVec2 prev_offset = item->pos_offset;
+
 	item->pos_align_flags = align_flags;
 	item->pos_anchor_flags = anchor_flags;
 	item->pos_offset = offset;
 
 	_zt_guiItemReposition(item->gm, item);
+
+	if (one_time_only) {
+		item->pos_align_flags = prev_align_flags;
+		item->pos_anchor_flags = prev_anchor_flags;
+		item->pos_offset = prev_offset;
+	}
+
 	item->state_flags |= zt_bit(ztGuiItemStates_Dirty);
 }
 
