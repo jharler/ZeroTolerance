@@ -11527,18 +11527,24 @@ bool zt_serialRead(ztSerial *serial, char *value, i32 value_len, i32 *read_len)
 	if (_zt_readData(serial, &stored_len, zt_sizeof(stored_len)) != zt_sizeof(stored_len))
 		return false;
 	
-	int to_read = zt_min((int)stored_len, value_len - 1);
-	int leftover = stored_len - to_read;
+	if (stored_len == 0) {
+		value[0] = 0;
+		if (read_len) *read_len = 0;
+	}
+	else {
+		int to_read = zt_min((int)stored_len, value_len - 1);
+		int leftover = stored_len - to_read;
 
-	if (_zt_readData(serial, value, to_read) != to_read)
-		return false;
-
-	value[to_read] = 0;
-
-	byte waste;
-	for (int i = 0; i < leftover; ++i) {
-		if (!_zt_readByte(serial, &waste))
+		if (_zt_readData(serial, value, to_read) != to_read)
 			return false;
+
+		value[to_read] = 0;
+
+		byte waste;
+		for (int i = 0; i < leftover; ++i) {
+			if (!_zt_readByte(serial, &waste))
+				return false;
+		}
 	}
 
 	byte end_entry = 0;
