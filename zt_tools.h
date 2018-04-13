@@ -1434,6 +1434,8 @@ bool           zt_memArenaValidate(ztMemoryArena *arena);
 bool           zt_memPushGlobalArena(ztMemoryArena *arena); // returns false if the stack is full, so check this
 void           zt_memPopGlobalArena();
 ztMemoryArena *zt_memGetGlobalArena();
+void           zt_memSetTempArena(ztMemoryArena *arena, bool free_current);
+ztMemoryArena *zt_memGetTempArena();
 
 //             by default, malloc and free are used when there are no overrides set
 void           zt_memSetDefaultMallocFree(void *(*malloc_func)(size_t), void(*free_func)(void*));
@@ -4043,6 +4045,7 @@ struct ztGlobals
 	void                 (*mem_free)(void*)    = _zt_call_free;
 
 	ztMemoryArena         *mem_arena_stack = nullptr;
+	ztMemoryArena         *mem_arena_temp = nullptr;
 
 #	if defined(ZT_DLL) || defined(ZT_LOADER)
 	void *(*functionPointer)(ztFunctionID) = nullptr;
@@ -5159,6 +5162,33 @@ ztMemoryArena* zt_memGetGlobalArena()
 		return nullptr;
 	}
 	return zt->mem_global_arena_stack[zt->mem_global_arena_stack_count - 1];
+}
+
+// ================================================================================================================================================================================================
+
+void zt_memSetTempArena(ztMemoryArena *arena, bool free_current)
+{
+	if (free_current && zt->mem_arena_temp) {
+		zt_memFreeArena(zt->mem_arena_temp);
+	}
+
+	zt->mem_arena_temp = arena;
+}
+
+// ================================================================================================================================================================================================
+
+#ifndef ZT_MEMORY_TEMP_ARENA_SIZE
+#define ZT_MEMORY_TEMP_ARENA_SIZE zt_megabytes(2)
+#endif
+
+// ================================================================================================================================================================================================
+
+ztMemoryArena *zt_memGetTempArena()
+{
+	if (zt->mem_arena_temp == nullptr) {
+		zt->mem_arena_temp = zt_memMakeArena(ZT_MEMORY_TEMP_ARENA_SIZE, nullptr, 0);
+	}
+	return zt->mem_arena_temp;
 }
 
 // ================================================================================================================================================================================================
