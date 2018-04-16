@@ -8541,16 +8541,7 @@ bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool 
 		zt_fileWrite(&replay_data->file, diff_size);
 		if (diff_size > 0) {
 			zt_fileWrite(&replay_data->file, replay_data->working_memory, diff_size);
-			ztInputController replay_input_controller;
-			zt_memCpy(&replay_input_controller, zt_sizeof(ztInputController), &replay_data->input_controller, zt_sizeof(ztInputController));
-
-			zt_memoryDeltaApply(&replay_input_controller, zt_sizeof(ztInputController), replay_data->working_memory, diff_size);
-			if (zt_memCmp(&replay_input_controller, input_controller, zt_sizeof(ztInputController)) != 0) {
-				diff_size = zt_memoryDeltaGet(input_controller, &replay_data->input_controller, zt_sizeof(ztInputController), replay_data->working_memory, replay_data->working_memory_size);
-				zt_memCpy(&replay_input_controller, zt_sizeof(ztInputController), &replay_data->input_controller, zt_sizeof(ztInputController));
-				zt_memoryDeltaApply(&replay_input_controller, zt_sizeof(ztInputController), replay_data->working_memory, diff_size);
-			}
-			zt_memCpy(&replay_data->input_controller, zt_sizeof(ztInputController), &replay_input_controller, zt_sizeof(ztInputController));
+			zt_memoryDeltaApply(&replay_data->input_controller, zt_sizeof(ztInputController), replay_data->working_memory, diff_size);
 			zt_assert(zt_memCmp(&replay_data->input_controller, input_controller, zt_sizeof(ztInputController)) == 0);
 		}
 

@@ -13363,7 +13363,7 @@ i32 zt_memoryDeltaGet(void *chunk1, void *chunk2, int chunk_size, void *data, in
 				diff_bytes += 1;
 			}
 
-			if (byte_idx < chunk_size) {
+			if (byte_idx <= chunk_size) {
 				i32 *p_diff_start = zt_mallocStructChunk(i32, &memChunk);
 				if (p_diff_start == nullptr) {
 					return -1;
