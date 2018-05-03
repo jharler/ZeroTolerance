@@ -105,6 +105,8 @@ struct ztPlatformerMovementPath
 	r32                               times    [ZT_PLATFORMER_MOVEMENT_PATH_MAX_POINTS];
 
 	r32                               current_time;
+
+	char                              name[64];
 };
 
 // ================================================================================================================================================================================================
@@ -121,7 +123,9 @@ struct ztPlatformerCollider
 	ztPlatformerColliderType_Enum type;
 	char                          name[64];
 	i32                           movement_path;
+	ztGuid                        movement_path_guid;
 	r32                           movement_offset;
+	r32                           movement_speed;
 	ztVec2                        offset_last, offset_this;
 	ztVec2                        points[2];
 	i32                           flags;
@@ -282,7 +286,7 @@ bool                  zt_platformerLevelLoad                     (ztPlatformerLe
 bool                  zt_platformerLevelLoad                     (ztPlatformerLevel *level, ztSpriteManager *sprite_manager, void *data, i32 data_size);
 
 
-i32                   zt_platformerAddMovementPath               (ztPlatformerLevel *level, ztPlatformerMovementPath **movement_path);
+i32                   zt_platformerAddMovementPath               (ztPlatformerLevel *level, ztPlatformerMovementPath **movement_path, ztGuid guid);
 
 i32                   zt_platformerAppendCollider                (ztPlatformerLevel *level, ztVec2 p1, ztVec2 p2); // collider will have a normal where p1 is left and p2 is right
 i32                   zt_platformerAppendColliderRect            (ztPlatformerLevel *level, ztVec2 center, ztVec2 size);
@@ -299,6 +303,7 @@ i32                   zt_platformerAppendSprite                  (ztPlatformerLe
 
 i32                   zt_platformerGetColliderIndex              (ztPlatformerLevel *level, ztPlatformerCollider *collider);
 ztVec2                zt_platformerGetColliderVelocity           (ztPlatformerCollider *collider);
+void                  zt_platformerGetColliderPositions          (ztPlatformerLevel *level, ztPlatformerCollider *collider, ztVec2 *p0, ztVec2 *p1, ztVec2 *n, bool apply_offset = true);
 
 i32                   zt_platformerGetCollidersThatIntersectAABB (ztPlatformerLevel *level, ztVec2 aabb_center, ztVec2 aabb_size, ztPlatformerCollider **colliders, i32 colliders_size);
 i32                   zt_platformerGetCollidersThatIntersectAABB (ztPlatformerLevel *level, ztVec2 aabb_center, ztVec2 aabb_size, i32 *colliders, i32 colliders_size);
@@ -311,6 +316,7 @@ void                  zt_platformerSetMovementPath               (ztPlatformerLe
 void                  zt_platformerSetColliderName               (ztPlatformerLevel *level, i32 collider_idx, const char *name);
 
 void                  zt_platformerRecalcQuadTree                (ztPlatformerLevel *level);
+void                  zt_platformerResetMovementPaths            (ztPlatformerLevel *level);
 
 void                  zt_platformerUpdateColliders               (ztPlatformerLevel *level, r32 dt);
 void                  zt_platformerUpdatePhysicsObjects          (ztPlatformerLevel *level, ztPlatformerPhysicsObject *objects, i32 objects_size, r32 dt);
@@ -797,6 +803,8 @@ struct ztPlatformerLevelEditor
 	bool       skip_quadtree_recalc;
 
 	i32        selection_layer;
+	r32        selection_movement_offset;
+	r32        selection_movement_speed;
 };
 
 // ================================================================================================================================================================================================
@@ -858,48 +866,10 @@ ztVec2 _zt_platformerSnapPosition(ztPlatformerLevelEditor *editor, ztVec2 pos, b
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_platformerGetPositions(ztPlatformerLevel *level, ztPlatformerCollider *collider, ztVec2 *p0, ztVec2 *p1, ztVec2 *n, bool apply_offset = true)
-{
-	switch (collider->type)
-	{
-		case ztPlatformerColliderType_Surface:
-		case ztPlatformerColliderType_Spring:
-		case ztPlatformerColliderType_Blower:
-		case ztPlatformerColliderType_TriggerLine:
-		case ztPlatformerColliderType_TriggerRect:
-			*p0 = collider->points[0];
-			*p1 = collider->points[1];
-			break;
-
-		case ztPlatformerColliderType_Blades:
-		case ztPlatformerColliderType_Magnet:
-		case ztPlatformerColliderType_TriggerCircle:
-		case ztPlatformerColliderType_Sprite:
-		case ztPlatformerColliderType_Marker:
-			*p0 = *p1 = collider->points[0];
-			break;
-
-		default:
-			zt_assert(false);
-	}
-
-	if (collider->movement_path >= 0 && apply_offset) {
-		*p0 += collider->offset_this;
-		*p1 += collider->offset_this;
-	}
-
-	if (n) {
-		ztVec2 d = zt_vec2(p1->x - p0->x, p1->y - p0->y);
-		*n = zt_vec2(-d.y, d.x).getNormal();
-	}
-}
-
-// ================================================================================================================================================================================================
-
 ztInternal void _zt_platformerBlowerGetPoints(ztPlatformerLevel *level, ztPlatformerCollider *collider, ztVec2 *p0, ztVec2 *p1, ztVec2 *p2, ztVec2 *p3, bool apply_offset = true)
 {
 	ztVec2 n;
-	_zt_platformerGetPositions(level, collider, p1, p2, &n, apply_offset);
+	zt_platformerGetColliderPositions(level, collider, p1, p2, &n, apply_offset);
 
 	*p0 = *p1 + n * collider->blower.strength;
 	*p3 = *p2 + n * collider->blower.strength;
@@ -910,7 +880,7 @@ ztInternal void _zt_platformerBlowerGetPoints(ztPlatformerLevel *level, ztPlatfo
 ztInternal void _zt_platformerRectGetPoints(ztPlatformerLevel *level, ztPlatformerCollider *collider, ztVec2 *p0, ztVec2 *p1, ztVec2 *p2, ztVec2 *p3, bool apply_offset = true)
 {
 	ztVec2 n;
-	_zt_platformerGetPositions(level, collider, p1, p2, &n, apply_offset);
+	zt_platformerGetColliderPositions(level, collider, p1, p2, &n, apply_offset);
 
 	*p0 = *p1 + n * collider->trigger_rect.height;
 	*p3 = *p2 + n * collider->trigger_rect.height;
@@ -1012,7 +982,7 @@ ztInternal void _zt_platformerGetExtents(ztPlatformerLevel *level, ztPlatformerC
 	}
 	else {
 		ztVec2 p0, p1;
-		_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr, false);
+		zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr, false);
 
 		min.x = zt_min(min.x, zt_min(p0.x, p1.x));
 		min.y = zt_min(min.y, zt_min(p0.y, p1.y));
@@ -1024,14 +994,22 @@ ztInternal void _zt_platformerGetExtents(ztPlatformerLevel *level, ztPlatformerC
 		ztPlatformerMovementPath *path = &level->movement_paths[collider->movement_path];
 
 		ztVec2 offset = ztVec2::zero;
+		ztVec2 offset_min = ztVec2::max;
+		ztVec2 offset_max = ztVec2::min;
+
 		zt_fiz(path->points) {
 			offset += path->movements[i];
 
-			min.x = zt_min(min.x, min.x + offset.x);
-			min.y = zt_min(min.y, min.y + offset.y);
-			max.x = zt_max(max.x, max.x + offset.x);
-			max.y = zt_max(max.y, max.y + offset.y);
+			offset_min.x = zt_min(offset_min.x, offset.x);
+			offset_min.y = zt_min(offset_min.y, offset.y);
+			offset_max.x = zt_max(offset_max.x, offset.x);
+			offset_max.y = zt_max(offset_max.y, offset.y);
 		}
+
+		min.x = zt_min(min.x, min.x + offset_min.x);
+		min.y = zt_min(min.y, min.y + offset_min.y);
+		max.x = zt_max(max.x, max.x + offset_max.x);
+		max.y = zt_max(max.y, max.y + offset_max.y);
 	}
 
 	if (apply_min_size) {
@@ -1052,6 +1030,17 @@ ztInternal void _zt_platformerGetExtents(ztPlatformerLevel *level, ztPlatformerC
 }
 
 // ================================================================================================================================================================================================
+
+ztInternal void _zt_platformerLevelClearColliders(ztPlatformerLevel *level)
+{
+	zt_memSet(level->colliders, zt_sizeof(ztPlatformerCollider) * level->colliders_size, 0);
+
+	zt_fiz(level->colliders_size) {
+		level->colliders[i].movement_path = -1;
+		level->colliders[i].movement_speed = 1;
+	}
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -1077,9 +1066,7 @@ void zt_platformerLevelMake(ztPlatformerLevel *level, ztPlatformerLayer *layers,
 	level->colliders_size = max_colliders;
 	level->colliders_used = 0;
 
-	zt_fiz(level->colliders_size) {
-		level->colliders[i].movement_path = -1;
-	}
+	_zt_platformerLevelClearColliders(level);
 
 	level->movement_paths      = zt_mallocStructArray(ztPlatformerMovementPath, max_movement_paths);
 	level->movement_paths_size = max_movement_paths;
@@ -1145,7 +1132,10 @@ void zt_platformerLevelFree(ztPlatformerLevel *level)
 // ================================================================================================================================================================================================
 
 #define ZT_PLATFORMER_LEVEL_IDENTIFIER	"8fbe343991714f0fb1ab09caff68187a"
-#define ZT_PLATFORMER_LEVEL_VERSION     100000
+#define ZT_PLATFORMER_LEVEL_VERSION_V3     100002
+#define ZT_PLATFORMER_LEVEL_VERSION_V2     100001
+#define ZT_PLATFORMER_LEVEL_VERSION_V1     100000
+#define ZT_PLATFORMER_LEVEL_VERSION        ZT_PLATFORMER_LEVEL_VERSION_V3
 
 // ================================================================================================================================================================================================
 
@@ -1179,8 +1169,9 @@ bool zt_platformerLevelSave(ztPlatformerLevel *level, const char *filename)
 
 				if (!zt_serialWrite(&serial, (i32)collider->type)) return false;
 				if (!zt_serialWrite(&serial, collider->name, zt_strLen(collider->name))) return false;
-				if (!zt_serialWrite(&serial, collider->movement_path)) return false;
+				if (!zt_serialWrite(&serial, collider->movement_path_guid)) return false; // V2 - changed from movement path idx to guid
 				if (!zt_serialWrite(&serial, collider->movement_offset)) return false;
+				if (!zt_serialWrite(&serial, collider->movement_speed)) return false;
 				if (!zt_serialWrite(&serial, collider->points[0])) return false;
 				if (!zt_serialWrite(&serial, collider->points[1])) return false;
 				if (!zt_serialWrite(&serial, collider->flags)) return false;
@@ -1233,17 +1224,21 @@ bool zt_platformerLevelSave(ztPlatformerLevel *level, const char *filename)
 			if (!zt_serialGroupPop(&serial)) return false;
 		}
 
+		// Update for ZT_PLATFORMER_LEVEL_VERSION_V2.  Movement paths need to be a per game thing, not per level
+
+#		if 0
 		// movement paths
 		if (!zt_serialWrite(&serial, level->movement_paths_used)) return false;
+
 		zt_fiz(level->movement_paths_used) {
 			if (!zt_serialGroupPush(&serial)) return false;
 			{
 				ztPlatformerMovementPath *movement_path = &level->movement_paths[i];
-
+		
 				if (!zt_serialWrite(&serial, movement_path->guid)) return false;
 				if (!zt_serialWrite(&serial, (i32)movement_path->type)) return false;
 				if (!zt_serialWrite(&serial, movement_path->points)) return false;
-
+		
 				zt_fjz(movement_path->points) {
 					if (!zt_serialGroupPush(&serial)) return false;
 					{
@@ -1255,6 +1250,7 @@ bool zt_platformerLevelSave(ztPlatformerLevel *level, const char *filename)
 			}
 			if (!zt_serialGroupPop(&serial)) return false;
 		}
+#		endif
 	}
 	if (!zt_serialGroupPop(&serial)) return false;
 
@@ -1319,6 +1315,8 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 		return false;
 	}
 
+	_zt_platformerLevelClearColliders(level);
+
 	if (!zt_serialRead(&serial, &level->guid)) return false;
 	i32 str_len = 0;
 	if (!zt_serialRead(&serial, level->name, zt_strLen(level->name), &str_len)) return false;
@@ -1359,8 +1357,31 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 
 				collider->type = (ztPlatformerColliderType_Enum)collider_type;
 				if (!zt_serialRead(&serial, collider->name, zt_elementsOf(collider->name), &str_len)) return false;
-				if (!zt_serialRead(&serial, &collider->movement_path)) return false;
+
+				collider->movement_path = -1;
+				collider->movement_path_guid == zt_guidMake(0, 0, 0, 0);
+				
+				if (serial.version == ZT_PLATFORMER_LEVEL_VERSION_V1) {
+					if (!zt_serialRead(&serial, &collider->movement_path)) return false;
+				}
+				else {
+					if (!zt_serialRead(&serial, &collider->movement_path_guid)) return false;
+
+					zt_fjz(level->movement_paths_used) {
+						if (level->movement_paths[j].guid == collider->movement_path_guid) {
+							collider->movement_path = j;
+							break;
+						}
+					}
+				}
+
 				if (!zt_serialRead(&serial, &collider->movement_offset)) return false;
+
+				collider->movement_speed = 1;
+				if (serial.version >= ZT_PLATFORMER_LEVEL_VERSION_V3) {
+					if (!zt_serialRead(&serial, &collider->movement_speed)) return false;
+				}
+
 				if (!zt_serialRead(&serial, &collider->points[0])) return false;
 				if (!zt_serialRead(&serial, &collider->points[1])) return false;
 				if (!zt_serialRead(&serial, &collider->flags)) return false;
@@ -1420,31 +1441,37 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 		}
 
 		// movement paths
-		if (!zt_serialRead(&serial, &level->movement_paths_used)) return false;
-		zt_assertReturnValOnFail(level->movement_paths_used >= 0 && level->movement_paths_used < level->movement_paths_size, false);
+		if (serial.version == ZT_PLATFORMER_LEVEL_VERSION_V1) {
+			i32 movement_paths_used = 0;
+			if (!zt_serialRead(&serial, &movement_paths_used)) return false;
+			zt_assertReturnValOnFail(movement_paths_used >= 0 && movement_paths_used < level->movement_paths_size, false);
 
-		zt_fiz(level->movement_paths_used) {
-			if (!zt_serialGroupPush(&serial)) return false;
-			{
-				ztPlatformerMovementPath *movement_path = &level->movement_paths[i];
+			zt_fiz(movement_paths_used) {
+				if (!zt_serialGroupPush(&serial)) return false;
+				{
+					// Update for ZT_PLATFORMER_LEVEL_VERSION_V2.  Movement paths need to be a per game thing, not per level
+#					if 0
+					ztPlatformerMovementPath *movement_path = &level->movement_paths[i];
 
-				if (!zt_serialRead(&serial, &movement_path->guid)) return false;
-				i32 movement_path_type = 0;
-				if (!zt_serialRead(&serial, &movement_path_type)) return false;
-				zt_assertReturnValOnFail(movement_path_type >= 0 && movement_path_type < ztPlatformerMovementPathType_MAX, false);
-				movement_path->type = (ztPlatformerMovementPathType_Enum)movement_path_type;
-				if (!zt_serialRead(&serial, &movement_path->points)) return false;
+					if (!zt_serialRead(&serial, &movement_path->guid)) return false;
+					i32 movement_path_type = 0;
+					if (!zt_serialRead(&serial, &movement_path_type)) return false;
+					zt_assertReturnValOnFail(movement_path_type >= 0 && movement_path_type < ztPlatformerMovementPathType_MAX, false);
+					movement_path->type = (ztPlatformerMovementPathType_Enum)movement_path_type;
+					if (!zt_serialRead(&serial, &movement_path->points)) return false;
 
-				zt_fjz(movement_path->points) {
-					if (!zt_serialGroupPush(&serial)) return false;
-					{
-						if (!zt_serialRead(&serial, &movement_path->movements[j])) return false;
-						if (!zt_serialRead(&serial, &movement_path->times[j])) return false;
+					zt_fjz(movement_path->points) {
+						if (!zt_serialGroupPush(&serial)) return false;
+						{
+							if (!zt_serialRead(&serial, &movement_path->movements[j])) return false;
+							if (!zt_serialRead(&serial, &movement_path->times[j])) return false;
+						}
+						if (!zt_serialGroupPop(&serial)) return false;
 					}
-					if (!zt_serialGroupPop(&serial)) return false;
+#					endif
 				}
+				if (!zt_serialGroupPop(&serial)) return false;
 			}
-			if (!zt_serialGroupPop(&serial)) return false;
 		}
 	}
 	if (!zt_serialGroupPop(&serial)) return false;
@@ -1458,7 +1485,7 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 
 // ================================================================================================================================================================================================
 
-i32 zt_platformerAddMovementPath(ztPlatformerLevel *level, ztPlatformerMovementPath **movement_path)
+i32 zt_platformerAddMovementPath(ztPlatformerLevel *level, ztPlatformerMovementPath **movement_path, ztGuid guid)
 {
 	zt_returnValOnNull(level, -1);
 	zt_returnValOnNull(movement_path, -1);
@@ -1472,6 +1499,8 @@ i32 zt_platformerAddMovementPath(ztPlatformerLevel *level, ztPlatformerMovementP
 	if(movement_path) *movement_path = &level->movement_paths[idx];
 
 	zt_memSet(&level->movement_paths[idx], zt_sizeof(ztPlatformerMovementPath), 0);
+
+	level->movement_paths[idx].guid = guid;
 	//level->movement_paths[idx].update_function = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 
 	return (idx);
@@ -1486,6 +1515,7 @@ ztInternal i32 zt_platformerAllocCollider(ztPlatformerLevel *level)
 	i32 idx = level->colliders_used++;
 	zt_memSet(&level->colliders[idx], zt_sizeof(ztPlatformerCollider), 0);
 	level->colliders[idx].movement_path = -1;
+	level->colliders[idx].movement_speed = 1;
 	return idx;
 }
 
@@ -1682,6 +1712,7 @@ void zt_platformerSetMovementPath(ztPlatformerLevel *level, i32 collider_idx, i3
 
 	level->colliders[collider_idx].movement_path = movement_path_idx;
 	level->colliders[collider_idx].movement_offset = time_offset;
+	level->colliders[collider_idx].movement_speed = 1;
 }
 
 // ================================================================================================================================================================================================
@@ -1715,6 +1746,44 @@ ztVec2 zt_platformerGetColliderVelocity(ztPlatformerCollider *collider)
 
 // ================================================================================================================================================================================================
 
+void zt_platformerGetColliderPositions(ztPlatformerLevel *level, ztPlatformerCollider *collider, ztVec2 *p0, ztVec2 *p1, ztVec2 *n, bool apply_offset)
+{
+	switch (collider->type)
+	{
+		case ztPlatformerColliderType_Surface:
+		case ztPlatformerColliderType_Spring:
+		case ztPlatformerColliderType_Blower:
+		case ztPlatformerColliderType_TriggerLine:
+		case ztPlatformerColliderType_TriggerRect:
+			*p0 = collider->points[0];
+			*p1 = collider->points[1];
+			break;
+
+		case ztPlatformerColliderType_Blades:
+		case ztPlatformerColliderType_Magnet:
+		case ztPlatformerColliderType_TriggerCircle:
+		case ztPlatformerColliderType_Sprite:
+		case ztPlatformerColliderType_Marker:
+			*p0 = *p1 = collider->points[0];
+			break;
+
+		default:
+			zt_assert(false);
+	}
+
+	if (collider->movement_path >= 0 && apply_offset) {
+		*p0 += collider->offset_this;
+		*p1 += collider->offset_this;
+	}
+
+	if (n) {
+		ztVec2 d = zt_vec2(p1->x - p0->x, p1->y - p0->y);
+		*n = zt_vec2(-d.y, d.x).getNormal();
+	}
+}
+
+// ================================================================================================================================================================================================
+
 i32 zt_platformerGetCollidersThatIntersectAABB(ztPlatformerLevel *level, ztVec2 aabb_ctr, ztVec2 aabb_size, i32 *colliders, i32 colliders_size)
 {
 	zt_returnValOnNull(level, -1);
@@ -1735,7 +1804,7 @@ i32 zt_platformerGetCollidersThatIntersectAABB(ztPlatformerLevel *level, ztVec2 
 			bool colliding = false;
 
 			ztVec2 p0, p1;
-			_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+			zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 
 			if ((collider->type == ztPlatformerColliderType_Surface || collider->type == ztPlatformerColliderType_Spring)) {
 				if (zt_collisionLineSegmentInAABB(p0, p1, aabb_ctr, aabb_size, nullptr, nullptr)) {
@@ -1832,7 +1901,7 @@ i32 zt_platformerGetCollidersThatIntersectLine(ztPlatformerLevel *level, ztVec2 
 			bool colliding = false;
 
 			ztVec2 p0, p1;
-			_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+			zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 
 			if ((collider->type == ztPlatformerColliderType_Surface || collider->type == ztPlatformerColliderType_Spring)) {
 				if (zt_collisionLineWithLine(line_beg, line_end, p0, p1)) {
@@ -1948,7 +2017,7 @@ ztPlatformerCollider *zt_platformerGetNearestCollider(ztPlatformerLevel *level, 
 
 			if (should_continue) {
 				ztVec2 p0, p1;
-				_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+				zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 
 				ztVec2 nearest = zt_closestPointLineSegmentPoint(p0, p1, point);
 
@@ -2060,6 +2129,17 @@ void zt_platformerRecalcQuadTree(ztPlatformerLevel *level)
 
 // ================================================================================================================================================================================================
 
+void zt_platformerResetMovementPaths(ztPlatformerLevel *level)
+{
+	zt_returnOnNull(level);
+
+	zt_fiz(level->movement_paths_used) {
+		level->movement_paths[i].current_time = 0;
+	}
+}
+
+// ================================================================================================================================================================================================
+
 void zt_platformerDrawBackground(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera)
 {
 	zt_returnOnNull(level);
@@ -2136,7 +2216,7 @@ void zt_platformerDraw(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera
 	zt_fiz(level->colliders_used) {
 		if (level->colliders[i].type == ztPlatformerColliderType_Sprite && (level->colliders[i].sprite.layer == layer || layer < 0) && !zt_bitIsSet(level->colliders[i].flags, ztPlatformerColliderFlags_Disabled)) {
 			ztVec2 p0, p1;
-			_zt_platformerGetPositions(level, &level->colliders[i], &p0, &p1, nullptr);
+			zt_platformerGetColliderPositions(level, &level->colliders[i], &p0, &p1, nullptr);
 
 			ztVec3 scale = ztVec3::one;
 			ztVec3 rot = zt_vec3(0, 0, level->colliders[i].sprite.rotation);
@@ -2235,7 +2315,7 @@ void zt_platformerDrawDebugView(ztPlatformerLevel *level, ztDrawList *draw_list,
 		bool non_sprite_layer = layer < 0 || layer == level->layers_size - 1;
 		zt_fiz(level->colliders_used) {
 			ztVec2 p0, p1, n;
-			_zt_platformerGetPositions(level, &level->colliders[i], &p0, &p1, &n);
+			zt_platformerGetColliderPositions(level, &level->colliders[i], &p0, &p1, &n);
 
 			if ((level->colliders[i].type == ztPlatformerColliderType_Surface || level->colliders[i].type == ztPlatformerColliderType_Spring || level->colliders[i].type == ztPlatformerColliderType_Blower) && non_sprite_layer) {
 				ztColor colors[] = { ztColor_Red, ztColor_Blue, ztColor_Cyan, ztColor_Purple };
@@ -2462,9 +2542,9 @@ void zt_platformerUpdateColliders(ztPlatformerLevel *level, r32 dt)
 			max_time += level->movement_paths[i].times[j];
 		}
 
-		if (level->movement_paths[i].current_time > max_time) {
-			level->movement_paths[i].current_time -= max_time;
-		}
+		//if (level->movement_paths[i].current_time > max_time) {
+		//	level->movement_paths[i].current_time -= max_time;
+		//}
 	}
 
 	zt_fiz(level->colliders_used) {
@@ -2473,8 +2553,7 @@ void zt_platformerUpdateColliders(ztPlatformerLevel *level, r32 dt)
 		if (collider->movement_path >= 0) {
 			ztPlatformerMovementPath *path = &level->movement_paths[collider->movement_path];
 
-
-			r32 movement_time = path->current_time + collider->movement_offset;
+			r32 movement_time = (path->current_time + collider->movement_offset) * collider->movement_speed;
 			{
 				r32 max_movement_time = 0;
 				zt_fiz(path->points) {
@@ -2555,7 +2634,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 							ztVec3 aabb_size = zt_vec3(objects[x].aabb.size, 1);
 
 							ztVec2 p0, p1, collider_normal;
-							_zt_platformerGetPositions(level, objects[x].collider_resting_on, &p0, &p1, &collider_normal);
+							zt_platformerGetColliderPositions(level, objects[x].collider_resting_on, &p0, &p1, &collider_normal);
 
 							if (zt_collisionLineSegmentInAABB(zt_vec3(p0, 0), zt_vec3(p1, 0), aabb_ctr, aabb_size)) {
 								gravity_pull = 0;
@@ -2650,7 +2729,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 									r32 intersect_time = ztReal32Max;
 
 									ztVec2 p0, p1, collider_normal;
-									_zt_platformerGetPositions(level, collider, &p0, &p1, &collider_normal);
+									zt_platformerGetColliderPositions(level, collider, &p0, &p1, &collider_normal);
 
 									r32 dot = collider_normal.dot(objects[x].velocity.getNormal());
 									if (dot > 0.f) {
@@ -2745,7 +2824,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 
 										if (zt_collisionPointInTriangle(zt_vec3(new_pos, 0), zt_vec3(p0, 0), zt_vec3(p1, 0), zt_vec3(p2, 0)) || zt_collisionPointInTriangle(zt_vec3(new_pos, 0), zt_vec3(p0, 0), zt_vec3(p2, 0), zt_vec3(p3, 0))) {
 											ztVec2 collider_normal;
-											_zt_platformerGetPositions(level, collider, &p0, &p1, &collider_normal);
+											zt_platformerGetColliderPositions(level, collider, &p0, &p1, &collider_normal);
 
 											first_intersection_time = 0;
 											first_intersection_point = new_pos;
@@ -2767,7 +2846,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 
 									if (!already_encountered) {
 										ztVec2 p0, p1;
-										_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+										zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 
 										if (zt_collisionSphereInAABB(zt_vec3(p0, 0), collider->magnet.strength, aabb_ctr, aabb_size)) {
 											first_intersection_time = 1;
@@ -2782,7 +2861,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 								else if (collider->type == ztPlatformerColliderType_Blades && stage == Stage_Movers) {
 									r32 intersect_time = 1;
 									ztVec2 p0, p1;
-									_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+									zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 									if (zt_collisionSphereInAABB(zt_vec3(p0, 0), collider->blades.radius, aabb_ctr, aabb_size)) {
 										i32 steps = 10;
 										r32 dt_div = dt / steps;
@@ -2808,7 +2887,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 								}
 								else if (collider->type == ztPlatformerColliderType_TriggerLine && stage == Stage_Triggers) {
 									ztVec2 p0, p1, collider_normal;
-									_zt_platformerGetPositions(level, collider, &p0, &p1, &collider_normal);
+									zt_platformerGetColliderPositions(level, collider, &p0, &p1, &collider_normal);
 
 									r32 dot = collider_normal.dot(objects[x].velocity.getNormal());
 									if (dot > 0.f) {
@@ -2851,7 +2930,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 								else if (collider->type == ztPlatformerColliderType_TriggerCircle && stage == Stage_Triggers) {
 									r32 intersect_time = 1;
 									ztVec2 p0, p1;
-									_zt_platformerGetPositions(level, collider, &p0, &p1, nullptr);
+									zt_platformerGetColliderPositions(level, collider, &p0, &p1, nullptr);
 									if (zt_collisionSphereInAABB(zt_vec3(p0, 0), collider->trigger_circle.radius, aabb_ctr, aabb_size)) {
 										i32 steps = 10;
 										r32 dt_div = dt / steps;
@@ -2888,7 +2967,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 
 									if (zt_collisionTriangleInAABB(zt_vec3(p0, 0), zt_vec3(p1, 0), zt_vec3(p2, 0), aabb_ctr, aabb_size) || zt_collisionTriangleInAABB(zt_vec3(p0, 0), zt_vec3(p2, 0), zt_vec3(p3, 0), aabb_ctr, aabb_size)) {
 										ztVec2 collider_normal;
-										_zt_platformerGetPositions(level, collider, &p0, &p1, &collider_normal);
+										zt_platformerGetColliderPositions(level, collider, &p0, &p1, &collider_normal);
 
 										ztPlatformerLevelCollision *collision = level->collisions_used < level->collisions_size ? &level->collisions[level->collisions_used++] : nullptr;
 
@@ -2967,7 +3046,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 								}
 								else if (first_intersection_collider->type == ztPlatformerColliderType_Spring) {
 									ztVec2 p0, p1, n;
-									_zt_platformerGetPositions(level, first_intersection_collider, &p0, &p1, &n);
+									zt_platformerGetColliderPositions(level, first_intersection_collider, &p0, &p1, &n);
 
 									if (objects[x].velocity_transfer == 0) {
 										objects[x].velocity += first_intersection_normal * first_intersection_collider->spring.strength * 2;
@@ -3031,7 +3110,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 									// make sure the object isn't resting within a collision
 									if (first_intersection_collider->type == ztPlatformerColliderType_Surface) {
 										ztVec2 p0, p1;
-										_zt_platformerGetPositions(level, first_intersection_collider, &p0, &p1, nullptr);
+										zt_platformerGetColliderPositions(level, first_intersection_collider, &p0, &p1, nullptr);
 										while (bailout-- > 0 && zt_collisionLineSegmentInAABB(zt_vec3(p0, 0), zt_vec3(p1, 0), aabb_ctr, aabb_size)) {
 											//new_pos = new_pos + (objects[x].velocity * (dt / 10.f));
 											new_pos = new_pos + (first_intersection_normal * (dt / 10.f));
@@ -3357,7 +3436,7 @@ void zt_platformerEnemySimpleWalkerUpdate(ztPlatformerEnemySimpleWalkerTemplate 
 		// move
 		{
 			ztVec2 p0, p1, n;
-			_zt_platformerGetPositions(level, &level->colliders[enemy_instance->surface_idx], &p0, &p1, &n, true);
+			zt_platformerGetColliderPositions(level, &level->colliders[enemy_instance->surface_idx], &p0, &p1, &n, true);
 
 			ztVec2 diff = (p1 - p0);
 			ztVec2 dir = diff.getNormal();
@@ -3469,7 +3548,7 @@ void zt_platformerCharacterControllerUpdate(ztPlatformerLevel *level, ztPlatform
 					settings->_internal.wall_cling_time = 0;
 				
 					ztVec2 p0, p1, n;
-					_zt_platformerGetPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
+					zt_platformerGetColliderPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
 					ztVec2 closest = zt_closestPointLineSegmentPoint(p0, p1, character->position);
 				
 					settings->_internal.wall_collider_dist = closest.distance(character->position);
@@ -3481,7 +3560,7 @@ void zt_platformerCharacterControllerUpdate(ztPlatformerLevel *level, ztPlatform
 	if (zt_bitIsSet(settings->_internal.state_flags, ztPlatformerCharacterControllerInternalFlags_AgainstWall) && settings->_internal.wall_collider >= 0) {
 		if (settings->_internal.wall_cling_time != 0) {
 			ztVec2 p0, p1, n;
-			_zt_platformerGetPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
+			zt_platformerGetColliderPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
 
 			ztVec2 closest = zt_closestPointLineSegmentPoint(p0, p1, character->position);
 			r32 dist = closest.distance(character->position);
@@ -3611,7 +3690,7 @@ void zt_platformerCharacterControllerUpdate(ztPlatformerLevel *level, ztPlatform
 					settings->_internal.wall_jump_movement_time = settings->wall_jump_movement_pause;
 
 					ztVec2 p0, p1, n;
-					_zt_platformerGetPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
+					zt_platformerGetColliderPositions(level, &level->colliders[settings->_internal.wall_collider], &p0, &p1, &n);
 					if (p0.x > character->position.x) {
 						wall_jump_velocity.x *= -1;
 					}
@@ -3705,7 +3784,7 @@ void zt_platformerCharacterControllerUpdate(ztPlatformerLevel *level, ztPlatform
 
 			if (character->collider_resting_on != nullptr) {
 				ztVec2 p0, p1, n;
-				_zt_platformerGetPositions(level, character->collider_resting_on, &p0, &p1, &n);
+				zt_platformerGetColliderPositions(level, character->collider_resting_on, &p0, &p1, &n);
 
 				r32 cross = n.cross(dir);
 				r32 cross_angle = zt_radiansToDegrees(cross);
@@ -3793,8 +3872,8 @@ void zt_platformerCharacterControllerSetupPreset1(ztPlatformerLevel *level, ztPl
 	settings->side_decel                    = 100;
 	settings->_internal.last_side_direction = 1;
 
-	level->gravity = -12.5f;
-	level->terminal_velocity = -6.75f;
+	//level->gravity = -12.5f;
+	//level->terminal_velocity = -6.75f;
 }
 
 // ================================================================================================================================================================================================
@@ -4578,6 +4657,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddSprite, Z
 	ztPlatformerCollider collider;
 	zt_memSet(&collider, zt_sizeof(ztPlatformerCollider), 0);
 	collider.movement_path = -1;
+	collider.movement_speed = 1;
 
 	collider.type = ztPlatformerColliderType_Sprite;
 	collider.points[0] = editor->last_cam_pos;
@@ -4605,6 +4685,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddMarker, Z
 	ztPlatformerCollider collider;
 	zt_memSet(&collider, zt_sizeof(ztPlatformerCollider), 0);
 	collider.movement_path = -1;
+	collider.movement_speed = 1;
 
 	collider.type = ztPlatformerColliderType_Marker;
 	collider.points[0] = editor->mouse_pos;
@@ -4624,6 +4705,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClick, ZT_FUNC_GU
 	ztPlatformerCollider collider;
 	zt_memSet(&collider, zt_sizeof(ztPlatformerCollider), 0);
 	collider.movement_path = -1;
+	collider.movement_speed = 1;
 
 	bool add_collider = true;
 
@@ -4724,8 +4806,89 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionLayerChange, ZT_F
 
 			copy.sprite.layer = layer;
 
+			if (i != 0) {
+				editor->actions_group -= 1; // make the same action group so undo/redo works appropriately
+			}
+
 			_zt_platformerLevelEditorEditCollider(editor, editor->selection[i], collider, &copy, false);
 		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementPathChanged, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorSelectionMovementPathChanged))
+{
+	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
+
+	i32 layer = selected;
+
+	zt_fiz(editor->selection_count) {
+		ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+
+		ztPlatformerCollider copy;
+		zt_memCpy(&copy, zt_sizeof(ztPlatformerCollider), collider, zt_sizeof(ztPlatformerCollider));
+
+		copy.sprite.layer = layer;
+
+
+		copy.movement_path = selected - 1;
+		if (selected > 0) {
+			copy.movement_path_guid = editor->level->movement_paths[selected - 1].guid;
+		}
+		else {
+			copy.movement_path_guid = zt_guidMake(0, 0, 0, 0);
+		}
+
+		if (i != 0) {
+			editor->actions_group -= 1; // make the same action group so undo/redo works appropriately
+		}
+
+		_zt_platformerLevelEditorEditCollider(editor, editor->selection[i], collider, &copy, false);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementOffsetChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementOffsetChanged))
+{
+	ztPlatformerLevelEditor *level_editor = (ztPlatformerLevelEditor*)user_data;
+
+	zt_fiz(level_editor->selection_count) {
+		ztPlatformerCollider *collider = &level_editor->level->colliders[level_editor->selection[i]];
+
+		ztPlatformerCollider copy;
+		zt_memCpy(&copy, zt_sizeof(ztPlatformerCollider), collider, zt_sizeof(ztPlatformerCollider));
+
+		copy.movement_offset = level_editor->selection_movement_offset;
+
+		if (i != 0) {
+			level_editor->actions_group -= 1; // make the same action group so undo/redo works appropriately
+		}
+
+		_zt_platformerLevelEditorEditCollider(level_editor, level_editor->selection[i], collider, &copy, false);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementSpeedChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementSpeedChanged))
+{
+	ztPlatformerLevelEditor *level_editor = (ztPlatformerLevelEditor*)user_data;
+
+	zt_fiz(level_editor->selection_count) {
+		ztPlatformerCollider *collider = &level_editor->level->colliders[level_editor->selection[i]];
+
+		ztPlatformerCollider copy;
+		zt_memCpy(&copy, zt_sizeof(ztPlatformerCollider), collider, zt_sizeof(ztPlatformerCollider));
+
+		copy.movement_speed = level_editor->selection_movement_speed;
+
+		if (i != 0) {
+			level_editor->actions_group -= 1; // make the same action group so undo/redo works appropriately
+		}
+
+		_zt_platformerLevelEditorEditCollider(level_editor, level_editor->selection[i], collider, &copy, false);
 	}
 }
 
@@ -4755,40 +4918,143 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForSelection(ztPlatformerLevel
 	zt_guiColumnSizerSetProp(sizer, 1, 1);
 
 	zt_guiSizerAddItem(sizer_main, sizer, 1, padding * 4);
+	{
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Layer:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		ztGuiItem *combo_layers = zt_guiMakeComboBox(sizer, editor->level->layers_size);
 
-	zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Layer:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
-	ztGuiItem *combo_layers = zt_guiMakeComboBox(sizer, editor->level->layers_size);
+		zt_guiComboBoxSetCallback(combo_layers, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorSelectionLayerChange), editor);
 
-	zt_guiComboBoxSetCallback(combo_layers, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorSelectionLayerChange), editor);
+		zt_fiz(editor->level->layers_size) {
+			zt_guiComboBoxAppend(combo_layers, editor->level->layers[i].name);
+		}
 
-	zt_fiz(editor->level->layers_size) {
-		zt_guiComboBoxAppend(combo_layers, editor->level->layers[i].name);
+		i32 layer = -1;
+
+		zt_fiz(editor->selection_count) {
+			ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+
+			if (collider->type == ztPlatformerColliderType_Sprite) {
+				if (layer == -1) {
+					layer = collider->sprite.layer;
+				}
+				else {
+					if (collider->sprite.layer != layer) {
+						layer = -100;
+						break;
+					}
+				}
+			}
+		}
+
+		if (layer >= 0) {
+			zt_guiComboBoxSetSelected(combo_layers, layer);
+		}
+
+		zt_guiItemSetSize(combo_layers, zt_vec2(3.5f, -1));
+		zt_guiSizerAddItem(sizer, combo_layers, 1, padding);
 	}
 
-	i32 layer = -1;
+	{
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Path:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		ztGuiItem *combo_movement_path = zt_guiMakeComboBox(sizer, editor->level->movement_paths_used + 1);
 
-	zt_fiz(editor->selection_count) {
-		ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+		zt_guiComboBoxSetCallback(combo_movement_path, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorSelectionMovementPathChanged), editor);
 
-		if (collider->type == ztPlatformerColliderType_Sprite) {
-			if (layer == -1) {
-				layer = collider->sprite.layer;
+		zt_guiComboBoxAppend(combo_movement_path, "No Path");
+		zt_fiz(editor->level->movement_paths_used) {
+			zt_guiComboBoxAppend(combo_movement_path, editor->level->movement_paths[i].name);
+		}
+
+		i32 movement_path = -1;
+
+		zt_fiz(editor->selection_count) {
+			ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+
+			if (movement_path == -1) {
+				movement_path = collider->movement_path;
 			}
 			else {
-				if (collider->sprite.layer != layer) {
-					layer = -100;
+				if (movement_path != collider->movement_path) {
+					movement_path = -100;
 					break;
 				}
 			}
 		}
+
+		if (movement_path >= 0) {
+			zt_guiComboBoxSetSelected(combo_movement_path, movement_path - 1);
+		}
+
+		zt_guiItemSetSize(combo_movement_path, zt_vec2(3.5f, -1));
+		zt_guiSizerAddItem(sizer, combo_movement_path, 1, padding);
 	}
 
-	if (layer >= 0) {
-		zt_guiComboBoxSetSelected(combo_layers, layer);
+	{
+		r32 movement_offset = -1;
+
+		zt_fiz(editor->selection_count) {
+			ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+
+			if (movement_offset == -1) {
+				movement_offset = collider->movement_offset;
+			}
+			else {
+				if (!zt_real32Eq(movement_offset, collider->movement_offset)) {
+					movement_offset = -100;
+					break;
+				}
+			}
+		}
+
+		if (movement_offset >= 0) {
+			editor->selection_movement_offset = movement_offset;
+		}
+		else {
+			editor->selection_movement_offset = 1;
+		}
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Offset:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		ztGuiItem *edit_movement_offset = zt_guiMakeEditor(sizer, nullptr, &editor->selection_movement_offset, 0, ztReal32Max, .25f);
+
+		zt_guiEditorSetCallback(edit_movement_offset, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorSelectionMovementOffsetChanged), editor);
+
+		zt_guiItemSetSize(edit_movement_offset, zt_vec2(3.5f, -1));
+		zt_guiSizerAddItem(sizer, edit_movement_offset, 1, padding);
 	}
 
-	zt_guiItemSetSize(combo_layers, zt_vec2(3.5f, -1));
-	zt_guiSizerAddItem(sizer, combo_layers, 1, padding);
+	{
+		r32 movement_speed = -1;
+
+		zt_fiz(editor->selection_count) {
+			ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
+
+			if (movement_speed == -1) {
+				movement_speed = collider->movement_speed;
+			}
+			else {
+				if (!zt_real32Eq(movement_speed, collider->movement_speed)) {
+					movement_speed = -100;
+					break;
+				}
+			}
+		}
+
+		if (movement_speed >= 0) {
+			editor->selection_movement_speed = movement_speed;
+		}
+		else {
+			editor->selection_movement_speed = 1;
+		}
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Speed:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		ztGuiItem *edit_movement_speed = zt_guiMakeEditor(sizer, nullptr, &editor->selection_movement_speed, 0, ztReal32Max, .25f);
+
+		zt_guiEditorSetCallback(edit_movement_speed, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorSelectionMovementSpeedChanged), editor);
+
+		zt_guiItemSetSize(edit_movement_speed, zt_vec2(3.5f, -1));
+		zt_guiSizerAddItem(sizer, edit_movement_speed, 1, padding);
+	}
+
 
 	ztVec2 size = zt_guiSizerGetMinSize(sizer_main) + zt_vec2(padding * 2, padding * 2);
 	size.x = zt_max(size.x, 5);
@@ -4829,6 +5095,24 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMarkerTypeSelected
 	else {
 		collider->marker.type = 0;
 		zt_strCpy(collider->marker.info, zt_elementsOf(collider->marker.info), "");
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMovementPathSelected, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorColliderMovementPathSelected))
+{
+	ztPlatformerCollider *collider = (ztPlatformerCollider*)user_data;
+
+	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)zt_guiItemGetUserData(combobox);
+
+	if (selected > 0) {
+		collider->movement_path = selected - 1;
+		collider->movement_path_guid = editor->level->movement_paths[collider->movement_path].guid;
+	}
+	else {
+		collider->movement_path = -1;
+		collider->movement_path_guid = zt_guidMake(0, 0, 0, 0);
 	}
 }
 
@@ -4962,12 +5246,28 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForCollider(ztPlatformerLevelE
 
 	if (editor->level->movement_paths_used > 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Path:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
-		ztGuiItem *edit_movement_path = zt_guiMakeEditor(sizer, nullptr, &collider->movement_path, -1, editor->level->movement_paths_used, 1);
-		zt_guiSizerAddItem(sizer, edit_movement_path, 1, padding);
+		//ztGuiItem *edit_movement_path = zt_guiMakeEditor(sizer, nullptr, &collider->movement_path, -1, editor->level->movement_paths_used, 1);
+		ztGuiItem *combo_movement_path = zt_guiMakeComboBox(sizer, editor->level->movement_paths_used + 1);
+
+		zt_guiComboBoxAppend(combo_movement_path, "No Path");
+		zt_fiz(editor->level->movement_paths_used) {
+			zt_guiComboBoxAppend(combo_movement_path, editor->level->movement_paths[i].name);
+
+			if (collider->movement_path_guid == editor->level->movement_paths[i].guid) {
+				zt_guiComboBoxSetSelected(combo_movement_path, zt_guiComboBoxGetItemCount(combo_movement_path) - 1);
+			}
+		}
+		zt_guiSizerAddItem(sizer, combo_movement_path, 1, padding);
+		zt_guiItemSetUserData(combo_movement_path, editor);
+		zt_guiComboBoxSetCallback(combo_movement_path, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorColliderMovementPathSelected), collider);
 
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Offset:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
 		ztGuiItem *edit_movement_offset = zt_guiMakeEditor(sizer, nullptr, &collider->movement_offset, 0.f, 60.f, .125f);
 		zt_guiSizerAddItem(sizer, edit_movement_offset, 1, padding);
+
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, "Movement Speed:"), 0, padding, ztAlign_Right | ztAlign_VertCenter, 0);
+		ztGuiItem *edit_movement_speed = zt_guiMakeEditor(sizer, nullptr, &collider->movement_speed, 0.f, 60.f, .125f);
+		zt_guiSizerAddItem(sizer, edit_movement_speed, 1, padding);
 	}
 
 	ztVec2 size = zt_guiSizerGetMinSize(sizer_main) + zt_vec2(padding * 2, padding * 2);
@@ -5095,6 +5395,10 @@ void zt_platformerLevelEditorEnable(ztPlatformerLevelEditor *editor, bool enable
 {
 	editor->enabled = enabled;
 	zt_guiItemShow(editor->gui_tools, enabled);
+
+	zt_platformerResetMovementPaths(editor->level);
+
+	_zt_platformerLevelEditorClearSelection(editor);
 }
 
 // ================================================================================================================================================================================================
@@ -5202,7 +5506,7 @@ bool zt_platformerLevelEditorUpdate(ztPlatformerLevelEditor *editor, ztInputKeys
 		else {
 			if (editor->active_collider >= 0) {
 				ztVec2 p0, p1;
-				_zt_platformerGetPositions(editor->level, &editor->level->colliders[editor->active_collider], &p0, &p1, nullptr);
+				zt_platformerGetColliderPositions(editor->level, &editor->level->colliders[editor->active_collider], &p0, &p1, nullptr);
 
 				if (editor->mouse_pos.distance((p0 + p1) * .5f) < dist_points) {
 					editor->mouse_pos = _zt_platformerSnapPosition(editor, editor->mouse_pos, snap_disable);
@@ -5362,7 +5666,7 @@ bool zt_platformerLevelEditorUpdate(ztPlatformerLevelEditor *editor, ztInputKeys
 						}
 
 						//ztVec2 p0, p1;
-						//_zt_platformerGetPositions(editor->level, collider, &p0, &p1, nullptr);
+						//zt_platformerGetColliderPositions(editor->level, collider, &p0, &p1, nullptr);
 						//
 						//r32 dist = ztReal32Max;
 						//
@@ -5637,6 +5941,7 @@ bool zt_platformerLevelEditorUpdate(ztPlatformerLevelEditor *editor, ztInputKeys
 				action->new_collider.collider.sprite.hash = editor->mouse_tile->hash;
 				action->new_collider.collider.sprite.scale = ztVec2::one;
 				action->new_collider.collider.movement_path = -1;
+				action->new_collider.collider.movement_speed = 1;
 				action->new_collider.collider.type = ztPlatformerColliderType_Sprite;
 
 				_zt_platformerLevelEditorDoAction(editor, action, true);
@@ -5793,7 +6098,7 @@ void zt_platformerLevelEditorDrawWidgets(ztPlatformerLevelEditor *editor, ztDraw
 
 		if (editor->active_collider == i) {
 			ztVec2 p0, p1;
-			_zt_platformerGetPositions(editor->level, &editor->level->colliders[i], &p0, &p1, nullptr);
+			zt_platformerGetColliderPositions(editor->level, &editor->level->colliders[i], &p0, &p1, nullptr);
 
 			zt_drawListAddEmptyCircle(draw_list, zt_vec3(p0, 0), .125f, 8);
 			if (p0 != p1) {
