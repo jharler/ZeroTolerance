@@ -7952,6 +7952,11 @@ ztString zt_stringOverwrite(ztStringPool *pool, ztString string, const char *str
 void zt_stringFree(ztStringPool *pool, ztString string)
 {
 	ZT_PROFILE_TOOLS("zt_stringFreeFromPool");
+
+	if (string == nullptr) {
+		return;
+	}
+
 	if (pool == nullptr) {
 		zt_assert(false);
 		zt_stringFree(string);
