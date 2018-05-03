@@ -2767,8 +2767,8 @@ ztInline ztVec2 ztVec2::getNormal() const
 
 ztInline void ztVec2::rotate(r32 angle)
 {
-	r32 vsin = zt_sin(angle);
-	r32 vcos = zt_cos(angle);
+	r32 vsin = zt_sin(zt_degreesToRadians(angle));
+	r32 vcos = zt_cos(zt_degreesToRadians(angle));
 
 	r32 tx = x;
 	r32 ty = y;
@@ -2786,6 +2786,8 @@ ztInline ztVec2 ztVec2::getRotated(r32 angle) const
 
 	return zt_vec2(vcos * x - vsin * y, vsin * x + vcos * y);
 }
+
+// ================================================================================================================================================================================================
 
 ztInline ztVec2 operator+(const ztVec2& v1, const ztVec2& v2)
 {
