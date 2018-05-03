@@ -15825,6 +15825,10 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 
 	if (scene->culling_distance != ztReal32Max) {
 		zt_fiz(scene->models_count) {
+			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
+				continue;
+			}
+
 			bool visible = true;
 
 			if (scene->models[i].dist_from_cam > scene->culling_distance) {
@@ -16015,7 +16019,7 @@ ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *ca
 
 	ztVertexDefaultLit vertices[6];
 	zt_fize(pos) {
-		vertices[i].position = pos[i];
+		vertices[i].position = model->transform.position + pos[i];
 		vertices[i].uv = uvs[i];
 		vertices[i].normal = nml;
 		vertices[i].color = ztColor_White;
@@ -29927,8 +29931,8 @@ bool zt_collisionLineWithLine(const ztVec2 &line1_beg, const ztVec2 &line1_end, 
 
 	r32 den = -s2.x * s1.y + s1.x * s2.y;
 
-	r32 s = den == 0 ? 0 : (-s1.y * (line1_beg.x - line2_beg.x) + s1.x * (line1_beg.y - line2_beg.y)) / den;
-	r32 t = den == 0 ? 0 : ( s2.x * (line1_beg.y - line2_beg.y) - s2.y * (line1_beg.x - line2_beg.x)) / den;
+	r32 s = den == 0 ? -1 : (-s1.y * (line1_beg.x - line2_beg.x) + s1.x * (line1_beg.y - line2_beg.y)) / den;
+	r32 t = den == 0 ? -1 : ( s2.x * (line1_beg.y - line2_beg.y) - s2.y * (line1_beg.x - line2_beg.x)) / den;
 
 	if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
 		if (intersection_point) *intersection_point = line1_beg + (t * s1);
@@ -39296,6 +39300,7 @@ int main(int argc, const char **argv)
 		zt_logInfo("initiating cleanup");
 		ZT_PROFILE_PLATFORM("main(cleanup)");
 		zt_textureFree(0); // free the white tex
+		zt_textureFree(1); // free the black tex
 
 
 		zt_fiz(zt_game->fonts_count_system) {
