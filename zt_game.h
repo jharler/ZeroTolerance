@@ -4831,6 +4831,7 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency = ztAudio
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
 bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time = 0);
 
+void zt_audioClipSetVolume(ztAudioClipID audio_clip_id, r32 volume);
 
 void zt_audioSetMute(bool mute);
 bool zt_audioGetMute();
@@ -5737,6 +5738,7 @@ struct ztAudioClip
 	r32 play_time;
 	r32 fade_out_curr;
 	r32 fade_out_time;
+	r32 volume;
 
 	i32 system;
 };
@@ -37464,7 +37466,7 @@ ztInternal void _zt_audioApplyVolume(ztAudioClip *clip, r32 volume)
 		return;
 	}
 
-	ztds_bufferSetVolume(clip->ds_buffer, volume);
+	ztds_bufferSetVolume(clip->ds_buffer, clip->volume * volume);
 
 #	elif defined(ZT_OPENAL)
 	if (clip == nullptr || clip->al_buffer == nullptr) {
@@ -37492,21 +37494,21 @@ ztInternal void _zt_audioApplySystemSettings(ztAudioClip *clip)
 		return;
 	}
 
-	ztds_bufferSetVolume(clip->ds_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+	ztds_bufferSetVolume(clip->ds_buffer, (zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1) * clip->volume);
 
 #	elif defined(ZT_OPENAL)
 	if (clip == nullptr || clip->al_buffer == nullptr) {
 		return;
 	}
 
-	ztal_bufferSetVolume(clip->al_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+	ztal_bufferSetVolume(clip->al_buffer, (zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1) * clip->volume);
 
 #	elif defined(ZT_OPENSL)
 	if (clip == nullptr || clip->sl_buffer == nullptr) {
 		return;
 	}
 
-	ztsl_bufferSetVolume(clip->sl_buffer, zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1);
+	ztsl_bufferSetVolume(clip->sl_buffer, (zt_between(clip->system, 0, zt_elementsOf(zt_game->audio_systems)) ? zt_game->audio_systems[clip->system].volume : 1) * clip->volume);
 
 #	endif
 }
@@ -37555,6 +37557,7 @@ ztInternal ztAudioClipID _zt_audioClipMakeFromData(void *data, i32 data_size, i3
 	audio_clip->play_time = 0;
 	audio_clip->flags     = 0;
 	audio_clip->system    = audio_system;
+	audio_clip->volume    = 1;
 
 
 	_zt_audioApplySystemSettings(audio_clip);
@@ -37906,6 +37909,18 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time)
 		zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Looping);
 	}
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_audioClipSetVolume(ztAudioClipID audio_clip_id, r32 volume)
+{
+	ZT_PROFILE_AUDIO("zt_audioClipSetVolume");
+	zt_assertReturnOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count);
+	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
+
+	audio_clip->volume = volume;
+	_zt_audioApplySystemSettings(audio_clip);
 }
 
 // ================================================================================================================================================================================================
