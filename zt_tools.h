@@ -252,20 +252,22 @@ typedef unsigned long long size_t;
 #define zt_elementsOf(native_array)	              ((int)(sizeof(native_array) / sizeof((native_array)[0])))
 #define zt_sizeof(type)                           ((i32)sizeof(type))
 
-#if defined(ZT_DEBUG)
+#if !defined(ZT_REMOVE_ASSERTS)
 #	define zt_assert(cond)	                      if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); }
 #	define zt_assertReturnOnFail(cond)            if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); return; }
 #	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); return (retval); }
-
-#	define zt_debugOnly(code)	                  code
-#	define zt_releaseOnly(code)
 #else
 #	define zt_assert(cond)
 #	define zt_assertReturnOnFail(cond)            if (!(cond)) { return; }
 #	define zt_assertReturnValOnFail(cond, retval) if (!(cond)) { return (retval); }
+#endif
 
+#if defined(ZT_DEBUG)
+#	define zt_debugOnly(code)	                  code
+#	define zt_releaseOnly(code)
+#else
 #	define zt_debugOnly(code)
-#	define zt_releaseOnly(code)	code
+#	define zt_releaseOnly(code)	                  code
 #endif
 
 #define zt_assertAlways(cond)                     if (!(cond)) { zt_assertRaw(#cond, __FILE__, __LINE__); }
@@ -306,24 +308,28 @@ typedef unsigned long long size_t;
 #define zt_fxz(end)                               for (int x = 0; x < (int)(end); ++x)
 #define zt_fyz(end)                               for (int y = 0; y < (int)(end); ++y)
 #define zt_fzz(end)                               for (int z = 0; z < (int)(end); ++z)
+#define zt_fvz(var, end)                          for (int var = 0; var < (int)(end); ++var)
 #define zt_fize(end)                              for (int i = 0; i < (int)zt_elementsOf((end)); ++i)
 #define zt_fjze(end)                              for (int j = 0; j < (int)zt_elementsOf((end)); ++j)
 #define zt_fkze(end)                              for (int k = 0; k < (int)zt_elementsOf((end)); ++k)
 #define zt_fxze(end)                              for (int x = 0; x < (int)zt_elementsOf((end)); ++x)
 #define zt_fyze(end)                              for (int y = 0; y < (int)zt_elementsOf((end)); ++y)
 #define zt_fzze(end)                              for (int z = 0; z < (int)zt_elementsOf((end)); ++z)
+#define zt_fvze(var, end)                         for (int var = 0; var < (int)zt_elementsOf((end)); ++var)
 #define zt_fizr(beg)                              for (int i = (int)(beg); i >= 0; --i)
 #define zt_fjzr(beg)                              for (int j = (int)(beg); j >= 0; --j)
 #define zt_fkzr(beg)                              for (int k = (int)(beg); k >= 0; --k)
 #define zt_fxzr(beg)                              for (int x = (int)(beg); x >= 0; --x)
 #define zt_fyzr(beg)                              for (int y = (int)(beg); y >= 0; --y)
 #define zt_fzzr(beg)                              for (int z = (int)(beg); z >= 0; --z)
+#define zt_fvzr(var, beg)                         for (int var = (int)(beg); var >= 0; --var)
 #define zt_fizre(beg)                             for (int i = (int)zt_elementsOf((beg)); i >= 0; --i)
 #define zt_fjzre(beg)                             for (int j = (int)zt_elementsOf((beg)); j >= 0; --j)
 #define zt_fkzre(beg)                             for (int k = (int)zt_elementsOf((beg)); k >= 0; --k)
 #define zt_fxzre(beg)                             for (int x = (int)zt_elementsOf((beg)); x >= 0; --x)
 #define zt_fyzre(beg)                             for (int y = (int)zt_elementsOf((beg)); y >= 0; --y)
 #define zt_fzzre(beg)                             for (int z = (int)zt_elementsOf((beg)); z >= 0; --z)
+#define zt_fvzre(var, beg)                        for (int var = (int)zt_elementsOf((beg)); var >= 0; --var)
 #define zt_flink(var,start)                       for (auto *var = start; var != nullptr; var = var->next)
 #define zt_flinknext(var,start,next_var)          for (auto *var = start; var != nullptr; var = var->next_var)
 
