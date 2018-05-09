@@ -14074,7 +14074,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_REN
 			zt_textureFree(picker_data->tex_details);
 		}
 
-		picker_data->tex_details = zt_textureMakeFromPixelData(pixels, 256, 256);
+		picker_data->tex_details = zt_textureMakeFromPixelData(pixels, 256, 256, ztTextureFlags_FlipOnLoad);
 	}
 
 	// draw detail for color
