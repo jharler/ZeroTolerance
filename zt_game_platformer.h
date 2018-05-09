@@ -39,11 +39,12 @@
 
 struct ztPlatformerLayer
 {
-	char name[64];
-	r32  parallax_amount; // 1 - identical to camera position, < 1 further back away from camera, > 1 further forward towards camera
+	ztGuid guid;
+	char   name[64];
+	r32    parallax_amount; // 1 - identical to camera position, < 1 further back away from camera, > 1 further forward towards camera
 };
 
-void zt_platformerLayerMake(ztPlatformerLayer *layer, const char *name, r32 parallax_amount);
+void zt_platformerLayerMake(ztPlatformerLayer *layer, ztGuid guid, const char *name, r32 parallax_amount);
 
 // ================================================================================================================================================================================================
 
@@ -123,7 +124,6 @@ struct ztPlatformerCollider
 	ztPlatformerColliderType_Enum type;
 	char                          name[64];
 	i32                           movement_path;
-	ztGuid                        movement_path_guid;
 	r32                           movement_offset;
 	r32                           movement_speed;
 	ztVec2                        offset_last, offset_this;
@@ -157,11 +157,12 @@ struct ztPlatformerCollider
 		} trigger_rect;
 
 		struct {
-			u32                   hash;
-			r32                   rotation;
-			i32                   layer;
-			ztSprite              sprite;
-			ztVec2                scale;
+			u32                     hash;
+			r32                     rotation;
+			i32                     layer;
+			ztSprite                sprite;
+			ztVec2                  scale;
+			ztSpriteAnimController *anim_controller; // will use active sprite if this is set
 		} sprite;
 
 		struct {
@@ -269,7 +270,6 @@ struct ztPlatformerLevel
 	i32                         collisions_used;
 	i32                         collisions_size;
 
-
 	ZT_FUNCTION_POINTER_VAR    (movement_path_update_function, ztPlatformerCollideMovementPathUpdate_Func);
 	void                       *movement_path_update_function_user_data;
 };
@@ -284,7 +284,6 @@ bool                  zt_platformerLevelSave                     (ztPlatformerLe
 bool                  zt_platformerLevelLoad                     (ztPlatformerLevel *level, ztSpriteManager *sprite_manager, const char *filename); // already created using zt_platformerLevelMake
 bool                  zt_platformerLevelLoad                     (ztPlatformerLevel *level, ztSpriteManager *sprite_manager, ztAssetManager *asset_manager, ztAssetID asset_id);
 bool                  zt_platformerLevelLoad                     (ztPlatformerLevel *level, ztSpriteManager *sprite_manager, void *data, i32 data_size);
-
 
 i32                   zt_platformerAddMovementPath               (ztPlatformerLevel *level, ztPlatformerMovementPath **movement_path, ztGuid guid);
 
@@ -323,6 +322,10 @@ void                  zt_platformerUpdatePhysicsObjects          (ztPlatformerLe
 
 void                  zt_platformerDrawBackground                (ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera);
 void                  zt_platformerDraw                          (ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax);
+
+//                    these will only work if there is only one texture being used:
+i32                   zt_platformerGetBackgroundTriangles        (ztPlatformerLevel *level, ztCamera *camera, ztVec3 *pos, ztVec2 *uvs, i32 triangles_size);
+i32                   zt_platformerGetTriangles                  (ztPlatformerLevel *level, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax, ztVec3 *pos, ztVec2 *uvs, i32 triangles_size);
 
 ztVec2                zt_platformerGetPositionOnLayer            (ztPlatformerLevel *level, i32 layer, ztVec2 position, ztCamera *camera);
 
@@ -719,11 +722,12 @@ struct ztPlatformerLevelEditorMarker
 	ztVec2    area_size;
 	ztSprite *sprite;
 	ztVec2    sprite_offset;
+	ztVec2    sprite_scale;
 };
 
 // ================================================================================================================================================================================================
 
-void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset);
+void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale = ztVec2::one);
 
 // ================================================================================================================================================================================================
 
@@ -1048,10 +1052,11 @@ ztInternal void _zt_platformerLevelClearColliders(ztPlatformerLevel *level)
 
 // functions ======================================================================================================================================================================================
 
-void zt_platformerLayerMake(ztPlatformerLayer *layer, const char *name, r32 parallax_amount)
+void zt_platformerLayerMake(ztPlatformerLayer *layer, ztGuid guid, const char *name, r32 parallax_amount)
 {
 	zt_returnOnNull(layer);
 
+	layer->guid = guid;
 	zt_strCpy(layer->name, zt_elementsOf(layer->name), name);
 	layer->parallax_amount = parallax_amount;
 }
@@ -1132,10 +1137,11 @@ void zt_platformerLevelFree(ztPlatformerLevel *level)
 // ================================================================================================================================================================================================
 
 #define ZT_PLATFORMER_LEVEL_IDENTIFIER	"8fbe343991714f0fb1ab09caff68187a"
+#define ZT_PLATFORMER_LEVEL_VERSION_V4     100003
 #define ZT_PLATFORMER_LEVEL_VERSION_V3     100002
 #define ZT_PLATFORMER_LEVEL_VERSION_V2     100001
 #define ZT_PLATFORMER_LEVEL_VERSION_V1     100000
-#define ZT_PLATFORMER_LEVEL_VERSION        ZT_PLATFORMER_LEVEL_VERSION_V3
+#define ZT_PLATFORMER_LEVEL_VERSION        ZT_PLATFORMER_LEVEL_VERSION_V4
 
 // ================================================================================================================================================================================================
 
@@ -1169,7 +1175,10 @@ bool zt_platformerLevelSave(ztPlatformerLevel *level, const char *filename)
 
 				if (!zt_serialWrite(&serial, (i32)collider->type)) return false;
 				if (!zt_serialWrite(&serial, collider->name, zt_strLen(collider->name))) return false;
-				if (!zt_serialWrite(&serial, collider->movement_path_guid)) return false; // V2 - changed from movement path idx to guid
+
+				ztGuid guid = collider->movement_path < 0 ? zt_guidMake(0,0,0,0) : level->movement_paths[collider->movement_path].guid;
+				if (!zt_serialWrite(&serial, guid)) return false; // V2 - changed from movement path idx to guid
+
 				if (!zt_serialWrite(&serial, collider->movement_offset)) return false;
 				if (!zt_serialWrite(&serial, collider->movement_speed)) return false;
 				if (!zt_serialWrite(&serial, collider->points[0])) return false;
@@ -1207,7 +1216,7 @@ bool zt_platformerLevelSave(ztPlatformerLevel *level, const char *filename)
 
 						case ztPlatformerColliderType_Sprite: {
 							if (!zt_serialWrite(&serial, collider->sprite.hash)) return false;
-							if (!zt_serialWrite(&serial, collider->sprite.layer)) return false;
+							if (!zt_serialWrite(&serial, level->layers[collider->sprite.layer].guid)) return false;
 							if (!zt_serialWrite(&serial, collider->sprite.rotation)) return false;
 							if (!zt_serialWrite(&serial, collider->sprite.scale)) return false;
 						} break;
@@ -1359,16 +1368,16 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 				if (!zt_serialRead(&serial, collider->name, zt_elementsOf(collider->name), &str_len)) return false;
 
 				collider->movement_path = -1;
-				collider->movement_path_guid == zt_guidMake(0, 0, 0, 0);
 				
 				if (serial.version == ZT_PLATFORMER_LEVEL_VERSION_V1) {
 					if (!zt_serialRead(&serial, &collider->movement_path)) return false;
 				}
 				else {
-					if (!zt_serialRead(&serial, &collider->movement_path_guid)) return false;
+					ztGuid guid;
+					if (!zt_serialRead(&serial, &guid)) return false;
 
 					zt_fjz(level->movement_paths_used) {
-						if (level->movement_paths[j].guid == collider->movement_path_guid) {
+						if (level->movement_paths[j].guid == guid) {
 							collider->movement_path = j;
 							break;
 						}
@@ -1417,7 +1426,24 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 
 						case ztPlatformerColliderType_Sprite: {
 							if (!zt_serialRead(&serial, &collider->sprite.hash)) return false;
-							if (!zt_serialRead(&serial, &collider->sprite.layer)) return false;
+
+							if (serial.version >= ZT_PLATFORMER_LEVEL_VERSION_V4) {
+								collider->sprite.layer = 0;
+
+								ztGuid guid;
+								if (!zt_serialRead(&serial, &guid)) return false;
+
+								zt_fxz(level->layers_size) {
+									if (level->layers[x].guid == guid) {
+										collider->sprite.layer = x;
+										break;
+									}
+								}
+							}
+							else {
+								if (!zt_serialRead(&serial, &collider->sprite.layer)) return false;
+							}
+
 							if (!zt_serialRead(&serial, &collider->sprite.rotation)) return false;
 
 							collider->sprite.scale = ztVec2::one;
@@ -1427,6 +1453,8 @@ bool zt_platformerLevelLoad(ztPlatformerLevel *level, ztSpriteManager *sprite_ma
 							if (sprite) {
 								collider->sprite.sprite = *sprite;
 							}
+
+							collider->sprite.anim_controller = nullptr;
 						} break;
 
 						case ztPlatformerColliderType_Marker: {
@@ -1689,6 +1717,8 @@ i32 zt_platformerAppendSprite(ztPlatformerLevel *level, ztVec2 p, u32 hash, r32 
 	if (sprite) {
 		level->colliders[idx].sprite.sprite = *sprite;
 	}
+
+	level->colliders[idx].sprite.anim_controller = nullptr;
 
 	return idx;
 }
@@ -2140,11 +2170,10 @@ void zt_platformerResetMovementPaths(ztPlatformerLevel *level)
 
 // ================================================================================================================================================================================================
 
-void zt_platformerDrawBackground(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera)
+ztInternal i32 _zt_platformerDrawBackground(ztPlatformerLevel *level, ztCamera *camera, ztDrawList *draw_list, ztVec3 *pos, ztVec2 *uvs, i32 triangles_size)
 {
-	zt_returnOnNull(level);
-	zt_returnOnNull(draw_list);
-	zt_returnOnNull(camera);
+	zt_returnValOnNull(level, 0);
+	zt_returnValOnNull(camera, 0);
 
 	ztColor colors[32];
 	r32  locations[32];
@@ -2171,11 +2200,16 @@ void zt_platformerDrawBackground(ztPlatformerLevel *level, ztDrawList *draw_list
 		cam_size += size_add;
 	}
 
+	if (draw_list) {
+		zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+		zt_drawListPushTexture(draw_list, ztTextureDefaultWhite);
+		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
+	}
 
-	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
-	zt_drawListPushTexture(draw_list, ztTextureDefaultWhite);
-	zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
 	r32 prev_loc = locations[0];
+
+	i32 triangle_idx = 0;
+
 	for (int i = 1; i < colors_count; ++i) {
 		ztVec3 p1 = zt_vec3(cam_min.x, cam_max.y - cam_size.y * prev_loc, 0);
 		ztVec3 p2 = zt_vec3(cam_min.x, cam_max.y - cam_size.y * locations[i], 0);
@@ -2191,21 +2225,59 @@ void zt_platformerDrawBackground(ztPlatformerLevel *level, ztDrawList *draw_list
 			rot.rotatePosition(&p4);
 		}
 
-		zt_drawListAddFilledQuad(draw_list, p1, p2, p3, p4, zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero, colors[i - 1], colors[i], colors[i], colors[i - 1]);
+		if (draw_list) {
+			zt_drawListAddFilledQuad(draw_list, p1, p2, p3, p4, zt_vec2(0, 0), zt_vec2(0, 1), zt_vec2(1, 1), zt_vec2(1, 0), ztVec3::zero, ztVec3::zero, ztVec3::zero, ztVec3::zero, colors[i - 1], colors[i], colors[i], colors[i - 1]);
+		}
+		else {
+			zt_assert(triangle_idx < triangles_size - 6);
+			pos[triangle_idx  ] = p1;
+			uvs[triangle_idx++] = zt_vec2(0, 0);
+			pos[triangle_idx  ] = p2;
+			uvs[triangle_idx++] = zt_vec2(0, 1);
+			pos[triangle_idx  ] = p3;
+			uvs[triangle_idx++] = zt_vec2(1, 1);
+
+			pos[triangle_idx  ] = p1;
+			uvs[triangle_idx++] = zt_vec2(0, 0);
+			pos[triangle_idx  ] = p3;
+			uvs[triangle_idx++] = zt_vec2(1, 1);
+			pos[triangle_idx  ] = p4;
+			uvs[triangle_idx++] = zt_vec2(1, 0);
+		}
 	}
-	zt_drawListPopTexture(draw_list);
-	zt_drawListPopShader(draw_list);
+
+	if (draw_list) {
+		zt_drawListPopTexture(draw_list);
+		zt_drawListPopShader(draw_list);
+	}
+
+	return triangle_idx;
 }
 
 // ================================================================================================================================================================================================
 
-void zt_platformerDraw(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax)
+void zt_platformerDrawBackground(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera)
 {
-	zt_returnOnNull(level);
-	zt_returnOnNull(draw_list);
-	zt_returnOnNull(camera);
+	_zt_platformerDrawBackground(level, camera, draw_list, nullptr, nullptr, 0);
+}
 
-	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+// ================================================================================================================================================================================================
+
+i32 zt_platformerGetBackgroundTriangles(ztPlatformerLevel *level, ztCamera *camera, ztVec3 *pos, ztVec2 *uvs, i32 triangles_size)
+{
+	return _zt_platformerDrawBackground(level, camera, nullptr, pos, uvs, triangles_size);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_platformerDraw(ztPlatformerLevel *level, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax, ztDrawList *draw_list, ztVec3 *pos, ztVec2 *uvs, i32 triangle_size)
+{
+	zt_returnValOnNull(level, 0);
+	zt_returnValOnNull(camera, 0);
+
+	if (draw_list) {
+		zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+	}
 
 	ztVec2 diff_from_cam = ztVec2::zero;
 	if (layer >= 0 && layer < level->layers_size) {
@@ -2213,12 +2285,16 @@ void zt_platformerDraw(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera
 		diff_from_cam *= (1 - level->layers[layer].parallax_amount);
 	}
 
+	i32 triangle_idx = 0;
+	ztVec3 sprite_pos[6];
+	ztVec2 sprite_uvs[6];
+
 	zt_fiz(level->colliders_used) {
 		if (level->colliders[i].type == ztPlatformerColliderType_Sprite && (level->colliders[i].sprite.layer == layer || layer < 0) && !zt_bitIsSet(level->colliders[i].flags, ztPlatformerColliderFlags_Disabled)) {
 			ztVec2 p0, p1;
 			zt_platformerGetColliderPositions(level, &level->colliders[i], &p0, &p1, nullptr);
 
-			ztVec3 scale = ztVec3::one;
+			ztVec3 scale = zt_vec3(level->colliders[i].sprite.scale, 1);
 			ztVec3 rot = zt_vec3(0, 0, level->colliders[i].sprite.rotation);
 
 			if (layer >= 0 && apply_parallax) {
@@ -2226,16 +2302,57 @@ void zt_platformerDraw(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera
 				p1 -= diff_from_cam;
 			}
 
-			if (!zt_real32Eq(level->colliders[i].sprite.rotation, 0)) {
-				zt_drawListAddSprite(draw_list, &level->colliders[i].sprite.sprite, zt_vec3(p0, 0), rot, scale);
+			ztSprite *sprite = level->colliders[i].sprite.anim_controller ? zt_spriteAnimControllerActiveSprite(level->colliders[i].sprite.anim_controller) : &level->colliders[i].sprite.sprite;
+
+			if (draw_list) {
+				if (!zt_real32Eq(level->colliders[i].sprite.rotation, 0)) {
+					zt_drawListAddSpriteFast(draw_list, sprite, zt_vec3(p0, 0), rot, scale);
+				}
+				else {
+					zt_drawListAddSpriteFast(draw_list, sprite, zt_vec3(p0, 0), rot, scale);
+				}
 			}
 			else {
-				zt_drawListAddSprite(draw_list, &level->colliders[i].sprite.sprite, zt_vec3(p0, 0));
+				zt_assertReturnValOnFail(triangle_idx < triangle_size + 6, triangle_idx);
+
+				zt_spriteGetTrianglesFast(sprite, zt_vec3(p0, 0), rot, scale, sprite_pos, sprite_uvs);
+
+				pos[triangle_idx  ] = sprite_pos[0];
+				uvs[triangle_idx++] = sprite_uvs[0];
+				pos[triangle_idx  ] = sprite_pos[1];
+				uvs[triangle_idx++] = sprite_uvs[1];
+				pos[triangle_idx  ] = sprite_pos[2];
+				uvs[triangle_idx++] = sprite_uvs[2];
+
+				pos[triangle_idx  ] = sprite_pos[3];
+				uvs[triangle_idx++] = sprite_uvs[3];
+				pos[triangle_idx  ] = sprite_pos[4];
+				uvs[triangle_idx++] = sprite_uvs[4];
+				pos[triangle_idx  ] = sprite_pos[5];
+				uvs[triangle_idx++] = sprite_uvs[5];
 			}
 		}
 	}
 
-	zt_drawListPopShader(draw_list);
+	if (draw_list) {
+		zt_drawListPopShader(draw_list);
+	}
+
+	return triangle_idx;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_platformerDraw(ztPlatformerLevel *level, ztDrawList *draw_list, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax)
+{
+	_zt_platformerDraw(level, camera, layer, objects, objects_size, apply_parallax, draw_list, nullptr, nullptr, 0);
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_platformerGetTriangles(ztPlatformerLevel *level, ztCamera *camera, i32 layer, ztPlatformerPhysicsObject *objects, i32 objects_size, bool apply_parallax, ztVec3 *pos, ztVec2 *uvs, i32 triangles_size)
+{
+	return _zt_platformerDraw(level, camera, layer, objects, objects_size, apply_parallax, nullptr, pos, uvs, triangles_size);
 }
 
 // ================================================================================================================================================================================================
@@ -2444,7 +2561,7 @@ void zt_platformerDrawDebugView(ztPlatformerLevel *level, ztDrawList *draw_list,
 
 				if (marker) {
 					if (marker->sprite && zt_bitIsSet(flags, ztPlatformerDrawDebugFlags_DrawMarkerSprites)) {
-						zt_drawListAddSprite(draw_list, marker->sprite, zt_vec3(p0 + marker->sprite_offset, 0));
+						zt_drawListAddSpriteFast(draw_list, marker->sprite, zt_vec3(p0 + marker->sprite_offset, 0), ztVec3::zero, zt_vec3(marker->sprite_scale, 1));
 					}
 				}
 
@@ -3896,7 +4013,7 @@ void zt_platformerLevelEditorTile(ztPlatformerLevelEditorTile *tile, const char 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset)
+void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale)
 {
 	zt_strCpy(marker->name, zt_elementsOf(marker->name), name);
 	zt_strCpy(marker->info, zt_elementsOf(marker->info), info);
@@ -3907,6 +4024,7 @@ void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const
 	marker->area_size = area_size;
 	marker->sprite = sprite;
 	marker->sprite_offset = sprite_offset;
+	marker->sprite_scale = sprite_scale;
 }
 
 // ================================================================================================================================================================================================
@@ -4202,6 +4320,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoadFileSelected, ZT
 
 	zt_strCpy(editor->file_name, zt_elementsOf(editor->file_name), path);
 
+	_zt_platformerLevelEditorClearSelection(editor);
 	zt_platformerLevelLoad(editor->level, editor->sprite_manager, editor->file_name);
 
 	zt_guiGradientPickerSetLiveValue(editor->gui_background_color_gradient, &editor->level->background_color);
@@ -4221,6 +4340,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoad, ZT_FUNC_GUI_BU
 ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonNew, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNew))
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
+
+	_zt_platformerLevelEditorClearSelection(editor);
 
 	editor->level->name[0] = 0;
 	editor->level->colliders_used = 0;
@@ -4666,6 +4787,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddSprite, Z
 	collider.sprite.hash = entry->hash;
 	collider.sprite.layer = zt_guiListBoxGetSelected(editor->gui_layers_list);
 	collider.sprite.scale = ztVec2::one;
+	collider.sprite.anim_controller = nullptr;
 
 	_zt_platformerLevelEditorAddCollider(editor, &collider);
 
@@ -4813,6 +4935,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionLayerChange, ZT_F
 			_zt_platformerLevelEditorEditCollider(editor, editor->selection[i], collider, &copy, false);
 		}
 	}
+
+	zt_platformerRecalcQuadTree(editor->level);
 }
 
 // ================================================================================================================================================================================================
@@ -4821,24 +4945,13 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementPathChang
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
-	i32 layer = selected;
-
 	zt_fiz(editor->selection_count) {
 		ztPlatformerCollider *collider = &editor->level->colliders[editor->selection[i]];
 
 		ztPlatformerCollider copy;
 		zt_memCpy(&copy, zt_sizeof(ztPlatformerCollider), collider, zt_sizeof(ztPlatformerCollider));
 
-		copy.sprite.layer = layer;
-
-
 		copy.movement_path = selected - 1;
-		if (selected > 0) {
-			copy.movement_path_guid = editor->level->movement_paths[selected - 1].guid;
-		}
-		else {
-			copy.movement_path_guid = zt_guidMake(0, 0, 0, 0);
-		}
 
 		if (i != 0) {
 			editor->actions_group -= 1; // make the same action group so undo/redo works appropriately
@@ -4846,6 +4959,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementPathChang
 
 		_zt_platformerLevelEditorEditCollider(editor, editor->selection[i], collider, &copy, false);
 	}
+	zt_platformerRecalcQuadTree(editor->level);
 }
 
 // ================================================================================================================================================================================================
@@ -4868,6 +4982,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementOffsetCha
 
 		_zt_platformerLevelEditorEditCollider(level_editor, level_editor->selection[i], collider, &copy, false);
 	}
+	zt_platformerRecalcQuadTree(level_editor->level);
 }
 
 // ================================================================================================================================================================================================
@@ -4890,6 +5005,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementSpeedChan
 
 		_zt_platformerLevelEditorEditCollider(level_editor, level_editor->selection[i], collider, &copy, false);
 	}
+	zt_platformerRecalcQuadTree(level_editor->level);
 }
 
 // ================================================================================================================================================================================================
@@ -5108,11 +5224,9 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMovementPathSelect
 
 	if (selected > 0) {
 		collider->movement_path = selected - 1;
-		collider->movement_path_guid = editor->level->movement_paths[collider->movement_path].guid;
 	}
 	else {
 		collider->movement_path = -1;
-		collider->movement_path_guid = zt_guidMake(0, 0, 0, 0);
 	}
 }
 
@@ -5148,7 +5262,18 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForCollider(ztPlatformerLevelE
 	}
 
 	zt_guiSizerAddStretcher(sizer_main, 0, padding * 2);
-	zt_guiSizerAddItem(sizer_main, zt_guiMakeStaticText(sizer_main, type), 0, padding, ztAlign_Center, 0);
+
+	i32 idx = -1;
+	zt_fiz(editor->level->colliders_used) {
+		if(collider == &editor->level->colliders[i]) {
+			idx = i;
+			break;
+		}
+	}
+
+	zt_strMakePrintf(type_full, 128, "%s (%d)", type, idx);
+
+	zt_guiSizerAddItem(sizer_main, zt_guiMakeStaticText(sizer_main, type_full), 0, padding, ztAlign_Center, 0);
 
 	ztGuiItem *sizer = zt_guiMakeColumnSizer(sizer_main, 2, ztGuiColumnSizerType_FillRow, true);
 	zt_guiColumnSizerSetProp(sizer, 1, 1);
@@ -5253,7 +5378,7 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForCollider(ztPlatformerLevelE
 		zt_fiz(editor->level->movement_paths_used) {
 			zt_guiComboBoxAppend(combo_movement_path, editor->level->movement_paths[i].name);
 
-			if (collider->movement_path_guid == editor->level->movement_paths[i].guid) {
+			if (collider->movement_path == i) {
 				zt_guiComboBoxSetSelected(combo_movement_path, zt_guiComboBoxGetItemCount(combo_movement_path) - 1);
 			}
 		}
@@ -5940,6 +6065,7 @@ bool zt_platformerLevelEditorUpdate(ztPlatformerLevelEditor *editor, ztInputKeys
 				action->new_collider.collider.sprite.layer = zt_guiListBoxGetSelected(editor->gui_layers_list);
 				action->new_collider.collider.sprite.hash = editor->mouse_tile->hash;
 				action->new_collider.collider.sprite.scale = ztVec2::one;
+				action->new_collider.collider.sprite.anim_controller = nullptr;
 				action->new_collider.collider.movement_path = -1;
 				action->new_collider.collider.movement_speed = 1;
 				action->new_collider.collider.type = ztPlatformerColliderType_Sprite;
