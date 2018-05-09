@@ -34753,7 +34753,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 							particle->velocity.y = zt_randomVal(&emitter->random, -1, 1);
 							particle->velocity.z = zt_randomVal(&emitter->random, -1, 1);
 							particle->velocity.normalize();
-							particle->position = emitter->position;
+							particle->position = emitter->system->system_local_space ? ztVec3::zero : emitter->position;
 
 						} break;
 
