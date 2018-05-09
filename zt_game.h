@@ -34777,7 +34777,9 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 							}
 
 							particle->velocity = particle->position.getNormal();
-							particle->position += emitter->position;
+							if(!emitter->system->system_local_space) {
+								particle->position += emitter->position;
+							}
 						} break;
 
 						case ztParticleShapeType_Circle: {
@@ -34799,7 +34801,9 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 							}
 
 							particle->velocity = particle->position.getNormal();
-							particle->position += emitter->position;
+							if (!emitter->system->system_local_space) {
+								particle->position += emitter->position;
+							}
 						} break;
 
 						case ztParticleShapeType_Box: {
@@ -34861,7 +34865,9 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 								system_rotation.rotatePosition(&particle->velocity);
 							}
 
-							particle->position += emitter->position;
+							if (!emitter->system->system_local_space) {
+								particle->position += emitter->position;
+							}
 						} break;
 
 						case ztParticleShapeType_Square: {
@@ -34909,8 +34915,9 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 								system_rotation.rotatePosition(&particle->velocity);
 							}
 
-							particle->position += emitter->position;
-
+							if (!emitter->system->system_local_space) {
+								particle->position += emitter->position;
+							}
 						} break;
 					}
 
@@ -35466,8 +35473,9 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 		}
 	}
 
-	bool need_uvs = false;
+	bool need_uvs = false, need_anchor_adjust = false;
 	ztSprite *uvs_sprite = nullptr;
+	ztVec2 anchor_adjust = ztVec2::zero;
 	if (emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard) {
 		if (emitter->system->system_rendering.billboard.sprite.half_size == ztVec2::zero) {
 			return 0;
@@ -35492,6 +35500,13 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 		}
 		need_uvs = true;
 		uvs_sprite = &emitter->system->system_rendering.facing.sprite;
+	}
+
+	if (uvs_sprite) {
+		need_anchor_adjust = uvs_sprite->anchor != ztVec2::zero;
+		if (need_anchor_adjust) {
+			anchor_adjust = uvs_sprite->anchor * -1;
+		}
 	}
 
 	if (need_uvs) {
@@ -35533,6 +35548,10 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 
 		r32 particle_life_pct = 1 - (particle->life_left / particle->life_span);
 
+		ztVec3 position = particle->position;
+		if (emitter->system->system_local_space) {
+			position += emitter->position;
+		}
 		ztVec3 scale = particle->scale;
 
 		if (emitter->system->size_over_lifetime_used) {
@@ -35558,10 +35577,10 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 				case ztParticleRenderingType_BillBoard: {
 					if (draw_list) {
 						if (emitter->system->rotate_towards_movement) {
-							zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, 0, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw, ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ, particle->velocity.getNormal());
+							zt_drawListAddBillboard(draw_list, position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, 0, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw, ztDrawCommandBillboardFlags_AxisX | ztDrawCommandBillboardFlags_AxisY | ztDrawCommandBillboardFlags_AxisZ, particle->velocity.getNormal());
 						}
 						else {
-							zt_drawListAddBillboard(draw_list, particle->position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, particle->rotation.z, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw);
+							zt_drawListAddBillboard(draw_list, position, emitter->system->system_rendering.billboard.sprite.half_size * 2 * scale.xy, particle->rotation.z, emitter->system->system_rendering.billboard.sprite.tex_uv.xy, emitter->system->system_rendering.billboard.sprite.tex_uv.zw);
 						}
 					}
 					else {
@@ -35569,18 +35588,30 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						ztVec3 normal = zt_vec3(0, 0, 1);
 
 						if (particle->rotation == ztVec3::zero) {
-							pos[0] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[1] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[2] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[3] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
+							pos[0] = zt_vec3((anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[1] = zt_vec3((anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[2] = zt_vec3((anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[3] = zt_vec3((anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+
+							if (need_anchor_adjust) {
+								zt_fize(pos) {
+									pos[i].xy += anchor_adjust;
+								}
+							}
 						}
 						else {
 							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::rotate_billboard");
-							pos[0] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[1] = zt_vec3(-emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[2] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, -emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-							pos[3] = zt_vec3(+emitter->system->system_rendering.billboard.sprite.half_size.x * scale.x, +emitter->system->system_rendering.billboard.sprite.half_size.y * scale.y, 0);
-						
+							pos[0] = zt_vec3((anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[1] = zt_vec3((anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[2] = zt_vec3((anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x - emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+							pos[3] = zt_vec3((anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.x) * scale.x, (anchor_adjust.x + emitter->system->system_rendering.billboard.sprite.half_size.y) * scale.y, 0);
+
+							if (need_anchor_adjust) {
+								zt_fize(pos) {
+									pos[i].xy += anchor_adjust;
+								}
+							}
+
 							ztQuat quat = ztQuat::makeFromEuler(0, 0, particle->rotation.z);
 						
 							quat.rotatePosition(&pos[0]);
@@ -35594,7 +35625,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 							ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::apply_billboard");
 							// apply billboard transform
 							zt_fize(pos) {
-								pos[i] = particle->position + (mat_billboard * pos[i]);
+								pos[i] = position + (mat_billboard * pos[i]);
 							}
 							normal = mat_billboard * normal;
 						}
@@ -35723,17 +35754,17 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 					ztVec3 normal = zt_vec3(0, 0, 1);
 
 					if (particle->rotation == ztVec3::zero) {
-						pos[0] = zt_vec3(particle->position.x - emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
-						pos[1] = zt_vec3(particle->position.x - emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y - emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
-						pos[2] = zt_vec3(particle->position.x + emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y - emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
-						pos[3] = zt_vec3(particle->position.x + emitter->system->system_rendering.facing.sprite.half_size.x * scale.x, particle->position.y + emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, particle->position.z);
+						pos[0] = zt_vec3(position.x + (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x, position.y + (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, position.z);
+						pos[1] = zt_vec3(position.x + (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x, position.y + (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, position.z);
+						pos[2] = zt_vec3(position.x + (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x, position.y + (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, position.z);
+						pos[3] = zt_vec3(position.x + (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x, position.y + (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, position.z);
 					}
 					else {
 						ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::facing_rotation");
-						pos[0] = zt_vec3(0, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
-						pos[1] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
-						pos[2] = zt_vec3(0, -emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
-						pos[3] = zt_vec3(0, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.y, +emitter->system->system_rendering.facing.sprite.half_size.y * scale.x);
+						pos[0] = zt_vec3(0, (anchor_adjust.y + emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x);
+						pos[1] = zt_vec3(0, (anchor_adjust.y - emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, (anchor_adjust.x - emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x);
+						pos[2] = zt_vec3(0, (anchor_adjust.y - emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x);
+						pos[3] = zt_vec3(0, (anchor_adjust.y + emitter->system->system_rendering.facing.sprite.half_size.y) * scale.y, (anchor_adjust.x + emitter->system->system_rendering.facing.sprite.half_size.x) * scale.x);
 
 						ztQuat quat = ztQuat::makeFromEuler(particle->rotation.x, particle->rotation.y, particle->rotation.z);
 
@@ -35743,10 +35774,10 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						quat.rotatePosition(&pos[3]);
 						quat.rotatePosition(&normal);
 
-						pos[0] += particle->position;
-						pos[1] += particle->position;
-						pos[2] += particle->position;
-						pos[3] += particle->position;
+						pos[0] += position;
+						pos[1] += position;
+						pos[2] += position;
+						pos[3] += position;
 					}
 
 					if (draw_list) {
@@ -35897,17 +35928,17 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 				ztVec3 normal = zt_vec3(0, 0, 1);
 
 				if (particle->rotation == ztVec3::zero) {
-					pos[0] = zt_vec3(particle->position.x - sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
-					pos[1] = zt_vec3(particle->position.x - sprite->half_size.x * scale.x, particle->position.y - sprite->half_size.y * scale.y, particle->position.z);
-					pos[2] = zt_vec3(particle->position.x + sprite->half_size.x * scale.x, particle->position.y - sprite->half_size.y * scale.y, particle->position.z);
-					pos[3] = zt_vec3(particle->position.x + sprite->half_size.x * scale.x, particle->position.y + sprite->half_size.y * scale.y, particle->position.z);
+					pos[0] = zt_vec3(position.x + (anchor_adjust.x - sprite->half_size.x) * scale.x, position.y + (anchor_adjust.y + sprite->half_size.y) * scale.y, position.z);
+					pos[1] = zt_vec3(position.x + (anchor_adjust.x - sprite->half_size.x) * scale.x, position.y + (anchor_adjust.y - sprite->half_size.y) * scale.y, position.z);
+					pos[2] = zt_vec3(position.x + (anchor_adjust.x + sprite->half_size.x) * scale.x, position.y + (anchor_adjust.y - sprite->half_size.y) * scale.y, position.z);
+					pos[3] = zt_vec3(position.x + (anchor_adjust.x + sprite->half_size.x) * scale.x, position.y + (anchor_adjust.y + sprite->half_size.y) * scale.y, position.z);
 				}
 				else {
 					ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::rotation");
-					pos[0] = zt_vec3(-sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
-					pos[1] = zt_vec3(-sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
-					pos[2] = zt_vec3(+sprite->half_size.x * scale.x, -sprite->half_size.y * scale.y, 0);
-					pos[3] = zt_vec3(+sprite->half_size.x * scale.x, +sprite->half_size.y * scale.y, 0);
+					pos[0] = zt_vec3((anchor_adjust.x - sprite->half_size.x) * scale.x, (anchor_adjust.y + sprite->half_size.y) * scale.y, 0);
+					pos[1] = zt_vec3((anchor_adjust.x - sprite->half_size.x) * scale.x, (anchor_adjust.y - sprite->half_size.y) * scale.y, 0);
+					pos[2] = zt_vec3((anchor_adjust.x + sprite->half_size.x) * scale.x, (anchor_adjust.y - sprite->half_size.y) * scale.y, 0);
+					pos[3] = zt_vec3((anchor_adjust.x + sprite->half_size.x) * scale.x, (anchor_adjust.y + sprite->half_size.y) * scale.y, 0);
 
 					ztQuat quat = ztQuat::makeFromEuler(0, 0, -(particle->rotation.z + (particle->velocity.x > 0 ? 90.f : -90.f)));
 					quat.rotatePosition(&pos[0]);
@@ -35917,10 +35948,10 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 					quat.rotatePosition(&normal);
 
 
-					pos[0] += particle->position;
-					pos[1] += particle->position;
-					pos[2] += particle->position;
-					pos[3] += particle->position;
+					pos[0] += position;
+					pos[1] += position;
+					pos[2] += position;
+					pos[3] += position;
 				}
 
 				if (draw_list) {
@@ -36050,7 +36081,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 			}
 			else {
 				if (draw_list) {
-					zt_drawListAddSolidCircle2D(draw_list, particle->position, .05f, 16, particle->color);
+					zt_drawListAddSolidCircle2D(draw_list, position, .05f, 16, particle->color);
 				}
 			}
 		}
