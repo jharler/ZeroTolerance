@@ -85,19 +85,19 @@
 // ================================================================================================================================================================================================
 
 #if !defined(ZT_NO_OPENGL)
-#	include "zt_opengl.h"
+#	include "zt_renderer_opengl.h"
 #endif
 
 #if !defined(ZT_NO_DIRECTX)
-#	include "zt_directx.h"
+#	include "zt_renderer_directx.h"
 #endif
 
 #if !defined(ZT_NO_DSOUND)
-#	include "zt_dsound.h"
+#	include "zt_audio_dsound.h"
 #elif !defined(ZT_NO_OPENAL)
-#	include "zt_openal.h"
+#	include "zt_audio_openal.h"
 #elif !defined(ZT_NO_OPENSL)
-#	include "zt_opensl.h"
+#	include "zt_audio_opensl.h"
 #endif
 
 
@@ -5228,27 +5228,27 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 #if !defined(ZT_NO_OPENGL)
 #define ZT_OPENGL_IMPLEMENTATION
-#include "zt_opengl.h"
+#include "zt_renderer_opengl.h"
 #endif
 
 #if !defined(ZT_NO_DIRECTX)
 #define ZT_DIRECTX_IMPLEMENTATION
-#include "zt_directx.h"
+#include "zt_renderer_directx.h"
 #endif
 
 #if !defined(ZT_NO_DSOUND)
 #define ZT_DSOUND_IMPLEMENTATION
-#include "zt_dsound.h"
+#include "zt_audio_dsound.h"
 #endif
 
 #if defined(ZT_OPENAL)
 #define ZT_OPENAL_IMPLEMENTATION
-#include "zt_openal.h"
+#include "zt_audio_openal.h"
 #endif
 
 #if defined(ZT_OPENSL)
 #define ZT_OPENSL_IMPLEMENTATION
-#include "zt_opensl.h"
+#include "zt_audio_opensl.h"
 #endif
 
 
