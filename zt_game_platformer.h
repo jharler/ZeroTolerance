@@ -2289,10 +2289,17 @@ ztInternal i32 _zt_platformerDraw(ztPlatformerLevel *level, ztCamera *camera, i3
 	ztVec3 sprite_pos[6];
 	ztVec2 sprite_uvs[6];
 
+	ztVec2 cam_aabb_center = camera->position.xy;
+	ztVec2 cam_aabb_extent = zt_cameraOrthoGetViewportSize(camera);
+
 	zt_fiz(level->colliders_used) {
 		if (level->colliders[i].type == ztPlatformerColliderType_Sprite && (level->colliders[i].sprite.layer == layer || layer < 0) && !zt_bitIsSet(level->colliders[i].flags, ztPlatformerColliderFlags_Disabled)) {
 			ztVec2 p0, p1;
 			zt_platformerGetColliderPositions(level, &level->colliders[i], &p0, &p1, nullptr);
+
+			if (!zt_collisionAABBInAABB(cam_aabb_center, cam_aabb_extent, p0, level->colliders[i].sprite.sprite.half_size * 2)) {
+				continue;
+			}
 
 			ztVec3 scale = zt_vec3(level->colliders[i].sprite.scale, 1);
 			ztVec3 rot = zt_vec3(0, 0, level->colliders[i].sprite.rotation);
