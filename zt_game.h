@@ -3354,6 +3354,7 @@ bool zt_collisionMovingSphereInMovingSphere(const ztVec3 &sphere1_pos, r32 spher
 bool zt_collisionMovingSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &sphere_velocity, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr);
 
 r32  zt_collisionSquareDistPointToSegment(const ztVec3 &point, const ztVec3 &seg_beg, const ztVec3 &seg_end);
+r32  zt_collisionSquareDistPointToAABB(const ztVec3 &point, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
 
 bool zt_collisionSphereCapsule(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &capsule_beg, ztVec3 &capsule_end, r32 capsule_radius);
 bool zt_collisionSpherePlane(const ztVec3 &sphere_pos, r32 sphere_radius, const ztPlane& plane); bool zt_collisionRaySphere(const ztVec3 &ray_pos, const ztVec3 &ray_dir, const ztVec3 &sphere_pos, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
@@ -4513,6 +4514,8 @@ struct ztParticleEmitter
 	ztVec3                              prev_pos;
 	r32                                 time_last_particle;
 	ztRandom                            random;
+	ztVec3                              particle_ext_min;
+	ztVec3                              particle_ext_max;
 };
 
 // ================================================================================================================================================================================================
@@ -30917,6 +30920,27 @@ r32 zt_collisionSquareDistPointToSegment(const ztVec3 &point, const ztVec3 &seg_
 
 // ================================================================================================================================================================================================
 
+r32 zt_collisionSquareDistPointToAABB(const ztVec3 &point, const ztVec3 &aabb_center, const ztVec3 &aabb_extents)
+{
+	r32 sq_dist = 0.f;
+	ztVec3 half = aabb_extents * .5f;
+	ztVec3 min = aabb_center - half;
+	ztVec3 max = aabb_center + half;
+
+	zt_fize(point.values) {
+		if (point.values[i] < min.values[i]) {
+			sq_dist += (min.values[i] - point.values[i]) * (min.values[i] - point.values[i]);
+		}
+		if (point.values[i] > max.values[i]) {
+			sq_dist += (point.values[i] - max.values[i]) * (point.values[i] - max.values[i]);
+		}
+	}
+
+	return sq_dist;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_collisionSphereCapsule(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &capsule_beg, ztVec3 &capsule_end, r32 capsule_radius)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionSphereCapsule");
@@ -30951,7 +30975,9 @@ bool zt_collisionSphereSphere(const ztVec3 &sphere1_pos, r32 sphere1_radius, con
 bool zt_collisionSphereInAABB(const ztVec3 &sphere_pos, r32 sphere_radius, const ztVec3 &aabb_center, const ztVec3 &aabb_extents)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionSphereInAABB");
-	return zt_collisionPointInAABB(sphere_pos, aabb_center, aabb_extents + zt_vec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2));
+	//return zt_collisionPointInAABB(sphere_pos, aabb_center, aabb_extents + zt_vec3(sphere_radius * 2, sphere_radius * 2, sphere_radius * 2));
+	r32 sq_dist = zt_collisionSquareDistPointToAABB(sphere_pos, aabb_center, aabb_extents);
+	return sq_dist <= sphere_radius * sphere_radius;
 }
 
 // ================================================================================================================================================================================================
@@ -31008,7 +31034,8 @@ bool zt_collisionCircleInAABB(const ztVec2 &circle_pos, r32 circle_radius, const
 {
 	ZT_PROFILE_PHYSICS("zt_collisionCircleInAABB");
 
-	return zt_collisionPointInAABB(circle_pos, aabb_center, aabb_extents + zt_vec2(circle_radius * 2, circle_radius * 2));
+	//return zt_collisionPointInAABB(circle_pos, aabb_center, aabb_extents + zt_vec2(circle_radius * 2, circle_radius * 2));
+	return zt_collisionSphereInAABB(zt_vec3(circle_pos, 0), circle_radius, zt_vec3(aabb_center, 0), zt_vec3(aabb_extents, 1));
 }
 
 // ================================================================================================================================================================================================
@@ -34986,6 +35013,9 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 
 		int trail_segments = zt_elementsOf(emitter->particles[0].history);
 
+		emitter->particle_ext_min = ztVec3::max;
+		emitter->particle_ext_max = ztVec3::min;
+
 		zt_fiz(emitter->particles_size) {
 			if (emitter->particles[i].life_left <= 0) {
 				continue;
@@ -35082,6 +35112,12 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 				//particle->velocity += pos * dt;
 			}
 
+			if (particle->position.x < emitter->particle_ext_min.x) emitter->particle_ext_min.x = particle->position.x;
+			if (particle->position.y < emitter->particle_ext_min.y) emitter->particle_ext_min.y = particle->position.y;
+			if (particle->position.z < emitter->particle_ext_min.z) emitter->particle_ext_min.z = particle->position.z;
+			if (particle->position.x > emitter->particle_ext_max.x) emitter->particle_ext_max.x = particle->position.x;
+			if (particle->position.y > emitter->particle_ext_max.y) emitter->particle_ext_max.y = particle->position.y;
+			if (particle->position.z > emitter->particle_ext_max.z) emitter->particle_ext_max.z = particle->position.z;
 
 			if (emitter->system->rotate_towards_movement) {
 				ztMat4 mat = ztMat4::identity.getLookAt(position_last, particle->position, system_rotation.rotatePosition(zt_vec3(0, 1, 0)));
@@ -36255,13 +36291,53 @@ void zt_particleEmitterPoolUpdate(ztParticleEmitterPool *pool, r32 dt)
 
 // ================================================================================================================================================================================================
 
+struct ztParticleEmitterCameraCuller
+{
+	union {
+		struct {
+			ztVec2 aabb_center;
+			ztVec2 aabb_size;
+		};
+
+		struct {
+			ztFrustum frustum;
+		};
+	};
+
+	ztParticleEmitterCameraCuller(ztCamera *camera)
+	{
+		if(camera->type == ztCameraType_Perspective) {
+			zt_cameraCalcViewFrustum(&frustum, camera);
+		}
+		else {
+			aabb_center = camera->position.xy;
+			aabb_size = zt_cameraOrthoGetViewportSize(camera);
+		}
+	}
+
+	bool culled(ztParticleEmitter *emitter, ztCamera *camera)
+	{
+		ztVec3 emitter_extents = (emitter->particle_ext_max - emitter->particle_ext_min);
+		if(camera->type == ztCameraType_Perspective) {
+			return !zt_collisionAABBInFrustum(frustum, emitter->position, emitter_extents);
+		}
+		else {
+			return !zt_collisionAABBInAABB(aabb_center, aabb_size, emitter->position.xy, emitter_extents.xy);
+		}
+	}
+};
+
+// ================================================================================================================================================================================================
+
 void zt_particleEmitterPoolRender(ztParticleEmitterPool *pool, ztDrawList *draw_list, ztCamera *camera)
 {
 	ZT_PROFILE_PARTICLES("zt_particleEmitterPoolRender");
 	zt_returnOnNull(pool);
 
+	ztParticleEmitterCameraCuller culler(camera);
+
 	zt_fiz(pool->emitters_count) {
-		if (pool->emitters[i]->enabled) {
+		if (pool->emitters[i]->enabled && !culler.culled(pool->emitters[i], camera)) {
 			zt_particleEmitterRender(pool->emitters[i], draw_list, camera);
 		}
 	}
@@ -36276,8 +36352,10 @@ int zt_particleEmitterPoolGetTriangles(ztParticleEmitterPool *pool, ztCamera *ca
 
 	int total = 0;
 
+	ztParticleEmitterCameraCuller culler(camera);
+
 	zt_fiz(pool->emitters_count) {
-		if (pool->emitters[i]->enabled) {
+		if (pool->emitters[i]->enabled && !culler.culled(pool->emitters[i], camera)) {
 			int this_total = zt_particleEmitterGetTriangles(pool->emitters[i], camera, pos, uv, colors, size);
 
 			total += this_total;
@@ -36300,8 +36378,10 @@ int zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *ca
 
 	int total = 0;
 
+	ztParticleEmitterCameraCuller culler(camera);
+
 	zt_fiz(pool->emitters_count) {
-		if (pool->emitters[i]->enabled) {
+		if (pool->emitters[i]->enabled && !culler.culled(pool->emitters[i], camera)) {
 			int this_total = zt_particleEmitterFillVertices(pool->emitters[i], camera, vertices, size);
 
 			total += this_total;
@@ -36322,8 +36402,10 @@ int zt_particleEmitterPoolFillVertices(ztParticleEmitterPool *pool, ztCamera *ca
 
 	int total = 0;
 
+	ztParticleEmitterCameraCuller culler(camera);
+
 	zt_fiz(pool->emitters_count) {
-		if (pool->emitters[i]->enabled) {
+		if (pool->emitters[i]->enabled && !culler.culled(pool->emitters[i], camera)) {
 			int this_total = zt_particleEmitterFillVertices(pool->emitters[i], camera, vertices, size);
 
 			total += this_total;
