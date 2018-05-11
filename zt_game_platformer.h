@@ -727,7 +727,7 @@ struct ztPlatformerLevelEditorMarker
 
 // ================================================================================================================================================================================================
 
-void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale = ztVec2::one);
+void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, const char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale = ztVec2::one);
 
 // ================================================================================================================================================================================================
 
@@ -2297,17 +2297,17 @@ ztInternal i32 _zt_platformerDraw(ztPlatformerLevel *level, ztCamera *camera, i3
 			ztVec2 p0, p1;
 			zt_platformerGetColliderPositions(level, &level->colliders[i], &p0, &p1, nullptr);
 
+			if (layer >= 0 && apply_parallax) {
+				p0 -= diff_from_cam;
+				p1 -= diff_from_cam;
+			}
+
 			if (!zt_collisionAABBInAABB(cam_aabb_center, cam_aabb_extent, p0, level->colliders[i].sprite.sprite.half_size * 2)) {
 				continue;
 			}
 
 			ztVec3 scale = zt_vec3(level->colliders[i].sprite.scale, 1);
 			ztVec3 rot = zt_vec3(0, 0, level->colliders[i].sprite.rotation);
-
-			if (layer >= 0 && apply_parallax) {
-				p0 -= diff_from_cam;
-				p1 -= diff_from_cam;
-			}
 
 			ztSprite *sprite = level->colliders[i].sprite.anim_controller ? zt_spriteAnimControllerActiveSprite(level->colliders[i].sprite.anim_controller) : &level->colliders[i].sprite.sprite;
 
@@ -2887,7 +2887,7 @@ void zt_platformerUpdatePhysicsObjects(ztPlatformerLevel *level, ztPlatformerPhy
 
 										if (stage == Stage_EnvironmentalPushes && zt_collisionLineSegmentInAABB(zt_vec3(pp0, 0), zt_vec3(pp1, 0), zt_vec3(objects[x].position + objects[x].aabb.center, 0), aabb_size)) {
 											r32 vel_dot = platform_velocity.dot(objects[x].velocity);
-											if (vel_dot < 0 && objects[x].velocity.length() < platform_velocity.length() || objects[x].velocity == ztVec2::zero) {
+											if ((vel_dot < 0 && objects[x].velocity.length() < platform_velocity.length()) || objects[x].velocity == ztVec2::zero) {
 												objects[x].velocity = platform_velocity * .0001f; // give close to zero, but not zero velocity so the code that makes sure the object comes to rest on the platform is executed
 												if (objects[x].velocity == ztVec2::zero) {
 													objects[x].velocity = collider_normal * .0001f;
@@ -4020,7 +4020,7 @@ void zt_platformerLevelEditorTile(ztPlatformerLevelEditorTile *tile, const char 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale)
+void zt_platformerLevelEditorMarker(ztPlatformerLevelEditorMarker *marker, const char *name, i32 value, const char *info, ztVec2 area_center, ztVec2 area_size, ztSprite *sprite, ztVec2 sprite_offset, ztVec2 sprite_scale)
 {
 	zt_strCpy(marker->name, zt_elementsOf(marker->name), name);
 	zt_strCpy(marker->info, zt_elementsOf(marker->info), info);
@@ -5252,7 +5252,7 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForCollider(ztPlatformerLevelE
 
 	ztGuiItem *sizer_main = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
 
-	char *type = "Unknown Type";
+	const char *type = "Unknown Type";
 	bool has_two_positions = true;
 	switch (collider->type)
 	{
