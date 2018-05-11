@@ -2646,7 +2646,7 @@ ztInline void zt_assertRaw(const char *condition_name, const char *file, int fil
 {
 	zt_winOnly(zt_debugOnly(__debugbreak()));
 	zt_logCritical("assert failed: '%s' in file %s (%d)", condition_name, file, file_line);
-	//zt_debugOnly(__asm { int 3 });
+	zt_releaseOnly(i32 *null = nullptr; *null = 0);
 }
 
 
@@ -4574,7 +4574,7 @@ i32 zt_memHash(const void *mem, i32 mem_len)
 // ================================================================================================================================================================================================
 
 #if defined(ZT_MEM_ARENA_LOG_DETAILS)
-#	define zt_logMemory(...) zt_logVerbose(__VA_ARGS__)
+#	define zt_logMemory(...) if(arena != zt->mem_arena_stack) zt_logVerbose(__VA_ARGS__)
 #else
 #	define zt_logMemory(...)
 #endif
@@ -4787,6 +4787,10 @@ ztInternal void _zt_memAllocSetFileName(ztMemoryArena *arena, ztMemoryArena::all
 		}
 	}
 
+	if (idx < -1) {
+		return;
+	}
+
 	if (arena->file_names_hashes[idx] == 0) {
 		int len = zt_strLen(file_name_only);
 
@@ -4810,11 +4814,17 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 {
 	ZT_PROFILE_TOOLS("zt_memAllocFromArena");
 
+	zt_logMemory("memory (%llx): requesting %d bytes", (long long unsigned int)arena, bytes);
+
 	if (arena == nullptr) {
-		return zt->mem_malloc(bytes);
+		zt_assert(zt != nullptr && zt->mem_malloc != nullptr);
+		zt_logMemory("memory (%llx): calling zt->mem_malloc", (long long unsigned int)zt->mem_malloc);
+		void *result = zt->mem_malloc(bytes);
+		zt_assert(result != nullptr);
+		return result;
 	}
 
-		const int byte_align = ztPointerSize;
+	const int byte_align = ztPointerSize;
 	if (bytes % byte_align != 0) {
 		bytes += byte_align - (bytes % byte_align);	// align the memory to 4/8 byte chunks
 	}
@@ -4929,9 +4939,10 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 		}
 	}
 
-	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)next, arena->alloc_cnt);
+	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)allocation->start, arena->alloc_cnt);
 	// conditional break: allocation->alloc_idx == 0 && allocation->start == 0x0
 	//zt_memValidateArena(arena);
+	zt_assert(allocation->start != 0);
 	return (void*)allocation->start;
 }
 
@@ -4941,13 +4952,14 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 size, const char *file, int
 {
 	ZT_PROFILE_TOOLS("zt_memAllocFromArena");
 
+	zt_logMemory("memory (%llx): requesting %d bytes of memory (file: %s) (line: %d)", (long long unsigned int)arena, size, file, file_line);
 	void *result = zt_memAllocFromArena(arena, size);
 	if (result && arena) {
 		ztMemoryArena::allocation* allocation = (ztMemoryArena::allocation*)(((byte*)result) - zt_sizeof(ztMemoryArena::allocation));
 		_zt_memAllocSetFileName(arena, allocation, file);
 		allocation->file_line = file_line;
 
-		zt_debugOnly(zt_logMemory("memory (%llx): %d bytes of memory at location 0x%llx (file: %s) (line: %d)", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation, file, file_line));
+		zt_logMemory("memory (%llx): %d bytes of memory at location 0x%llx (file: %s) (line: %d)", (long long unsigned int)arena, allocation->length, (long long unsigned int)allocation, file, file_line);
 	}
 
 	return result;
