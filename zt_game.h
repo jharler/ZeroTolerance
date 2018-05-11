@@ -79,6 +79,9 @@
 
 #include "zt_tools.h"
 
+#ifndef ZT_WINDOWS
+#define ZT_NO_PROFILE
+#endif
 
 // ================================================================================================================================================================================================
 // renderer defines
@@ -7296,9 +7299,8 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 #	if defined(ZT_WINDOWS)
 	zt_fileClose(&asset_list_file);
-#	endif
-
 	zt_directoryMonitor(&asset_mgr->directory_mon, directory, true, ztDirectoryMonitorFlags_Modify);
+#	endif
 
 	zt_freeArena(tokens, arena);
 
@@ -7612,6 +7614,7 @@ bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id)
 
 void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ZT_FUNCTION_POINTER_VAR(function, zt_assetManagerAssetUpdated_Func), void *user_data)
 {
+#	if defined(ZT_WINDOWS)
 	ZT_PROFILE_ASSETS("zt_assetAddReloadCallback");
 	zt_returnOnNull(asset_mgr);
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -7631,12 +7634,14 @@ void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ZT
 	asset_mgr->asset_callback_user_data[idx] = user_data;
 	
 	zt_fileModified(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &asset_mgr->asset_modified[asset_id]);
+#	endif
 }
 
 // ================================================================================================================================================================================================
 
 void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data)
 {
+#	if defined(ZT_WINDOWS)
 	ZT_PROFILE_ASSETS("zt_assetRemoveReloadCallback");
 	zt_returnOnNull(asset_mgr);
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -7667,6 +7672,7 @@ void zt_assetRemoveReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id,
 			return;
 		}
 	}
+#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -7809,7 +7815,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 };
 
 ztInternal const char *_zt_default_shaders[] = {
-	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.color.rgb, min(_input.color.a, 1));\n	}\n}",
+	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.color.rgb, min(_input.color.a, 1.0));\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
@@ -15428,18 +15434,24 @@ void zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDra
 		zt_drawListPushTransform(draw_list, calculated_mat);
 		zt_drawListPushColor(draw_list, ztColor_Red);
 		zt_drawListAddLine(draw_list, ztVec3::zero, x_axis_pos);
-		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &ztQuat::makeFromEuler(0, 90, 0));
-		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &ztQuat::makeFromEuler(0, -90, 0));
+		ztQuat rot = ztQuat::makeFromEuler(0, 90, 0);
+		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &rot);
+		rot = ztQuat::makeFromEuler(0, -90, 0);
+		zt_drawListAddSolidCircle2D(draw_list, x_axis_pos, radius, 16, widget->hover && widget->hover_axis == 0 ? ztColor_White : ztColor_Red, &rot);
 		zt_drawListPopColor(draw_list);
 		zt_drawListPushColor(draw_list, ztColor_Green);
 		zt_drawListAddLine(draw_list, ztVec3::zero, y_axis_pos);
-		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &ztQuat::makeFromEuler(90, 0, 0));
-		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &ztQuat::makeFromEuler(-90, 0, 0));
+		rot = ztQuat::makeFromEuler(90, 0, 0);
+		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &rot);
+		rot = ztQuat::makeFromEuler(-90, 0, 0);
+		zt_drawListAddSolidCircle2D(draw_list, y_axis_pos, radius, 16, widget->hover && widget->hover_axis == 1 ? ztColor_White : ztColor_Green, &rot);
 		zt_drawListPopColor(draw_list);
 		zt_drawListPushColor(draw_list, ztColor_Blue);
 		zt_drawListAddLine(draw_list, ztVec3::zero, z_axis_pos);
-		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &ztQuat::makeFromEuler(0, 0, 0));
-		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &ztQuat::makeFromEuler(-180, 0, 0));
+		rot = ztQuat::makeFromEuler(0, 0, 0);
+		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &rot);
+		rot = ztQuat::makeFromEuler(-180, 0, 0);
+		zt_drawListAddSolidCircle2D(draw_list, z_axis_pos, radius, 16, widget->hover && widget->hover_axis == 2 ? ztColor_White : ztColor_Blue, &rot);
 		zt_drawListPopColor(draw_list);
 		zt_drawListPopTransform(draw_list);
 	}
@@ -21071,7 +21083,7 @@ bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntax
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
+static ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
 
 // ---------
 
@@ -21239,9 +21251,9 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
 	if (game_settings->renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
+
 		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
 		if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
-
 			if (replace != ztInvalidID) {
 				shader_id = replace;
 			}
@@ -21257,6 +21269,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 				zt_game->shaders[shader_id].gl_shader = gl_shader;
 
 				ztShader* shader = &zt_game->shaders[shader_id];
+
 				shader->renderer = ztRenderer_OpenGL;
 
 				_zt_shaderSetupVariables(shader);
@@ -39062,7 +39075,9 @@ void androidHandleCmd(android_app* app, int32_t cmd)
 
 		case APP_CMD_GAINED_FOCUS: {
 			zt_game->app_has_focus = true;
-			ztsl_contextResumeAll(zt_game->sl_context);
+			if (zt_game->sl_context != nullptr) {
+				ztsl_contextResumeAll(zt_game->sl_context);
+			}
 			if (zt_game->game_details.current_frame > 1) {
 				ztgl_android_contextUpdateAfterResume(zt_game->win_details[0].gl_context);
 			}
@@ -39311,8 +39326,11 @@ bool mainInitializationAndLoop()
 int main(int argc, const char **argv)
 {
 	char *app_path = (char*)malloc(ztFileMaxPath);
+
+#	if !defined(ZT_EMSCRIPTEN) && !defined(ZT_ANDROID)
 	zt_fileGetAppPath(app_path, ztFileMaxPath);
 	zt_logInfo("application path: %s", app_path);
+#	endif
 
 	char *data_path_temp = (char*)malloc(ztFileMaxPath);
 	char *data_path = (char*)malloc(ztFileMaxPath);

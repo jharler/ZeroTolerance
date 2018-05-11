@@ -2253,7 +2253,8 @@ int ztgl_clearErrors()
 
 ztShaderGL *ztgl_shaderMake(ztContextGL *context, const char *vert_src, const char *frag_src, const char *geom_src)
 {
-	return ztgl_shaderMake(context, zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
+	ztShaderGL *result = ztgl_shaderMake(context, zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
+	return result;
 }
 
 // ================================================================================================================================================================================================
@@ -2261,6 +2262,11 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, const char *vert_src, const ch
 ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src)
 {
 	ZT_PROFILE_OPENGL("ztgl_shaderMake");
+
+	zt_returnValOnNull(context, nullptr);
+	zt_returnValOnNull(arena, nullptr);
+	zt_returnValOnNull(vert_src, nullptr);
+	zt_returnValOnNull(frag_src, nullptr);
 
 	struct local
 	{
@@ -2385,6 +2391,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		GLenum type = 0;
 		char varname[256] = { 0 };
 		ztgl_callAndReportOnErrorFast(glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
+		zt_assert(len < zt_elementsOf(varname));
 
 		actual_count += size;
 	}
@@ -2398,6 +2405,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		GLenum type = 0;
 		char varname[256] = { 0 };
 		ztgl_callAndReportOnErrorFast(glGetActiveUniform(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
+		zt_assert(len < zt_elementsOf(varname));
 		varname[len] = 0;
 
 		if (size > 1) { // variable array is named like "variable[0]"
@@ -2406,7 +2414,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 			zt_strCpy(subname, zt_elementsOf(subname), varname, pos_open == ztStrPosNotFound ? zt_strLen(varname) : pos_open);
 
 			zt_fjz(size) {
-				zt_strMakePrintf(name, 256, "%s[%d]", subname, j);
+				zt_strMakePrintf(name, 512, "%s[%d]", subname, j);
 
 				shader->uniforms[act_idx].name = zt_stringMakeFrom(name, arena);
 				shader->uniforms[act_idx].type = type;
@@ -2438,6 +2446,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		GLenum type = 0;
 		char varname[256] = { 0 };
 		ztgl_callAndReportOnErrorFast(glGetActiveAttrib(program, i, zt_elementsOf(varname), &len, &size, &type, varname));
+		zt_assert(len < zt_elementsOf(varname));
 		varname[len] = 0;
 
 		shader->inputs[i].name      = zt_stringMakeFrom(varname, arena);
@@ -2447,23 +2456,23 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 	}
 #	endif
 
-#	if 1
+#	if !defined(ZT_GLES)
 #	define GL_LOCATION 0x930E
 #	define GL_PROGRAM_OUTPUT 0x92E4
 #	define GL_ARRAY_SIZE 0x92FB
 #	define GL_REFERENCED_BY_FRAGMENT_SHADER 0x930A
-#define GL_LOCATION_INDEX 0x930F
-#define GL_LOCATION_COMPONENT 0x934A
-#define GL_TYPE 0x92FA
+#	define GL_LOCATION_INDEX 0x930F
+#	define GL_LOCATION_COMPONENT 0x934A
+#	define GL_TYPE 0x92FA
 
 	int locations_count = 0;
 
 	zt_fiz(16) {
 		GLenum inputs[] = { GL_LOCATION };
-		GLint outputs[64];
+		GLint outputs[512];
 		int outputs_count = 0;
 		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
-		for (GLint error = glGetError(); error != 0; error = glGetError()) {}
+		for (GLint error = glGetError(); error != 0; error = glGetError()) { zt_logDebug("opengl error in glGetProgramResourceiv (%d)", error); }
 		if (outputs_count <= 0) break;
 
 		locations_count += 1;
@@ -2474,7 +2483,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 
 	zt_fiz(locations_count) {
 		GLenum inputs[] = { GL_LOCATION };
-		GLint outputs[64];
+		GLint outputs[512];
 		int outputs_count = 0;
 
 		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
@@ -2487,6 +2496,8 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		char varname[256] = { 0 };
 		int len = 0;
 		glGetProgramResourceName(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(varname), &len, varname);
+		zt_assert(len < zt_elementsOf(varname));
+		varname[len] = 0;
 
 		shader->outputs[i].name = zt_stringMakeFrom(varname, arena);
 		shader->outputs[i].name_hash = zt_strHash(shader->outputs[i].name);
@@ -2696,7 +2707,7 @@ void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 
 ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
 {
-	char *vert =
+	const char *vert =
 		"#version 330 core\n"
 		"layout (location = 0) in vec3 position;\n"
 		"\n"
@@ -2707,7 +2718,7 @@ ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
 		"	gl_Position = model * vec4(position, 1.0);\n"
 		"}\n";
 
-	char *geom =
+	const char *geom =
 		"#version 330 core\n"
 		"layout (triangles) in;\n"
 		"layout (triangle_strip, max_vertices=18) out;\n"
@@ -2729,7 +2740,7 @@ ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
 		"	}\n"
 		"} \n";
 
-	char *frag =
+	const char *frag =
 		"#version 330 core\n"
 		"in vec4 frag_pos;\n"
 		"\n"
@@ -3347,7 +3358,7 @@ ztTextureGL *ztgl_textureMakeCubeMapFromHDR(ztContextGL *context, ztTextureGL *h
 ztTextureGL *ztgl_textureMakeCubeMapForDepth(ztContextGL *context, i32 dimension)
 {
 	ZT_PROFILE_OPENGL("ztgl_textureMakeCubeMapFromRender");
-
+#	if !defined(ZT_GLES)
 	struct local
 	{
 		static bool load(GLuint *frame_buffer_id, GLuint *tex_id, i32 dimension)
@@ -3404,6 +3415,9 @@ ztTextureGL *ztgl_textureMakeCubeMapForDepth(ztContextGL *context, i32 dimension
 	texture->context           = context;
 
 	return texture;
+#	else
+	return nullptr;
+#	endif
 }
 
 // ================================================================================================================================================================================================
@@ -3643,7 +3657,7 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 	zt_assertReturnValOnFail(ztgl_textureIsRenderTarget(texture), nullptr);
 
 	ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, texture->fbo), nullptr);
-	ztgl_callAndReturnValOnError(glBindRenderbuffer(GL_RENDERBUFFER, texture->dbo), false);
+	ztgl_callAndReturnValOnError(glBindRenderbuffer(GL_RENDERBUFFER, texture->dbo), nullptr);
 
 	i32 flags = ztTextureGLFlags_Attachment;
 
@@ -3655,7 +3669,7 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 	bool multisample = zt_bitIsSet(texture->flags, ztTextureGLFlags_Multisample);
 	if (multisample) {
 		flags |= ztTextureGLFlags_Multisample;
-		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, attachment), false);
+		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, attachment), nullptr);
 	}
 	else {
 		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, attachment), nullptr);
@@ -3677,7 +3691,7 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 	}
 
 	if(multisample) {
-		ztgl_callAndReturnValOnError(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, texture->w, texture->h, GL_TRUE), false);
+		ztgl_callAndReturnValOnError(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, texture->w, texture->h, GL_TRUE), nullptr);
 	}
 	else {
 		ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, color_lvl, texture->w, texture->h, 0, color_fmt, color_type, NULL), nullptr);
@@ -3686,11 +3700,11 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), nullptr);
 	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), nullptr);
 	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0), nullptr);
-	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
-	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), nullptr);
+	ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), nullptr);
 
 	if(multisample) {
-		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0), false);
+		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0), nullptr);
 		ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + texture->attachments_count, GL_TEXTURE_2D_MULTISAMPLE, attachment, 0), nullptr);
 	}
 	else {
@@ -3713,33 +3727,33 @@ ztTextureGL *ztgl_textureRenderTargetAddAttachment(ztTextureGL *texture, ztTextu
 
 		render_target_id = attachment;
 
-		ztgl_callAndReturnValOnError(glGenFramebuffers(1, &resolve_buffer_id), false);
-		ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, resolve_buffer_id), false);
+		ztgl_callAndReturnValOnError(glGenFramebuffers(1, &resolve_buffer_id), nullptr);
+		ztgl_callAndReturnValOnError(glBindFramebuffer(GL_FRAMEBUFFER, resolve_buffer_id), nullptr);
 
-		ztgl_callAndReturnValOnError(glGenTextures(1, &attachment), false);
-		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, attachment), false);
+		ztgl_callAndReturnValOnError(glGenTextures(1, &attachment), nullptr);
+		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, attachment), nullptr);
 		if (zt_bitIsSet(flags, ztTextureGLFlags_PixelPerfect)) {
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), false);
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), false);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST), nullptr);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST), nullptr);
 		}
 		else {
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), false);
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR), false);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR), nullptr);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR), nullptr);
 		}
 
 		if (zt_bitIsSet(flags, ztTextureGLFlags_Repeat)) {
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT), false);
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT), false);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT), nullptr);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT), nullptr);
 		}
 		else {
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), false);
-			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), false);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE), nullptr);
+			ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE), nullptr);
 		}
 
-		ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0), false);
+		ztgl_callAndReturnValOnError(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0), nullptr);
 		ztgl_callAndReturnValOnError(glTexImage2D(GL_TEXTURE_2D, 0, color_lvl, texture->w, texture->h, 0, color_fmt, color_type, NULL), nullptr);
-		ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, attachment, 0), false);
-		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, 0), false);
+		ztgl_callAndReturnValOnError(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, attachment, 0), nullptr);
+		ztgl_callAndReturnValOnError(glBindTexture(GL_TEXTURE_2D, 0), nullptr);
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			zt_assertReturnValOnFail(false, nullptr);
@@ -4046,6 +4060,8 @@ i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices
 {
 	ZT_PROFILE_OPENGL("ztgl_vertexArrayGetVertices");
 
+#	if !defined(ZT_GLES)
+
 	if(vertices_size < vertex_array->vert_count_active) {
 		return vertex_array->vert_count_active;
 	}
@@ -4070,6 +4086,9 @@ i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices
 	ztgl_callAndReturnValOnError(glBindVertexArray(0), 0);
 
 	return vertex_array->vert_count_active;
+#	else
+	return 0;
+#	endif
 }
 
 
