@@ -330,6 +330,36 @@ typedef unsigned long long size_t;
 #define zt_fyzre(beg)                             for (int y = (int)zt_elementsOf((beg)); y >= 0; --y)
 #define zt_fzzre(beg)                             for (int z = (int)zt_elementsOf((beg)); z >= 0; --z)
 #define zt_fvzre(var, beg)                        for (int var = (int)zt_elementsOf((beg)); var >= 0; --var)
+
+#define zt_fiz64(end)                             for (i64 i = 0; i < (int)(end); ++i)
+#define zt_fjz64(end)                             for (i64 j = 0; j < (int)(end); ++j)
+#define zt_fkz64(end)                             for (i64 k = 0; k < (int)(end); ++k)
+#define zt_fxz64(end)                             for (i64 x = 0; x < (int)(end); ++x)
+#define zt_fyz64(end)                             for (i64 y = 0; y < (int)(end); ++y)
+#define zt_fzz64(end)                             for (i64 z = 0; z < (int)(end); ++z)
+#define zt_fvz64(var, end)                        for (i64 var = 0; var < (int)(end); ++var)
+#define zt_fize64(end)                            for (i64 i = 0; i < (int)zt_elementsOf((end)); ++i)
+#define zt_fjze64(end)                            for (i64 j = 0; j < (int)zt_elementsOf((end)); ++j)
+#define zt_fkze64(end)                            for (i64 k = 0; k < (int)zt_elementsOf((end)); ++k)
+#define zt_fxze64(end)                            for (i64 x = 0; x < (int)zt_elementsOf((end)); ++x)
+#define zt_fyze64(end)                            for (i64 y = 0; y < (int)zt_elementsOf((end)); ++y)
+#define zt_fzze64(end)                            for (i64 z = 0; z < (int)zt_elementsOf((end)); ++z)
+#define zt_fvze64(var, end)                       for (i64 var = 0; var < (int)zt_elementsOf((end)); ++var)
+#define zt_fizr64(beg)                            for (i64 i = (int)(beg); i >= 0; --i)
+#define zt_fjzr64(beg)                            for (i64 j = (int)(beg); j >= 0; --j)
+#define zt_fkzr64(beg)                            for (i64 k = (int)(beg); k >= 0; --k)
+#define zt_fxzr64(beg)                            for (i64 x = (int)(beg); x >= 0; --x)
+#define zt_fyzr64(beg)                            for (i64 y = (int)(beg); y >= 0; --y)
+#define zt_fzzr64(beg)                            for (i64 z = (int)(beg); z >= 0; --z)
+#define zt_fvzr64(var, beg)                       for (i64 var = (int)(beg); var >= 0; --var)
+#define zt_fizre64(beg)                           for (i64 i = (int)zt_elementsOf((beg)); i >= 0; --i)
+#define zt_fjzre64(beg)                           for (i64 j = (int)zt_elementsOf((beg)); j >= 0; --j)
+#define zt_fkzre64(beg)                           for (i64 k = (int)zt_elementsOf((beg)); k >= 0; --k)
+#define zt_fxzre64(beg)                           for (i64 x = (int)zt_elementsOf((beg)); x >= 0; --x)
+#define zt_fyzre64(beg)                           for (i64 y = (int)zt_elementsOf((beg)); y >= 0; --y)
+#define zt_fzzre64(beg)                           for (i64 z = (int)zt_elementsOf((beg)); z >= 0; --z)
+#define zt_fvzre64(var, beg)                      for (i64 var = (int)zt_elementsOf((beg)); var >= 0; --var)
+
 #define zt_flink(var,start)                       for (auto *var = start; var != nullptr; var = var->next)
 #define zt_flinknext(var,start,next_var)          for (auto *var = start; var != nullptr; var = var->next_var)
 
@@ -342,8 +372,8 @@ typedef unsigned long long size_t;
 #define zt_radiansToDegrees(radians)              ((radians) * ztMath180Pi)
 
 #if !defined(ZT_TOOLS_RETURN_ON_NULLPTR_NO_ASSERT)
-#	define zt_returnOnNull(ptr)                   if (ptr == nullptr) { zt_assert(false); return; }
-#	define zt_returnValOnNull(ptr, retval)        if (ptr == nullptr) { zt_assert(false); return retval; };
+#	define zt_returnOnNull(ptr)                   if (ptr == nullptr) { zt_assert(ptr != nullptr); return; }
+#	define zt_returnValOnNull(ptr, retval)        if (ptr == nullptr) { zt_assert(ptr != nullptr); return retval; };
 #else
 #	define zt_returnOnNull(ptr)                   if (ptr == nullptr) { return; }
 #	define zt_returnValOnNull(ptr, retval)        if (ptr == nullptr) { return retval; };
