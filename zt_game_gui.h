@@ -692,12 +692,14 @@ ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec2i *value, ztVec2i min, ztVec2i max, i32 step = 1, bool label_above = true, const char *label_x = "X", const char *label_y = "Y");
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec3i *value, ztVec3i min, ztVec3i max, i32 step = 1, bool label_above = true, const char *label_x = "X", const char *label_y = "Y", const char *label_z = "Z");
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztVec4i *value, ztVec4i min, ztVec4i max, i32 step = 1, bool label_above = true, const char *label_x = "X", const char *label_y = "Y", const char *label_z = "Z", const char *label_w = "W");
+ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, const char *label, ztQuat *value, ztVec3 min, ztVec3 max, r32 step = 1, bool label_above = true);
 
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableReal *variable, r32 def, r32 min, r32 max, r32 step);
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableColor *variable);
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableVec2 *variable, ztVec2 def, ztVec2 min, ztVec2 max, r32 step, bool allow_sync);
 ztGuiItem       *zt_guiMakeEditor                      (ztGuiItem *parent, ztParticleVariableVec3 *variable, ztVec3 def, ztVec3 min, ztVec3 max, r32 step, bool allow_sync);
 
+ztGuiItem       *zt_guiMakeFlagEditor                  (ztGuiItem *parent, const char **flag_labels, i32 *flag_values, int flags_count, i32 *flags_variable, int columns);
 
 // ================================================================================================================================================================================================
 
@@ -869,7 +871,9 @@ void            *zt_guiTreeGetNodeUserData             (ztGuiItem *tree, ztGuiTr
 void             zt_guiTreeSetCallback                 (ztGuiItem *tree, ZT_FUNCTION_POINTER_VAR(on_item_sel, zt_guiTreeItemSelected_Func), void *user_data);
 void             zt_guiTreeCollapseNode                (ztGuiItem *tree, ztGuiTreeNodeID node);
 void             zt_guiTreeExpandNode                  (ztGuiItem *tree, ztGuiTreeNodeID node);
+void             zt_guiTreeRemoveNode                  (ztGuiItem *tree, ztGuiTreeNodeID node);
 void             zt_guiTreeClear                       (ztGuiItem *tree);
+ztGuiTreeNodeID  zt_guiTreeFindNodeWithUserDataOf      (ztGuiItem *tree, void *user_data);
 
 // ================================================================================================================================================================================================
 
@@ -955,12 +959,18 @@ void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec3 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec4 value);
 void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec2i value);
+void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec3i value);
+void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztVec4i value);
+void             zt_guiEditorSetToValue                (ztGuiItem *editor, ztQuat value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, r32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, i32 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec2 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec3 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec4 *value);
 void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec2i *value);
+void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec3i *value);
+void             zt_guiEditorReassign                  (ztGuiItem *editor, ztVec4i *value);
+void             zt_guiEditorReassign                  (ztGuiItem *editor, ztQuat *value);
 void             zt_guiEditorSetCallback               (ztGuiItem *editor, ZT_FUNCTION_POINTER_VAR(function_id, zt_guiEditorValueChanged_Func), void *user_data);
 
 // ================================================================================================================================================================================================
@@ -972,6 +982,9 @@ void             zt_guiSizerSizeParent                 (ztGuiItem *sizer, bool s
 void             zt_guiSizerRecalc                     (ztGuiItem *item);
 void             zt_guiSizerRecalcImmediately          (ztGuiItem *sizer);
 ztVec2           zt_guiSizerGetMinSize                 (ztGuiItem *sizer);
+void             zt_guiSizerRemoveItem                 (ztGuiItem *sizer, ztGuiItem *item);
+void             zt_guiSizerRemoveAllItems             (ztGuiItem *sizer);
+
 void             zt_guiColumnSizerSetProp              (ztGuiItem *sizer, int col, int prop);
 
 // ================================================================================================================================================================================================
@@ -987,8 +1000,8 @@ void             zt_guiSplitterSetSecondItem(ztGuiItem *splitter, ztGuiItem *ite
 
 struct ztGuiDialogMessageOption
 {
-	i32 id;
-	char display[64];
+	i32   id;
+	char  display[64];
 	void *user_data;
 };
 
@@ -997,10 +1010,12 @@ typedef          ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(zt_guiDialogMessageClosed_Fun
 
 void             zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogMessageOption *options, int options_count, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
 
+
+void             zt_guiDialogMessageBoxOk         (const char *title, const char *message);
 void             zt_guiDialogMessageBoxOk         (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
-void             zt_guiDialogMessageBoxOkCancel   (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
-void             zt_guiDialogMessageBoxYesNo      (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
-void             zt_guiDialogMessageBoxYesNoCancel(const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
+void             zt_guiDialogMessageBoxOkCancel   (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Ok, 1 - Cancel
+void             zt_guiDialogMessageBoxYesNo      (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Yes, 1 - No
+void             zt_guiDialogMessageBoxYesNoCancel(const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Yes, 1 - Now, 2 - Cancel
 
 
 // ================================================================================================================================================================================================
@@ -7519,7 +7534,7 @@ ztGuiTreeNodeID zt_guiTreeAppend(ztGuiItem *tree, const char *item_label, void *
 
 	zt_assertReturnValOnFail(tree->type == ztGuiItemType_Tree, ztInvalidID);
 
-	ztGuiItem *item = zt_guiMakeStaticText(tree->tree.content, item_label);
+	ztGuiItem *item = zt_guiMakeStaticText(tree->tree.content, item_label, ztGuiStaticTextBehaviorFlags_Fancy);
 	return zt_guiTreeAppend(tree, item, user_data, parent_id, flags);
 }
 
@@ -7762,42 +7777,100 @@ void zt_guiTreeExpandNode(ztGuiItem *tree, ztGuiTreeNodeID node_id)
 
 // ================================================================================================================================================================================================
 
+ztInternal void _zt_guiTreeClear(ztMemoryArena *arena, ztGuiItem::ztTreeItem *tree_item, bool remove_from_parent)
+{
+	if (tree_item->control_button != nullptr) {
+		zt_guiItemQueueFree(tree_item->control_button);
+		tree_item->control_button = nullptr;
+	}
+	if (tree_item->item != nullptr) {
+		zt_guiItemQueueFree(tree_item->item);
+		tree_item->item = nullptr;
+	}
+
+	if (remove_from_parent && tree_item->parent) {
+		ztGuiItem::ztTreeItem *prev = nullptr;
+		zt_flink(child, tree_item->parent->first_child) {
+			if (child == tree_item) {
+				if (prev) {
+					prev->next = child->next;
+				}
+				if (child == tree_item->parent->first_child) {
+					tree_item->parent->first_child = child->next;
+				}
+				break;
+			}
+			prev = child;
+		}
+	}
+
+	ztGuiItem::ztTreeItem *child = tree_item->first_child;
+	while (child) {
+		ztGuiItem::ztTreeItem *next = child->next;
+		_zt_guiTreeClear(arena, child, false);
+		child = next;
+	}
+
+	tree_item->first_child = nullptr;
+
+	if (tree_item->parent) { // don't clear the root item, we need it for later
+		zt_freeArena(tree_item, arena);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiTreeRemoveNode(ztGuiItem *tree, ztGuiTreeNodeID node_id)
+{
+	ZT_PROFILE_GUI("zt_guiTreeExpandNode");
+
+	zt_returnOnNull(tree);
+
+	ztGuiItem::ztTreeItem *node = _zt_guiTreeFindNode(tree, tree->tree.root_item, node_id);
+	if (node) {
+		_zt_guiTreeClear(tree->tree.arena, node, true);
+		_zt_guiTreeRecalc(tree);
+	}
+}
+
+// ================================================================================================================================================================================================
+
 void zt_guiTreeClear(ztGuiItem *tree)
 {
 	ZT_PROFILE_GUI("zt_guiTreeClear");
 
 	zt_assertReturnOnFail(tree->type == ztGuiItemType_Tree);
+	_zt_guiTreeClear(tree->tree.arena, tree->tree.root_item, false);
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiTreeNodeID  zt_guiTreeFindNodeWithUserDataOf(ztGuiItem *tree, void *user_data)
+{
+	ZT_PROFILE_GUI("zt_guiTreeFindNodeWithUserDataOf");
+
+	zt_assertReturnValOnFail(tree->type == ztGuiItemType_Tree, ztInvalidID);
 
 	struct local
 	{
-		static void clear(ztMemoryArena *arena, ztGuiItem::ztTreeItem *tree_item)
+		static ztGuiTreeNodeID find(ztGuiItem *tree, void *user_data, ztGuiItem::ztTreeItem *tree_item)
 		{
-			if (tree_item->control_button != nullptr) {
-				zt_guiItemQueueFree(tree_item->control_button);
-				tree_item->control_button = nullptr;
-			}
-			if (tree_item->item != nullptr) {
-				zt_guiItemQueueFree(tree_item->item);
-				tree_item->item = nullptr;
+			if (tree_item->user_data == user_data) {
+				return tree_item->node_id;
 			}
 
-			ztGuiItem::ztTreeItem *child = tree_item->first_child;
-			while (child) {
-				ztGuiItem::ztTreeItem *next = child->next;
-				clear(arena, child);
-				child = next;
+			zt_flink(child, tree_item->first_child) {
+				ztGuiTreeNodeID result = find(tree, user_data, child);
+				if (result != ztInvalidID) {
+					return result;
+				}
 			}
 
-			tree_item->first_child = nullptr;
-			tree_item->next = nullptr;
-			
-			if (tree_item->parent) { // don't clear the root item, we need it for later
-				zt_freeArena(tree_item, arena);
-			}
+			return ztInvalidID;
 		}
 	};
 
-	local::clear(tree->tree.arena, tree->tree.root_item);
+	return local::find(tree, user_data, tree->tree.root_item);
 }
 
 // ================================================================================================================================================================================================
@@ -9965,6 +10038,9 @@ struct ztGuiEditorValue
 #define ztGuiEditorFirstChildNameVec3   "editor-vec3"
 #define ztGuiEditorFirstChildNameVec4   "editor-vec4"
 #define ztGuiEditorFirstChildNameVec2i  "editor-vec2i"
+#define ztGuiEditorFirstChildNameVec3i  "editor-vec2i"
+#define ztGuiEditorFirstChildNameVec4i  "editor-vec2i"
+#define ztGuiEditorFirstChildNameQuat   "editor-quat"
 
 #define ztGuiEditor_Guid                zt_guidMake(0x4787c0e7, 0x2c9d61aa, 0xc7f1dc78, 0x8776b714)
 
@@ -10412,7 +10488,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3i *value
 
 	ztGuiItem *panel = zt_guiMakePanel(parent);
 	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec2i);
+	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec3i);
 
 	r32 padding = 1 / zt_pixelsPerUnit();
 	if (label != nullptr) {
@@ -10447,7 +10523,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4i *value
 
 	ztGuiItem *panel = zt_guiMakePanel(parent);
 	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
-	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec2i);
+	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec4i);
 
 	r32 padding = 1 / zt_pixelsPerUnit();
 	if (label != nullptr) {
@@ -10465,6 +10541,81 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4i *value
 		}
 
 		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], (value ? &value->values[i] : nullptr), min.values[i], max.values[i], step);
+		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
+
+	panel->size = zt_guiSizerGetMinSize(sizer);// +zt_vec2(6 / zt_pixelsPerUnit(), 6 / zt_pixelsPerUnit());
+	//panel->min_size = panel->size;
+
+	return panel;
+}
+
+// ================================================================================================================================================================================================
+
+struct ztGuiEditorQuat
+{
+	ztQuat *value;
+	ztQuat  value_last_update;
+
+	ztVec3  euler_of_value;
+	ztVec3  euler;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorQuatUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorQuatUpdate))
+{
+	ztGuiEditorQuat *editor_info = (ztGuiEditorQuat*)item->panel.user_data;;
+	
+	if (editor_info->value) {
+		if (*editor_info->value != editor_info->value_last_update) {
+			editor_info->euler             = editor_info->value->euler();
+			editor_info->value_last_update = *editor_info->value;
+			editor_info->euler_of_value    = editor_info->euler;
+		}
+		else {
+			if (editor_info->euler_of_value != editor_info->euler) {
+				*editor_info->value            = ztQuat::makeFromEuler(editor_info->euler);
+				editor_info->value_last_update = *editor_info->value;
+				editor_info->euler_of_value    = editor_info->value->euler();
+				editor_info->euler             = editor_info->euler_of_value;
+			}
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztQuat *value, ztVec3 min, ztVec3 max, r32 step, bool label_above)
+{
+	ztGuiEditorQuat *editor_info = zt_mallocStructArena(ztGuiEditorQuat, parent->gm->arena);
+
+	editor_info->value             = value;
+	editor_info->value_last_update = value ? *value : ztQuat::identity;
+	editor_info->euler             = value ? value->euler() : ztVec3::zero;
+	editor_info->euler_of_value    = editor_info->euler;
+
+	ztGuiItem *panel = zt_guiMakePanel(parent, 0, editor_info, parent->gm->arena);
+	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert);
+	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameQuat);
+	panel->functions.update = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorQuatUpdate);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+	if (label != nullptr) {
+		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
+	}
+
+	ztGuiItem *sizer_edit = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, sizer_edit, 1, padding);
+
+	const char * labels[] = { "X", "Y", "Z" };
+
+	zt_fize(labels) {
+		if (i != 0) {
+			zt_guiSizerAddStretcher(sizer_edit, 0, padding);
+		}
+
+		ztGuiItem *editor = zt_guiMakeEditor(sizer_edit, labels[i], &editor_info->euler.values[i], min.values[i], max.values[i], step);
 		zt_guiSizerAddItem(sizer_edit, editor, 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -10669,6 +10820,67 @@ void zt_guiEditorSetToValue(ztGuiItem *editor, ztVec2i value)
 
 // ================================================================================================================================================================================================
 
+void zt_guiEditorSetToValue(ztGuiItem *editor, ztVec3i value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorSetToValue");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec3i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value.values));
+				zt_guiEditorSetToValue(edit, value.values[editor_idx++]);
+			}
+		}
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorSetToValue(ztGuiItem *editor, ztVec4i value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorSetToValue");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec4i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value.values));
+				zt_guiEditorSetToValue(edit, value.values[editor_idx++]);
+			}
+		}
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorSetToValue(ztGuiItem *editor, ztQuat value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorSetToValue");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameQuat)) {
+		ztGuiEditorQuat *editor_info = (ztGuiEditorQuat*)editor->first_child->panel.user_data;;
+		*editor_info->value = value;
+		// the update function will adjust for this change
+		return;
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
 void zt_guiEditorReassign(ztGuiItem *editor, r32 *value)
 {
 	ZT_PROFILE_GUI("zt_guiEditorReassign");
@@ -10816,6 +11028,79 @@ void zt_guiEditorReassign(ztGuiItem *editor, ztVec2i *value)
 				}
 			}
 		}
+		return;
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorReassign(ztGuiItem *editor, ztVec3i *value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorReassign");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec3i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value->values));
+				if (value == nullptr) {
+					zt_guiEditorReassign(edit, (r32*)nullptr);
+				}
+				else {
+					zt_guiEditorReassign(edit, &value->values[editor_idx++]);
+				}
+			}
+		}
+		return;
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorReassign(ztGuiItem *editor, ztVec4i *value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorReassign");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameVec4i)) {
+		int editor_idx = 0;
+		ztGuiItem *sizer = zt_guiItemFindByType(ztGuiItemType_Sizer, editor->first_child);
+		zt_assertReturnOnFail(sizer != nullptr);
+		zt_flinknext(edit, sizer->first_child, sib_next) {
+			if (edit->type == ztGuiItemType_Panel && edit->first_child && zt_strEquals(edit->first_child->name, ztGuiEditorFirstChildName)) {
+				zt_assert(editor_idx < zt_elementsOf(value->values));
+				if (value == nullptr) {
+					zt_guiEditorReassign(edit, (r32*)nullptr);
+				}
+				else {
+					zt_guiEditorReassign(edit, &value->values[editor_idx++]);
+				}
+			}
+		}
+		return;
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorReassign(ztGuiItem *editor, ztQuat *value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorReassign");
+
+	zt_assertReturnOnFail(editor->type == ztGuiItemType_Panel && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildNameQuat)) {
+		ztGuiEditorQuat *editor_info = (ztGuiEditorQuat*)editor->first_child->panel.user_data;;
+		editor_info->value = value;
+		// the update function will adjust for this change
 		return;
 	}
 	zt_assert(false); // wrong editor type
@@ -11455,6 +11740,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfgMenu, ZT_FUNC_GUI_
 		editor->is_unified = !editor->is_unified;
 		menu_item = editor->variable->type;
 		_zt_guiEditorPartVarVec2UpdateUnified(editor);
+		zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->ed_constant->parent));
 	}
 
 	bool matched = editor->variable->type == (ztParticleVariableRealType_Enum)menu_item;
@@ -11930,6 +12216,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfgMenu, ZT_FUNC_GUI_
 		editor->is_unified = !editor->is_unified;
 		menu_item = editor->variable->type;
 		_zt_guiEditorPartVarVec3UpdateUnified(editor);
+		zt_guiSizerRecalc(zt_guiItemGetTopLevelParent(editor->ed_constant->parent));
 	}
 
 	bool matched = editor->variable->type == (ztParticleVariableRealType_Enum)menu_item;
@@ -12261,6 +12548,103 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec3 *variable,
 }
 
 // ================================================================================================================================================================================================
+
+struct ztGuiEditorFlags
+{
+	i32 *variable;
+	i32 variable_last_update;
+
+	ztGuiItem *buttons[32];
+	int buttons_count;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiFlagEditorCheckbox, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiFlagEditorCheckbox))
+{
+	ztGuiEditorFlags *flags = (ztGuiEditorFlags *)user_data;
+
+	if (zt_guiCheckboxGetValue(button)) {
+		*flags->variable |= button->custom_flags;
+	}
+	else {
+		zt_bitRemove(*flags->variable, button->custom_flags);
+	}
+
+	flags->variable_last_update = *flags->variable;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiFlagEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiFlagEditorUpdate))
+{
+	ztGuiEditorFlags *flags = (ztGuiEditorFlags *)user_data;
+
+	if (flags->variable_last_update != *flags->variable) {
+		flags->variable_last_update = *flags->variable;
+
+		zt_fiz(flags->buttons_count) {
+			zt_guiCheckboxSetValue(flags->buttons[i], zt_bitIsSet(*flags->variable, zt_bit(i)));
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeFlagEditor(ztGuiItem *parent, const char **flag_labels, i32 *flag_values, int flags_count, i32 *flags_variable, int columns)
+{
+	zt_returnValOnNull(flags_variable, nullptr);
+	zt_assertReturnValOnFail(flags_count <= 32, nullptr);
+
+	ztGuiEditorFlags *flags = zt_mallocStructArena(ztGuiEditorFlags, zt_guiGetActiveManager()->arena);
+	flags->variable = flags_variable;
+	flags->variable_last_update = *flags_variable;
+
+	ztGuiItem *panel = zt_guiMakePanel(parent, 0, flags, zt_guiGetActiveManager()->arena);
+
+	panel->functions.update = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiFlagEditorUpdate);
+	panel->functions.user_data = flags;
+
+	ztGuiItem *sizer = columns <= 1 ? zt_guiMakeSizer(panel, ztGuiItemOrient_Vert, false) : zt_guiMakeColumnSizer(panel, columns, ztGuiColumnSizerType_FillRow, false);;
+	zt_guiSizerSizeParent(sizer, false, true);
+	zt_guiSizerSizeToParent(sizer);
+
+	r32 padding = 3 / zt_pixelsPerUnit();
+
+	zt_fiz(flags_count) {
+		i32 custom_flags = -1;
+
+		zt_fjz(32) {
+			if (flag_values[i] == zt_bit(j)) {
+				custom_flags = j;
+				break;
+			}
+		}
+
+		if (custom_flags == -1) {
+			zt_assert(custom_flags != -1); // if you're here, it means you have a combined flag value, which doesn't work with this editor
+			continue;
+		}
+
+		ztGuiItem *check = zt_guiMakeCheckbox(sizer, flag_labels[i], ztGuiCheckboxBehaviorFlags_RightText);
+		zt_guiButtonSetCallback(check, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiFlagEditorCheckbox), flags);
+
+		if(zt_bitIsSet(*flags_variable, flag_values[i])) {
+			zt_guiCheckboxSetValue(check, true);
+		}
+
+		check->custom_flags = flag_values[i];
+		flags->buttons_count += 1;
+
+		zt_guiSizerAddItem(sizer, check, 0, padding, ztAlign_Left|ztAlign_VertCenter, 0);
+
+		flags->buttons[i] = check;
+	}
+
+	return panel;
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -12515,11 +12899,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 				}
 			}
 			else if (item->sizer.size_to_parent) {
+				// perhaps this needs to be a zt_max between min size and size?
 				item->size.x = item->parent->min_size.x == 0 ? item->parent->size.x : item->parent->min_size.x;
 				recalc = true;
 			}
 			else {
-				if (item->size.x != min_size.x) {
+				if (item->size.x != min_size.x && (item->parent == nullptr || item->parent->type != ztGuiItemType_Sizer)) {
 					item->size.x = min_size.x;
 					recalc = true;
 				}
@@ -12542,7 +12927,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 				recalc = true;
 			}
 			else {
-				if (item->size.y != min_size.y) {
+				if (item->size.y != min_size.y && (item->parent == nullptr || item->parent->type != ztGuiItemType_Sizer)) {
 					item->size.y = min_size.y;
 					recalc = true;
 				}
@@ -13126,6 +13511,44 @@ ztVec2 zt_guiSizerGetMinSize(ztGuiItem *sizer)
 
 // ================================================================================================================================================================================================
 
+void zt_guiSizerRemoveItem(ztGuiItem *sizer, ztGuiItem *item)
+{
+	ZT_PROFILE_GUI("zt_guiSizerRemoveItem");
+
+	zt_returnOnNull(sizer);
+	zt_returnOnNull(item);
+	zt_assertReturnOnFail(sizer->type == ztGuiItemType_Sizer);
+
+	ztGuiItem::ztSizerItemEntry *prev = nullptr;
+	zt_flink(entry, sizer->sizer.items) {
+		if (entry->item == item) {
+			if (prev) {
+				prev->next = entry->next;
+			}
+			if (entry == sizer->sizer.items) {
+				sizer->sizer.items = entry->next;
+			}
+
+			zt_freeArena(entry, sizer->gm->arena);
+
+			zt_guiItemFree(item);
+			break;
+		}
+		prev = entry;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiSizerRemoveAllItems(ztGuiItem *sizer)
+{
+	while (sizer->first_child) {
+		zt_guiSizerRemoveItem(sizer, sizer->first_child);
+	}
+}
+
+// ================================================================================================================================================================================================
+
 void zt_guiColumnSizerSetProp(ztGuiItem *sizer, int col, int prop)
 {
 	ZT_PROFILE_GUI("zt_guiColumnSizerSetProp");
@@ -13496,6 +13919,13 @@ void zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogM
 
 // ================================================================================================================================================================================================
 
+void zt_guiDialogMessageBoxOk(const char *title, const char *message)
+{
+	zt_guiDialogMessageBoxOk(title, message, ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
+}
+
+// ================================================================================================================================================================================================
+
 void zt_guiDialogMessageBoxOk(const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data)
 {
 	ztGuiDialogMessageOption options[1];
@@ -13503,7 +13933,7 @@ void zt_guiDialogMessageBoxOk(const char *title, const char *message, ZT_FUNCTIO
 	options[0].id = 0;
 	zt_strCpy(options[0].display, zt_elementsOf(options[0].display), "OK");
 
-	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
+	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), callback, user_data);
 }
 
 // ================================================================================================================================================================================================
@@ -13517,7 +13947,7 @@ void zt_guiDialogMessageBoxOkCancel(const char *title, const char *message, ZT_F
 	options[1].id = 1;
 	zt_strCpy(options[1].display, zt_elementsOf(options[1].display), "Cancel");
 
-	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
+	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), callback, user_data);
 }
 
 // ================================================================================================================================================================================================
@@ -13531,7 +13961,7 @@ void zt_guiDialogMessageBoxYesNo(const char *title, const char *message, ZT_FUNC
 	options[1].id = 1;
 	zt_strCpy(options[1].display, zt_elementsOf(options[1].display), "No");
 
-	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
+	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), callback, user_data);
 }
 
 // ================================================================================================================================================================================================
@@ -13547,7 +13977,7 @@ void zt_guiDialogMessageBoxYesNoCancel(const char *title, const char *message, Z
 	options[2].id = 2;
 	zt_strCpy(options[2].display, zt_elementsOf(options[2].display), "Cancel");
 
-	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
+	zt_guiDialogMessageBox(title, message, options, zt_elementsOf(options), callback, user_data);
 }
 
 
@@ -17408,7 +17838,7 @@ ztInternal void _zt_guiDebugGuiHierarchy()
 	dgh->window->functions.cleanup = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugGuiHierarchyCleanup);
 
 	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(gm->gui_camera);
-	zt_guiItemSetSize(dgh->window, zt_vec2(cam_ext.x - 2, cam_ext.y - 2));
+	zt_guiItemSetSize(dgh->window, zt_vec2(zt_min(20, cam_ext.x - 2), cam_ext.y - 2));
 
 	ztGuiTheme *theme   = zt_guiItemGetTheme(dgh->window);
 	ztGuiItem  *content = zt_guiWindowGetContentParent(dgh->window);
