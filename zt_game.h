@@ -1554,6 +1554,7 @@ int zt_materialLoadFromFile(char *file_name, ztMaterial *materials_arr, int mate
 void zt_materialFree(ztMaterial *material);
 
 bool zt_materialIsEmpty(ztMaterial *material);
+bool zt_materialIsEqual(ztMaterial *material1, ztMaterial *material2);
 
 void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex = nullptr, u32 *additional_tex_name_hashes = nullptr, int additional_tex_count = 0);
 
@@ -2568,7 +2569,6 @@ struct ztModel
 		};
 	};
 
-
 	ztTransform             transform;
 	i32                     flags;
 
@@ -2578,16 +2578,16 @@ struct ztModel
 	ztShaderVariableValues *shader_vars;
 
 	ztMaterial              material;
-	ztBone                 *bones;
-	int                     bones_count;
-	int                     bones_root_idx;
-
 	ztModel                *first_child;
 	ztModel                *next;
 	ztModel                *parent;
 
 	ztMat4                  calculated_mat;
 	ztTransform             calculated_transform;
+
+	ztBone                 *bones;
+	int                     bones_count;
+	int                     bones_root_idx;
 
 	ztMat4                  prev_mat;
 	ztVec3                  aabb_center, aabb_size;
@@ -2628,6 +2628,9 @@ struct ztModelLoaderInput
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, ztAssetManager *asset_manager, ztAssetID asset_id, ztShaderID shader, int flags);
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, const char *file_name, ztShaderID shader, int flags);
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_size, ztShaderID shader, int flags);
+
+bool     zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone);
+
 
 // ================================================================================================================================================================================================
 
@@ -2704,6 +2707,7 @@ bool              zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKey
 void              zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDrawList *draw_list);
 void              zt_modelEditWidgetRenderText(ztModelEditWidget *widget, ztCamera *camera_3d, ztCamera *camera_2d, /*ztFontID*/i32 font_id, ztVec2 offset, ztDrawList *draw_list);
 void              zt_modelEditWidgetChangeMode(ztModelEditWidget *widget, ztModelEditWidgetMode_Enum new_mode);
+bool              zt_modelEditWidgetIsMouseWithinBounds(ztModelEditWidget *widget, ztCamera *camera_3d, int screen_x, int screen_y);
 
 
 // ================================================================================================================================================================================================
@@ -3372,6 +3376,9 @@ ztVec2 zt_closestPointLineSegmentPoint(const ztVec2 &line_beg, const ztVec2 &lin
 ztVec3 zt_closestPointLineSegmentPoint(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &point);
 ztVec3 zt_closestPointAABBPoint(const ztVec3 &aabb_center, const ztVec3 &aabb_size, const ztVec3& point);
 ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size, const ztQuat &obb_rot, const ztVec3& point);
+
+void zt_collisionResizeAABBToFitAABB(ztVec3 *aabb_center, ztVec3 *aabb_size, ztVec3 fit_aabb_center, ztVec3 fit_aabb_size);
+
 
 // ================================================================================================================================================================================================
 // physics manager
@@ -12783,7 +12790,7 @@ ztSpriteNineSlice zt_spriteNineSliceMake(ztTextureID tex, ztVec2i tex_pos, ztVec
 void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns, const ztVec2 &cpos, const ztVec2 &csize)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteNineSlice");
-	//r32 ppu = zt_pixelsPerUnit();
+	r32 ppu = zt_pixelsPerUnit();
 
 	ztVec2 pos = cpos;
 	//	zt_alignToPixel(&pos, ppu);
@@ -12803,6 +12810,11 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	ztVec2 upper_right = zt_vec2(pos.x + size.x / 2.f, pos.y + size.y / 2.f);
 	ztVec2 lower_left = zt_vec2(pos.x - size.x / 2.f, pos.y - size.y / 2.f);
 	ztVec2 lower_right = zt_vec2(pos.x + size.x / 2.f, pos.y - size.y / 2.f);
+
+	upper_right.y = upper_left.y;
+	lower_right.y = lower_left.y;
+	lower_left.x  = upper_left.x;
+	lower_right.x = upper_right.x;
 
 	ztVec3 scale_corners = ztVec3::one;
 	if (size.x < sns->sz_e + sns->sz_w) { scale_corners.x = size.x / (sns->sz_e + sns->sz_w); }
@@ -12833,11 +12845,13 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 		zt_vec3(lower_right.x, lower_right.y + sns->sz_s * scale_corners.y, 0)
 	};
 
+	// these alignments seem necessary to eliminate the occasional tile offset problem
+	// not sure why two filled quads with a shared corner (exact same variable) would be off one pixel from each other on screen though
 	zt_fiz(4) {
-		//zt_alignToPixel(&pos_nw[i], ppu);
-		//zt_alignToPixel(&pos_ne[i], ppu);
-		//zt_alignToPixel(&pos_sw[i], ppu);
-		//zt_alignToPixel(&pos_se[i], ppu);
+		zt_alignToPixel(&pos_nw[i], ppu);
+		zt_alignToPixel(&pos_ne[i], ppu);
+		zt_alignToPixel(&pos_sw[i], ppu);
+		zt_alignToPixel(&pos_se[i], ppu);
 	}
 
 	zt_drawListPushTexture(draw_list, sns->tex);
@@ -14722,6 +14736,106 @@ end_processing:
 
 // ================================================================================================================================================================================================
 
+ztInternal void _zt_modelCountModelsAndBones(ztModel *model, i32 *models, i32 *bones)
+{
+	*models += 1;
+	*bones += model->bones_count;
+
+	zt_flink(child, model->first_child) {
+		_zt_modelCountModelsAndBones(model, models, bones);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
+{
+	i32 models_needed = 0, bones_needed = 0;
+	_zt_modelCountModelsAndBones(model_to_clone, &models_needed, &bones_needed);
+
+	if (models_needed > input->models_size || bones_needed > input->bones_size) {
+		zt_logCritical("Unable to clone model.  Not enough cache storage");
+		return false;
+	}
+
+	struct local
+	{
+		static void clone(ztModel *model_to_clone, ztModel *model, ztModelLoaderInput *input)
+		{
+			zt_memCpy(model, zt_sizeof(ztModel), model_to_clone, zt_sizeof(ztModel));
+
+			// memcpy gets most things, there are some things that need modified
+
+			zt_bitRemove(model->flags, ztModelFlags_OwnsMaterials);
+			zt_bitRemove(model->flags, ztModelFlags_OwnsMesh);
+
+			if (model->name) {
+				model->name = zt_stringMakeFrom(model_to_clone->name);
+			}
+
+			model->first_child = nullptr;
+			model->next        = nullptr;
+			model->parent      = nullptr; // this is set outside of this function by the caller
+
+			// cleanup bones
+			if (model->bones) {
+				model->bones = input->bones + input->bones_used;
+				input->bones_used += model->bones_count;
+
+				zt_memCpy(model->bones, zt_sizeof(ztBone) * model->bones_count, model_to_clone->bones, zt_sizeof(ztBone) * model_to_clone->bones_count);
+
+				zt_fiz(model_to_clone->bones) {
+					if (model_to_clone->bones[i].parent) {
+						zt_fjz(model_to_clone->bones) {
+							if (model_to_clone->bones[i].parent == &model_to_clone->bones[j]) {
+								model->bones[i].parent = &model->bones[j];
+								break;
+							}
+						}
+					}
+					if (model_to_clone->bones[i].first_child) {
+						zt_fjz(model_to_clone->bones) {
+							if (model_to_clone->bones[i].first_child == &model_to_clone->bones[j]) {
+								model->bones[i].first_child = &model->bones[j];
+								break;
+							}
+						}
+					}
+					if (model_to_clone->bones[i].next) {
+						zt_fjz(model_to_clone->bones) {
+							if (model_to_clone->bones[i].next == &model_to_clone->bones[j]) {
+								model->bones[i].next = &model->bones[j];
+								break;
+							}
+						}
+					}
+
+					if (model_to_clone->bones[i].name) {
+						model->bones[i].name = zt_stringMakeFrom(model_to_clone->bones[i].name);
+					}
+				}
+			}
+
+			// process children
+			zt_flink(child_to_clone, model_to_clone->first_child) {
+				ztModel *child = &input->models[input->models_used++];
+				clone(child_to_clone, child, input);
+
+				child->parent = model;
+				zt_singleLinkAddToEnd(model->first_child, child);
+			}
+		}
+	};
+
+	input->root_model = &input->models[input->models_used++];
+
+	local::clone(model_to_clone, input->root_model, input);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id, bool owns_texture)
 {
 	ZT_PROFILE_RENDERING("zt_modelMakeSkybox");
@@ -14819,7 +14933,7 @@ void zt_modelGetAABB(ztModel *model, ztVec3 *center, ztVec3 *size)
 	{
 		static void getExtents(ztModel *model, ztVec3 *min, ztVec3 *max, ztMat4& mat)
 		{
-			switch(model->type)
+			switch (model->type)
 			{
 				case ztModelType_Mesh: {
 					ztVec3 center, size;
@@ -15526,6 +15640,35 @@ void zt_modelEditWidgetChangeMode(ztModelEditWidget *widget, ztModelEditWidgetMo
 }
 
 // ================================================================================================================================================================================================
+
+bool zt_modelEditWidgetIsMouseWithinBounds(ztModelEditWidget *widget, ztCamera *camera, int screen_x, int screen_y)
+{
+	ztVec3 ray_pos, ray_dir;
+	ztMat4 calc_mat_inv = widget->model ? widget->model->calculated_mat.getInverse() : widget->bone->mat_local_bind_transform.getInverse();
+	zt_cameraPerspGetMouseRayLocalToMatrix(camera, screen_x, screen_y, &ray_pos, &ray_dir, &calc_mat_inv);
+
+	r32 lowest_intersect_time = ztReal32Max; 
+	i32 lowest_intersect_axis = -1;
+	ztVec3 lowest_intersect_point = ztVec3::max;
+
+	ztVec3 camera_pos = calc_mat_inv.getMultiply(camera->position);
+
+	r32 camera_dist = camera_pos.distance(ztVec3::zero);
+
+	ztVec3 x_axis_pos, x_axis_size, y_axis_pos, y_axis_size, z_axis_pos, z_axis_size;
+	_zt_modelEditWidgetGetAxisAABBs(widget, camera_pos, &x_axis_pos, &x_axis_size, &y_axis_pos, &y_axis_size, &z_axis_pos, &z_axis_size);
+
+	zt_collisionResizeAABBToFitAABB(&x_axis_pos, &x_axis_size, y_axis_pos, y_axis_size);
+	zt_collisionResizeAABBToFitAABB(&x_axis_pos, &x_axis_size, z_axis_pos, z_axis_size);
+
+	if (zt_collisionRayInAABB(ray_pos, ray_dir, x_axis_pos, x_axis_size)) {
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -15736,7 +15879,7 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 
 			zt_flink(child, model->first_child) {
 				int idx = -1;
-				if(child->type != ztModelType_Empty) {
+				if (child->type != ztModelType_Empty) {
 					idx = scene->models_count++;
 					zt_assertReturnOnFail(idx < scene->models_size);
 
@@ -16528,7 +16671,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 				if (sprite_anim) {
 					model->material.diffuse_tex = sprite_anim->tex;
 				}
-				else if(model->type == ztModelType_ParticleSystem) {
+				else if (model->type == ztModelType_ParticleSystem) {
 					model->material.diffuse_tex = model->particle_emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? model->particle_emitter->system->system_rendering.billboard.sprite.tex : model->particle_emitter->system->system_rendering.facing.sprite.tex;
 				}
 
@@ -16608,7 +16751,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					}
 				}
 
-				if(model->type == ztModelType_ParticleSystem) {
+				if (model->type == ztModelType_ParticleSystem) {
 					model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
 					zt_shaderSetModelMatrices(*active_shader, ztMat4::identity);
 				}
@@ -16621,7 +16764,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					zt_rendererSetFaceCulling(ztRendererFaceCulling_CullNone);
 				}
 
-				switch(model->type)
+				switch (model->type)
 				{
 					case ztModelType_Mesh: {
 						zt_meshRender(model->mesh_id);
@@ -18706,13 +18849,14 @@ ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *gl
 	if (line_end == ztStrPosNotFound) {
 		line_end = token->token_beg + token->token_len;
 	}
+	const int max_line_len = 512;
 	int token_ch = zt_max(0, token->token_beg - line_beg);
-	if (line_end - line_beg > 100) {
+	if (line_end - line_beg > max_line_len) {
 		token_ch -= (line_end - line_beg) - 100;
 		line_beg = line_end - 100;
 	}
 
-	char line_ch[101] = { 0 };
+	char line_ch[max_line_len] = { 0 };
 	zt_fiz(token_ch) {
 		if (file_data[line_beg + i] == '\t') {
 			line_ch[i] = '\t';
@@ -18723,7 +18867,7 @@ ztInternal ztShLangSyntaxNode *_zt_shaderLangErrorMessage(ztShLangSyntaxNode *gl
 	}
 	line_ch[token_ch] = '^';
 
-	char line_err[101];
+	char line_err[max_line_len];
 	zt_strCpy(line_err, zt_elementsOf(line_err), file_data + line_beg, zt_min(line_end - line_beg, 100));
 
 	zt_strMakePrintf(err_buff, 2048, "line %d: error: %s\n+\t%s\n+\t%s", token->line, message_buffer, line_err, line_ch);
@@ -24940,37 +25084,54 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 	zt_returnOnNull(input_keys);
 
 	bool ignore_keys = zt_bitIsSet(flags, ztCameraControllerArcballUpdateFlags_IgnoreKeys);
+	bool middle_pressed = input_mouse->middlePressed();
+	if (middle_pressed || (!ignore_keys && input_keys[ztInputKeys_Control].pressed()) || input_mouse->wheel_delta) {
 
-	if (input_mouse->middlePressed() || (!ignore_keys && input_keys[ztInputKeys_Control].pressed()) || input_mouse->wheel_delta) {
+		if (middle_pressed) {
+			if (input_keys[ztInputKeys_Shift].pressed()) {
+				ztVec3 xaxis = zt_vec3(0.f, 1.f, 0.f).cross(controller->camera->direction);
+				ztVec3 yaxis = controller->camera->direction.cross(zt_vec3(0.f, 1.f, 0.f)).cross(controller->camera->direction);
 
-		if (input_keys[ztInputKeys_Shift].pressed()) {
-			// move the target
-			ztVec3 side = zt_vec3(0, 1, 0).cross(controller->camera->direction);
-			ztVec3 top  = zt_vec3(1, 0, 0).cross(controller->camera->direction);
-			side.normalize();
+				xaxis.normalize();
+				yaxis.normalize();
 
-			r32 distance = zt_abs(controller->camera->position.distance(controller->target));
+				r32 distance = zt_abs(controller->camera->position.distance(controller->target));
+				r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * .125f;
+				r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * .125f;
 
-			r32 x_move = input_mouse->delta_x * controller->mouse_sensitivity * dt * distance * .125f;
-			r32 y_move = input_mouse->delta_y * controller->mouse_sensitivity * dt * distance * .125f;
+				controller->target += yaxis * y_move;
+				controller->target += xaxis * x_move;
+			}
+			else {
 
-			controller->target += side * x_move;
-			controller->camera->position += side * x_move;
+				ztVec3 xaxis = zt_vec3(1.f, 0.f, 0.f);
+				ztVec3 yaxis = zt_vec3(0.f, 1.f, 0.f);
 
-			controller->target += top * y_move;
-			controller->camera->position += top * y_move;
-		}
-		else {
-			ztVec3 xaxis = zt_vec3(1.f, 0.f, 0.f);
-			ztVec3 yaxis = zt_vec3(0.f, 1.f, 0.f);
+				xaxis = yaxis.cross(controller->camera->direction);
 
-			xaxis = controller->rotation.rotatePosition(xaxis);
+				xaxis.normalize();
 
-			ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, input_mouse->delta_y * -controller->mouse_sensitivity);
-			ztQuat qy = ztQuat::makeFromAxisAngle(yaxis, input_mouse->delta_x * -controller->mouse_sensitivity);
-			ztQuat qr = qx * qy;
-			controller->rotation = qr * controller->rotation;
-			controller->rotation.normalize();
+				ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, input_mouse->delta_y * controller->mouse_sensitivity);
+				ztQuat qy = ztQuat::makeFromAxisAngle(yaxis, input_mouse->delta_x * -controller->mouse_sensitivity);
+				ztQuat qr = qx * qy;
+				ztQuat new_rotation = qr * controller->rotation;
+				new_rotation.normalize();
+
+				// make sure we haven't flipped poles
+				ztVec3 prev_pos = controller->rotation.rotatePosition(zt_vec3(0.f, 1.f, 0.f));
+				ztVec3 this_pos = new_rotation.rotatePosition(zt_vec3(0.f, 1.f, 0.f));
+
+				if ((this_pos.x < 0 && prev_pos.x > 0) || (this_pos.x > 0 && prev_pos.x < 0)) {
+					ztQuat qx = ztQuat::makeFromAxisAngle(xaxis, 0);
+					ztQuat qy = ztQuat::makeFromAxisAngle(yaxis, input_mouse->delta_x * -controller->mouse_sensitivity);
+					ztQuat qr = qx * qy;
+					new_rotation = qr * controller->rotation;
+					new_rotation.normalize();
+				}
+
+				controller->rotation = new_rotation;
+				controller->rotation.normalize();
+			}
 		}
 
 		r32 distance = zt_abs(controller->camera->position.distance(controller->target));
@@ -27294,6 +27455,13 @@ bool zt_materialIsEmpty(ztMaterial *material)
 	}
 
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_materialIsEqual(ztMaterial *material1, ztMaterial *material2)
+{
+	return 0 == zt_memCmp(material1, material2, zt_sizeof(ztMaterial));
 }
 
 // ================================================================================================================================================================================================
@@ -31195,6 +31363,28 @@ ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size,
 	obb_rot.rotatePosition(&cp);
 
 	return cp + obb_center;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_collisionResizeAABBToFitAABB(ztVec3 *aabb_center, ztVec3 *aabb_size, ztVec3 fit_aabb_center, ztVec3 fit_aabb_size)
+{
+	ztVec3 min = *aabb_center - (*aabb_size * .5);
+	ztVec3 max = *aabb_center + (*aabb_size * .5);
+
+	ztVec3 fmin = fit_aabb_center - (fit_aabb_size * .5f);
+	ztVec3 fmax = fit_aabb_center + (fit_aabb_size * .5f);
+
+	min.x = zt_min(min.x, fmin.x);
+	min.y = zt_min(min.y, fmin.y);
+	min.z = zt_min(min.z, fmin.z);
+
+	max.x = zt_max(max.x, fmax.x);
+	max.y = zt_max(max.y, fmax.y);
+	max.z = zt_max(max.z, fmax.z);
+
+	*aabb_center = (min + max) * .5f;
+	*aabb_size = (max - min);
 }
 
 // ================================================================================================================================================================================================
