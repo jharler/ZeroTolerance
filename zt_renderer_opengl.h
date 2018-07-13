@@ -2472,7 +2472,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		GLint outputs[512];
 		int outputs_count = 0;
 		glGetProgramResourceiv(program, GL_PROGRAM_OUTPUT, i, zt_elementsOf(inputs), inputs, zt_elementsOf(outputs), &outputs_count, outputs);
-		for (GLint error = glGetError(); error != 0; error = glGetError()) { zt_logDebug("opengl error in glGetProgramResourceiv (%d)", error); }
+		for (GLint error = glGetError(); error != 0; error = glGetError()) { if (locations_count <= 0) zt_logDebug("opengl error in glGetProgramResourceiv (%d)", error); }
 		if (outputs_count <= 0) break;
 
 		locations_count += 1;
