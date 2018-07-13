@@ -349,6 +349,7 @@ void zt_guiThemeUpdateSubitem (ztGuiTheme *theme, ztGuiItem *item, ztGuiItem *su
 void zt_guiThemeSizeItem      (ztGuiTheme *theme, ztGuiItem *item);
 void zt_guiThemeRender        (ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos);
 
+r32  zt_guiPadding();
 
 // ================================================================================================================================================================================================
 
@@ -982,7 +983,7 @@ void             zt_guiSizerSizeParent                 (ztGuiItem *sizer, bool s
 void             zt_guiSizerRecalc                     (ztGuiItem *item);
 void             zt_guiSizerRecalcImmediately          (ztGuiItem *sizer);
 ztVec2           zt_guiSizerGetMinSize                 (ztGuiItem *sizer);
-void             zt_guiSizerRemoveItem                 (ztGuiItem *sizer, ztGuiItem *item);
+bool             zt_guiSizerRemoveItem                 (ztGuiItem *sizer, ztGuiItem *item);
 void             zt_guiSizerRemoveAllItems             (ztGuiItem *sizer);
 
 void             zt_guiColumnSizerSetProp              (ztGuiItem *sizer, int col, int prop);
@@ -3210,6 +3211,13 @@ void zt_guiThemePostRender(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *
 	if (ZT_FUNCTION_POINTER_IS_VALID(theme->postrender_item)) {
 		ZT_FUNCTION_POINTER_ACCESS(theme->postrender_item, ztGuiThemePostRenderItem_Func)(theme, draw_list, item, pos);
 	}
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_guiPadding()
+{
+	return 3.f / zt_pixelsPerUnit();
 }
 
 // ================================================================================================================================================================================================
@@ -10384,7 +10392,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3 *value,
 	ztGuiItem *sizer = zt_guiMakeSizer(panel, label_above ? ztGuiItemOrient_Vert : ztGuiItemOrient_Horz);
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec3);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 	if (label != nullptr) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
@@ -10419,7 +10427,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value,
 	ztGuiItem *sizer = zt_guiMakeSizer(panel, label_above ? ztGuiItemOrient_Vert : ztGuiItemOrient_Horz);
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec4);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 	if (label != nullptr) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
@@ -10600,7 +10608,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztQuat *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameQuat);
 	panel->functions.update = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorQuatUpdate);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 	if (label != nullptr) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
@@ -11293,7 +11301,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableReal *variable,
 	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
 	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
 	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
@@ -11516,7 +11524,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableColor *variable
 	editor->ed_constant = zt_guiMakeColorPicker(sizer_main, ztColor_White, ztGuiColorPickerBehaviorFlags_LiveEdit | ztGuiColorPickerBehaviorFlags_IncludesAlpha, &variable->constant);
 	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
 	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
@@ -11942,7 +11950,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec2 *variable,
 	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
 	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
 	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
@@ -12425,7 +12433,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztParticleVariableVec3 *variable,
 	editor->ed_constant = zt_guiMakeEditor(panel, nullptr, &variable->constant, min, max, step);
 	zt_guiSizerAddItem(sizer_main, editor->ed_constant, 0, 0);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	editor->ed_random_value_panel = zt_guiMakePanel(panel, 0, editor, panel->gm->arena);
 	zt_guiSizerAddItem(sizer_main, editor->ed_random_value_panel, 0, 0);
@@ -12609,7 +12617,7 @@ ztGuiItem *zt_guiMakeFlagEditor(ztGuiItem *parent, const char **flag_labels, i32
 	zt_guiSizerSizeParent(sizer, false, true);
 	zt_guiSizerSizeToParent(sizer);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	zt_fiz(flags_count) {
 		i32 custom_flags = -1;
@@ -13511,13 +13519,13 @@ ztVec2 zt_guiSizerGetMinSize(ztGuiItem *sizer)
 
 // ================================================================================================================================================================================================
 
-void zt_guiSizerRemoveItem(ztGuiItem *sizer, ztGuiItem *item)
+bool zt_guiSizerRemoveItem(ztGuiItem *sizer, ztGuiItem *item)
 {
 	ZT_PROFILE_GUI("zt_guiSizerRemoveItem");
 
-	zt_returnOnNull(sizer);
-	zt_returnOnNull(item);
-	zt_assertReturnOnFail(sizer->type == ztGuiItemType_Sizer);
+	zt_returnValOnNull(sizer, false);
+	zt_returnValOnNull(item, false);
+	zt_assertReturnValOnFail(sizer->type == ztGuiItemType_Sizer, false);
 
 	ztGuiItem::ztSizerItemEntry *prev = nullptr;
 	zt_flink(entry, sizer->sizer.items) {
@@ -13532,10 +13540,12 @@ void zt_guiSizerRemoveItem(ztGuiItem *sizer, ztGuiItem *item)
 			zt_freeArena(entry, sizer->gm->arena);
 
 			zt_guiItemFree(item);
-			break;
+			return true;
 		}
 		prev = entry;
 	}
+
+	return false;
 }
 
 // ================================================================================================================================================================================================
@@ -13543,7 +13553,7 @@ void zt_guiSizerRemoveItem(ztGuiItem *sizer, ztGuiItem *item)
 void zt_guiSizerRemoveAllItems(ztGuiItem *sizer)
 {
 	while (sizer->first_child) {
-		zt_guiSizerRemoveItem(sizer, sizer->first_child);
+		zt_assert(zt_guiSizerRemoveItem(sizer, sizer->first_child)); // if you've asserted here, there is a child on the sizer that wasn't added to the sizer
 	}
 }
 
@@ -13637,7 +13647,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterInputMouse, ZT_FUNC_GUI_ITEM_INPUT_M
 		if (input_mouse->leftPressed()) {
 			if (item->splitter.orient == ztGuiItemOrient_Horz) {
 				r32 start = item->size.x / -2;
-				r32 min = (3 / zt_pixelsPerUnit()) / item->size.x;
+				r32 min = (zt_guiPadding()) / item->size.x;
 				item->splitter.split_percent = zt_clamp(((mpos.x - start) - item->splitter.dragging_offset) / item->size.x, min, 1 - min);
 
 				if (item->splitter.size_only == 1) {
@@ -13653,7 +13663,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterInputMouse, ZT_FUNC_GUI_ITEM_INPUT_M
 			}
 			else {
 				r32 start = item->size.y / 2;
-				r32 min = (3 / zt_pixelsPerUnit()) / item->size.y;
+				r32 min = (zt_guiPadding()) / item->size.y;
 				item->splitter.split_percent = zt_clamp(((start - mpos.y) - item->splitter.dragging_offset) / item->size.y, min, 1 - min);
 
 				if (item->splitter.size_only == 1) {
@@ -15452,7 +15462,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDE
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztVec2 center = item->pos + offset;
 	zt_drawListAddSolidRect2D(draw_list, center, item->size, ztColor_DarkGray);
@@ -16109,7 +16119,7 @@ void zt_guiDialogSpriteSelector(ztSpriteManager *sprite_manager, ZT_FUNCTION_POI
 	data->user_data = user_data;
 	data->cancelled = true;
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window_sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 	ztGuiItem *scroll = zt_guiMakeScrollContainer(window_sizer, ztGuiScrollContainerBehaviorFlags_StretchHorz);
@@ -16904,7 +16914,7 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 	details->text = zt_guiMakeStaticText(details->sizer, "00000000 triangles\n0000 shader switches\n0000 tex switches\n0000 draw calls", ztGuiStaticTextBehaviorFlags_MonoSpaced, 256);
 	zt_guiItemSetAlign(details->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(details->text, "Rendering Details Text"));
-	zt_guiSizerAddItem(details->sizer, details->text, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(details->sizer, details->text, 0, zt_guiPadding());
 
 	//zt_guiItemSetSize(window, zt_vec2(3.25f, 1.2f));
 	//zt_guiItemSetPosition(details->text, ztAlign_Right, ztAnchor_Right, zt_vec2(-26.f / zt_pixelsPerUnit(), 0));
@@ -16952,7 +16962,7 @@ ztGuiItem *zt_guiDebugAddMetric(const char *sample)
 			ztDebugRenderingDetails *details = (ztDebugRenderingDetails*)custom->functions.user_data;
 			ztGuiItem *static_txt = zt_guiMakeStaticText(details->sizer, sample, ztGuiStaticTextBehaviorFlags_MonoSpaced, zt_strLen(sample) + 64);
 			zt_guiItemSetAlign(static_txt, ztAlign_Right);
-			zt_guiSizerAddItem(details->sizer, static_txt, 0, 3 / zt_pixelsPerUnit());
+			zt_guiSizerAddItem(details->sizer, static_txt, 0, zt_guiPadding());
 			_zt_guiDebugRenderDetailsSize(details);
 			if (needs_hidden) {
 				zt_guiItemHide(window);
@@ -17044,7 +17054,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 	zt_guiItemSetAlign(fps->text, ztAlign_Right);
 	zt_debugOnly(zt_guiItemSetName(fps->text, "FPS Display Text"));
 	zt_guiSizerAddItem(sizer, fps->text, 1, 0);
-	zt_guiSizerAddStretcher(sizer, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddStretcher(sizer, 0, zt_guiPadding());
 
 	fps->button = zt_guiMakeButton(fps->panel, "+", ztGuiButtonBehaviorFlags_NoBackground);
 	zt_guiButtonSetCallback(fps->button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugFpsDisplayButtonExpand));
@@ -17403,8 +17413,8 @@ ztInternal void _zt_guiDebugConsole()
 	ztGuiItem *main_sizer = zt_guiMakeSizer(content, ztGuiItemOrient_Vert);
 	zt_guiSizerSizeToParent(main_sizer);
 
-	zt_guiSizerAddItem(main_sizer, dc->display, 1, 3 / zt_pixelsPerUnit());
-	zt_guiSizerAddItem(main_sizer, dc->command, 0, 3 / zt_pixelsPerUnit(), 0, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(main_sizer, dc->display, 1, zt_guiPadding());
+	zt_guiSizerAddItem(main_sizer, dc->command, 0, zt_guiPadding(), 0, ztGuiItemOrient_Horz);
 
 	zt_debugConsoleAddCommand("list", "Lists the available commands", ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugConsoleCommand_List     ), ZT_FUNCTION_POINTER_TO_VAR_NULL);
 	zt_debugConsoleAddCommand("help",                        nullptr, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugConsoleCommand_Help     ), ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugConsoleCommandAutoComplete_Help));
@@ -18009,11 +18019,11 @@ ztInternal void _zt_guiDebugTextureViewer()
 			ztGuiItem *dropdown = zt_guiMakeComboBox(sizer_top, zt_elementsOf(zt_game->textures));
 			zt_guiItemSetName(dropdown, ZT_GUI_DEBUG_TEXVIEW_DROPDOWN_NAME);
 			zt_guiItemSetSize(dropdown, zt_vec2(6, -1));
-			zt_guiSizerAddItem(sizer_top, dropdown, 0, 3 / zt_pixelsPerUnit(), ztAlign_Top, ztGuiItemOrient_Horz);
+			zt_guiSizerAddItem(sizer_top, dropdown, 0, zt_guiPadding(), ztAlign_Top, ztGuiItemOrient_Horz);
 			zt_guiComboBoxSetCallback(dropdown, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugTextureViewerOnComboBox), nullptr);
 
 			ztGuiItem *button = zt_guiMakeButton(sizer_top, "Refresh");
-			zt_guiSizerAddItem(sizer_top, button, 0, 3 / zt_pixelsPerUnit());
+			zt_guiSizerAddItem(sizer_top, button, 0, zt_guiPadding());
 			zt_guiButtonSetCallback(button, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugTextureViewerOnRefresh));
 		}
 
@@ -18022,7 +18032,7 @@ ztInternal void _zt_guiDebugTextureViewer()
 		zt_guiItemSetName(display, ZT_GUI_DEBUG_TEXVIEW_DISPLAY_NAME);
 		zt_guiScrollContainerSetItem(scroll, display);
 
-		zt_guiSizerAddItem(sizer, scroll, 1, 3 / zt_pixelsPerUnit());
+		zt_guiSizerAddItem(sizer, scroll, 1, zt_guiPadding());
 	}
 
 	_zt_guiDebugTextureViewerRefresh();
@@ -18188,7 +18198,7 @@ ztInternal void _zt_guiDebugProfilerOverviewRefreshGrouping(ztDebugProfilerOverv
 
 				zt_staticAssert(zt_elementsOf(column_align) == zt_elementsOf(column_sizes));
 
-				r32 padding = 3 / zt_pixelsPerUnit();
+				r32 padding = zt_guiPadding();
 
 				if (listbox->listbox.header == nullptr) {
 					// make the header
@@ -18398,7 +18408,7 @@ ztInternal void _zt_guiDebugProfilerOverviewRefreshGrouping(ztDebugProfilerOverv
 
 				zt_staticAssert(zt_elementsOf(column_align) == zt_elementsOf(column_sizes));
 
-				r32 padding = 3 / zt_pixelsPerUnit();
+				r32 padding = zt_guiPadding();
 
 				if (listbox->listbox.header == nullptr) {
 					// make the header
@@ -18917,7 +18927,7 @@ ztInternal void _zt_guiDebugProfiler()
 	*prof = {};
 	prof->render_state = {};
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window = zt_guiMakeWindow("Profiler", ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
@@ -19395,11 +19405,11 @@ ztInternal void _zt_guiDebugMemoryInspector(bool should_hide_if_not_created = fa
 
 	ztGuiItem *refresh = zt_guiMakeButton(top_sizer, "Refresh");
 
-	zt_guiSizerAddItem(top_sizer, combobox, 0, 3 / zt_pixelsPerUnit());
-	zt_guiSizerAddItem(top_sizer, refresh, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(top_sizer, combobox, 0, zt_guiPadding());
+	zt_guiSizerAddItem(top_sizer, refresh, 0, zt_guiPadding());
 	zt_guiSizerAddStretcher(top_sizer, 1, 0);
-	zt_guiSizerAddItem(top_sizer, slider, 0, 3 / zt_pixelsPerUnit(), ztAlign_Center, 0); // todo: check aligning within sizer cell
-	zt_guiSizerAddItem(top_sizer, chk_color, 0, 3 / zt_pixelsPerUnit(), 0);
+	zt_guiSizerAddItem(top_sizer, slider, 0, zt_guiPadding(), ztAlign_Center, 0); // todo: check aligning within sizer cell
+	zt_guiSizerAddItem(top_sizer, chk_color, 0, zt_guiPadding(), 0);
 	zt_guiSizerAddItem(sizer, top_sizer, 0, 0);
 
 	ztGuiItem *scroll = zt_guiMakeScrollContainer(sizer, ztGuiScrollContainerBehaviorFlags_StretchHorz);
@@ -19408,9 +19418,9 @@ ztInternal void _zt_guiDebugMemoryInspector(bool should_hide_if_not_created = fa
 	zt_guiItemSetName(inspector, ZT_DEBUG_MEMORY_INSPECTOR_PANEL_NAME);
 
 	zt_guiScrollContainerSetItem(scroll, inspector);
-	zt_guiSizerAddItem(sizer, scroll, 1, 3 / zt_pixelsPerUnit());
-	zt_guiSizerAddItem(sizer, hover_info, 0, 3 / zt_pixelsPerUnit());
-	zt_guiSizerAddItem(sizer, source_info, 0, 3 / zt_pixelsPerUnit());
+	zt_guiSizerAddItem(sizer, scroll, 1, zt_guiPadding());
+	zt_guiSizerAddItem(sizer, hover_info, 0, zt_guiPadding());
+	zt_guiSizerAddItem(sizer, source_info, 0, zt_guiPadding());
 
 	inspector->functions.user_data   = mem;
 	inspector->functions.update      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugMemoryDisplayUpdate);
@@ -19939,7 +19949,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayInputMouse, ZT_FUNC_GUI_ITE
 				ztVec2 sprite_pos = zt_vec2(editor->sprite_pos[i].x + editor->sprite_size[i].x / 2, editor->sprite_pos[i].y + editor->sprite_size[i].y / 2);
 				ztVec2 sprite_size = editor->sprite_size[editor->sprite_active];
 				if (zt_collisionPointInRect(conv_mpos, sprite_pos, sprite_size)) {
-					r32 side_check = 3 / zt_pixelsPerUnit();
+					r32 side_check = zt_guiPadding();
 
 					// top side
 					if (zt_collisionPointInRect(conv_mpos, sprite_pos + zt_vec2(0, sprite_size.y / -2), zt_vec2(sprite_size.x, side_check))) {
@@ -20575,7 +20585,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplit, ZT_FUNC_GU
 
 	zt_guiItemSetSize(val_ed, zt_vec2(4, .75f));
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 	zt_guiSizerAddStretcher(sizer, 1, 0);
 
 	zt_guiSizerAddItem(sizer, val_ed, 2, padding, ztAlign_Center, 0);
@@ -20680,7 +20690,7 @@ ztInternal void _zt_debugSpriteEditor()
 	ztDebugSpriteEditor *editor = zt_mallocStructArena(ztDebugSpriteEditor, gm->arena);
 	*editor = {};
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window = zt_guiMakeWindow(window_name, ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
@@ -21110,7 +21120,7 @@ ztInternal void _zt_debugSpriteAnimEdSelectSprite(ztSpriteAnimEditor *editor, in
 	editor->active_entry = entry;
 	zt_guiItemSetUserData(window, editor);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window_sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 	ztGuiItem *scroll = zt_guiMakeScrollContainer(window_sizer, ztGuiScrollContainerBehaviorFlags_StretchHorz);
@@ -21287,7 +21297,7 @@ ztInternal int _zt_debugSpriteAnimEdAddSpriteEntry(ztSpriteAnimEditor *editor, i
 	button_up->size.x = button_dn->size.x = button_rm->size.x = zt_max(button_up->size.x, zt_max(button_dn->size.x, button_rm->size.x));
 	button_up->size.y = button_dn->size.y = button_rm->size.y = zt_max(button_up->size.y, zt_max(button_dn->size.y, button_rm->size.y));
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *sizer = zt_guiMakeSizer(entry, ztGuiItemOrient_Horz, true);
 	zt_guiItemSetName(sizer, "Sprite Panel Sizer");
@@ -21856,7 +21866,7 @@ ztInternal void _zt_debugSpriteAnimEditor()
 	editor->work_file[0] = 0;
 	editor->active_sequence = -1;
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window = zt_guiMakeWindow(window_name, ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
@@ -22607,7 +22617,7 @@ void _zt_guiParticleEditor()
 	ztGuiManager *gm = zt_gui->gui_manager_active;
 	ztParticleEditor *editor = zt_mallocStructArena(ztParticleEditor, gm->arena);
 
-	r32 padding = 3 / zt_pixelsPerUnit();
+	r32 padding = zt_guiPadding();
 
 	ztGuiItem *window = zt_guiMakeWindow(window_name, ztGuiWindowBehaviorFlags_Default);
 	zt_guiItemSetName(window, window_name);
@@ -23122,7 +23132,7 @@ ztInternal void _zt_guiDebugVariables()
 		ztGuiItem *label = zt_guiMakeStaticText(item_sizer, zt_game->debug_vars[i].name);
 		zt_guiItemSetAlign(label, ztAlign_Left);
 
-		label->size.y = avg_size.y - ((3 / zt_pixelsPerUnit()) * 2);
+		label->size.y = avg_size.y - ((zt_guiPadding()) * 2);
 
 		ztGuiItem *editor = nullptr;
 
@@ -23141,7 +23151,7 @@ ztInternal void _zt_guiDebugVariables()
 		zt_guiSizerAddStretcher(item_sizer, 0, 7 / zt_pixelsPerUnit());
 
 
-		zt_guiSizerAddItem(sizer, item_sizer, 1, 3 / zt_pixelsPerUnit());
+		zt_guiSizerAddItem(sizer, item_sizer, 1, zt_guiPadding());
 	}
 
 	zt_guiItemSetPosition(window, ztAlign_Left | ztAlign_Top, ztAnchor_Left | ztAnchor_Top, zt_vec2(1.f, -1.f));
