@@ -612,11 +612,12 @@ struct ztVec3
 	bool equalsClose(const ztVec3& v) const { return zt_real32Close(x, v.x) && zt_real32Close(y, v.y) && zt_real32Close(z, v.z); }
 
 	r32 length() const;
+	r32 magnitude() const;
+	r32 magnitudeSquared() const;
 	r32 dot(const ztVec3& v) const;  // 1 parallel, same direction; 0 angle between 90 degrees; -1 parallel, opposite direction
 	r32 angle(const ztVec3& v) const;
 	r32 distance(const ztVec3& v) const;
 	r32 distanceForCompare(const ztVec3& v) const;
-	r32 multInner(const ztVec3& v) const;
 	ztVec3 cross(const ztVec3& v) const;
 
 	static ztVec3 lerp(const ztVec3& v1, const ztVec3& v2, r32 percent);
@@ -770,6 +771,118 @@ ztInline ztColor               zt_colorHsvToRgb(ztColor hsva);
 
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztQuat;
+struct ztMat4;
+
+enum ztMat3_Enum
+{
+	ztMat3_Col0Row0 = 0,
+	ztMat3_Col0Row1 = 1,
+	ztMat3_Col0Row2 = 2,
+	ztMat3_Col1Row0 = 3,
+	ztMat3_Col1Row1 = 4,
+	ztMat3_Col1Row2 = 5,
+	ztMat3_Col2Row0 = 6,
+	ztMat3_Col2Row1 = 7,
+	ztMat3_Col2Row2 = 8,
+
+	ztMat3_Row0Col0 = 0,
+	ztMat3_Row1Col0 = 1,
+	ztMat3_Row2Col0 = 2,
+	ztMat3_Row0Col1 = 3,
+	ztMat3_Row1Col1 = 4,
+	ztMat3_Row2Col1 = 5,
+	ztMat3_Row0Col2 = 6,
+	ztMat3_Row1Col2 = 7,
+	ztMat3_Row2Col2 = 8,
+};
+
+
+// ================================================================================================================================================================================================
+
+#pragma pack(push, 1)
+struct ztMat3
+{
+	union {
+		struct {
+			r32 c0r0;
+			r32 c0r1;
+			r32 c0r2;
+			r32 c1r0;
+			r32 c1r1;
+			r32 c1r2;
+			r32 c2r0;
+			r32 c2r1;
+			r32 c2r2;
+		};
+
+		struct {
+			ztVec3 cols[3];
+		};
+
+		r32 values[9];
+	};
+
+
+	void scale(const ztVec3& scale)                          { values[ztMat3_Col0Row0] = scale.x; values[ztMat3_Col1Row1] = scale.y; values[ztMat3_Col2Row2] = scale.z; }
+	void scale(r32 x, r32 y, r32 z)                          { values[ztMat3_Col0Row0] = x; values[ztMat3_Col1Row1] = y; values[ztMat3_Col2Row2] = z; }
+	ztMat3 getScale(const ztVec3& scale) const               { ztMat3 copy(*this); copy.scale(scale); return copy; }
+	ztMat3 getScale(r32 x, r32 y, r32 z) const               { ztMat3 copy(*this); copy.scale(x, y, z); return copy; }
+
+	void rotateEuler(const ztVec3& euler);
+	void rotateEuler(r32 x, r32 y, r32 z);
+	ztMat3 getRotateEuler(const ztVec3& euler) const;
+	ztMat3 getRotateEuler(r32 x, r32 y, r32 z) const;
+
+	void multiply(const ztMat3& mat);
+	ztMat3 getMultiply(const ztMat3& mat) const;
+	ztVec3 getMultiply(const ztVec3& vec) const;
+	ztVec4 getMultiply(const ztVec4& vec) const;
+
+	void transpose();
+	ztMat3 getTranspose() const;
+
+	void inverse();
+	ztMat3 getInverse() const;
+
+	void extract(ztVec3 *rotation, ztVec3 *scale) const; // does not work well with scaled matrices
+	void extract(ztQuat *rotation, ztVec3 *scale) const; // does not work well with scaled matrices
+
+	ztMat3& operator*=(const ztMat3& mat3);
+	ztMat3& operator*=(const ztVec3& vec3);
+
+	r32 operator[](int idx) const { return values[idx]; }
+	r32& operator[](int idx) { return values[idx]; }
+
+	bool operator==(const ztMat3& m) const { zt_fiz(9) if (!zt_real32Eq(values[i], m.values[i])) return false; return true; }
+	bool operator!=(const ztMat3& m) const { return !(*this == m); }
+
+	static const ztMat3 zero;
+	static const ztMat3 identity;
+
+
+	void cleanup(int digits);
+};
+#pragma pack(pop)
+
+// ================================================================================================================================================================================================
+
+ztInline ztMat3 zt_mat3(r32 v[9]) { return{ v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8] }; }
+ztInline ztMat3 zt_mat3(r32 c0r0, r32 c0r1, r32 c0r2, r32 c1r0, r32 c1r1, r32 c1r2, r32 c2r0, r32 c2r1, r32 c2r2) { return{ c0r0, c0r1, c0r2, c1r0, c1r1, c1r2, c2r0, c2r1, c2r2 }; }
+ztInline ztMat3 zt_mat3(const ztMat3& m) { return{ m.values[0], m.values[1], m.values[2], m.values[3], m.values[4], m.values[5], m.values[6], m.values[7], m.values[8] }; }
+
+ztInline ztMat3 operator*(const ztMat3& m1, const ztMat3& m2);
+ztInline ztVec3 operator*(const ztMat3& m, const ztVec3& v);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
+// ================================================================================================================================================================================================
 // Matrix multiplication notes:
 //
 // This matrix is column-major.
@@ -790,11 +903,9 @@ ztInline ztColor               zt_colorHsvToRgb(ztColor hsva);
 // effect applies first, then the effect on the left takes place
 // ================================================================================================================================================================================================
 
-struct ztQuat;
-
 enum ztMat4_Enum
 {
-	ztMat4_Col0Row0 = 0, 
+	ztMat4_Col0Row0 = 0,
 	ztMat4_Col0Row1 = 1,
 	ztMat4_Col0Row2 = 2,
 	ztMat4_Col0Row3 = 3,
@@ -921,13 +1032,18 @@ struct ztMat4
 // ================================================================================================================================================================================================
 
 ztInline ztMat4 zt_mat4(r32 v[16]) { return{ v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15] }; }
-ztInline ztMat4 zt_mat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { return { c0r0, c0r1, c0r2, c0r3, c1r0, c1r1, c1r2, c1r3, c2r0, c2r1, c2r2, c2r3, c3r0, c3r1, c3r2, c3r3 }; }
+ztInline ztMat4 zt_mat4(r32 c0r0, r32 c0r1, r32 c0r2, r32 c0r3, r32 c1r0, r32 c1r1, r32 c1r2, r32 c1r3, r32 c2r0, r32 c2r1, r32 c2r2, r32 c2r3, r32 c3r0, r32 c3r1, r32 c3r2, r32 c3r3) { return{ c0r0, c0r1, c0r2, c0r3, c1r0, c1r1, c1r2, c1r3, c2r0, c2r1, c2r2, c2r3, c3r0, c3r1, c3r2, c3r3 }; }
 ztInline ztMat4 zt_mat4(const ztMat4& m) { return{ m.values[0], m.values[1], m.values[2], m.values[3], m.values[4], m.values[5], m.values[6], m.values[7], m.values[8], m.values[9], m.values[10], m.values[11], m.values[12], m.values[13], m.values[14], m.values[15] }; }
+
+ztInline ztMat3 zt_mat3(const ztMat4& m) { return{ m.values[0], m.values[1], m.values[2], m.values[4], m.values[5], m.values[6], m.values[8], m.values[9], m.values[10] }; }
+
 
 ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2);
 ztInline ztVec3 operator*(const ztMat4& m, const ztVec3& v);
 
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 #pragma pack(push, 1)
@@ -985,6 +1101,9 @@ struct ztQuat
 	ztVec3 rotatePosition(r32 x, r32 y, r32 z) const;
 	void rotatePosition(r32 *x, r32 *y, r32 *z) const;
 
+	ztMat3 convertToMat3() const;
+	void convertToMat3(ztMat3 *mat) const;
+
 	ztMat4 convertToMat4() const;
 	void convertToMat4(ztMat4 *mat) const;
 
@@ -997,6 +1116,7 @@ struct ztQuat
 	static ztQuat makeFromAxisAngle(const ztVec3& axis, r32 angle);
 	static ztQuat makeFromEuler(r32 pitch, r32 yaw, r32 roll);
 	static ztQuat makeFromEuler(const ztVec3& euler) { return makeFromEuler(euler.x, euler.y, euler.z); }
+	static ztQuat makeFromMat3(const ztMat3& mat);
 	static ztQuat makeFromMat4(const ztMat4& mat);
 	static ztQuat makeFromDirection(const ztVec3& dir, const ztVec3& up = zt_vec3(0, 1, 0));
 	static ztQuat makeFromPoints(const ztVec3& p1, const ztVec3 p2);
@@ -1017,7 +1137,6 @@ ztInline ztQuat zt_quat(r32 x, r32 y, r32 z, r32 w) { return { x, y, z, w }; }
 ztInline ztQuat zt_quat(const ztVec3& xyz, r32 w) { return { xyz.x, xyz.y, xyz.z, w }; }
 ztInline ztQuat zt_quat(const ztVec4& xyzw) { return { xyzw.x, xyzw.y, xyzw.z, xyzw.w }; }
 
-
 ztInline ztQuat operator+(const ztQuat& q1, const ztQuat& q2);
 ztInline ztQuat operator-(const ztQuat& q1, const ztQuat& q2);
 ztInline ztQuat operator*(const ztQuat& q1, const ztQuat& q2);
@@ -1026,6 +1145,8 @@ ztInline ztQuat operator*(const ztQuat& q1, r32 scale);
 ztInline ztQuat operator/(const ztQuat& q1, r32 scale);
 
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 bool zt_isPow2              (i32 number);
@@ -1064,6 +1185,7 @@ r32  zt_fmod                (r32 v, r32 d);
 i32  zt_ilerp               (i32 v1, i32 v2, r32 percent);
 i32  zt_iunlerp             (i32 v1, i32 v2, r32 percent);
 
+r32  zt_percentPingPong     (r32 value); // percentage of half the value (0-.5 - 0-100%, .5-1 - 100-0%)
 
 // ================================================================================================================================================================================================
 
@@ -1303,7 +1425,7 @@ void                       *zt_functionPointerAccess(ztFunctionID function_id);
                             ((function_decl*)zt_functionPointerAccess(function_id))
 
 #define                     ZT_FUNCTION_POINTER_ACCESS_SAFE(function_id, function_decl) \
-                            if (function_id != ztInvalidID) ((function_decl*)zt_functionPointerAccess(function_id))
+                            if (function_id != ztInvalidID && function_id != 0) ((function_decl*)zt_functionPointerAccess(function_id))
 #else
 
 #define                     ZT_FUNCTION_POINTER_REGISTER(function_name, function_decl)	\
@@ -1699,7 +1821,7 @@ ztString     zt_stringMakeFrom        (ztStringPool *pool, const char* str);
 ztString     zt_stringMakeFrom        (ztStringPool *pool, const char* str, int s_len);
 ztString     zt_stringResize          (ztStringPool *pool, ztString string, int size);
 ztString     zt_stringOverwrite       (ztStringPool *pool, ztString string, const char *str);
-void         zt_stringFreeFrom        (ztStringPool *pool, ztString string);
+void         zt_stringFree            (ztStringPool *pool, ztString string);
 
 
 // ================================================================================================================================================================================================
@@ -2186,6 +2308,7 @@ bool zt_serialWrite      (ztSerial *serial, ztVec2 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec3 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec4 vec);
 bool zt_serialWrite      (ztSerial *serial, ztVec2i vec);
+bool zt_serialWrite      (ztSerial *serial, ztMat3 mat);
 bool zt_serialWrite      (ztSerial *serial, ztMat4 mat);
 bool zt_serialWrite      (ztSerial *serial, ztQuat quat);
 
@@ -2210,6 +2333,7 @@ bool zt_serialRead       (ztSerial *serial, ztVec3 *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec4 *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec2i *vec);
 bool zt_serialRead       (ztSerial *serial, ztVec3i *vec);
+bool zt_serialRead       (ztSerial *serial, ztMat3 *mat);
 bool zt_serialRead       (ztSerial *serial, ztMat4 *mat);
 bool zt_serialRead       (ztSerial *serial, ztQuat *quat);
 
@@ -2672,6 +2796,19 @@ ztInline i32 zt_iunlerp(i32 v1, i32 v2, r32 value)
 
 // ================================================================================================================================================================================================
 
+r32 zt_percentPingPong(r32 value)
+{
+	value = zt_clamp(value, 0, 1);
+	if (value < .5) {
+		return value / .5f;
+	}
+	else {
+		return 1 - ((value - .5f) / .5f);
+	}
+}
+
+// ================================================================================================================================================================================================
+
 ztInline void zt_assertRaw(const char *condition_name, const char *file, int file_line)
 {
 	zt_winOnly(zt_debugOnly(__debugbreak()));
@@ -2872,6 +3009,20 @@ ztInline ztVec2i zt_vec2i(ztVec2 v)
 ztInline r32 ztVec3::length() const
 {
 	return zt_sqrt(x * x + y * y + z * z);
+}
+
+// ================================================================================================================================================================================================
+
+r32 ztVec3::magnitude() const
+{
+	return zt_sqrt(x * x + y * y + z * z);
+}
+
+// ================================================================================================================================================================================================
+
+r32 ztVec3::magnitudeSquared() const
+{
+	return (x * x + y * y + z * z);
 }
 
 // ================================================================================================================================================================================================
@@ -3182,6 +3333,22 @@ ztColor zt_colorHsvToRgb(ztColor hsva)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ztInline ztMat3 operator*(const ztMat3& m1, const ztMat3& m2)
+{
+	return m1.getMultiply(m2);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec3 operator*(const ztMat3& m, const ztVec3& v)
+{
+	return m.getMultiply(v);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztInline ztMat4 operator*(const ztMat4& m1, const ztMat4& m2)
 {
 	return m1.getMultiply(m2);
@@ -3417,6 +3584,36 @@ ztInline void ztQuat::rotatePosition(r32 *x, r32 *y, r32 *z) const
 	*x = r.x;
 	*y = r.y;
 	*z = r.z;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztMat3 ztQuat::convertToMat3() const
+{
+	ztMat3 r;
+	convertToMat3(&r);
+	return r;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline void ztQuat::convertToMat3(ztMat3 *mat) const
+{
+	r32 xx = x * x, yy = y * y, zz = z * z;
+	r32 xy = x * y, xz = x * z, yz = y * z;
+	r32 wx = w * x, wy = w * y, wz = w * z;
+
+	mat->values[ztMat3_Col0Row0] = 1.f - 2.f * (yy + zz);
+	mat->values[ztMat3_Col0Row1] = 2.f * (xy + wz);
+	mat->values[ztMat3_Col0Row2] = 2.f * (xz - wy);
+
+	mat->values[ztMat3_Col1Row0] = 2.f * (xy - wz);
+	mat->values[ztMat3_Col1Row1] = 1.f - 2.f * (xx + zz);
+	mat->values[ztMat3_Col1Row2] = 2.f * (yz + wx);
+
+	mat->values[ztMat3_Col2Row0] = 2.f * (xz + wy);
+	mat->values[ztMat3_Col2Row1] = 2.f * (yz - wx);
+	mat->values[ztMat3_Col2Row2] = 1.f - 2.f * (xx + yy);
 }
 
 // ================================================================================================================================================================================================
@@ -5301,6 +5498,9 @@ void zt_memFreeGlobal(void *data)
 /*static*/ const ztVec4 ztVec4::min  = zt_vec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
 /*static*/ const ztVec4 ztVec4::max  = zt_vec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
 
+/*static*/ const ztMat3 ztMat3::zero = zt_mat3(0, 0, 0, 0, 0, 0, 0, 0, 0);
+/*static*/ const ztMat3 ztMat3::identity = zt_mat3(1, 0, 0, 0, 1, 0, 0, 0, 1);
+
 /*static*/ const ztMat4 ztMat4::zero = zt_mat4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 /*static*/ const ztMat4 ztMat4::identity = zt_mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
@@ -5404,6 +5604,289 @@ r32 zt_fmod(r32 v, r32 d)
 
 	return fmodf(v, d);
 }
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void ztMat3::rotateEuler(const ztVec3& euler)
+{
+	rotateEuler(euler.x, euler.y, euler.z);
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::rotateEuler(r32 x, r32 y, r32 z)
+{
+	ZT_PROFILE_TOOLS("ztMat3::rotateEuler");
+
+#	if 0
+	x = zt_degreesToRadians(x);
+	y = zt_degreesToRadians(y);
+	z = zt_degreesToRadians(z);
+
+	r32 cr = zt_cos(x);
+	r32 sr = zt_sin(x);
+	r32 cy = zt_cos(z);
+	r32 sy = zt_sin(z);
+	r32 cp = zt_cos(y);
+	r32 sp = zt_sin(y);
+
+	ztMat4 m;
+	m.values[ztMat3_Col0Row0] =  cp * cy + sp * sr * sy; m.values[ztMat3_Col1Row0] = -cp * sy + sp * sr * cy; m.values[ztMat3_Col2Row0] =  sp * cr;
+	m.values[ztMat3_Col0Row1] =  sy * cr;                m.values[ztMat3_Col1Row1] =  cy * cr;                m.values[ztMat3_Col2Row1] = -sr;     
+	m.values[ztMat3_Col0Row2] = -sp * cy + cp * sr * sy; m.values[ztMat3_Col1Row2] =  sy * sp + cp * sr * cy; m.values[ztMat3_Col2Row2] =  cp * cr;
+
+	multiply(m);
+#	endif
+#	if 1
+	// pitch = y, yaw = x, roll = z
+
+	x = zt_degreesToRadians(x);
+	y = zt_degreesToRadians(y);
+	z = zt_degreesToRadians(z);
+
+	ztMat3 rot_x = zt_mat3(
+		1, 0, 0,
+		0, cosf(x), -sinf(x),
+		0, sinf(x), cosf(x));
+
+	ztMat3 rot_y = zt_mat3(
+		cosf(y), 0, sinf(y),
+		0, 1, 0,
+		-sinf(y), 0, cosf(y));
+
+	ztMat3 rot_z = zt_mat3(
+		cosf(z), -sinf(z), 0,
+		sinf(z), cosf(z), 0,
+		0, 0, 1);
+
+	ztMat3 mult_xyz = (rot_z * rot_y) * rot_x;
+	multiply(mult_xyz);
+#	endif
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3 ztMat3::getRotateEuler(const ztVec3& euler) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getRotateEuler");
+
+	ztMat3 copy(*this);
+	copy.rotateEuler(euler);
+	return copy;
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3 ztMat3::getRotateEuler(r32 x, r32 y, r32 z) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getRotateEuler");
+
+	ztMat3 copy(*this);
+	copy.rotateEuler(x, y, z);
+	return copy;
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::multiply(const ztMat3& m2)
+{
+	ZT_PROFILE_TOOLS("ztMat3::multiply");
+
+	ztMat3 m1(*this);
+
+	values[ztMat3_Col0Row0] = (m1.values[ztMat3_Col0Row0] * m2.values[ztMat3_Col0Row0]) + (m1.values[ztMat3_Col1Row0] * m2.values[ztMat3_Col0Row1]) + (m1.values[ztMat3_Col2Row0] * m2.values[ztMat3_Col0Row2]);
+	values[ztMat3_Col0Row1] = (m1.values[ztMat3_Col0Row1] * m2.values[ztMat3_Col0Row0]) + (m1.values[ztMat3_Col1Row1] * m2.values[ztMat3_Col0Row1]) + (m1.values[ztMat3_Col2Row1] * m2.values[ztMat3_Col0Row2]);
+	values[ztMat3_Col0Row2] = (m1.values[ztMat3_Col0Row2] * m2.values[ztMat3_Col0Row0]) + (m1.values[ztMat3_Col1Row2] * m2.values[ztMat3_Col0Row1]) + (m1.values[ztMat3_Col2Row2] * m2.values[ztMat3_Col0Row2]);
+
+	values[ztMat3_Col1Row0] = (m1.values[ztMat3_Col0Row0] * m2.values[ztMat3_Col1Row0]) + (m1.values[ztMat3_Col1Row0] * m2.values[ztMat3_Col1Row1]) + (m1.values[ztMat3_Col2Row0] * m2.values[ztMat3_Col1Row2]);
+	values[ztMat3_Col1Row1] = (m1.values[ztMat3_Col0Row1] * m2.values[ztMat3_Col1Row0]) + (m1.values[ztMat3_Col1Row1] * m2.values[ztMat3_Col1Row1]) + (m1.values[ztMat3_Col2Row1] * m2.values[ztMat3_Col1Row2]);
+	values[ztMat3_Col1Row2] = (m1.values[ztMat3_Col0Row2] * m2.values[ztMat3_Col1Row0]) + (m1.values[ztMat3_Col1Row2] * m2.values[ztMat3_Col1Row1]) + (m1.values[ztMat3_Col2Row2] * m2.values[ztMat3_Col1Row2]);
+
+	values[ztMat3_Col2Row0] = (m1.values[ztMat3_Col0Row0] * m2.values[ztMat3_Col2Row0]) + (m1.values[ztMat3_Col1Row0] * m2.values[ztMat3_Col2Row1]) + (m1.values[ztMat3_Col2Row0] * m2.values[ztMat3_Col2Row2]);
+	values[ztMat3_Col2Row1] = (m1.values[ztMat3_Col0Row1] * m2.values[ztMat3_Col2Row0]) + (m1.values[ztMat3_Col1Row1] * m2.values[ztMat3_Col2Row1]) + (m1.values[ztMat3_Col2Row1] * m2.values[ztMat3_Col2Row2]);
+	values[ztMat3_Col2Row2] = (m1.values[ztMat3_Col0Row2] * m2.values[ztMat3_Col2Row0]) + (m1.values[ztMat3_Col1Row2] * m2.values[ztMat3_Col2Row1]) + (m1.values[ztMat3_Col2Row2] * m2.values[ztMat3_Col2Row2]);
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3 ztMat3::getMultiply(const ztMat3& mat) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getMultiply");
+
+	ztMat3 copy(*this);
+	copy.multiply(mat);
+	return copy;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 ztMat3::getMultiply(const ztVec3& v) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getMultiply");
+
+	return zt_vec3((v.x * values[ztMat3_Col0Row0]) + (v.y * values[ztMat3_Col1Row0]) + (v.z * values[ztMat3_Col2Row0]),
+	               (v.x * values[ztMat3_Col0Row1]) + (v.y * values[ztMat3_Col1Row1]) + (v.z * values[ztMat3_Col2Row1]),
+	               (v.x * values[ztMat3_Col0Row2]) + (v.y * values[ztMat3_Col1Row2]) + (v.z * values[ztMat3_Col2Row2]));
+}
+
+// ================================================================================================================================================================================================
+
+ztVec4 ztMat3::getMultiply(const ztVec4& v) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getMultiply");
+
+	return zt_vec4((v.x * values[ztMat3_Col0Row0]) + (v.y * values[ztMat3_Col1Row0]) + (v.z * values[ztMat3_Col2Row0]) + (v.w),
+		           (v.x * values[ztMat3_Col0Row1]) + (v.y * values[ztMat3_Col1Row1]) + (v.z * values[ztMat3_Col2Row1]) + (v.w),
+		           (v.x * values[ztMat3_Col0Row2]) + (v.y * values[ztMat3_Col1Row2]) + (v.z * values[ztMat3_Col2Row2]) + (v.w),
+		           v.w);
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::transpose()
+{
+	ZT_PROFILE_TOOLS("ztMat3::transpose");
+
+	ztMat3 m(*this);
+
+	values[ztMat3_Col0Row0] = m.values[ztMat3_Col0Row0];
+	values[ztMat3_Col1Row0] = m.values[ztMat3_Col0Row1];
+	values[ztMat3_Col2Row0] = m.values[ztMat3_Col0Row2];
+	values[ztMat3_Col0Row1] = m.values[ztMat3_Col1Row0];
+	values[ztMat3_Col1Row1] = m.values[ztMat3_Col1Row1];
+	values[ztMat3_Col2Row1] = m.values[ztMat3_Col1Row2];
+	values[ztMat3_Col0Row2] = m.values[ztMat3_Col2Row0];
+	values[ztMat3_Col1Row2] = m.values[ztMat3_Col2Row1];
+	values[ztMat3_Col2Row2] = m.values[ztMat3_Col2Row2];
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3 ztMat3::getTranspose() const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getTranspose");
+
+	ztMat3 copy(*this);
+	copy.transpose();
+	return copy;
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::inverse()
+{
+	ZT_PROFILE_TOOLS("ztMat3::inverse");
+
+	ztMat3 m(*this);
+
+	r32 det = m.values[ztMat3_Col0Row0] * (m.values[ztMat3_Col1Row1] * m.values[ztMat3_Col2Row2] - m.values[ztMat3_Col2Row1] * m.values[ztMat3_Col1Row2]) -
+	          m.values[ztMat3_Col0Row1] * (m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col2Row2] - m.values[ztMat3_Col1Row2] * m.values[ztMat3_Col2Row0]) +
+	          m.values[ztMat3_Col0Row2] * (m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col2Row1] - m.values[ztMat3_Col1Row1] * m.values[ztMat3_Col2Row0]);
+
+	if (det == 0) {
+		*this = zero;
+		return;
+	}
+
+	r32 invdet = 1.f / det;
+
+	values[ztMat3_Col0Row0] = (m.values[ztMat3_Col1Row1] * m.values[ztMat3_Col2Row2] - m.values[ztMat3_Col2Row1] * m.values[ztMat3_Col1Row2]) * invdet;
+	values[ztMat3_Col0Row1] = (m.values[ztMat3_Col0Row2] * m.values[ztMat3_Col2Row1] - m.values[ztMat3_Col0Row1] * m.values[ztMat3_Col2Row2]) * invdet;
+	values[ztMat3_Col0Row2] = (m.values[ztMat3_Col0Row1] * m.values[ztMat3_Col1Row2] - m.values[ztMat3_Col0Row2] * m.values[ztMat3_Col1Row1]) * invdet;
+	values[ztMat3_Col1Row0] = (m.values[ztMat3_Col1Row2] * m.values[ztMat3_Col2Row0] - m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col2Row2]) * invdet;
+	values[ztMat3_Col1Row1] = (m.values[ztMat3_Col0Row0] * m.values[ztMat3_Col2Row2] - m.values[ztMat3_Col0Row2] * m.values[ztMat3_Col2Row0]) * invdet;
+	values[ztMat3_Col1Row2] = (m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col0Row2] - m.values[ztMat3_Col0Row0] * m.values[ztMat3_Col1Row2]) * invdet;
+	values[ztMat3_Col2Row0] = (m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col2Row1] - m.values[ztMat3_Col2Row0] * m.values[ztMat3_Col1Row1]) * invdet;
+	values[ztMat3_Col2Row1] = (m.values[ztMat3_Col2Row0] * m.values[ztMat3_Col0Row1] - m.values[ztMat3_Col0Row0] * m.values[ztMat3_Col2Row1]) * invdet;
+	values[ztMat3_Col2Row2] = (m.values[ztMat3_Col0Row0] * m.values[ztMat3_Col1Row1] - m.values[ztMat3_Col1Row0] * m.values[ztMat3_Col0Row1]) * invdet;
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3 ztMat3::getInverse() const
+{
+	ZT_PROFILE_TOOLS("ztMat3::getInverse");
+
+	ztMat3 copy(*this);
+	copy.inverse();
+	return copy;
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::extract(ztVec3 *rotation, ztVec3 *scale) const // does not work well with scaled matrices
+{
+	ZT_PROFILE_TOOLS("ztMat3::extract");
+
+	if (rotation) {
+		r32 cos_y_angle = sqrtf(powf(values[ztMat3_Row0Col0], 2) + powf(values[ztMat3_Row0Col1], 2));
+
+		rotation->x = atan2f(-values[ztMat3_Row1Col2], values[ztMat3_Row2Col2]);
+
+		r32 sin_x_angle = sinf(rotation->x);
+		r32 cos_x_angle = cosf(rotation->x);
+
+		rotation->y = atan2f(values[ztMat4_Row0Col2], cos_y_angle);
+		rotation->z = atan2f(cos_x_angle * values[ztMat3_Row1Col0] +
+		                     sin_x_angle * values[ztMat3_Row2Col0],
+		                     cos_x_angle * values[ztMat3_Row1Col1] +
+		                     sin_x_angle * values[ztMat3_Row2Col1]);
+
+		rotation->x = zt_radiansToDegrees(rotation->x);
+		rotation->y = zt_radiansToDegrees(rotation->y);
+		rotation->z = zt_radiansToDegrees(rotation->z);
+	}
+
+	if (scale) {
+		scale->x = zt_vec3(values[ztMat3_Row0Col0], values[ztMat3_Row1Col0], values[ztMat3_Row2Col0]).length();
+		scale->y = zt_vec3(values[ztMat3_Row0Col1], values[ztMat3_Row1Col1], values[ztMat3_Row2Col1]).length();
+		scale->z = zt_vec3(values[ztMat3_Row0Col2], values[ztMat3_Row1Col2], values[ztMat3_Row2Col2]).length();
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::extract(ztQuat *rotation, ztVec3 *scale) const
+{
+	ZT_PROFILE_TOOLS("ztMat3::extract");
+
+	if (rotation) {
+		ztVec3 rotation_euler;
+		extract(&rotation_euler, nullptr);
+		*rotation = ztQuat::makeFromEuler(rotation_euler);
+	}
+
+	if (scale) {
+		scale->x = zt_vec3(values[ztMat3_Row0Col0], values[ztMat3_Row1Col0], values[ztMat3_Row2Col0]).length();
+		scale->y = zt_vec3(values[ztMat3_Row0Col1], values[ztMat3_Row1Col1], values[ztMat3_Row2Col1]).length();
+		scale->z = zt_vec3(values[ztMat3_Row0Col2], values[ztMat3_Row1Col2], values[ztMat3_Row2Col2]).length();
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztMat3& ztMat3::operator*=(const ztMat3& mat4)
+{
+	ZT_PROFILE_TOOLS("ztMat3::operator*=");
+
+	multiply(mat4);
+	return *this;
+}
+
+// ================================================================================================================================================================================================
+
+void ztMat3::cleanup(int digits)
+{
+	ZT_PROFILE_TOOLS("ztMat3::cleanup");
+
+	r32 pow = zt_pow(10.f, (r32)digits);
+	zt_fize(values) {
+		values[i] = (zt_convertToi32Ceil(values[i] * pow)) / pow;
+	}
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -5555,7 +6038,7 @@ ztVec4 ztMat4::getMultiply(const ztVec4& v) const
 	return zt_vec4((v.x * values[ztMat4_Col0Row0]) + (v.y * values[ztMat4_Col1Row0]) + (v.z * values[ztMat4_Col2Row0]) + (v.w * values[ztMat4_Col3Row0]),
 	               (v.x * values[ztMat4_Col0Row1]) + (v.y * values[ztMat4_Col1Row1]) + (v.z * values[ztMat4_Col2Row1]) + (v.w * values[ztMat4_Col3Row1]),
 	               (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + (v.w * values[ztMat4_Col3Row2]),
-	               (v.x * values[ztMat4_Col0Row2]) + (v.y * values[ztMat4_Col1Row2]) + (v.z * values[ztMat4_Col2Row2]) + (v.w * values[ztMat4_Col3Row2]));
+	               (v.x * values[ztMat4_Col0Row3]) + (v.y * values[ztMat4_Col1Row3]) + (v.z * values[ztMat4_Col2Row3]) + (v.w * values[ztMat4_Col3Row3]));
 }
 
 // ================================================================================================================================================================================================
@@ -5633,9 +6116,9 @@ void ztMat4::inverse()
 #endif
 
 	r32 det = m.values[ztMat4_Col0Row0] * values[ztMat4_Col0Row0] +
-	          m.values[ztMat4_Col0Row1] * values[ztMat4_Col1Row0] +
-	          m.values[ztMat4_Col0Row2] * values[ztMat4_Col2Row0] +
-	          m.values[ztMat4_Col0Row3] * values[ztMat4_Col3Row0];
+		m.values[ztMat4_Col0Row1] * values[ztMat4_Col1Row0] +
+		m.values[ztMat4_Col0Row2] * values[ztMat4_Col2Row0] +
+		m.values[ztMat4_Col0Row3] * values[ztMat4_Col3Row0];
 
 	if (zt_real32Eq(det, 0.f)) {
 		*this = zero;
@@ -5707,19 +6190,19 @@ void ztMat4::extract(ztVec3 *position, ztVec3 *rotation, ztVec3 *scale) const //
 
 	if (rotation) {
 		r32 cos_y_angle = sqrtf(powf(m.values[ztMat4_Row0Col0], 2) +
-		                        powf(m.values[ztMat4_Row0Col1], 2));
+			powf(m.values[ztMat4_Row0Col1], 2));
 
 		rotation->x = atan2f(-m.values[ztMat4_Row1Col2], 
-		                      m.values[ztMat4_Row2Col2]);
+			m.values[ztMat4_Row2Col2]);
 
 		r32 sin_x_angle = sinf(rotation->x);
 		r32 cos_x_angle = cosf(rotation->x);
 
 		rotation->y = atan2f(m.values[ztMat4_Row0Col2], cos_y_angle);
 		rotation->z = atan2f(cos_x_angle * m.values[ztMat4_Row1Col0] +
-		                     sin_x_angle * m.values[ztMat4_Row2Col0],
-		                     cos_x_angle * m.values[ztMat4_Row1Col1] +
-		                     sin_x_angle * m.values[ztMat4_Row2Col1]);
+			sin_x_angle * m.values[ztMat4_Row2Col0],
+			cos_x_angle * m.values[ztMat4_Row1Col1] +
+			sin_x_angle * m.values[ztMat4_Row2Col1]);
 
 		rotation->x = zt_radiansToDegrees(rotation->x);
 		rotation->y = zt_radiansToDegrees(rotation->y);
@@ -5880,6 +6363,47 @@ ztQuat ztQuat::makeFromAxisAngle(const ztVec3& axis, r32 angle)
 	r32 qz = t1 * t2 * t4 - t0 * t3 * t5;
 
 	return zt_quat(qx, qy, qz, qw);
+}
+
+// ================================================================================================================================================================================================
+
+/*static*/ ztQuat ztQuat::makeFromMat3(const ztMat3& mat)
+{
+	ZT_PROFILE_TOOLS("ztQuat::makeFromMat3");
+
+	r32 t = mat.values[ztMat3_Col0Row0] + mat.values[ztMat3_Col1Row1] + mat.values[ztMat3_Col2Row2];
+
+	ztQuat result;
+
+	if (t > 0.f) {
+		r32 s = zt_sqrt(1 + t) * 2.0f;
+		result.x = (mat.values[ztMat3_Col1Row2] - mat.values[ztMat3_Col2Row1]) / s;
+		result.y = (mat.values[ztMat3_Col2Row0] - mat.values[ztMat3_Col0Row2]) / s;
+		result.z = (mat.values[ztMat3_Col0Row1] - mat.values[ztMat3_Col1Row0]) / s;
+		result.w = 0.25f * s;
+	}
+	else if (mat.values[ztMat3_Col0Row0] > mat.values[ztMat3_Col1Row1] && mat.values[ztMat3_Col0Row0] > mat.values[ztMat3_Col2Row2]) {
+		r32 s = zt_sqrt( 1.0f + mat.values[ztMat3_Col0Row0] - mat.values[ztMat3_Col1Row1] - mat.values[ztMat3_Col2Row2]) * 2.0f;
+		result.x = 0.25f * s;
+		result.y = (mat.values[ztMat3_Col0Row1] + mat.values[ztMat3_Col1Row0]) / s;
+		result.z = (mat.values[ztMat3_Col2Row0] + mat.values[ztMat3_Col0Row2]) / s;
+		result.w = (mat.values[ztMat3_Col1Row2] - mat.values[ztMat3_Col2Row1]) / s;
+	}
+	else if( mat.values[ztMat3_Col1Row1] > mat.values[ztMat3_Col2Row2]) {
+		r32 s = zt_sqrt( 1.0f + mat.values[ztMat3_Col1Row1] - mat.values[ztMat3_Col0Row0] - mat.values[ztMat3_Col2Row2]) * 2.0f;
+		result.x = (mat.values[ztMat3_Col0Row1] + mat.values[ztMat3_Col1Row0]) / s;
+		result.y = 0.25f * s;
+		result.z = (mat.values[ztMat3_Col1Row2] + mat.values[ztMat3_Col2Row1]) / s;
+		result.w = (mat.values[ztMat3_Col2Row0] - mat.values[ztMat3_Col0Row2]) / s;
+	} else {
+		r32 s = zt_sqrt(1.0f + mat.values[ztMat3_Col2Row2] - mat.values[ztMat3_Col0Row0] - mat.values[ztMat3_Col1Row1]) * 2.0f;
+		result.x = (mat.values[ztMat3_Col2Row0] + mat.values[ztMat3_Col0Row2]) / s;
+		result.y = (mat.values[ztMat3_Col1Row2] + mat.values[ztMat3_Col2Row1]) / s;
+		result.z = 0.25f * s;
+		result.w = (mat.values[ztMat3_Col0Row1] - mat.values[ztMat3_Col1Row0]) / s;
+	}
+
+	return result;
 }
 
 // ================================================================================================================================================================================================
@@ -7999,7 +8523,7 @@ ztString zt_stringOverwrite(ztStringPool *pool, ztString string, const char *str
 
 void zt_stringFree(ztStringPool *pool, ztString string)
 {
-	ZT_PROFILE_TOOLS("zt_stringFreeFromPool");
+	ZT_PROFILE_TOOLS("zt_stringFree");
 
 	if (string == nullptr) {
 		return;
@@ -11443,6 +11967,7 @@ bool zt_serialWrite(ztSerial *serial, ztVec3  vec) { zt_fize(vec.values) { if (!
 bool zt_serialWrite(ztSerial *serial, ztVec4  vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztVec2i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztVec3i vec) { zt_fize(vec.values) { if (!zt_serialWrite(serial, vec.values[i])) return false; } return true; }
+bool zt_serialWrite(ztSerial *serial, ztMat3 mat)  { zt_fize(mat.values) { if (!zt_serialWrite(serial, mat.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztMat4 mat)  { zt_fize(mat.values) { if (!zt_serialWrite(serial, mat.values[i])) return false; } return true; }
 bool zt_serialWrite(ztSerial *serial, ztQuat quat)  { zt_fize(quat.values) { if (!zt_serialWrite(serial, quat.values[i])) return false; } return true; }
 
@@ -11555,6 +12080,7 @@ bool zt_serialRead(ztSerial *serial, ztVec3  *vec) { zt_fize(vec->values) { if (
 bool zt_serialRead(ztSerial *serial, ztVec4  *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztVec2i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztVec3i *vec) { zt_fize(vec->values) { if (!zt_serialRead(serial, &vec->values[i])) return false; } return true; }
+bool zt_serialRead(ztSerial *serial, ztMat3 *mat) { zt_fize(mat->values) { if (!zt_serialRead(serial, &mat->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztMat4 *mat) { zt_fize(mat->values) { if (!zt_serialRead(serial, &mat->values[i])) return false; } return true; }
 bool zt_serialRead(ztSerial *serial, ztQuat *quat) { zt_fize(quat->values) { if (!zt_serialRead(serial, &quat->values[i])) return false; } return true; }
 
@@ -18403,8 +18929,28 @@ For more information, please refer to <http://unlicense.org/>
 
 i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size)
 {
-	zt_assert(false);
-	return 0;
+	mz_stream zipper;
+	memset(&zipper, 0, sizeof(zipper));
+	if (mz_deflateInit(&zipper, MZ_BEST_COMPRESSION) != MZ_OK) {
+		return 0;
+	}
+
+	zipper.next_in = (const unsigned char*)data;
+	zipper.avail_in = data_size;
+
+	zipper.next_out = (u8*)buffer;
+	zipper.avail_out = buffer_size;
+
+	int r = mz_deflate(&zipper, MZ_FINISH);
+	i32 total_out = zipper.total_out;
+
+	mz_deflateEnd(&zipper);
+
+	if (r != MZ_STREAM_END) {
+		return 0;
+	}
+
+	return total_out;
 }
 
 // ================================================================================================================================================================================================
