@@ -944,7 +944,8 @@ void ztgl_win_contextDisplay(ztContextGL *context)
 	ZT_PROFILE_OPENGL("ztgl_win_contextDisplay");
 
 	SwapBuffers(context->hdc);
-	glFinish();
+	//glFinish();
+	glFlush();
 }
 
 // ================================================================================================================================================================================================
@@ -3636,8 +3637,8 @@ void ztgl_textureRenderTargetCommit(ztTextureGL *texture, ztContextGL *context)
 
 		glDisable(GL_BLEND);
 		glEnable(GL_BLEND);
-		ztgl_callAndReportOnErrorFast(glFinish());
-		ztgl_callAndReportOnErrorFast(glFlush());
+		//ztgl_callAndReportOnErrorFast(glFinish());
+		//ztgl_callAndReportOnErrorFast(glFlush());
 	}
 #	endif
 
