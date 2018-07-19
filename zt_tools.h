@@ -526,6 +526,7 @@ struct ztVec2
 	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; return *this;}
 	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; return *this;}
 	ztVec2& operator*=(r32 v) { x *= v; y *= v; return *this; }
+	ztVec2& operator/=(r32 v) { if (v) { x /= v; y /= v; } else { x = y = 0; }; return *this; }
 
 	bool operator==(const ztVec2& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y); }
 	bool operator!=(const ztVec2& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y); }
@@ -573,6 +574,9 @@ ztInline ztVec2 operator-(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator*(const ztVec2& v1, const ztVec2& v2);
 ztInline ztVec2 operator*(const ztVec2& v1, r32 scale);
 ztInline ztVec2 operator*(r32 scale, const ztVec2& v1);
+ztInline ztVec2 operator/(const ztVec2& v1, const ztVec2& v2);
+ztInline ztVec2 operator/(const ztVec2& v1, r32 scale);
+ztInline ztVec2 operator/(r32 scale, const ztVec2& v1);
 
 
 // ================================================================================================================================================================================================
@@ -605,6 +609,8 @@ struct ztVec3
 	ztVec3& operator-=(const ztVec3& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
 	ztVec3& operator*=(r32 v) { x *= v; y *= v; z *= v; return *this; }
 	ztVec3& operator*=(const ztVec3& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
+	ztVec3& operator/=(r32 v) { if (v) { x /= v; y /= v; z /= v; } else { x = y = z = 0; } return *this; }
+	ztVec3& operator/=(const ztVec3& v) { x = v.x ? x / v.x : 0; y = v.y ? y / v.y : 0; z = v.z ? z / v.z : 0; return *this; }
 
 	bool operator==(const ztVec3& v) const { return x == v.x && y == v.y && z == v.z; }
 	bool operator!=(const ztVec3& v) const { return x != v.x || y != v.y || z != v.z; }
@@ -651,6 +657,9 @@ ztInline ztVec3 operator-(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator*(const ztVec3& v1, const ztVec3& v2);
 ztInline ztVec3 operator*(const ztVec3& v1, r32 scale);
 ztInline ztVec3 operator*(r32 scale, const ztVec3& v1);
+ztInline ztVec3 operator/(const ztVec3& v1, const ztVec3& v2);
+ztInline ztVec3 operator/(const ztVec3& v1, r32 scale);
+ztInline ztVec3 operator/(r32 scale, const ztVec3& v1);
 
 
 // ================================================================================================================================================================================================
@@ -695,6 +704,9 @@ struct ztVec4
 	ztVec4& operator-=(const ztVec4& v) { x -= v.x; y -= v.y; z -= v.z; w -= v.w; return *this;}
 	ztVec4& operator*=(r32 v) { x *= v; y *= v; z *= v; w *= v; return *this; }
 	ztVec4& operator*=(const ztVec4& v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
+	ztVec4& operator/=(r32 v) { if (v) { x /= v; y /= v; z /= v; w /= v; } else { x = y = z = w = 0; } return *this;
+}
+	ztVec4& operator/=(const ztVec4& v) { x /= v.x; y /= v.y; z /= v.z; w /= v.w; return *this; }
 
 	bool operator==(const ztVec4& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z) && zt_real32Eq(w, v.w); }
 	bool operator!=(const ztVec4& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y) || !zt_real32Eq(z, v.z) || !zt_real32Eq(w, v.w); }
@@ -731,6 +743,9 @@ ztInline ztVec4 operator-(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, const ztVec4& v2);
 ztInline ztVec4 operator*(const ztVec4& v1, r32 scale);
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1);
+ztInline ztVec4 operator/(const ztVec4& v1, const ztVec4& v2);
+ztInline ztVec4 operator/(const ztVec4& v1, r32 scale);
+ztInline ztVec4 operator/(r32 scale, const ztVec4& v1);
 
 typedef ztVec4                 ztColor;
 #define ztColour               ztColor;       // pick your favorite (favourite?)
@@ -2997,6 +3012,27 @@ ztInline ztVec2 operator*(r32 scale, const ztVec2& v1)
 
 // ================================================================================================================================================================================================
 
+ztInline ztVec2 operator/(const ztVec2& v1, const ztVec2& v2)
+{
+	return zt_vec2(v2.x ? v1.x / v2.x : 0, v2.y ? v1.y / v2.y : 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec2 operator/(const ztVec2& v1, r32 scale)
+{
+	return scale ? zt_vec2(v1.x / scale, v1.y / scale) :ztVec2::zero;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec2 operator/(r32 scale, const ztVec2& v1)
+{
+	return scale ? zt_vec2(v1.x / scale, v1.y / scale) : ztVec2::zero;
+}
+
+// ================================================================================================================================================================================================
+
 ztInline ztVec2i zt_vec2i(ztVec2 v)
 {
 	return zt_vec2i(zt_convertToi32Floor(v.x), zt_convertToi32Floor(v.y));
@@ -3172,6 +3208,27 @@ ztInline ztVec3 operator*(r32 scale, const ztVec3& v1)
 
 // ================================================================================================================================================================================================
 
+ztInline ztVec3 operator/(const ztVec3& v1, const ztVec3& v2)
+{
+	return zt_vec3(v2.x ? v1.x / v2.x : 0, v2.y ? v1.y / v2.y : 0, v2.z ? v1.z / v2.z : 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec3 operator/(const ztVec3& v1, r32 scale)
+{
+	return scale ? zt_vec3(v1.x / scale, v1.y / scale, v1.z / scale) : ztVec3::zero;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec3 operator/(r32 scale, const ztVec3& v1)
+{
+	return scale ? zt_vec3(v1.x / scale, v1.y / scale, v1.z / scale) : ztVec3::zero;
+}
+
+// ================================================================================================================================================================================================
+
 ztInline ztVec3i zt_vec3i(ztVec3 v)
 {
 	return zt_vec3i(zt_convertToi32Floor(v.x), zt_convertToi32Floor(v.y), zt_convertToi32Floor(v.z));
@@ -3261,6 +3318,27 @@ ztInline ztVec4 operator*(const ztVec4& v1, r32 scale)
 ztInline ztVec4 operator*(r32 scale, const ztVec4& v1)
 {
 	return zt_vec4(v1.x * scale, v1.y * scale, v1.z * scale, v1.w * scale);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec4 operator/(const ztVec4& v1, const ztVec4& v2)
+{
+	return zt_vec4(v2.x ? v1.x / v2.x : 0, v2.y ? v1.y / v2.y : 0, v2.z ? v1.z / v2.z : 0, v2.w ? v1.w / v2.w : 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec4 operator/(const ztVec4& v1, r32 scale)
+{
+	return scale ? zt_vec4(v1.x / scale, v1.y / scale, v1.z / scale, v1.w / scale) : ztVec4::zero;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztVec4 operator/(r32 scale, const ztVec4& v1)
+{
+	return scale ? zt_vec4(v1.x / scale, v1.y / scale, v1.z / scale, v1.w / scale) : ztVec4::zero;
 }
 
 // ================================================================================================================================================================================================
