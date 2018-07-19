@@ -1648,15 +1648,24 @@ struct ztTransform
 };
 
 
+ztTransform zt_transformMake(const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::zero);
+void        zt_transformMake(ztTransform *transform, const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::zero);
+
 ztMat4      zt_transformToMat4(ztTransform *transform);     // scale, translate, rotate
 ztMat4      zt_transformToMat4SRT(ztTransform *transform);  // scale, rotate, translate
 ztMat4      zt_transformToMat4RT(ztTransform *transform);   // rotate, translate
 ztMat4      zt_transformToMat4TR(ztTransform *transform);   // translate, rotate
 
+ztMat4      zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation);
+ztMat4      zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale);
+
 void        zt_transformToMat4(ztTransform *transform, ztMat4 *mat);     // translate, rotate, scale
 void        zt_transformToMat4SRT(ztTransform *transform, ztMat4 *mat);  // rotate, scale, translate
 void        zt_transformToMat4RT(ztTransform *transform, ztMat4 *mat);  // rotate, translate
 void        zt_transformToMat4TR(ztTransform *transform, ztMat4 *mat);  // translate, rotate
+
+void        zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, ztMat4 *mat);
+void        zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale, ztMat4 *mat);
 
 ztTransform zt_transformFromMat4(const ztMat4 *mat);
 void        zt_transformFromMat4(ztTransform *transform, const ztMat4 *mat);
@@ -3040,6 +3049,8 @@ bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file);
 bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial);
 bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial);
 
+bool zt_ocTreeClone(ztOcTree *dest, ztOcTree *source);
+
 // ================================================================================================================================================================================================
 
 struct ztOcTreeItemContainedTestModelData
@@ -3205,13 +3216,19 @@ void zt_collisionGeometryMakeTriangles (ztCollisionGeometry *geo, ztVec3 *vertic
 
 void zt_collisionGeometryFree          (ztCollisionGeometry *geo);
 
-bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration, ztVec3 *contact_normal);
+bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform *curr_tran_one, ztTransform *prev_tran_one, ztCollisionGeometry *geo_two, ztTransform *curr_tran_two, ztTransform *prev_tran_two, r32 *penetration, ztVec3 *contact_normal, ztVec3 *contact_point);
 
 bool zt_collisionGeometrySave(ztSerial *serial, ztCollisionGeometry *geo);
 bool zt_collisionGeometryLoad(ztSerial *serial, ztCollisionGeometry *geo);
 
 void zt_collisionGeometryRenderDebug(ztCollisionGeometry *geo, ztDrawList *draw_list, ztVec3 position, ztMat4 mat);
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+// Rigid Bodies represent objects that are moved by forces
 // ================================================================================================================================================================================================
 
 enum ztRigidBodyFlags_Enum
@@ -3293,6 +3310,93 @@ bool zt_rigidBodyLoad(ztSerial *serial, ztRigidBody *rigid_body);
 void zt_rigidBodyRenderDebug(ztRigidBody *rigid_body, ztDrawList *draw_list);
 
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+// Static Bodies represent objects that do not move
+// ================================================================================================================================================================================================
+
+struct ztStaticBody
+{
+	ztTriangle *triangles;
+	i32         triangles_count;
+	i32         triangles_size;
+
+	ztVec3      min, max;
+
+	ztOcTree octree;
+};
+
+
+bool zt_staticBodyMake(ztStaticBody *static_body, i32 max_triangles_count);
+void zt_staticBodyFree(ztStaticBody *static_body);
+
+bool zt_staticBodyAddTriangles(ztStaticBody *static_body, ztVec3 *verts, i32 verts_count);
+
+void zt_staticBodyGenerateOcTree(ztStaticBody *static_body, i32 max_objects_per_node, i32 max_node_levels);
+
+bool zt_staticBodySave(ztSerial *serial, ztStaticBody *static_body);
+bool zt_staticBodyLoad(ztSerial *serial, ztStaticBody *static_body);
+
+i32 zt_staticBodyHasCollisionsAABB(ztStaticBody *static_body, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, ztVec3 *contact_points = nullptr, ztVec3 *contact_normals = nullptr, i32 *contact_triangles = nullptr, i32 contact_count = 0);
+i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat &obb_rot, ztVec3 *contact_points = nullptr, ztVec3 *contact_normals = nullptr, i32 *contact_triangles = nullptr, i32 contact_count = 0);
+i32 zt_staticBodyHasCollisionsSphere(ztStaticBody *static_body, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *contact_points = nullptr, ztVec3 *contact_normal = nullptr, i32 *contact_triangle = nullptr, i32 contact_count = 0);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+// Moving Bodies represent objects that are moved outside of the physics system
+// ================================================================================================================================================================================================
+
+struct ztMovingBodyCollision;
+
+enum ztMovingBodyFlags_Enum
+{
+	ztMovingBodyFlags_AllowPenetration = (1 << 0),
+	ztMovingBodyFlags_TrackCollisions = (1 << 1),
+
+	ztMovingBodyFlags_NeedsCollisionCheck = (1 << 30),
+	ztMovingBodyFlags_NeedsMatrixCalc = (1 << 31),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztMovingBody
+{
+	ztModel               *model;
+	ztTransform           *transform;
+	ztTransform            transform_prev;
+
+	r32                    restitution;
+
+	i32                    flags;
+	i32                    collision_layer;        // 1-31
+	i32                    collides_with_layers;   // bits to determine which layers this body, when moving, can collide with
+
+	ztCollisionGeometry    cg_bounding;
+	ztCollisionGeometry    cg_details[ZT_MAX_RIGID_BODY_COLLISION_GEOMETRIES];
+	int                    cg_details_count;
+
+	ztMovingBodyCollision *collisions; // populated each update if ztMovingBodyFlags_TrackCollisions is set (only valid for the frame the collision happens in the case of penetratable moving bodies)
+};
+
+// ================================================================================================================================================================================================
+
+void zt_movingBodyMake(ztMovingBody *moving_body, ztModel *model, r32 restitution, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count);
+void zt_movingBodyMake(ztMovingBody *moving_body, ztModel *model, r32 restitution, ztCollisionGeometry cg_bounding, ztCollisionGeometry detail);
+void zt_movingBodyFree(ztMovingBody *moving_body);
+
+bool zt_movingBodySave(ztSerial *serial, ztMovingBody *moving_body);
+bool zt_movingBodyLoad(ztSerial *serial, ztMovingBody *moving_body);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 enum ztForceAnchorType_Enum
 {
@@ -3397,7 +3501,23 @@ struct ztRigidBodyCollision
 	r32          penetration;
 };
 
+// ================================================================================================================================================================================================
+
 void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisions_count, r32 dt, int max_iterations);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztMovingBodyCollision
+{
+	ztMovingBody          *moving_bodies[2];
+	r32                    penetration;
+	ztVec3                 contact_point;
+	ztVec3                 contact_normal;
+
+	ztMovingBodyCollision *next;
+};
 
 
 // ================================================================================================================================================================================================
@@ -3452,40 +3572,55 @@ int zt_collisionBrute(ztRigidBody **rigid_bodies, int rigid_bodies_count, ztRigi
 
 struct ztPhysics
 {
-	ztRigidBody         **rigid_bodies;
-	int                   rigid_bodies_size;
-	int                   rigid_bodies_count;
+	ztRigidBody          **rigid_bodies;
+	int                    rigid_bodies_size;
+	int                    rigid_bodies_count;
 
-	ztForce             **forces;
-	int                   forces_size;
-	int                   forces_count;
+	ztStaticBody         **static_bodies;
+	int                    static_bodies_size;
+	int                    static_bodies_count;
 
-	ztConnector         **connectors;
-	int                   connectors_size;
-	int                   connectors_count;
+	ztMovingBody         **moving_bodies;
+	int                    moving_bodies_size;
+	int                    moving_bodies_count;
 
-	ztRigidBodyCollision *collisions;
-	int                   collisions_size;
+	ztForce              **forces;
+	int                    forces_size;
+	int                    forces_count;
 
-	ztVec3 extents_min;
-	ztVec3 extents_max;
-	r32    extents_restitution;
+	ztConnector          **connectors;
+	int                    connectors_size;
+	int                    connectors_count;
 
+	ztRigidBodyCollision  *collisions;
+	int                    collisions_size;
+
+	ztVec3                 extents_min;
+	ztVec3                 extents_max;
+	r32                    extents_restitution;
+
+	ztMovingBodyCollision *moving_body_collisions;
+	int                    moving_body_collisions_size;
+	int                    moving_body_collisions_count;
 
 	ztMemoryArena *arena;
 };
 
 // ================================================================================================================================================================================================
 
-ztPhysics *zt_physicsMake   (ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors);
+ztPhysics *zt_physicsMake   (ztMemoryArena *arena, int max_rigid_bodies, int max_static_bodies, int max_moving_bodies, int max_forces, int max_connectors);
 void       zt_physicsFree   (ztPhysics *physics);
 
 // these return indexes into the respective arrays
 int zt_physicsAddRigidBody  (ztPhysics *physics, ztRigidBody *rigid_body);
+int zt_physicsAddStaticBody (ztPhysics *physics, ztStaticBody *static_body);
+int zt_physicsAddMovingBody (ztPhysics *physics, ztMovingBody *moving_body);
 int zt_physicsAddForce      (ztPhysics *physics, ztForce *force);
 int zt_physicsAddConnector  (ztPhysics *physics, ztConnector *connector);
 
 bool zt_physicsRemoveRigidBody(ztPhysics *physics, ztRigidBody *rigid_body);
+bool zt_physicsRemoveStaticBody(ztPhysics *physics, ztStaticBody *static_body);
+bool zt_physicsRemoveMovingBody(ztPhysics *physics, ztMovingBody *moving_body);
 bool zt_physicsRemoveForce(ztPhysics *physics, ztForce *force);
 bool zt_physicsRemoveConnector(ztPhysics *physics, ztConnector *connector);
 
@@ -3510,8 +3645,8 @@ bool   zt_collisionPointInCircle              (const ztVec2 &point, const ztVec2
 bool   zt_collisionPointInSphere              (const ztVec3 &point, const ztVec3 &sphere_pos, r32 radius);
 bool   zt_collisionPointInTriangle            (const ztVec3 &point, const ztVec3 &t0, const ztVec3 &t1, const ztVec3 &t2);
 
-bool   zt_collisionLineInPlane                (const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point = nullptr);
-bool   zt_collisionLineInPlane                (const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
+bool   zt_collisionLineInPlane                (const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point = nullptr, r32 *intersection_time = nullptr);
+bool   zt_collisionLineInPlane                (const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point = nullptr, r32 *intersection_time = nullptr);
 bool   zt_collisionLineInTriangle             (const ztVec2 &line_beg, const ztVec2 &line_end, const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, ztVec2 *intersection_point = nullptr, r32 *intersection_time = nullptr);
 bool   zt_collisionLineInTriangle             (const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, ztVec3 *intersection_point = nullptr, r32 *intersection_time = nullptr);
 bool   zt_collisionLineWithLine               (const ztVec2 &line1_beg, const ztVec2 &line1_end, const ztVec2 &line2_beg, const ztVec2 &line2_end, ztVec2 *intersection_point = nullptr, r32 *intersection_time = nullptr);
@@ -3528,8 +3663,10 @@ bool   zt_collisionAABBInAABB                 (const ztVec3 &aabb_center_1, cons
 bool   zt_collisionAABBInAABB                 (const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, ztVec3 *collision_normal, r32 *collision_depth, int *collision_face);
 bool   zt_collisionMovingAABBInAABB           (const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztVec3 &aabb_velocity_1, const ztVec3 &aabb_center_2, const ztVec3 &aabb_extents_2, const ztVec3 &aabb_velocity_2, r32 *time_first, r32 *time_last);
 bool   zt_collisionAABBInPlane                (const ztVec3 &aabb_center_1, const ztVec3 &aabb_extents_1, const ztPlane& plane, ztVec3 *intersection_point = nullptr);
-bool   zt_collisionTriangleInAABB             (const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &aabb_center, const ztVec2& aabb_size);
-bool   zt_collisionTriangleInAABB             (const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &aabb_center, const ztVec3& aabb_size);
+bool   zt_collisionTriangleInAABB             (const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &aabb_center, const ztVec2& aabb_size, ztVec3 *intersection_point = nullptr);
+bool   zt_collisionTriangleInAABB             (const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &aabb_center, const ztVec3& aabb_size, ztVec3 *intersection_point = nullptr);
+bool   zt_collisionTriangleInOBB              (const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &obb_center, const ztVec3& obb_size, const ztQuat &obb_rot, ztVec3 *intersection_point = nullptr);
+bool   zt_collisionTriangleInSphere           (const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *intersection_point = nullptr);
 
 bool   zt_collisionOBBInOBB                   (const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2);
 bool   zt_collisionOBBInOBB                   (const ztVec3 &obb_center_1, const ztVec3 &obb_extents_1, const ztQuat& obb_rot_1, const ztVec3 obb_axis_1[3], const ztVec3 &obb_center_2, const ztVec3 &obb_extents_2, const ztQuat& obb_rot_2, const ztVec3 obb_axis_2[3]);
@@ -3563,6 +3700,7 @@ ztVec2 zt_closestPointLineSegmentPoint        (const ztVec2 &line_beg, const ztV
 ztVec3 zt_closestPointLineSegmentPoint        (const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &point);
 ztVec3 zt_closestPointAABBPoint               (const ztVec3 &aabb_center, const ztVec3 &aabb_size, const ztVec3& point);
 ztVec3 zt_closestPointOBBPoint                (const ztVec3 &obb_center, const ztVec3 &obb_size, const ztQuat &obb_rot, const ztVec3& point);
+ztVec3 zt_closestPointTrianglePoint           (const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3& point);
 
 void   zt_collisionResizeAABBToFitAABB        (ztVec3 *aabb_center, ztVec3 *aabb_size, ztVec3 fit_aabb_center, ztVec3 fit_aabb_size);
 
@@ -7201,6 +7339,8 @@ ztInternal void _zt_debuggingCleanup()
 
 		zt_serialClose(&serial);
 	}
+
+	zt_debugDisplayCleanup();
 }
 
 // ================================================================================================================================================================================================
@@ -12451,7 +12591,7 @@ void zt_debugDisplayRenderWorld(ztDrawList *draw_list, ztCamera *camera)
 			} break;
 
 			case ztDebugDisplayType_Text: {
-				zt_drawListAddFancyText2D(draw_list, ztFontDefault, entry->text.text, ztVec2::zero);
+				zt_drawListAddFancyText2D(draw_list, ztFontDefault, entry->text.text, ztVec2::zero, ztAlign_Default, ztAnchor_Default, nullptr, entry->color, &entry->transform);
 			} break;
 
 			case ztDebugDisplayType_Axis: {
@@ -18942,6 +19082,64 @@ bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial)
 		octree->root_node = &octree->nodes_cache[root_node_idx];
 	}
 	if (!zt_serialGroupPop(serial)) return false;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_ocTreeClone(ztOcTree *dest, ztOcTree *source)
+{
+	ZT_PROFILE_GAME("zt_ocTreeClone");
+
+	zt_returnValOnNull(source, false);
+	zt_returnValOnNull(dest, false);
+
+	dest->nodes_cache = zt_mallocStructArray(ztOcTree::Node, source->nodes_cache_size);
+	if (dest->nodes_cache == nullptr) {
+		return false;
+	}
+
+	dest->nodes_cache_size = source->nodes_cache_size;
+	dest->nodes_cache_used = source->nodes_cache_used;
+
+	dest->objects_cache = zt_mallocStructArray(i32, source->objects_cache_size);
+	if (dest->objects_cache == nullptr) {
+		return false;
+	}
+
+	dest->objects_cache_size = source->objects_cache_size;
+	dest->objects_cache_used = source->objects_cache_used;
+
+	zt_memCpy(dest->objects_cache, zt_sizeof(i32) * source->objects_cache_used, source->objects_cache, zt_sizeof(i32) * source->objects_cache_used);
+
+
+	zt_fiz(source->nodes_cache_used) {
+		zt_memCpy(&dest->nodes_cache[i], zt_sizeof(ztOcTree::Node), &source->nodes_cache[i], zt_sizeof(ztOcTree::Node));
+		if (source->root_node == &source->nodes_cache[i]) {
+			dest->root_node = &dest->nodes_cache[i];
+		}
+	}
+
+	zt_fiz(source->nodes_cache_used) {
+		zt_fjze(source->nodes_cache[i].nodes) {
+			if (source->nodes_cache[i].nodes[j] == nullptr) {
+				continue;
+			}
+
+			zt_fkz(source->nodes_cache_used) {
+				if (source->nodes_cache[i].nodes[j] == &source->nodes_cache[k]) {
+					dest->nodes_cache[i].nodes[j] = &dest->nodes_cache[k];
+					break;
+				}
+			}
+		}
+
+		if (source->nodes_cache[i].objects) {
+			i32 object_offset = source->nodes_cache[i].objects - source->objects_cache;
+			dest->nodes_cache[i].objects = dest->objects_cache + object_offset;
+		}
+	}
 
 	return true;
 }
@@ -29584,12 +29782,48 @@ i32 zt_meshGetVertices(ztMeshID mesh_id, ztVec3 *vertices, i32 vertices_size)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ztTransform zt_transformMake(const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale)
+{
+	ztTransform transform;
+	zt_transformMake(&transform, position, rotation, scale);
+	return transform;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_transformMake(ztTransform *transform, const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale)
+{
+	transform->position = position;
+	transform->rotation = rotation;
+	transform->scale = scale;
+}
+
+// ================================================================================================================================================================================================
+
 ztMat4 zt_transformToMat4(ztTransform *transform)
 {
 	zt_returnValOnNull(transform, ztMat4::identity);
 
 	ztMat4 mat;
 	zt_transformToMat4(transform, &mat);
+	return mat;
+}
+
+// ================================================================================================================================================================================================
+
+ztMat4 zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation)
+{
+	ztMat4 mat;
+	zt_transformToMat4(position, rotation, &mat);
+	return mat;
+}
+
+// ================================================================================================================================================================================================
+
+ztMat4 zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale)
+{
+	ztMat4 mat;
+	zt_transformToMat4(position, rotation, scale, &mat);
 	return mat;
 }
 
@@ -29646,6 +29880,40 @@ void zt_transformToMat4(ztTransform *transform, ztMat4 *mat)
 		ztMat4 scale = ztMat4::identity;
 		scale.scale(transform->scale);
 		(*mat) *= scale;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, ztMat4 *mat)
+{
+	(*mat) = ztMat4::identity;
+
+	(*mat) *= ztMat4::identity.getTranslate(position);
+
+	if (rotation != ztQuat::identity) {
+		ztMat4 rmat = rotation.convertToMat4();
+		(*mat) *= rmat;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_transformToMat4(const ztVec3 &position, const ztQuat &rotation, const ztVec3 &scale, ztMat4 *mat)
+{
+	(*mat) = ztMat4::identity;
+
+	(*mat) *= ztMat4::identity.getTranslate(position);
+
+	if (rotation != ztQuat::identity) {
+		ztMat4 rmat = rotation.convertToMat4();
+		(*mat) *= rmat;
+	}
+
+	if (scale != ztVec3::one) {
+		ztMat4 smat = ztMat4::identity;
+		smat.scale(scale);
+		(*mat) *= smat;
 	}
 }
 
@@ -30372,58 +30640,62 @@ ztInternal bool _zt_collisionGeometryIntersecting_OBB_Triangles(ztCollisionGeome
 {
 	zt_assertReturnValOnFail(geo_one->type == ztCollisionGeometryType_OrientedBox && geo_two->type == ztCollisionGeometryType_Triangles, false);
 
-	r32 closest_dist = ztReal32Max;
+	r32 closest_dist = ztReal32Min;
 	i32 closest_idx = -1;
 
-	ztVec3 one_pos = (curr_tran_one->position + geo_one->obb_center) - curr_tran_two->position; // most poisition into vertices' local space so we can avoid adding the triangle's transform for each triangle
-
 	// this will likely need to use the model->calculated_mat instead of the rotation and needs to multiply the obb_rotation
-	//ztQuat rot_one = curr_tran_one->rotation * geo_one->obb_rotation;
 
-	if (curr_tran_two->rotation != ztQuat::identity) {
-		for(int i = 0; i < geo_two->vertices_count; i += 3) {
-			ztVec3 p1 = curr_tran_two->rotation.rotatePosition(geo_two->vertices[i]);
-			ztVec3 p2 = curr_tran_two->rotation.rotatePosition(geo_two->vertices[i+1]);
-			ztVec3 p3 = curr_tran_two->rotation.rotatePosition(geo_two->vertices[i+2]);
+	ztTransform transform;
+	transform.position = (curr_tran_one->position + geo_one->obb_center);
+	transform.rotation = (curr_tran_one->rotation * geo_one->obb_rotation) * curr_tran_two->rotation;
+	transform.scale    = curr_tran_one->scale;
 
-			curr_tran_one->rotation.rotatePosition(&p1);
-			curr_tran_one->rotation.rotatePosition(&p2);
-			curr_tran_one->rotation.rotatePosition(&p3);
+	ztMat4 mat_to_obb = zt_transformToMat4(&transform);
+	mat_to_obb.inverse();
 
-			if (zt_collisionTriangleInAABB(p1, p2, p3, one_pos, geo_one->obb_extents)) {
-				ztVec3 tri_center = (p1 + p2 + p3) * .3333f;
-				ztVec3 distance = tri_center - curr_tran_one->position;
-				r32 dist = distance.length();
+	transform.position = curr_tran_two->position;
+	transform.rotation = curr_tran_two->rotation;
+	transform.scale    = curr_tran_two->scale;
 
-				if (dist < closest_dist) {
-					closest_dist = dist;
-					closest_idx = i;
-					*contact_normal = (distance * contact_normal_direction).getNormal();
-				}
-			}
-		}
-	}
-	else {
-		for(int i = 0; i < geo_two->vertices_count; i += 3) {
-			ztVec3 p1 = curr_tran_one->rotation.rotatePosition(geo_two->vertices[i]);
-			ztVec3 p2 = curr_tran_one->rotation.rotatePosition(geo_two->vertices[i+1]);
-			ztVec3 p3 = curr_tran_one->rotation.rotatePosition(geo_two->vertices[i+2]);
+	ztMat4 mat_from_tri = zt_transformToMat4(&transform);
+	//mat_from_tri.inverse();
 
-			if (zt_collisionTriangleInAABB(p1, p2, p3, one_pos, geo_one->obb_extents)) {
-				ztVec3 tri_center = (p1 + p2 + p3) * .3333f;
-				ztVec3 distance = tri_center - curr_tran_one->position;
-				r32 dist = distance.length();
+	ztVec3 p1, p2, p3, intersection_point = ztVec3::zero;
 
-				if (dist < closest_dist) {
-					closest_dist = dist;
-					closest_idx = i;
-					*contact_normal = (distance * contact_normal_direction).getNormal();
-				}
+	for(int i = 0; i < geo_two->vertices_count; i += 3) {
+		p1 = mat_from_tri.getMultiply(geo_two->vertices[i]);
+		p2 = mat_from_tri.getMultiply(geo_two->vertices[i+1]);
+		p3 = mat_from_tri.getMultiply(geo_two->vertices[i+2]);
+
+		p1 = mat_to_obb.getMultiply(p1);
+		p2 = mat_to_obb.getMultiply(p2);
+		p3 = mat_to_obb.getMultiply(p3);
+
+		if (zt_collisionTriangleInAABB(p1, p2, p3, ztVec3::zero, geo_one->obb_extents, &intersection_point)) {
+			ztVec3 dir = intersection_point - transform.position;
+			ztVec3 outside = transform.position + (dir * geo_one->obb_extents.length());
+			ztVec3 closest = zt_closestPointAABBPoint(ztVec3::zero, geo_one->obb_extents, outside);
+			ztVec3 diff = closest - intersection_point;
+
+			*penetration = diff.length() * 1.f;
+
+			if (*penetration > closest_dist) {
+				closest_dist = *penetration;
+				closest_idx = i;
+				*contact_point = intersection_point;
+				zt_triangleCalculateNormal(p1, p2, p3, contact_normal);
+				//break; // debug
 			}
 		}
 	}
 
 	if (closest_idx >= 0) {
+		mat_to_obb.inverse();
+		mat_from_tri.inverse();
+
+		*contact_point = mat_to_obb.getMultiply(*contact_point);
+		*contact_normal = zt_mat3(mat_to_obb).getMultiply(*contact_normal * contact_normal_direction * 1).getNormal();
+
 		return true;
 	}
 
@@ -30708,7 +30980,7 @@ bool zt_collisionGeometryLoad(ztSerial *serial, ztCollisionGeometry *geo)
 				case ztCollisionGeometryType_Triangles: {
 					_serialCheck(zt_serialRead(serial, &geo->vertices_count));
 					geo->vertices = zt_mallocStructArray(ztVec3, geo->vertices_count);
-					zt_fiz(geo->vertices) {
+					zt_fiz(geo->vertices_count) {
 						_serialCheck(zt_serialRead(serial, &geo->vertices[i]));
 					}
 				} break;
@@ -30850,6 +31122,8 @@ void zt_rigidBodyMake(ztRigidBody *rigid_body, ztModel *model, r32 one_over_mass
 	rigid_body->motion                 = ztReal32Min;
 
 	rigid_body->flags                  = 0;
+	rigid_body->collision_layer        = 0;
+	rigid_body->collides_with_layers   = 0;
 
 	rigid_body->cg_bounding = cg_bounding;
 	rigid_body->cg_details_count = details_count;
@@ -31139,6 +31413,8 @@ void zt_rigidBodiesUpdatePostCollision(ztRigidBody **rbs, int rbs_count, r32 dt)
 				else if (rigid_body->motion > sleep_epsilon * 10.f || first_frame) {
 					rigid_body->motion = sleep_epsilon * 10.f;
 				}
+
+				//zt_logDebug("motion = %.4f, current_motion = %.4f, vel_dot = %.4f", rigid_body->motion, current_motion, vel_dot);
 				
 				if (vel_dot < .0025f) {
 					ztVec3 last_pos = rigid_body->prev_mat.getMultiply(ztVec3::one);
@@ -31206,6 +31482,13 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 
 		ztRigidBodyCollision *collision = &collisions[max_idx];
 		r32 separating_velocity = max_separating_velocity;
+
+		//if (collision->rigid_bodies[0]->cg_details[0].type == ztCollisionGeometryType_OrientedBox) {
+		//	zt_debugDisplayCube(collision->rigid_bodies[0]->cg_details[0].obb_extents, collision->rigid_bodies[0]->model->calculated_mat, ztColor_Red)->guid = ZT_COLLISION_DEBUG_GUID;
+		//}
+		//if (collision->rigid_bodies[1] && collision->rigid_bodies[1]->cg_details[0].type == ztCollisionGeometryType_OrientedBox) {
+		//	zt_debugDisplayCube(collision->rigid_bodies[1]->cg_details[0].obb_extents, collision->rigid_bodies[1]->model->calculated_mat, ztColor_Red)->guid = ZT_COLLISION_DEBUG_GUID;
+		//}
 
 		if (separating_velocity <= ztReal32Max) {
 			r32 new_separating_velocity = -separating_velocity * collision->restitution;
@@ -31399,7 +31682,7 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 
 					angular_inertia[i] = angular_inertia_world.dot(collision->contact_normal);
 
-					linear_inertia[i] = collision->rigid_bodies[i]->inverse_mass * 1.1f;
+					linear_inertia[i] = collision->rigid_bodies[i]->inverse_mass;// * 1.1f;
 
 					total_inertia += linear_inertia[i] + angular_inertia[i];
 				}
@@ -31450,8 +31733,32 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 					ztVec3 velocity_change = impulse * collision->rigid_bodies[i]->inverse_mass * (i == 0 ? 1.f : -1.f);
 					ztVec3 rotation_change = inverse_inertia_tensor[i].getMultiply(impulse_torque);
 
+					ztVec3 prev_linear_velocity = collision->rigid_bodies[i]->velocity;
 					collision->rigid_bodies[i]->velocity += velocity_change;
+					ztVec3 prev_angular_velocity = collision->rigid_bodies[i]->angular_velocity;
 					collision->rigid_bodies[i]->angular_velocity += rotation_change;
+
+					r32 linear_velocity_len = velocity_change.length();
+					if(linear_velocity_len < .5f) {
+						zt_fjze(prev_linear_velocity.values) {
+							if (prev_linear_velocity.values[j] < 0 && collision->rigid_bodies[i]->velocity.values[j] > 0 || prev_linear_velocity.values[j] > 0 && collision->rigid_bodies[i]->velocity.values[j] < 0) {
+								// reversed direction, we need to just stop moving
+								collision->rigid_bodies[i]->velocity.values[j] = 0;
+								break;
+							}
+						}
+					}
+
+					r32 angular_velocity_len = rotation_change.length();//collision->rigid_bodies[i]->angular_velocity.length();
+					if (angular_velocity_len < 5) {
+						zt_fjze(prev_angular_velocity.values) {
+							if (prev_angular_velocity.values[j] < 0 && collision->rigid_bodies[i]->angular_velocity.values[j] > 0 || prev_angular_velocity.values[j] > 0 && collision->rigid_bodies[i]->angular_velocity.values[j] < 0) {
+								// reversed direction, we need to just stop rotating
+								collision->rigid_bodies[i]->angular_velocity.values[j] = 0;
+								break;
+							}
+						}
+					}
 					
 					zt_bitRemove(collision->rigid_bodies[i]->flags, ztRigidBodyFlags_Sleeping);
 
@@ -31463,6 +31770,464 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 	}
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+bool zt_staticBodyMake(ztStaticBody *static_body, i32 max_triangles_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyMake");
+	static_body->triangles = zt_mallocStructArray(ztTriangle, max_triangles_count);
+
+	if (static_body->triangles == nullptr) {
+		return false;
+	}
+
+	static_body->triangles_count = 0;
+	static_body->triangles_size = max_triangles_count;
+
+	static_body->min = ztVec3::max;
+	static_body->max = ztVec3::min;
+
+	zt_memSet(&static_body->octree, zt_sizeof(ztOcTree), 0);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_staticBodyFree(ztStaticBody *static_body)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyFree");
+	if (static_body == nullptr) {
+		return;
+	}
+
+	if (static_body->triangles) {
+		zt_free(static_body->triangles);
+		static_body->triangles_count = static_body->triangles_size = 0;
+	}
+
+	zt_ocTreeFree(&static_body->octree);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_staticBodyAddTriangles(ztStaticBody *static_body, ztVec3 *verts, i32 verts_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyAddTriangles");
+	zt_returnValOnNull(static_body, false);
+	zt_returnValOnNull(verts, false);
+	zt_assertReturnValOnFail(verts_count > 0, false);
+	zt_assertReturnValOnFail(verts_count % 3 == 0, false);
+	zt_assertReturnValOnFail(static_body->triangles_size - static_body->triangles_count >= verts_count / 3, false);
+
+	for (int i = 0; i < verts_count; i += 3) {
+		ztTriangle *triangle = &static_body->triangles[static_body->triangles_count++];
+
+		zt_fjz(3) {
+			triangle->points[j] = verts[i + j];
+
+			zt_fkz(3) {
+				static_body->min.values[k] = zt_min(static_body->min.values[k], triangle->points[j].values[k]);
+				static_body->max.values[k] = zt_max(static_body->max.values[k], triangle->points[j].values[k]);
+			}
+		}
+
+		zt_triangleCalculateNormal(triangle->points[0], triangle->points[1], triangle->points[2], &triangle->normal);
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_staticBodyGenerateOcTree(ztStaticBody *static_body, i32 max_objects_per_node, i32 max_node_levels)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyGenerateOcTree");
+	zt_ocTreeFree(&static_body->octree);
+
+	ztOcTreeItemContainedTestTriangles data;
+	data.triangles = static_body->triangles;
+	data.triangles_count = static_body->triangles_count;
+
+	zt_ocTreeMake(&static_body->octree, max_objects_per_node, max_node_levels, (static_body->min + static_body->max) * .5f, static_body->max - static_body->min, zt_ocTreeItemContainedTestTriangles, &data);
+}
+
+// ================================================================================================================================================================================================
+
+#define ZT_STATIC_BODY_FILE_GUID        zt_guidMake(0x209cfa2d, 0xeeb84124, 0x97d35b8b, 0x182e1081)
+#define ZT_STATIC_BODY_FILE_VERSION     10001
+
+#define _serialCheck(code) if(!(code)) { zt_logCritical("ztStaticBody serialization failed."); return false; }
+
+// ================================================================================================================================================================================================
+
+bool zt_staticBodySave(ztSerial *serial, ztStaticBody *static_body)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodySave");
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialWrite(serial, ZT_STATIC_BODY_FILE_GUID));
+		_serialCheck(zt_serialWrite(serial, ZT_STATIC_BODY_FILE_VERSION));
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialWrite(serial, static_body->triangles_size));
+			_serialCheck(zt_serialWrite(serial, static_body->triangles_count));
+
+			zt_fiz(static_body->triangles_count) {
+				_serialCheck(zt_serialWrite(serial, static_body->triangles[i].points[0]));
+				_serialCheck(zt_serialWrite(serial, static_body->triangles[i].points[1]));
+				_serialCheck(zt_serialWrite(serial, static_body->triangles[i].points[2]));
+				_serialCheck(zt_serialWrite(serial, static_body->triangles[i].normal));
+			}
+
+			_serialCheck(zt_serialWrite(serial, static_body->min));
+			_serialCheck(zt_serialWrite(serial, static_body->max));
+
+			_serialCheck(zt_serialGroupPush(serial));
+			{
+				_serialCheck(zt_ocTreeSave(&static_body->octree, serial));
+			}
+			_serialCheck(zt_serialGroupPop(serial));
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_staticBodyLoad(ztSerial *serial, ztStaticBody *static_body)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyLoad");
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		ztGuid guid;
+		_serialCheck(zt_serialRead(serial, &guid));
+		if (guid != ZT_STATIC_BODY_FILE_GUID) {
+			zt_logCritical("ztStaticBody guid mismatch");
+			return false;
+		}
+
+		i32 version = 0;
+		_serialCheck(zt_serialRead(serial, &version));
+		if (version > ZT_STATIC_BODY_FILE_VERSION) {
+			zt_logCritical("ztStaticBody version newer than supported");
+			return false;
+		}
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialRead(serial, &static_body->triangles_size));
+
+			zt_staticBodyMake(static_body, static_body->triangles_size);
+			
+			_serialCheck(zt_serialRead(serial, &static_body->triangles_count));
+
+			zt_fiz(static_body->triangles_count) {
+				_serialCheck(zt_serialRead(serial, &static_body->triangles[i].points[0]));
+				_serialCheck(zt_serialRead(serial, &static_body->triangles[i].points[1]));
+				_serialCheck(zt_serialRead(serial, &static_body->triangles[i].points[2]));
+				_serialCheck(zt_serialRead(serial, &static_body->triangles[i].normal));
+			}
+
+			_serialCheck(zt_serialRead(serial, &static_body->min));
+			_serialCheck(zt_serialRead(serial, &static_body->max));
+
+			_serialCheck(zt_serialGroupPush(serial));
+			{
+				_serialCheck(zt_ocTreeLoad(&static_body->octree, serial));
+			}
+			_serialCheck(zt_serialGroupPop(serial));
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+#undef _serialCheck
+
+// ================================================================================================================================================================================================
+
+i32 zt_staticBodyHasCollisionsAABB(ztStaticBody *static_body, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsAABB");
+	ztOcTree::Node *nodes[128];
+	i32 nodes_found = zt_ocTreeFindNodesThatIntersect(&static_body->octree, nodes, zt_elementsOf(nodes), aabb_center, aabb_extents);
+
+	i32 contact_idx = 0;
+
+	zt_fvz(nidx, nodes_found) {
+		ztOcTree::Node *node = nodes[nidx];
+
+		zt_fvz(tridx, node->objects_count) {
+			bool abort = false;
+			zt_fiz(zt_min(contact_idx, contact_count)) {
+				if (contact_triangles[i] == node->objects[tridx]) {
+					abort = true;
+					break;
+				}
+			}
+			if (!abort) {
+				ztTriangle *triangle = &static_body->triangles[node->objects[tridx]];
+				ztVec3 intersect_point;
+				if (zt_collisionTriangleInAABB(triangle->points[0], triangle->points[1], triangle->points[2], aabb_center, aabb_extents, &intersect_point)) {
+					i32 idx = contact_idx++;
+					if (idx < contact_count) {
+						contact_points[idx] = intersect_point;
+						contact_normals[idx] = triangle->normal;
+						contact_triangles[idx] = node->objects[tridx];
+					}
+				}
+			}
+		}
+	}
+
+	return contact_idx;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat &obb_rot, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsOBB");
+	r32 max_ext = obb_extents.length();
+	ztVec3 aabb_center  = obb_center;
+	ztVec3 aabb_extents = zt_vec3(max_ext, max_ext, max_ext);
+
+	ztOcTree::Node *nodes[256];
+	i32 nodes_found = zt_ocTreeFindNodesThatIntersect(&static_body->octree, nodes, zt_elementsOf(nodes), aabb_center, aabb_extents);
+
+	if (nodes_found > zt_elementsOf(nodes)) {
+		zt_assert(false);
+		nodes_found = zt_elementsOf(nodes);
+	}
+
+	i32 contact_idx = 0;
+
+	ztMat4 mat = zt_transformToMat4(obb_center, obb_rot).getInverse();
+
+	zt_fvz(nidx, nodes_found) {
+		ztOcTree::Node *node = nodes[nidx];
+
+		//zt_debugDisplayCube(node->size, node->center, ztColor_Cyan);
+
+		zt_fvz(tridx, node->objects_count) {
+			bool abort = false;
+			zt_fiz(zt_min(contact_idx, contact_count)) {
+				if (contact_triangles[i] == node->objects[tridx]) {
+					abort = true;
+					break;
+				}
+			}
+
+			if (!abort) {
+				ztTriangle *triangle = &static_body->triangles[node->objects[tridx]];
+				//zt_debugDisplayLine(triangle->points[0], triangle->points[1], ztColor_Red);
+				//zt_debugDisplayLine(triangle->points[0], triangle->points[2], ztColor_Red);
+				//zt_debugDisplayLine(triangle->points[1], triangle->points[2], ztColor_Red);
+
+				ztVec3 center = (triangle->points[0] + triangle->points[1] + triangle->points[2]) * .33333f;
+				ztVec3 direction = center - aabb_center;
+
+				if (direction.dot(triangle->normal) >= 0.f) {
+					continue;
+				}
+
+				if (zt_collisionTriangleInAABB(triangle->points[0], triangle->points[1], triangle->points[2], aabb_center, aabb_extents)) {
+					ztVec3 p0 = mat.getMultiply(triangle->points[0]);
+					ztVec3 p1 = mat.getMultiply(triangle->points[1]);
+					ztVec3 p2 = mat.getMultiply(triangle->points[2]);
+
+					ztVec3 intersect_point;
+					if (zt_collisionTriangleInAABB(p0, p1, p2, ztVec3::zero, obb_extents, &intersect_point)) {
+						i32 idx = contact_idx++;
+						if (idx < contact_count) {
+							contact_points[idx] = mat.getInverse().getMultiply(intersect_point);
+							contact_normals[idx] = triangle->normal;
+							contact_triangles[idx] = node->objects[tridx];
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return contact_idx;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_staticBodyHasCollisionsSphere(ztStaticBody *static_body, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsSphere");
+	ztVec3 aabb_center = sphere_center;
+	ztVec3 aabb_extents = zt_vec3(sphere_radius, sphere_radius, sphere_radius);
+
+	ztOcTree::Node *nodes[128];
+	i32 nodes_found = zt_ocTreeFindNodesThatIntersect(&static_body->octree, nodes, zt_elementsOf(nodes), aabb_center, aabb_extents);
+
+	i32 contact_idx = 0;
+
+	zt_fvz(nidx, nodes_found) {
+		ztOcTree::Node *node = nodes[nidx];
+
+		zt_fvz(tridx, node->objects_count) {
+			bool abort = false;
+			zt_fiz(zt_min(contact_idx, contact_count)) {
+				if (contact_triangles[i] == node->objects[tridx]) {
+					abort = true;
+					break;
+				}
+			}
+
+			if (!abort) {
+				ztTriangle *triangle = &static_body->triangles[node->objects[tridx]];
+				if (zt_collisionTriangleInAABB(triangle->points[0], triangle->points[1], triangle->points[2], aabb_center, aabb_extents)) {
+
+					ztVec3 intersect_point;
+					if (zt_collisionTriangleInSphere(triangle->points[0], triangle->points[1], triangle->points[2], sphere_center, sphere_radius, &intersect_point)) {
+						i32 idx = contact_idx++;
+						if (idx < contact_count) {
+							contact_points[idx] = intersect_point;
+							contact_normals[idx] = triangle->normal;
+							contact_triangles[idx] = node->objects[tridx];
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return contact_idx;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_movingBodyMake(ztMovingBody *moving_body, ztModel *model, r32 restitution, ztCollisionGeometry cg_bounding, ztCollisionGeometry *details, int details_count)
+{
+	ZT_PROFILE_PHYSICS("zt_movingBodyMake");
+	moving_body->model            = model;
+	moving_body->transform        = nullptr;
+	moving_body->transform_prev   = model == nullptr ? zt_transformMake() : model->transform;
+	moving_body->restitution      = restitution;
+	moving_body->flags           |= ztMovingBodyFlags_NeedsMatrixCalc;
+	moving_body->cg_bounding      = cg_bounding;
+	moving_body->cg_details_count = details_count;
+
+	zt_fiz(details_count) {
+		moving_body->cg_details[i] = details[i];
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_movingBodyMake(ztMovingBody *moving_body, ztModel *model, r32 restitution, ztCollisionGeometry cg_bounding, ztCollisionGeometry detail)
+{
+	zt_movingBodyMake(moving_body, model, restitution, cg_bounding, &detail, 1);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_movingBodyFree(ztMovingBody *moving_body)
+{
+	// nothing to do currently
+}
+
+// ================================================================================================================================================================================================
+
+#define ZT_MOVING_BODY_FILE_GUID          zt_guidMake(0x07791b5f, 0x5c894d8b, 0x81c2515b, 0xf24f2f42)
+#define ZT_MOVING_BODY_FILE_VERSION       10001
+
+#define _serialCheck(code) if(!(code)) { zt_logCritical("ztMovingBody serialization failed."); return false; }
+
+// ================================================================================================================================================================================================
+
+bool zt_movingBodySave(ztSerial *serial, ztMovingBody *moving_body)
+{
+	ZT_PROFILE_GAME("zt_movingBodySave");
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialWrite(serial, ZT_MOVING_BODY_FILE_GUID));
+		_serialCheck(zt_serialWrite(serial, ZT_MOVING_BODY_FILE_VERSION));
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialWrite(serial, moving_body->transform_prev.position));
+			_serialCheck(zt_serialWrite(serial, moving_body->transform_prev.rotation));
+			_serialCheck(zt_serialWrite(serial, moving_body->transform_prev.scale));
+			_serialCheck(zt_serialWrite(serial, moving_body->restitution));
+			_serialCheck(zt_serialWrite(serial, moving_body->flags));
+			_serialCheck(zt_serialWrite(serial, moving_body->collision_layer));
+			_serialCheck(zt_serialWrite(serial, moving_body->collides_with_layers));
+
+			_serialCheck(zt_collisionGeometrySave(serial, &moving_body->cg_bounding));
+
+			_serialCheck(zt_serialWrite(serial, moving_body->cg_details_count));
+			zt_fiz(moving_body->cg_details_count) {
+				_serialCheck(zt_collisionGeometrySave(serial, &moving_body->cg_details[i]));
+			}
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_movingBodyLoad(ztSerial *serial, ztMovingBody *moving_body)
+{
+	ZT_PROFILE_GAME("zt_movingBodyLoad");
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		ztGuid guid;
+		_serialCheck(zt_serialRead(serial, &guid));
+		if (guid != ZT_MOVING_BODY_FILE_GUID) {
+			zt_logCritical("ztMovingBody guid mismatch");
+			return false;
+		}
+
+		i32 version = 0;
+		_serialCheck(zt_serialRead(serial, &version));
+		if (version > ZT_MOVING_BODY_FILE_VERSION) {
+			zt_logCritical("ztMovingBody version newer than supported");
+			return false;
+		}
+
+		_serialCheck(zt_serialGroupPush(serial));
+		{
+			_serialCheck(zt_serialRead(serial, &moving_body->transform_prev.position));
+			_serialCheck(zt_serialRead(serial, &moving_body->transform_prev.rotation));
+			_serialCheck(zt_serialRead(serial, &moving_body->transform_prev.scale));
+			_serialCheck(zt_serialRead(serial, &moving_body->restitution));
+			_serialCheck(zt_serialRead(serial, &moving_body->flags));
+			_serialCheck(zt_serialRead(serial, &moving_body->collision_layer));
+			_serialCheck(zt_serialRead(serial, &moving_body->collides_with_layers));
+
+			_serialCheck(zt_collisionGeometryLoad(serial, &moving_body->cg_bounding));
+
+			_serialCheck(zt_serialRead(serial, &moving_body->cg_details_count));
+			zt_fiz(moving_body->cg_details_count) {
+				_serialCheck(zt_collisionGeometryLoad(serial, &moving_body->cg_details[i]));
+			}
+		}
+		_serialCheck(zt_serialGroupPop(serial));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;}
+
+// ================================================================================================================================================================================================
+
+#undef _serialCheck
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -31834,7 +32599,7 @@ int zt_collisionBrute(ztRigidBody **rigid_bodies, int rigid_bodies_count, ztRigi
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_forces, int max_connectors)
+ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_static_bodies, int max_moving_bodies, int max_forces, int max_connectors)
 {
 	ZT_PROFILE_PHYSICS("zt_physicsMake");
 	ztPhysics *physics = zt_mallocStructArena(ztPhysics, arena);
@@ -31845,6 +32610,14 @@ ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_fo
 	physics->rigid_bodies_size  = max_rigid_bodies;
 	physics->rigid_bodies       = zt_mallocStructArrayArena(ztRigidBody*, physics->rigid_bodies_size, arena);
 
+	physics->static_bodies_count = 0;
+	physics->static_bodies_size  = max_static_bodies;
+	physics->static_bodies       = zt_mallocStructArrayArena(ztStaticBody*, physics->static_bodies_size, arena);
+
+	physics->moving_bodies_count = 0;
+	physics->moving_bodies_size  = max_moving_bodies;
+	physics->moving_bodies       = zt_mallocStructArrayArena(ztMovingBody*, physics->moving_bodies_size, arena);
+
 	physics->forces_count       = 0;
 	physics->forces_size        = max_forces;
 	physics->forces             = zt_mallocStructArrayArena(ztForce*, physics->forces_size, arena);
@@ -31853,10 +32626,14 @@ ztPhysics *zt_physicsMake(ztMemoryArena *arena, int max_rigid_bodies, int max_fo
 	physics->connectors_size    = max_connectors;
 	physics->connectors         = zt_mallocStructArrayArena(ztConnector*, physics->connectors_size, arena);
 
-	physics->collisions_size    = 2048;
+	physics->collisions_size    = 1024;
 	physics->collisions         = zt_mallocStructArrayArena(ztRigidBodyCollision, physics->collisions_size, arena);
 
-	if (physics->rigid_bodies == nullptr || physics->forces == nullptr || physics->connectors == nullptr || physics->collisions == nullptr) {
+	physics->moving_body_collisions_count = 0;
+	physics->moving_body_collisions_size  = 1024;
+	physics->moving_body_collisions       = zt_mallocStructArrayArena(ztMovingBodyCollision, physics->moving_body_collisions_size, arena);
+
+	if (physics->rigid_bodies == nullptr || physics->forces == nullptr || physics->connectors == nullptr || physics->collisions == nullptr || physics->moving_body_collisions == nullptr) {
 		zt_physicsFree(physics);
 		return nullptr;
 	}
@@ -31877,12 +32654,17 @@ void zt_physicsFree(ztPhysics *physics)
 		return;
 	}
 
-	if (physics->rigid_bodies) zt_freeArena(physics->rigid_bodies, physics->arena);
-	if (physics->forces      ) zt_freeArena(physics->forces, physics->arena);
-	if (physics->connectors  ) zt_freeArena(physics->connectors, physics->arena);
-	if (physics->collisions  ) zt_freeArena(physics->collisions, physics->arena);
+	if (physics->rigid_bodies          ) zt_freeArena(physics->rigid_bodies, physics->arena);
+	if (physics->static_bodies         ) zt_freeArena(physics->static_bodies, physics->arena);
+	if (physics->moving_bodies         ) zt_freeArena(physics->moving_bodies, physics->arena);
+	if (physics->forces                ) zt_freeArena(physics->forces, physics->arena);
+	if (physics->connectors            ) zt_freeArena(physics->connectors, physics->arena);
+	if (physics->collisions            ) zt_freeArena(physics->collisions, physics->arena);
+	if (physics->moving_body_collisions) zt_freeArena(physics->moving_body_collisions, physics->arena);
 
 	zt_freeArena(physics, physics->arena);
+
+	zt_memSet(physics, zt_sizeof(ztPhysics), 0);
 }
 
 // ================================================================================================================================================================================================
@@ -31905,6 +32687,38 @@ int zt_physicsAddRigidBody(ztPhysics *physics, ztRigidBody *rigid_body)
 	zt_rigidBody_transformInertiaTensor(&rigid_body->inverse_inertia_tensor_world, &rigid_body->inverse_inertia_tensor, &rigid_body->model->calculated_mat);
 
 	return physics->rigid_bodies_count++;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_physicsAddStaticBody(ztPhysics *physics, ztStaticBody *static_body)
+{
+	ZT_PROFILE_PHYSICS("zt_physicsAddStaticBody");
+	zt_returnValOnNull(physics, -1);
+	zt_returnValOnNull(static_body, -1);
+
+	zt_assertReturnValOnFail(physics->static_bodies_count < physics->static_bodies_size, -1);
+
+	physics->static_bodies[physics->static_bodies_count] = static_body;
+
+	return physics->static_bodies_count++;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_physicsAddMovingBody(ztPhysics *physics, ztMovingBody *moving_body)
+{
+	ZT_PROFILE_PHYSICS("zt_physicsAddMovingBody");
+	zt_returnValOnNull(physics, -1);
+	zt_returnValOnNull(moving_body, -1);
+
+	zt_assertReturnValOnFail(physics->moving_bodies_count < physics->moving_bodies_size, -1);
+
+	physics->moving_bodies[physics->moving_bodies_count] = moving_body;
+
+	moving_body->flags |= ztMovingBodyFlags_NeedsMatrixCalc;
+
+	return physics->moving_bodies_count++;
 }
 
 // ================================================================================================================================================================================================
@@ -31947,6 +32761,46 @@ bool zt_physicsRemoveRigidBody(ztPhysics *physics, ztRigidBody *rigid_body)
 				physics->rigid_bodies[j] = physics->rigid_bodies[j + 1];
 			}
 			physics->rigid_bodies_count -= 1;
+			return true;
+		}
+	}
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_physicsRemoveStaticBody(ztPhysics *physics, ztStaticBody *static_body)
+{
+	ZT_PROFILE_PHYSICS("zt_physicsRemoveStaticBody");
+	zt_returnValOnNull(physics, false);
+	zt_returnValOnNull(static_body, false);
+
+	zt_fiz(physics->static_bodies_count) {
+		if (physics->static_bodies[i] == static_body) {
+			for (int j = i; j < physics->static_bodies_count - 1; ++j) {
+				physics->static_bodies[j] = physics->static_bodies[j + 1];
+			}
+			physics->static_bodies_count -= 1;
+			return true;
+		}
+	}
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_physicsRemoveMovingBody(ztPhysics *physics, ztMovingBody *moving_body)
+{
+	ZT_PROFILE_PHYSICS("zt_physicsRemoveMovingBody");
+	zt_returnValOnNull(physics, false);
+	zt_returnValOnNull(moving_body, false);
+
+	zt_fiz(physics->moving_bodies_count) {
+		if (physics->moving_bodies[i] == moving_body) {
+			for (int j = i; j < physics->moving_bodies_count - 1; ++j) {
+				physics->moving_bodies[j] = physics->moving_bodies[j + 1];
+			}
+			physics->moving_bodies_count -= 1;
 			return true;
 		}
 	}
@@ -32069,6 +32923,9 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 
 		collisions_count += zt_collisionBrute(physics->rigid_bodies, physics->rigid_bodies_count, physics->collisions + collisions_count, physics->collisions_size - collisions_count);
 
+		// todo: rigid body with static bodies
+		// todo: rigid body with moving bodies
+
 #	undef zt_checkCollisionsCount
 
 		if (collisions_count > 0) {
@@ -32080,6 +32937,409 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 		if (collisions_count == 0) break;
 	}
 
+	physics->moving_body_collisions_count = 0;
+
+	zt_fvz(midx, physics->moving_bodies_count) {
+		ztMovingBody *moving_body = physics->moving_bodies[midx];
+
+		if (zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_NeedsMatrixCalc)) {
+			zt_bitRemove(moving_body->flags, ztMovingBodyFlags_NeedsMatrixCalc);
+			if (moving_body->model) {
+				moving_body->transform = &moving_body->model->transform;
+			}
+			moving_body->transform_prev = *moving_body->transform;
+		}
+
+		if (moving_body->transform->position != moving_body->transform_prev.position) {
+			moving_body->flags |= ztMovingBodyFlags_NeedsCollisionCheck;
+		}
+		else {
+			zt_bitRemove(moving_body->flags, ztMovingBodyFlags_NeedsCollisionCheck);
+		}
+
+		moving_body->collisions = nullptr;
+	}
+
+	struct local
+	{
+		static void getMovingBodyAABB(ztMovingBody *moving_body, ztVec3 *aabb_center, ztVec3 *aabb_extents)
+		{
+			ztVec3 min = ztVec3::max;
+			ztVec3 max = ztVec3::min;
+
+			zt_fize(min.values) min.values[i] = zt_min(moving_body->transform->position.values[i], moving_body->transform_prev.position.values[i]);
+			zt_fize(max.values) max.values[i] = zt_max(moving_body->transform->position.values[i], moving_body->transform_prev.position.values[i]);
+
+			switch (moving_body->cg_bounding.type)
+			{
+				case ztCollisionGeometryType_AxisAlignedBox: {
+					min -= moving_body->cg_bounding.aabb_extents * .5f;
+					max += moving_body->cg_bounding.aabb_extents * .5f;
+				}; break;
+
+				case ztCollisionGeometryType_OrientedBox: {
+					min -= moving_body->cg_bounding.obb_extents * .5f;
+					max += moving_body->cg_bounding.obb_extents * .5f;
+				}; break;
+
+				case ztCollisionGeometryType_Sphere: {
+					min -= ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f;
+					max += ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f;
+				}; break;
+
+				case ztCollisionGeometryType_Capsule: {
+				}; break;
+
+				case ztCollisionGeometryType_Triangles: {
+				}; break;
+			}
+
+			*aabb_center = (min + max) * .5f;
+			*aabb_extents = (max - min);
+		}
+	};
+
+	static const r32 iteration_amt = zt_inchesToUnits(1.f);
+
+	// do moving vs moving before moving vs static
+	// it's more important that objects do not pass through static environment than avoiding penetration with other moving objects
+	collisions_iterations = 0;
+	while (collisions_iterations++ < 1) {
+		int collisions_count = 0;
+
+		zt_fvz(midx_1, physics->moving_bodies_count) {
+			ztMovingBody *moving_body_1 = physics->moving_bodies[midx_1];
+
+			if (zt_bitIsSet(moving_body_1->flags, ztMovingBodyFlags_NeedsCollisionCheck)) {
+				ztVec3 velocity_1 = moving_body_1->transform->position - moving_body_1->transform_prev.position;
+				r32 velocity_len_1 = velocity_1.length();
+
+				ztVec3 aabb_center_1, aabb_extents_1;
+				local::getMovingBodyAABB(moving_body_1, &aabb_center_1, &aabb_extents_1);
+
+				ztTransform transform_1 = moving_body_1->transform_prev;
+
+				for (int midx_2 = midx_1 + 1; midx_2 < physics->moving_bodies_count; ++midx_2) {
+					ztMovingBody *moving_body_2 = physics->moving_bodies[midx_2];
+
+					ztVec3 aabb_center_2, aabb_extents_2;
+					local::getMovingBodyAABB(moving_body_2, &aabb_center_2, &aabb_extents_2);
+
+					if (zt_collisionAABBInAABB(aabb_center_1, aabb_extents_1, aabb_center_2, aabb_extents_2)) {
+						ztVec3 velocity_2 = moving_body_2->transform->position - moving_body_2->transform_prev.position;
+						r32 velocity_len_2 = velocity_2.length();
+
+						int iterations = zt_convertToi32Ceil(zt_max(velocity_len_1, velocity_len_2) / iteration_amt);
+
+						ztVec3 velocity_per_1 = velocity_1 * (1.f / iterations);
+						ztVec3 velocity_per_2 = velocity_2 * (1.f / iterations);
+						r32 percent_of_move_1 = velocity_len_1 / (velocity_len_1 + velocity_len_2);
+						r32 percent_of_move_2 = velocity_len_2 / (velocity_len_1 + velocity_len_2);
+
+						ztTransform transform_2 = zt_transformMake(moving_body_2->transform_prev.position, moving_body_2->transform_prev.rotation, moving_body_2->transform_prev.scale);
+
+						ztVec3 contact_normals[32];
+						ztVec3 contact_points[32];
+						r32    contact_distances[32];
+
+						zt_fiz(iterations) {
+							transform_1.position += velocity_per_1;
+							transform_2.position += velocity_per_2;
+
+							i32 contacts = 0;
+
+							zt_fjz(moving_body_1->cg_details_count) {
+								ztCollisionGeometry *cg_1 = &moving_body_1->cg_details[j];
+
+								zt_fkz(moving_body_2->cg_details_count) {
+									ztCollisionGeometry *cg_2 = &moving_body_2->cg_details[k];
+
+									r32 penetration = 0;
+									ztVec3 contact_normal, contact_point;
+									if (zt_collisionGeometryIntersecting(cg_1, &transform_1, nullptr, cg_2, &transform_2, nullptr, &penetration, &contact_normal, &contact_point)) {
+										contact_normals[contacts] = contact_normal;
+										contact_points[contacts] = contact_point;
+										contact_distances[contacts++] = penetration;
+									}
+								}
+							}
+
+							if (contacts > 0) {
+								collisions_count += 1;
+
+								while (true) {
+									r32 largest_val = ztReal32Min;
+									int largest_idx = -1;
+									zt_fiz(contacts) {
+										if (contact_distances[i] > largest_val) {
+											largest_val = contact_distances[i];
+											largest_idx = i;
+										}
+									}
+
+									if (largest_idx == -1) {
+										break;
+									}
+
+									int idx = largest_idx;
+
+									if(zt_bitIsSet(moving_body_1->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_1->collisions == nullptr) {
+										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
+											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
+											collision->moving_bodies[0] = moving_body_1;
+											collision->moving_bodies[1] = moving_body_2;
+											collision->penetration = contact_distances[idx];
+											collision->contact_point = contact_points[idx];
+											collision->contact_normal = contact_normals[idx];
+											collision->next = nullptr;
+											zt_singleLinkAddToEnd(moving_body_1->collisions, collision);
+										}
+									}
+									if(zt_bitIsSet(moving_body_2->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_2->collisions == nullptr) {
+										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
+											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
+											collision->moving_bodies[0] = moving_body_2;
+											collision->moving_bodies[1] = moving_body_1;
+											collision->penetration = contact_distances[idx];
+											collision->contact_point = contact_points[idx];
+											collision->contact_normal = contact_normals[idx] * -1;
+											collision->next = nullptr;
+											zt_singleLinkAddToEnd(moving_body_2->collisions, collision);
+										}
+									}
+
+									if (zt_bitIsSet(moving_body_1->flags, ztMovingBodyFlags_AllowPenetration) || zt_bitIsSet(moving_body_2->flags, ztMovingBodyFlags_AllowPenetration)) {
+										break;
+									}
+
+									struct Geometries
+									{
+										static bool colliding(ztMovingBody *moving_body_1, ztTransform *transform_1, ztMovingBody *moving_body_2, ztTransform *transform_2)
+										{
+											zt_fjz(moving_body_1->cg_details_count) {
+												ztCollisionGeometry *cg_1 = &moving_body_1->cg_details[j];
+												zt_fkz(moving_body_2->cg_details_count) {
+													ztCollisionGeometry *cg_2 = &moving_body_2->cg_details[k];
+
+													r32 penetration;
+													ztVec3 contact_normal, contact_point;
+													if (zt_collisionGeometryIntersecting(cg_1, transform_1, nullptr, cg_2, transform_2, nullptr, &penetration, &contact_normal, &contact_point)) {
+														return true;
+													}
+												}
+											}
+
+											return false;
+										}
+									};
+
+									if (Geometries::colliding(moving_body_1, &transform_1, moving_body_2, &transform_2)) {
+										bool backward = true;
+										r32 dist = iteration_amt;
+										int splits = 0;
+										zt_fvz(splits, 32) {
+											dist *= .5f;
+
+											ztVec3 to_move = contact_normals[idx] * dist * (backward ? 1.f : -1.f);
+											transform_1.position += percent_of_move_1 * to_move;
+											transform_2.position -= percent_of_move_2 * to_move;
+
+											backward = Geometries::colliding(moving_body_1, &transform_1, moving_body_2, &transform_2);
+
+											if (splits >= 8 && !backward) break;
+										}
+
+										velocity_per_1 *= ztVec3::one - zt_vec3(zt_abs(contact_normals[idx].x), zt_abs(contact_normals[idx].y), zt_abs(contact_normals[idx].z));
+										velocity_per_2 *= ztVec3::one - zt_vec3(zt_abs(contact_normals[idx].x), zt_abs(contact_normals[idx].y), zt_abs(contact_normals[idx].z));
+									}
+
+									contact_distances[idx] = ztReal32Min;
+								}
+							}
+						}
+						moving_body_1->transform->position = transform_1.position;
+						moving_body_2->transform->position = transform_2.position;
+
+						moving_body_1->transform_prev.position = moving_body_1->transform->position;
+						moving_body_2->transform_prev.position = moving_body_2->transform->position;
+					}
+				}
+			}
+		}
+	}
+
+
+	collisions_iterations = 0;
+	while (collisions_iterations++ < 1) {
+		int collisions_count = 0;
+
+		zt_fvz(midx, physics->moving_bodies_count) {
+			ztMovingBody *moving_body = physics->moving_bodies[midx];
+
+			if (zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_NeedsCollisionCheck)) {
+				ztVec3 velocity = moving_body->transform->position - moving_body->transform_prev.position;
+
+				ztVec3 contact_points[32];
+				ztVec3 contact_normals[32];
+				i32    contact_triangles[32];
+				r32    contact_distances[32];
+
+				r32 velocity_len = velocity.length();
+
+				ztVec3 center, extents;
+				local::getMovingBodyAABB(moving_body, &center, &extents);
+
+				zt_fvz(sidx, physics->static_bodies_count) {
+					ztStaticBody *static_body = physics->static_bodies[sidx];
+
+					if (zt_staticBodyHasCollisionsAABB(static_body, center, extents)) {
+						int iterations = zt_convertToi32Ceil(velocity_len / iteration_amt);
+
+						ztVec3 velocity_per = velocity * (1.f / iterations);
+						ztVec3 current_pos = moving_body->transform_prev.position;
+
+						zt_fiz(iterations) {
+							current_pos += velocity_per;
+
+							i32 contacts = 0;
+
+							zt_fjz(moving_body->cg_details_count) {
+								ztCollisionGeometry *cg = &moving_body->cg_details[j];
+								switch(cg->type)
+								{
+									case ztCollisionGeometryType_AxisAlignedBox: {
+										contacts += zt_staticBodyHasCollisionsAABB(static_body, current_pos + cg->aabb_center, cg->aabb_extents, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+									}; break;
+
+									case ztCollisionGeometryType_OrientedBox: {
+										ztQuat rot = moving_body->transform->rotation * cg->obb_rotation;
+										contacts += zt_staticBodyHasCollisionsOBB(static_body, current_pos + cg->obb_center, cg->obb_extents, rot, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+									}; break;
+
+									case ztCollisionGeometryType_Sphere: {
+										contacts += zt_staticBodyHasCollisionsSphere(static_body, current_pos + cg->sphere_center, cg->sphere_radius, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+									}; break;
+
+									case ztCollisionGeometryType_Capsule: {
+									}; break;
+
+									case ztCollisionGeometryType_Triangles: {
+									}; break;
+								}
+							}
+
+							if (contacts > 0) {
+								collisions_count += 1;
+								zt_fiz(contacts) {
+									contact_distances[i] = contact_points[i].distance(current_pos);
+
+									ztTriangle *tri = &static_body->triangles[contact_triangles[i]];
+									ztVec3 center = (tri->points[0] + tri->points[1] + tri->points[2]) * .3333f;
+
+									ztVec3 to_center = center - current_pos;
+									r32 dot = to_center.dot(contact_normals[i]);
+
+									if (dot > 0.f) {
+										contact_distances[i] = ztReal32Min;
+									}
+								}
+
+								while (true) {
+									r32 largest_val = ztReal32Min;
+									int largest_idx = -1;
+									zt_fiz(contacts) {
+										if (contact_distances[i] > largest_val) {
+											largest_val = contact_distances[i];
+											largest_idx = i;
+										}
+									}
+
+									if (largest_idx == -1) {
+										break;
+									}
+
+									int idx = largest_idx;
+
+									if(zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_TrackCollisions) && moving_body->collisions == nullptr) {
+										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
+											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
+											collision->moving_bodies[0] = moving_body;
+											collision->moving_bodies[1] = nullptr;
+											collision->penetration = contact_distances[idx];
+											collision->contact_point = contact_points[idx];
+											collision->contact_normal = contact_normals[idx];
+											collision->next = nullptr;
+											zt_singleLinkAddToEnd(moving_body->collisions, collision);
+										}
+									}
+
+									ztTriangle *tri = &static_body->triangles[contact_triangles[idx]];
+
+
+									struct Triangle
+									{
+										static bool colliding(ztTriangle *tri, ztMovingBody *moving_body, const ztVec3 &current_pos)
+										{
+											bool collision = false;
+
+											zt_fjz(moving_body->cg_details_count) {
+												ztCollisionGeometry *cg = &moving_body->cg_details[j];
+												switch(cg->type)
+												{
+													case ztCollisionGeometryType_AxisAlignedBox: {
+														collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center, cg->aabb_extents);
+													}; break;
+
+													case ztCollisionGeometryType_OrientedBox: {
+														ztQuat rot = moving_body->transform->rotation * cg->obb_rotation;
+														collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center, cg->obb_extents, rot);
+													}; break;
+
+													case ztCollisionGeometryType_Sphere: {
+														collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center, cg->sphere_radius);
+													}; break;
+
+													case ztCollisionGeometryType_Capsule: {
+													}; break;
+
+													case ztCollisionGeometryType_Triangles: {
+													}; break;
+												}
+											}
+
+											return collision;
+										}
+									};
+
+									if (Triangle::colliding(tri, moving_body, current_pos)) {
+										bool backward = true;
+										r32 dist = iteration_amt;
+										zt_fvz(splits, 32) {
+											dist *= .5f;
+
+											ztVec3 to_move = contact_normals[idx] * dist * (backward ? 1.f : -1.f);
+											current_pos += to_move;
+
+											backward = Triangle::colliding(tri, moving_body, current_pos);
+
+											if (splits >= 8 && !backward) break;
+										}
+
+										velocity_per *= ztVec3::one - zt_vec3(zt_abs(contact_normals[idx].x), zt_abs(contact_normals[idx].y), zt_abs(contact_normals[idx].z));
+									}
+
+									contact_distances[idx] = ztReal32Min;
+								}
+							}
+						}
+						moving_body->transform->position = current_pos;
+					}
+				}
+
+				moving_body->transform_prev.position = moving_body->transform->position;
+			}
+		}
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -32173,7 +33433,7 @@ bool zt_collisionPointInTriangle(const ztVec3 &point, const ztVec3 &t0, const zt
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point)
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztVec3 &plane_coord, const ztVec3 &plane_normal, ztVec3 *intersection_point, r32 *intersection_time)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
 	ztVec3 line_dir = (line_end - line_beg);
@@ -32192,31 +33452,54 @@ bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, con
 	if (intersection_point) {
 		*intersection_point = line_beg + (line_dir * zt_vec3(x, x, x));
 	}
+	if (intersection_time) {
+		*intersection_time = x;
+	}
+
 	return true;
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point)
+bool zt_collisionLineInPlane(const ztVec3 &line_beg, const ztVec3 &line_end, const ztPlane& plane, ztVec3 *intersection_point, r32 *intersection_time)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineInPlane");
 	ztVec3 line_dir = (line_end - line_beg);
 
-	r32 dot = plane.distance;
-	if (plane.normal.dot(line_dir) == 0) {
-		// line is parallel
+	r32 dot = plane.normal.dot(line_dir);
+	if (dot == 0) {
 		return false;
 	}
 
-	r32 x = (dot - plane.normal.dot(line_beg)) / plane.normal.dot(line_dir);
-	if (x < 0 - ztReal32Epsilon || x > 1 + ztReal32Epsilon) {
-		return false;
+	r32 t = (plane.distance - plane.normal.dot(line_beg)) / dot;
+
+	if (t >= 0.f && t <= 1.f) {
+		if (intersection_point) {
+			*intersection_point = line_beg + (line_dir * t);
+		}
+		if (intersection_time) {
+			*intersection_time = t;
+		}
+		return true;
 	}
 
-	if (intersection_point) {
-		*intersection_point = line_beg + (line_dir * zt_vec3(x, x, x));
-	}
-	return true;
+	return false;
+
+	//r32 dot = plane.distance;
+	//if (plane.normal.dot(line_dir) == 0) {
+	//	// line is parallel
+	//	return false;
+	//}
+
+	//r32 x = (dot - plane.normal.dot(line_beg)) / plane.normal.dot(line_dir);
+	//if (x < 0 - ztReal32Epsilon || x > 1 + ztReal32Epsilon) {
+	//	return false;
+	//}
+
+	//if (intersection_point) {
+	//	*intersection_point = line_beg + (line_dir * zt_vec3(x, x, x));
+	//}
+	//return true;
 }
 
 // ================================================================================================================================================================================================
@@ -32671,6 +33954,213 @@ bool zt_collisionMovingAABBInAABB(const ztVec3 &aabb_center_1, const ztVec3 &aab
 
 // ================================================================================================================================================================================================
 
+ztInternal ztVec3 _zt_collisionOBBOBB_mult(const ztMat4 &mat, const ztVec3 &v)
+{
+	ztMat3 mat3 = zt_mat3(mat);
+	mat3.transpose();
+
+	ztVec3 pos = mat.cols[3].xyz;
+
+	return mat3.getMultiply(v - pos);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal ztVec3 _zt_collisionOBBOBB_mult(const ztMat3 &mat, const ztVec3 &v)
+{
+	ztMat3 mat3 = mat;
+	mat3.transpose();
+
+	return mat3.getMultiply(v);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_collisionOBBOBB_incidentFace(ztMat4 &itx, const ztVec3 &e, const ztVec3 &norm, ztVec3 *clip_vert)
+{
+	ztVec3 normal = _zt_collisionOBBOBB_mult(zt_mat3(itx), norm) * -1.f;
+	ztVec3 normal_abs = zt_vec3(zt_abs(normal.x), zt_abs(normal.y), zt_abs(normal.z));
+
+	if (normal_abs.x > normal_abs.y && normal_abs.x > normal_abs.z) {
+		if (normal.x > 0.f) {
+			clip_vert[0] = zt_vec3(e.x,  e.y, -e.z);
+			clip_vert[1] = zt_vec3(e.x,  e.y,  e.z);
+			clip_vert[2] = zt_vec3(e.x, -e.y, -e.z);
+			clip_vert[3] = zt_vec3(e.x, -e.y, -e.z);
+		}
+		else {
+			clip_vert[0] = zt_vec3(-e.x, -e.y,  e.z);
+			clip_vert[1] = zt_vec3(-e.x,  e.y,  e.z);
+			clip_vert[2] = zt_vec3(-e.x,  e.y, -e.z);
+			clip_vert[3] = zt_vec3(-e.x, -e.y, -e.z);
+		}
+	}
+	else if (normal_abs.y > normal_abs.x && normal_abs.y > normal_abs.z) {
+		if (normal.y > 0.f) {
+			clip_vert[0] = zt_vec3(-e.x,  e.y,  e.z);
+			clip_vert[1] = zt_vec3( e.x,  e.y,  e.z);
+			clip_vert[2] = zt_vec3( e.x,  e.y, -e.z);
+			clip_vert[3] = zt_vec3(-e.x,  e.y, -e.z);
+		}
+		else {
+			clip_vert[0] = zt_vec3( e.x, -e.y,  e.z);
+			clip_vert[1] = zt_vec3(-e.x, -e.y,  e.z);
+			clip_vert[2] = zt_vec3(-e.x, -e.y, -e.z);
+			clip_vert[3] = zt_vec3( e.x, -e.y, -e.z);
+		}
+	}
+	else {
+		if (normal.z > 0.f) {
+			clip_vert[0] = zt_vec3(-e.x,  e.y,  e.z);
+			clip_vert[1] = zt_vec3(-e.x, -e.y,  e.z);
+			clip_vert[2] = zt_vec3( e.x, -e.y,  e.z);
+			clip_vert[3] = zt_vec3( e.x,  e.y,  e.z);
+		}
+		else {
+			clip_vert[0] = zt_vec3( e.x, -e.y, -e.z);
+			clip_vert[1] = zt_vec3(-e.x, -e.y, -e.z);
+			clip_vert[2] = zt_vec3(-e.x,  e.y, -e.z);
+			clip_vert[3] = zt_vec3( e.x,  e.y, -e.z);
+		}
+	}
+
+	zt_fiz(4) {
+		clip_vert[i] = itx.getMultiply(clip_vert[i]);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+static i32 _zt_collisionOBBOBB_ortho(r32 sign, r32 e, i32 axis, ztVec3 *in, i32 in_count, ztVec3 *out)
+{
+	i32 out_count = 0;
+	ztVec3 a = in[in_count - 1];
+
+	zt_fiz(in_count) {
+		ztVec3 b = in[i];
+
+		r32 da = sign * a.values[axis] - e;
+		r32 db = sign * b.values[axis] - e;
+
+		ztVec3 cv;
+
+		if ((da < .0f && db < .0f) || (zt_between(da, -.005f, .005) || zt_between(db, -.005f, .005f))) {
+			out[out_count++] = b;
+		}
+		else if (da < .0f && db >= 0.f) {
+			cv = a + (b - a) * (da / (da - db));
+			out[out_count++] = cv;
+		}
+		else if (da >= 0.f && db < .0f) {
+			cv = a + (b - a) * (da / (da - db));
+			out[out_count++] = cv;
+			out[out_count++] = b;
+		}
+
+		a = b;
+	}
+
+	return out_count;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_collisionOBBOBB_clip(const ztVec3& r_vec, const ztVec3& e, const ztMat3& basis, ztVec3 *incident, ztVec3 *out_verts, r32 *out_depths)
+{
+	i32 in_count = 4;
+	i32 out_count = 0;
+	ztVec3 in[8];
+	ztVec3 out[8];
+
+	zt_fiz(4) {
+		in[i] = _zt_collisionOBBOBB_mult(basis, incident[i] - r_vec);
+	}
+
+	out_count = _zt_collisionOBBOBB_ortho(1.f, e.x, 0, in, in_count, out);
+	if (out_count == 0) return 0;
+
+	in_count = _zt_collisionOBBOBB_ortho(1.f, e.y, 1, out, out_count, in);
+	if (in_count == 0) return 0;
+
+	out_count = _zt_collisionOBBOBB_ortho(-1.f, e.x, 0, in, in_count, out);
+	if (out_count == 0) return 0;
+
+	in_count = _zt_collisionOBBOBB_ortho(-1.f, e.y, 1, out, out_count, in);
+
+	out_count = 0;
+	zt_fiz(in_count) {
+		r32 d = in[i].z - e.z;
+		if (d <= 0.f) {
+			out_verts[out_count] = in[i];
+			out_verts[out_count] = basis.getMultiply(in[i]) + r_vec;
+			out_depths[out_count++] = d;
+		}
+	}
+
+	return out_count;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_collisionOBBOBB_referenceEdgesAndBasis(ztVec3& e_r, ztMat4 &mat, ztVec3 &norm, i32 axis, ztMat3 *basis, ztVec3 *e)
+{
+	ztVec3 normal = _zt_collisionOBBOBB_mult(zt_mat3(mat), norm).getNormal();
+
+	if (axis >= 3) {
+		axis -= 3;
+	}
+
+	switch(axis)
+	{
+		case 0: {
+			if (normal.x > 0.f) {
+				*e = zt_vec3(e_r.y, e_r.z, e_r.x);
+				basis->cols[0] = mat.cols[1].xyz;
+				basis->cols[1] = mat.cols[2].xyz;
+				basis->cols[2] = mat.cols[0].xyz;
+			}
+			else {
+				*e = zt_vec3(e_r.z, e_r.y, e_r.x);
+				basis->cols[0] = mat.cols[2].xyz;
+				basis->cols[1] = mat.cols[1].xyz;
+				basis->cols[2] = mat.cols[0].xyz * -1.f;
+			}
+		} break;
+
+		case 1: {
+			if (normal.y > 0.f) {
+				*e = zt_vec3(e_r.z, e_r.x, e_r.y);
+				basis->cols[0] = mat.cols[2].xyz;
+				basis->cols[1] = mat.cols[0].xyz;
+				basis->cols[2] = mat.cols[1].xyz;
+			}
+			else {
+				*e = zt_vec3(e_r.z, e_r.x, e_r.y);
+				basis->cols[0] = mat.cols[2].xyz;
+				basis->cols[1] = mat.cols[0].xyz * -1.f;
+				basis->cols[2] = mat.cols[1].xyz * -1.f;
+			}
+		} break;
+
+		case 2: {
+			if (normal.z > 0.f) {
+				*e = zt_vec3(e_r.y, e_r.x, e_r.z);
+				basis->cols[0] = mat.cols[1].xyz;
+				basis->cols[1] = mat.cols[0].xyz * -1.f;
+				basis->cols[2] = mat.cols[2].xyz;
+			}
+			else {
+				*e = zt_vec3(e_r.y, e_r.x, e_r.z);
+				basis->cols[0] = mat.cols[1].xyz * -1.f;
+				basis->cols[1] = mat.cols[0].xyz * -1.f;
+				basis->cols[2] = mat.cols[2].xyz * -1.f;
+			}
+		} break;
+	}
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_collisionAABBInPlane(const ztVec3 &aabb_center, const ztVec3 &aabb_extents, const ztPlane& plane, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionAABBInPlane");
@@ -32680,19 +34170,105 @@ bool zt_collisionAABBInPlane(const ztVec3 &aabb_center, const ztVec3 &aabb_exten
 	r32 int_rad = half_ext.x * zt_abs(plane.normal.x) + half_ext.y * zt_abs(plane.normal.y) + half_ext.z * zt_abs(plane.normal.z);
 	r32 dist = plane.normal.dot(aabb_center) - plane.distance;
 
-	return zt_abs(dist) <= int_rad;
+	if (zt_abs(dist) <= int_rad) {
+
+		if (intersection_point) {
+			ztVec3 verts[8] = {
+				zt_vec3(-half_ext.x,  half_ext.y, -half_ext.z),
+				zt_vec3(-half_ext.x,  half_ext.y,  half_ext.z),
+				zt_vec3( half_ext.x,  half_ext.y,  half_ext.z),
+				zt_vec3( half_ext.x,  half_ext.y, -half_ext.z),
+				zt_vec3(-half_ext.x, -half_ext.y, -half_ext.z),
+				zt_vec3(-half_ext.x, -half_ext.y,  half_ext.z),
+				zt_vec3( half_ext.x, -half_ext.y,  half_ext.z),
+				zt_vec3( half_ext.x, -half_ext.y, -half_ext.z),
+			};
+
+			ztVec2i lines[12] = {
+				zt_vec2i(0, 1),
+				zt_vec2i(1, 2),
+				zt_vec2i(2, 3),
+				zt_vec2i(3, 0),
+
+				zt_vec2i(4, 5),
+				zt_vec2i(5, 6),
+				zt_vec2i(6, 7),
+				zt_vec2i(7, 4),
+
+				zt_vec2i(0, 4),
+				zt_vec2i(1, 5),
+				zt_vec2i(2, 6),
+				zt_vec2i(3, 7),
+			};
+
+			r32 penetrations[12];
+			ztVec3 points[12];
+
+			r32 smallest_penetration = ztReal32Max;
+
+			// test each line, keeping track of smallest penetration... average matching smallest penetrations to get contact point...
+
+			zt_fize(lines) {
+				ztVec3 line_beg = verts[lines[i].x];
+				ztVec3 line_end = verts[lines[i].y];
+				ztVec3 line_dir = (line_end - line_beg);
+
+				r32 dot = plane.normal.dot(line_dir);
+				if (dot == 0) {
+					penetrations[i] = ztReal32Min;
+					continue;
+				}
+
+				bool reverse = dot < 0;
+
+				r32 t = (plane.distance - plane.normal.dot(line_beg)) / dot;
+
+				if (t >= 0.f && t <= 1.f) {
+					points[i] = line_beg + (line_dir * t);
+					if (reverse) t = 1 - 1;
+					penetrations[i] = (line_dir * (1 - t)).length();
+
+					if (penetrations[i] < smallest_penetration) {
+						smallest_penetration = penetrations[i];
+					}
+				}
+				else {
+					penetrations[i] = ztReal32Min;
+				}
+			}
+
+			int intersections = 0;
+			ztVec3 contact_point = ztVec3::zero;
+
+			zt_fize(lines) {
+				//if(zt_real32Close(penetrations[i], smallest_penetration)) {
+				if (penetrations[i] != ztReal32Min) {
+					intersections += 1;
+					contact_point += points[i];
+				}
+			}
+
+			if (intersections > 0) {
+				*intersection_point = contact_point * (1.f / intersections);
+			}
+			//*intersection_point = aabb_center + (plane.normal * -dist);
+		}
+		return true;
+	}
+	
+	return false;
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionTriangleInAABB(const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &aabb_center, const ztVec2& aabb_size)
+bool zt_collisionTriangleInAABB(const ztVec2 &p1, const ztVec2 &p2, const ztVec2 &p3, const ztVec2 &aabb_center, const ztVec2& aabb_size, ztVec3 *intersection_point)
 {
-	return zt_collisionTriangleInAABB(zt_vec3(p1, 0), zt_vec3(p2, 0), zt_vec3(p3, 0), zt_vec3(aabb_center, 0), zt_vec3(aabb_size, 1));
+	return zt_collisionTriangleInAABB(zt_vec3(p1, 0), zt_vec3(p2, 0), zt_vec3(p3, 0), zt_vec3(aabb_center, 0), zt_vec3(aabb_size, 1), intersection_point);
 }
 
 // ================================================================================================================================================================================================
 
-bool zt_collisionTriangleInAABB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &aabb_center, const ztVec3& aabb_size)
+bool zt_collisionTriangleInAABB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &aabb_center, const ztVec3& aabb_size, ztVec3 *intersection_point)
 {
 	ZT_PROFILE_PHYSICS("zt_collisionTriangleInAABB");
 
@@ -32781,7 +34357,45 @@ bool zt_collisionTriangleInAABB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3
 	}
 
 	ztPlane plane = zt_planeMake(p1, p2, p3);
-	return zt_collisionAABBInPlane(aabb_center, aabb_size, plane);
+
+	return zt_collisionAABBInPlane(aabb_center, aabb_size, plane, intersection_point);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionTriangleInOBB(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &obb_center, const ztVec3& obb_size, const ztQuat &obb_rot, ztVec3 *intersection_point)
+{
+	ztMat4 transform = zt_transformToMat4(obb_center, obb_rot).getInverse();
+
+	ztVec3 rp1 = transform.getMultiply(p1);
+	ztVec3 rp2 = transform.getMultiply(p2);
+	ztVec3 rp3 = transform.getMultiply(p3);
+
+	if (zt_collisionTriangleInAABB(rp1, rp2, rp3, ztVec3::zero, obb_size, intersection_point)) {
+		if (intersection_point) {
+			*intersection_point = transform.getInverse().getMultiply(*intersection_point);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionTriangleInSphere(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *intersection_point)
+{
+	ztVec3 closest_pt = zt_closestPointTrianglePoint(p1, p2, p3, sphere_center);
+	ztVec3 diff = closest_pt - sphere_center;
+
+	if (diff.dot(diff) <= sphere_radius * sphere_radius) {
+		if (intersection_point) {
+			*intersection_point = closest_pt;
+		}
+		return true;
+	}
+
+	return false;
 }
 
 // ================================================================================================================================================================================================
@@ -32957,24 +34571,6 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec
 
 	struct local
 	{
-		static ztVec3 mult(const ztMat4 &mat, const ztVec3 &v)
-		{
-			ztMat3 mat3 = zt_mat3(mat);
-			mat3.transpose();
-
-			ztVec3 pos = mat.cols[3].xyz;
-
-			return mat3.getMultiply(v - pos);
-		}
-
-		static ztVec3 mult(const ztMat3 &mat, const ztVec3 &v)
-		{
-			ztMat3 mat3 = mat;
-			mat3.transpose();
-
-			return mat3.getMultiply(v);
-		}
-
 		static bool testFace(i32 *max_axis, i32 axis, r32 sp, r32 *max_sp, r32 ra, r32 rb, const ztVec3 &normal, ztVec3 *axis_normal)
 		{
 			if (sp > ra + rb) return false;
@@ -33006,186 +34602,9 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec
 			return true;
 		}
 
-		static void incidentFace(ztMat4 &itx, const ztVec3 &e, const ztVec3 &norm, ztVec3 *clip_vert)
-		{
-			ztVec3 normal = mult(zt_mat3(itx), norm) * -1.f;
-			ztVec3 normal_abs = zt_vec3(zt_abs(normal.x), zt_abs(normal.y), zt_abs(normal.z));
-
-			if (normal_abs.x > normal_abs.y && normal_abs.x > normal_abs.z) {
-				if (normal.x > 0.f) {
-					clip_vert[0] = zt_vec3(e.x,  e.y, -e.z);
-					clip_vert[1] = zt_vec3(e.x,  e.y,  e.z);
-					clip_vert[2] = zt_vec3(e.x, -e.y, -e.z);
-					clip_vert[3] = zt_vec3(e.x, -e.y, -e.z);
-				}
-				else {
-					clip_vert[0] = zt_vec3(-e.x, -e.y,  e.z);
-					clip_vert[1] = zt_vec3(-e.x,  e.y,  e.z);
-					clip_vert[2] = zt_vec3(-e.x,  e.y, -e.z);
-					clip_vert[3] = zt_vec3(-e.x, -e.y, -e.z);
-				}
-			}
-			else if (normal_abs.y > normal_abs.x && normal_abs.y > normal_abs.z) {
-				if (normal.y > 0.f) {
-					clip_vert[0] = zt_vec3(-e.x,  e.y,  e.z);
-					clip_vert[1] = zt_vec3( e.x,  e.y,  e.z);
-					clip_vert[2] = zt_vec3( e.x,  e.y, -e.z);
-					clip_vert[3] = zt_vec3(-e.x,  e.y, -e.z);
-				}
-				else {
-					clip_vert[0] = zt_vec3( e.x, -e.y,  e.z);
-					clip_vert[1] = zt_vec3(-e.x, -e.y,  e.z);
-					clip_vert[2] = zt_vec3(-e.x, -e.y, -e.z);
-					clip_vert[3] = zt_vec3( e.x, -e.y, -e.z);
-				}
-			}
-			else {
-				if (normal.z > 0.f) {
-					clip_vert[0] = zt_vec3(-e.x,  e.y,  e.z);
-					clip_vert[1] = zt_vec3(-e.x, -e.y,  e.z);
-					clip_vert[2] = zt_vec3( e.x, -e.y,  e.z);
-					clip_vert[3] = zt_vec3( e.x,  e.y,  e.z);
-				}
-				else {
-					clip_vert[0] = zt_vec3( e.x, -e.y, -e.z);
-					clip_vert[1] = zt_vec3(-e.x, -e.y, -e.z);
-					clip_vert[2] = zt_vec3(-e.x,  e.y, -e.z);
-					clip_vert[3] = zt_vec3( e.x,  e.y, -e.z);
-				}
-			}
-
-			zt_fiz(4) {
-				clip_vert[i] = itx.getMultiply(clip_vert[i]);
-			}
-		}
-
-		static void referenceEdgesAndBasis(ztVec3& e_r, ztMat4 &mat, ztVec3 &norm, i32 axis, ztMat3 *basis, ztVec3 *e)
-		{
-			ztVec3 normal = mult(zt_mat3(mat), norm).getNormal();
-
-			if (axis >= 3) {
-				axis -= 3;
-			}
-
-			switch(axis)
-			{
-				case 0: {
-					if (normal.x > 0.f) {
-						*e = zt_vec3(e_r.y, e_r.z, e_r.x);
-						basis->cols[0] = mat.cols[1].xyz;
-						basis->cols[1] = mat.cols[2].xyz;
-						basis->cols[2] = mat.cols[0].xyz;
-					}
-					else {
-						*e = zt_vec3(e_r.z, e_r.y, e_r.x);
-						basis->cols[0] = mat.cols[2].xyz;
-						basis->cols[1] = mat.cols[1].xyz;
-						basis->cols[2] = mat.cols[0].xyz * -1.f;
-					}
-				} break;
-
-				case 1: {
-					if (normal.y > 0.f) {
-						*e = zt_vec3(e_r.z, e_r.x, e_r.y);
-						basis->cols[0] = mat.cols[2].xyz;
-						basis->cols[1] = mat.cols[0].xyz;
-						basis->cols[2] = mat.cols[1].xyz;
-					}
-					else {
-						*e = zt_vec3(e_r.z, e_r.x, e_r.y);
-						basis->cols[0] = mat.cols[2].xyz;
-						basis->cols[1] = mat.cols[0].xyz * -1.f;
-						basis->cols[2] = mat.cols[1].xyz * -1.f;
-					}
-				} break;
-
-				case 2: {
-					if (normal.z > 0.f) {
-						*e = zt_vec3(e_r.y, e_r.x, e_r.z);
-						basis->cols[0] = mat.cols[1].xyz;
-						basis->cols[1] = mat.cols[0].xyz * -1.f;
-						basis->cols[2] = mat.cols[2].xyz;
-					}
-					else {
-						*e = zt_vec3(e_r.y, e_r.x, e_r.z);
-						basis->cols[0] = mat.cols[1].xyz * -1.f;
-						basis->cols[1] = mat.cols[0].xyz * -1.f;
-						basis->cols[2] = mat.cols[2].xyz * -1.f;
-					}
-				} break;
-			}
-		}
-
-		static i32 ortho(r32 sign, r32 e, i32 axis, ztVec3 *in, i32 in_count, ztVec3 *out)
-		{
-			i32 out_count = 0;
-			ztVec3 a = in[in_count - 1];
-
-			zt_fiz(in_count) {
-				ztVec3 b = in[i];
-
-				r32 da = sign * a.values[axis] - e;
-				r32 db = sign * b.values[axis] - e;
-
-				ztVec3 cv;
-
-				if ((da < .0f && db < .0f) || (zt_between(da, -.005f, .005) || zt_between(db, -.005f, .005f))) {
-					out[out_count++] = b;
-				}
-				else if (da < .0f && db >= 0.f) {
-					cv = a + (b - a) * (da / (da - db));
-					out[out_count++] = cv;
-				}
-				else if (da >= 0.f && db < .0f) {
-					cv = a + (b - a) * (da / (da - db));
-					out[out_count++] = cv;
-					out[out_count++] = b;
-				}
-
-				a = b;
-			}
-
-			return out_count;
-		}
-
-		static i32 clip(const ztVec3& r_vec, const ztVec3& e, const ztMat3& basis, ztVec3 *incident, ztVec3 *out_verts, r32 *out_depths)
-		{
-			i32 in_count = 4;
-			i32 out_count = 0;
-			ztVec3 in[8];
-			ztVec3 out[8];
-
-			zt_fiz(4) {
-				in[i] = mult(basis, incident[i] - r_vec);
-			}
-
-			out_count = ortho(1.f, e.x, 0, in, in_count, out);
-			if (out_count == 0) return 0;
-
-			in_count = ortho(1.f, e.y, 1, out, out_count, in);
-			if (in_count == 0) return 0;
-
-			out_count = ortho(-1.f, e.x, 0, in, in_count, out);
-			if (out_count == 0) return 0;
-
-			in_count = ortho(-1.f, e.y, 1, out, out_count, in);
-
-			out_count = 0;
-			zt_fiz(in_count) {
-				r32 d = in[i].z - e.z;
-				if (d <= 0.f) {
-					out_verts[out_count] = in[i];
-					out_verts[out_count] = basis.getMultiply(in[i]) + r_vec;
-					out_depths[out_count++] = d;
-				}
-			}
-
-			return out_count;
-		}
-
 		static void supportEdge(const ztMat4 &mat, const ztVec3 &e, const ztVec3& norm, ztVec3 *p_out, ztVec3 *q_out)
 		{
-			ztVec3 normal = mult(mat, norm).getNormal();
+			ztVec3 normal = _zt_collisionOBBOBB_mult(mat, norm).getNormal();
 			ztVec3 normal_abs = zt_vec3(zt_abs(normal.x), zt_abs(normal.y), zt_abs(normal.z));
 
 			ztVec3 p, q;
@@ -33395,18 +34814,18 @@ int zt_collisionOBBInOBBGetContactPoints(const ztVec3 &obb_center_1, const ztVec
 		}
 
 		ztVec3 incident[4];
-		local::incidentFace(i_mat, i_vec, final_norm, incident);
+		_zt_collisionOBBOBB_incidentFace(i_mat, i_vec, final_norm, incident);
 
 		ztMat3 basis;
 		ztVec3 e;
 
-		local::referenceEdgesAndBasis(r_vec, r_mat, final_norm, final_axis, &basis, &e);
+		_zt_collisionOBBOBB_referenceEdgesAndBasis(r_vec, r_mat, final_norm, final_axis, &basis, &e);
 
 		final_norm.normalize();
 
 		ztVec3 out[8];
 		r32 depths[8];
-		i32 out_count = local::clip(r_tra.position, e, basis, incident, out, depths);
+		i32 out_count = _zt_collisionOBBOBB_clip(r_tra.position, e, basis, incident, out, depths);
 		if (out_count > 0) {
 			if (contact_normal) *contact_normal = flip ? final_norm * -1 : final_norm;
 
@@ -34019,6 +35438,57 @@ ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size,
 	obb_rot.rotatePosition(&cp);
 
 	return cp + obb_center;
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_closestPointTrianglePoint(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3& point)
+{
+	ztVec3 p2_1 = p2 - p1;
+	ztVec3 p3_1 = p3 - p1;
+	ztVec3 p3_2 = p3 - p2;
+
+	ztVec3 pmp1 = point - p1;
+	ztVec3 pmp2 = point - p2;
+	ztVec3 pmp3 = point - p3;
+
+	r32 snom = pmp1.dot(p2_1);
+	r32 sdenom = pmp2.dot(p1 - p2);
+
+	r32 tnom = pmp1.dot(p3_1);
+	r32 tdenom = pmp3.dot(p1 - p3);
+
+	if (snom <= 0.f && tnom <= 0.f) {
+		return p1;
+	}
+
+	r32 unom = pmp2.dot(p3_2);
+	r32 udenom = pmp3.dot(p1 - p3);
+
+	if (sdenom <= 0.f && unom <= 0.f) return p2;
+	if (tdenom <= 0.f && udenom <= 0.f) return p3;
+
+	ztVec3 n = p2_1.cross(p3_1);
+
+	r32 vc = n.dot( (p1 - point).cross(p2 - point));
+	if (vc <= 0.f && snom >= 0.f && sdenom >= 0.f) {
+		return p1 + snom / (snom + sdenom) * p2_1;
+	}
+
+	r32 va = n.dot( (p2 - point).cross(p3 - point) );
+	if (va <= 0.f && unom >= 0.f && udenom >= 0.f) {
+		return p2 + unom / (unom + udenom) * p3_2;
+	}
+
+	r32 vb = n.dot( (p3 - point).cross(p1 - point) );
+	if (vb <= 0.f && tnom >= 0.f && tdenom >= 0.f) {
+		return p1 + tnom / (tnom + tdenom) * p3_1;
+	}
+
+	r32 u = va / (va + vb + vc);
+	r32 v = vb / (va + vb + vc);
+	r32 w = 1.f - u - v;
+	return u * p1 + v * p2 + w * p3;
 }
 
 // ================================================================================================================================================================================================
@@ -42390,6 +43860,8 @@ int CALLBACK WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, LPSTR cmd_
 
 ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 {
+	ZT_PROFILE_PLATFORM("_zt_winCallbackKeyboard");
+
 	u32 key_code = (uint32)msg.wParam;
 	bool is_down = !zt_bitIsSet(msg.lParam, (1<<31));
 	bool was_down = zt_bitIsSet(msg.lParam, (1<<30));
@@ -42434,6 +43906,8 @@ ztInternal void _zt_winCallbackKeyboard(MSG& msg)
 
 LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l_param)
 {
+	ZT_PROFILE_PLATFORM("_zt_winCallback");
+
 	ztGameSettings *game_settings = nullptr;
 	ztWindowDetails *window_details = nullptr;
 
