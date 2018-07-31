@@ -2330,6 +2330,7 @@ ztDebugDisplayItem *zt_debugDisplayGuiLine(const ztVec3 &p0, const ztVec3 &p1, c
 ztDebugDisplayItem *zt_debugDisplayGuiCircle(r32 radius, i32 points, const ztVec2 &pos, const ztColor &color);
 ztDebugDisplayItem *zt_debugDisplayGuiRect(const ztVec2 &size, const ztVec2 &pos, const ztColor &color);
 ztDebugDisplayItem *zt_debugDisplayGuiText(const char *text, const ztVec2 &pos, const ztColor &color);
+ztDebugDisplayItem *zt_debugDisplayGuiTextList(const char *text);
 
 ztDebugDisplayItem *zt_debugDisplayLine(const ztVec3 &p0, const ztVec3 &p1, const ztColor &color);
 ztDebugDisplayItem *zt_debugDisplayCircle(r32 radius, i32 points, const ztVec2 &pos, const ztColor &color);
@@ -2352,7 +2353,9 @@ void zt_debugDisplayCleanup();
 void zt_debugDisplayRemoveGuidItems(const ztGuid &guid);
 
 void zt_debugDisplayRenderWorld(ztDrawList *draw_list, ztCamera *camera);
-void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera);
+void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera, bool clear_for_next_frame = true);
+
+void zt_debugDisplayManualClear();
 
 
 
@@ -2501,6 +2504,7 @@ enum ztBoneFlags_Enum
 struct ztModel;
 struct ztSpriteAnimController;
 struct ztParticleEmitter;
+struct ztAnimController;
 
 // ================================================================================================================================================================================================
 
@@ -2645,6 +2649,8 @@ struct ztModel
 	ztMat4                  prev_mat;
 	ztVec3                  aabb_center, aabb_size;
 	ztVec3                  obb_center, obb_size;
+
+	ztAnimController       *anim_controller;
 };
 
 // ================================================================================================================================================================================================
@@ -2674,8 +2680,6 @@ struct ztModelLoaderInput
 	int               bones_used;     // (OUT) number of bones used out of cache
 
 	ztModel          *root_model;     // (OUT) the root model of the hierarchy
-
-	ztAnimController *animations;
 };
 
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, ztAssetManager *asset_manager, ztAssetID asset_id, ztShaderID shader, int flags);
@@ -2911,10 +2915,15 @@ void     zt_sceneAddDepthPass(ztScene *scene, i32 w, i32 h);
 
 void     zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
 void     zt_sceneRemoveModel(ztScene *scene, ztModel *model);
+void     zt_sceneRefreshModel(ztScene *scene, ztModel *model);
 bool     zt_sceneHasModel(ztScene *scene, ztModel *model);
 
 bool     zt_sceneAddRenderOverride(ztScene *scene, ZT_FUNCTION_POINTER_VAR(render_override, ztSceneRenderModelOverride_Func), void *render_override_user_data);
 bool     zt_sceneAddRenderOverrideForModel(ztScene *scene, ztModel *model, ZT_FUNCTION_POINTER_VAR(render_override, ztSceneRenderModelOverride_Func), void *render_override_user_data);
+
+// --------------------------------------------------------
+// Updates model animations
+void     zt_sceneUpdate(ztScene *scene, r32 dt);
 
 // --------------------------------------------------------
 // Calculates matrices for scene models (should be called after physics)
@@ -3044,6 +3053,7 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 bool zt_ocTreeMake(ztOcTree *octree, ztAssetManager *asset_mgr, ztAssetID asset_id);
 void zt_ocTreeFree(ztOcTree *octree);
 i32  zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 center, ztVec3 size);
+i32  zt_ocTreeFindNodesThatIntersectLine(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 line_beg, ztVec3 line_end);
 
 bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file);
 bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial);
@@ -5914,6 +5924,7 @@ enum ztDebugDisplayType_Enum
 	ztDebugDisplayType_GuiCircle,
 	ztDebugDisplayType_GuiRect,
 	ztDebugDisplayType_GuiText,
+	ztDebugDisplayType_GuiTextList,
 
 	ztDebugDisplayType_Line,
 	ztDebugDisplayType_Circle,
@@ -7195,6 +7206,7 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 		}
 		if (ps == nullptr) {
 			if (pt->allocations_current_section >= ZT_PROFILER_MAX_SECTIONS_PER_FRAME) {
+				zt_debugOnly(zt_assert(false));
 				return nullptr;
 			}
 
@@ -12240,7 +12252,7 @@ ztInternal ztDebugDisplayItem _zt_debugDisplayItemDummy;
 			if (zt_game->debug_display == nullptr || zt_game->debug_display->display_entries_count >= zt_game->debug_display->display_entries_size) { \
 				zt_memSet(&_zt_debugDisplayItemDummy, zt_sizeof(ztDebugDisplayItem), 0); \
 				return &_zt_debugDisplayItemDummy; \
-			} \
+						} \
 			ztDebugDisplayEntry *display_entry = &zt_game->debug_display->display_entries[zt_game->debug_display->display_entries_count++]; \
 			display_entry->type = display_type; \
 			display_entry->color = color; \
@@ -12316,6 +12328,20 @@ ztDebugDisplayItem *zt_debugDisplayGuiText(const char *text, const ztVec2 &pos, 
 
 	display_entry->transform = _zt_debugDisplayPosToMat(pos);
 	display_entry->text.text = zt_stringMakeFrom(&zt_game->debug_display->string_pool, text);
+
+	return &display_entry->item;
+}
+
+// ================================================================================================================================================================================================
+
+ztDebugDisplayItem *zt_debugDisplayGuiTextList(const char *text)
+{
+	ztColor color = ztColor_White;;
+	_zt_debugDisplayCheck(ztDebugDisplayType_GuiTextList);
+
+	display_entry->transform = ztMat4::identity;
+	display_entry->text.text = zt_stringMakeFrom(&zt_game->debug_display->string_pool, text);
+	display_entry->item.time_to_persist = 3.f;
 
 	return &display_entry->item;
 }
@@ -12513,7 +12539,7 @@ void zt_debugDisplayRemoveGuidItems(const ztGuid &guid)
 
 	zt_fizr(zt_game->debug_display->display_entries_count - 1) {
 		if (zt_game->debug_display->display_entries[i].item.guid == guid) {
-			if (zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_GuiText || zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_Text) {
+			if (zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_GuiText || zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_GuiTextList || zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_Text) {
 				zt_stringFree(&zt_game->debug_display->string_pool, zt_game->debug_display->display_entries[i].text.text);
 			}
 
@@ -12549,6 +12575,7 @@ void zt_debugDisplayRenderWorld(ztDrawList *draw_list, ztCamera *camera)
 			case ztDebugDisplayType_GuiCircle:
 			case ztDebugDisplayType_GuiRect:
 			case ztDebugDisplayType_GuiText:
+			case ztDebugDisplayType_GuiTextList:
 				need_continue = true;
 				break;
 		}
@@ -12614,7 +12641,7 @@ void zt_debugDisplayRenderWorld(ztDrawList *draw_list, ztCamera *camera)
 
 // ================================================================================================================================================================================================
 
-void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera)
+void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera, bool clear_for_next_frame)
 {
 	if (zt_game->debug_display == nullptr) {
 		return;
@@ -12624,6 +12651,22 @@ void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera)
 	zt_drawListPushTexture(draw_list, ztTextureDefault);
 
 	ztColor prev_color = ztVec4::min;
+
+	ztVec2 cam_min = zt_cameraOrthoGetMinExtent(camera);
+	ztVec2 gui_list_pos = cam_min + zt_vec2(1, 1);
+
+	i32 gui_list_count = 0;
+	zt_fiz(zt_game->debug_display->display_entries_count) {
+		if (zt_game->debug_display->display_entries[i].type == ztDebugDisplayType_GuiTextList) {
+			gui_list_count += 1;
+		}
+	}
+
+	ztVec2 text_ext = ztVec2::zero;
+	if (gui_list_count > 1) {
+		text_ext = zt_fontGetExtents(ztFontDefault, "[ABC],");
+		gui_list_pos.y += text_ext.y * gui_list_count;
+	}
 
 	zt_fiz(zt_game->debug_display->display_entries_count) {
 
@@ -12673,6 +12716,20 @@ void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera)
 			case ztDebugDisplayType_GuiText: {
 				zt_drawListAddFancyText2D(draw_list, ztFontDefault, entry->text.text, ztVec2::zero);
 			} break;
+
+			case ztDebugDisplayType_GuiTextList: {
+
+				ztColor color = ztColor_White;
+				
+				r32 percent = entry->persist_time / entry->item.time_to_persist;
+				if (percent > .8f) {
+					color = ztVec4::lerp(ztColor_White, ztVec4::zero, zt_linearRemap(percent, .8f, 1, 0.f, 1.f));
+				}
+
+				zt_drawListAddFancyText2D(draw_list, ztFontDefault, entry->text.text, gui_list_pos, ztAlign_Left, ztAnchor_Left, nullptr, color);
+
+				gui_list_pos.y -= text_ext.y;
+			} break;
 		}
 
 		zt_drawListPopTransform(draw_list);
@@ -12690,9 +12747,41 @@ void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera)
 	zt_fizr(zt_game->debug_display->display_entries_count - 1) {
 		ztDebugDisplayEntry *entry = &zt_game->debug_display->display_entries[i];
 
-		bool should_remove = true;
+		bool should_remove = clear_for_next_frame;
 		if (entry->item.time_to_persist > 0) {
 			entry->persist_time += zt_game->game_details.current_dt;
+			if (entry->persist_time <= entry->item.time_to_persist) {
+				should_remove = false;
+			}
+		}
+		if (entry->item.guid != guid_zero) {
+			should_remove = false;
+		}
+
+		if (should_remove) {
+			if (entry->type == ztDebugDisplayType_GuiText || entry->type == ztDebugDisplayType_Text) {
+				zt_stringFree(&zt_game->debug_display->string_pool, entry->text.text);
+			}
+
+			for (int j = i; j < zt_game->debug_display->display_entries_count - 1; ++j) {
+				zt_memCpy(&zt_game->debug_display->display_entries[j], zt_sizeof(ztDebugDisplayEntry), &zt_game->debug_display->display_entries[j + 1], zt_sizeof(ztDebugDisplayEntry));
+			}
+			zt_game->debug_display->display_entries_count -= 1;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_debugDisplayManualClear()
+{
+	ztGuid guid_zero = zt_guidMake(0, 0, 0, 0);
+
+	zt_fizr(zt_game->debug_display->display_entries_count - 1) {
+		ztDebugDisplayEntry *entry = &zt_game->debug_display->display_entries[i];
+
+		bool should_remove = true;
+		if (entry->item.time_to_persist > 0) {
 			if (entry->persist_time <= entry->item.time_to_persist) {
 				should_remove = false;
 			}
@@ -14470,6 +14559,7 @@ ztInternal bool _zt_modelMakeBase(ztModel *model, ztMeshID mesh_id, ztVertexArra
 	model->calculated_mat     = ztMat4::identity;
 	model->aabb_size          = model->aabb_center = ztVec3::min;
 	model->obb_size           = model->obb_center = ztVec3::min;
+	model->anim_controller    = nullptr;
 
 	if (parent != nullptr) {
 		zt_singleLinkAddToEnd(parent->first_child, model);
@@ -14549,6 +14639,10 @@ void zt_modelFree(ztModel *model)
 	}
 	if (model->type == ztModelType_Mesh && model->mesh_id != ztInvalidID && zt_bitIsSet(model->flags, ztModelFlags_OwnsMesh)) {
 		zt_meshFree(model->mesh_id);
+	}
+
+	if (model->anim_controller) {
+		zt_animControllerFree(model->anim_controller);
 	}
 
 	zt_memSet(model, zt_sizeof(ztModel), 0);
@@ -14703,6 +14797,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 						serialCheck(zt_serialRead(&serial, &transform.position));
 						serialCheck(zt_serialRead(&serial, &transform.rotation));
 						serialCheck(zt_serialRead(&serial, &transform.scale));
+						transform.scale = ztVec3::one;
 
 						input->bones[i].mat_inverse_bind_transform = zt_transformToMat4(&transform);
 
@@ -14738,7 +14833,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 						{
 							ztTransform transform = zt_transformFromMat4(&bone->mat_model);
 							transform.rotation = ztQuat::makeFromEuler(transform.rotation.euler());
-							transform.scale = ztVec3::one;
+							//transform.scale = ztVec3::one;
 							bone->mat_model = zt_transformToMat4(&transform);
 						}
 
@@ -14748,7 +14843,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 						ztMat4 mat_local = bone->parent ? bone->parent->mat_model.getInverse() * bone->mat_model : bone->mat_model;
 						bone->transform = zt_transformFromMat4(&mat_local);
 						bone->transform.rotation = ztQuat::makeFromEuler(bone->transform.rotation.euler());
-						bone->transform.scale = ztVec3::one;
+						//bone->transform.scale = ztVec3::one;
 
 						zt_flink(child, bone->first_child) {
 							calcInverseBindTransform(child);
@@ -15328,7 +15423,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 			serialCheck(zt_serialRead(&serial, &animations_count));
 
 			if (animations_count > 0) {
-				input->animations = zt_animControllerMake(animations_count + 1); // +1 to always include a "TPose" animation which positions the model in the default vertex position
+				input->root_model->anim_controller = zt_animControllerMake(animations_count + 1); // +1 to always include a "TPose" animation which positions the model in the default vertex position
 
 				struct BoneAnim
 				{
@@ -15365,7 +15460,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 					}
 
 					ztAnimSequence *sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, layers, layers_count, false);
-					zt_animControllerAddSequence(input->animations, "TPose", sequence);
+					zt_animControllerAddSequence(input->root_model->anim_controller, "TPose", sequence);
 				}
 			}
 		}
@@ -15585,7 +15680,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 
 				if (layers_count > 0) {
 					ztAnimSequence *sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, layers, layers_count, true);
-					zt_animControllerAddSequence(input->animations, anim_name, sequence);
+					zt_animControllerAddSequence(input->root_model->anim_controller, anim_name, sequence);
 				}
 			}
 			serialCheck(zt_serialGroupPop(&serial));
@@ -15627,6 +15722,8 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 			}
 			input->models[i].material = materials[model_material_indexes[i]];
 		}
+
+		input->models[i].flags |= ztModelFlags_Initialized;
 	}
 	
 
@@ -15709,7 +15806,7 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
 
 				zt_memCpy(model->bones, zt_sizeof(ztBone) * model->bones_count, model_to_clone->bones, zt_sizeof(ztBone) * model_to_clone->bones_count);
 
-				zt_fiz(model_to_clone->bones) {
+				zt_fiz(model_to_clone->bones_count) {
 					if (model_to_clone->bones[i].parent) {
 						zt_fjz(model_to_clone->bones) {
 							if (model_to_clone->bones[i].parent == &model_to_clone->bones[j]) {
@@ -15737,6 +15834,51 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
 
 					if (model_to_clone->bones[i].name) {
 						model->bones[i].name = zt_stringMakeFrom(model_to_clone->bones[i].name);
+					}
+				}
+
+				if (model_to_clone->anim_controller) {
+					model->anim_controller = zt_animControllerMake(model_to_clone->anim_controller->sequences_size, model_to_clone->anim_controller->anim_async_count);
+
+					zt_fvz(seq_idx, model_to_clone->anim_controller->sequences_count) {
+						ztAnimSequence *seq = model_to_clone->anim_controller->sequences[seq_idx];
+
+						ztAnimLayer *nlayers = zt_mallocStructArrayArena(ztAnimLayer, seq->layers_count, zt_memGetTempArena());
+
+						zt_fvz(lay_idx, seq->layers_count) {
+							ztAnimLayer *layer = &seq->layers[lay_idx];
+
+							ztVariantPointer layer_target;
+							bool layer_target_found = false;
+
+							zt_fvz(bone_idx, model_to_clone->bones_count) {
+								if(layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.position) {
+									layer_target_found = true;
+									layer_target = zt_variantPointerMake_vec3(&model->bones[bone_idx].transform.position);
+									break;
+								}
+								if(layer->target.type == ztVariant_quat && layer->target.v_quat == &model_to_clone->bones[bone_idx].transform.rotation) {
+									layer_target_found = true;
+									layer_target = zt_variantPointerMake_quat(&model->bones[bone_idx].transform.rotation);
+									break;
+								}
+								if(layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.scale) {
+									layer_target_found = true;
+									layer_target = zt_variantPointerMake_vec3(&model->bones[bone_idx].transform.scale);
+									break;
+								}
+							}
+
+							zt_assertReturnOnFail(layer_target_found);
+
+							nlayers[lay_idx] = zt_animLayerMake(layer_target, layer->keys, layer->keys_count, layer->name);
+						}
+
+						ztAnimSequence *nseq = zt_animSequenceMake(seq->type, nlayers, seq->layers_count, seq->loops);
+
+						zt_freeArena(nlayers, zt_memGetTempArena());
+
+						zt_animControllerAddSequence(model->anim_controller, model_to_clone->anim_controller->sequences_name[seq_idx], nseq);
 					}
 				}
 			}
@@ -16898,6 +17040,51 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 
 // ================================================================================================================================================================================================
 
+ztInternal void _zt_sceneModelRefresh(ztScene *scene, int model_idx, bool process)
+{
+	struct local
+	{
+		static void processModel(ztScene *scene, i32 model_idx, ztModel *model, i32 flags, ztModel *root_parent)
+		{
+			if (model->type != ztModelType_Empty) {
+				zt_modelGetAABB(scene->models[model_idx].model, &scene->models[model_idx].aabb_center, &scene->models[model_idx].aabb_size);
+			}
+
+			// add the sub models to the scene (so they can be culled)
+
+			zt_flink(child, model->first_child) {
+				int idx = -1;
+				if (child->type != ztModelType_Empty) {
+					idx = scene->models_count++;
+					zt_assertReturnOnFail(idx < scene->models_size);
+
+					scene->models[idx].model         = child;
+					scene->models[idx].dist_from_cam = 0;
+					scene->models[idx].flags         = flags;
+					scene->models[idx].root_parent   = root_parent;
+				}
+
+				processModel(scene, idx, child, flags, root_parent);
+			}
+		}
+	};
+
+	if (zt_shaderHasVariable(scene->models[model_idx].model->shader, "light_pos", nullptr)) {
+		scene->models[model_idx].flags |= ztSceneModelFlags_ShaderLit;
+	}
+	if (zt_shaderHasVariable(scene->models[model_idx].model->shader, "bones_count", nullptr)) {
+		scene->models[model_idx].flags |= ztSceneModelFlags_ShaderBones;
+	}
+
+	if (process) {
+		local::processModel(scene, model_idx, scene->models[model_idx].model, scene->models[model_idx].flags, scene->models[model_idx].model);
+	}
+
+	_zt_sceneRebuildLists(scene);
+}
+
+// ================================================================================================================================================================================================
+
 void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_sceneAddModel");
@@ -16928,43 +17115,7 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 	scene->models[idx].index           = idx;
 	scene->models[idx].render_override = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 
-	struct local
-	{
-		static void processModel(ztScene *scene, i32 model_idx, ztModel *model, i32 flags, ztModel *root_parent)
-		{
-			if (model->type != ztModelType_Empty) {
-				zt_modelGetAABB(scene->models[model_idx].model, &scene->models[model_idx].aabb_center, &scene->models[model_idx].aabb_size);
-			}
-
-			// add the sub models to the scene (so they can be culled)
-
-			zt_flink(child, model->first_child) {
-				int idx = -1;
-				if (child->type != ztModelType_Empty) {
-					idx = scene->models_count++;
-					zt_assertReturnOnFail(idx < scene->models_size);
-
-					scene->models[idx].model         = child;
-					scene->models[idx].dist_from_cam = 0;
-					scene->models[idx].flags         = flags;
-					scene->models[idx].root_parent   = root_parent;
-				}
-
-				processModel(scene, idx, child, flags, root_parent);
-			}
-		}
-	};
-
-	if (zt_shaderHasVariable(model->shader, "light_pos", nullptr)) {
-		scene->models[idx].flags |= ztSceneModelFlags_ShaderLit;
-	}
-	if (zt_shaderHasVariable(model->shader, "bones_count", nullptr)) {
-		scene->models[idx].flags |= ztSceneModelFlags_ShaderBones;
-	}
-
-	local::processModel(scene, idx, model, scene->models[idx].flags, model);
-
-	_zt_sceneRebuildLists(scene);
+	_zt_sceneModelRefresh(scene, idx, true);
 }
 
 // ================================================================================================================================================================================================
@@ -16986,7 +17137,7 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 
 			// remove any sub models
 			if (model->parent == nullptr) {
-				zt_fizr(scene->models_count - 1) {
+				zt_fizr(scene->models_count) {
 					if (scene->models[i].root_parent == model) {
 						zt_sceneRemoveModel(scene, scene->models[i].model);
 					}
@@ -16998,6 +17149,24 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 	}
 
 	zt_assert(false); // should not be removing a model that doesn't exist in the scene
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneRefreshModel(ztScene *scene, ztModel *model)
+{
+	ZT_PROFILE_RENDERING("zt_sceneRefreshModel");
+	zt_returnOnNull(scene);
+	zt_returnOnNull(model);
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model == model) {
+			_zt_sceneModelRefresh(scene, i, false);
+			return;
+		}
+	}
+
+	zt_assert(false); // should not be working with a model that doesn't exist in the scene
 }
 
 // ================================================================================================================================================================================================
@@ -17018,6 +17187,31 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 	}
 
 	return false;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneUpdate(ztScene *scene, r32 dt)
+{
+	ZT_PROFILE_RENDERING("zt_sceneUpdate");
+
+	ztAnimController *anim_controllers[128];
+	i32               anim_controllers_count = 0;
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model->anim_controller) {
+			if (anim_controllers_count == zt_elementsOf(anim_controllers)) {
+				zt_animControllerUpdate(anim_controllers, anim_controllers_count, dt);
+				anim_controllers_count = 0;
+			}
+
+			anim_controllers[anim_controllers_count++] = scene->models[i].model->anim_controller;
+		}
+	}
+
+	if (anim_controllers_count > 0) {
+		zt_animControllerUpdate(anim_controllers, anim_controllers_count, dt);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -18930,6 +19124,43 @@ i32 zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i3
 
 // ================================================================================================================================================================================================
 
+i32 zt_ocTreeFindNodesThatIntersectLine(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 line_beg, ztVec3 line_end)
+{
+	ZT_PROFILE_GAME("zt_ocTreeFindNodesThatIntersectLine");
+	zt_returnValOnNull(octree, 0);
+	zt_returnValOnNull(octree->root_node, 0);
+
+	struct local
+	{
+		static void testIntersect(ztOcTree::Node *node, ztOcTree::Node **nodes, i32 nodes_size, i32 *nodes_idx, ztVec3 line_beg, ztVec3 line_end)
+		{
+			if (!zt_collisionLineSegmentInAABB(line_beg, line_end, node->center, node->size)) {
+				return;
+			}
+
+			if (node->objects_count > 0) {
+				int idx = (*nodes_idx)++;
+				if (idx < nodes_size) {
+					nodes[idx] = node;
+				}
+			}
+			else {
+				zt_fize(node->nodes) {
+					if (node->nodes[i]) {
+						testIntersect(node->nodes[i], nodes, nodes_size, nodes_idx, line_beg, line_end);
+					}
+				}
+			}
+		}
+	};
+
+	i32 nodes_idx = 0;
+	local::testIntersect(octree->root_node, nodes, nodes_size, &nodes_idx, line_beg, line_end);
+	return nodes_idx;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file)
 {
 	ZT_PROFILE_GAME("zt_ocTreeSaveToFile");
@@ -19026,7 +19257,12 @@ bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial)
 		zt_assertReturnValOnFail(version >= 0 && version <= ZT_OCTREE_SERIAL_VERSION, false);
 
 		if (!zt_serialRead(serial, &octree->objects_cache_used)) return false;
-		zt_assertReturnValOnFail(octree->objects_cache_used > 0, false);
+		//zt_assertReturnValOnFail(octree->objects_cache_used > 0, false);
+
+		if (octree->objects_cache_used == 0) {
+			if (!zt_serialGroupPop(serial)) return false;
+			return true;
+		}
 
 		octree->objects_cache_size = octree->objects_cache_used;
 		octree->objects_cache = zt_mallocStructArray(i32, octree->objects_cache_used);
@@ -31805,6 +32041,7 @@ void zt_staticBodyFree(ztStaticBody *static_body)
 
 	if (static_body->triangles) {
 		zt_free(static_body->triangles);
+		static_body->triangles = nullptr;
 		static_body->triangles_count = static_body->triangles_size = 0;
 	}
 
@@ -31851,7 +32088,7 @@ void zt_staticBodyGenerateOcTree(ztStaticBody *static_body, i32 max_objects_per_
 	data.triangles = static_body->triangles;
 	data.triangles_count = static_body->triangles_count;
 
-	zt_ocTreeMake(&static_body->octree, max_objects_per_node, max_node_levels, (static_body->min + static_body->max) * .5f, static_body->max - static_body->min, zt_ocTreeItemContainedTestTriangles, &data);
+	zt_ocTreeMake(&static_body->octree, max_objects_per_node, max_node_levels, (static_body->min + static_body->max) * .5f, (static_body->max - static_body->min) + ztVec3::one, zt_ocTreeItemContainedTestTriangles, &data);
 }
 
 // ================================================================================================================================================================================================
@@ -31958,12 +32195,16 @@ bool zt_staticBodyLoad(ztSerial *serial, ztStaticBody *static_body)
 i32 zt_staticBodyHasCollisionsAABB(ztStaticBody *static_body, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
 {
 	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsAABB");
+	if (static_body->triangles_count == 0) {
+		return 0;
+	}
+
 	ztOcTree::Node *nodes[128];
 	i32 nodes_found = zt_ocTreeFindNodesThatIntersect(&static_body->octree, nodes, zt_elementsOf(nodes), aabb_center, aabb_extents);
 
 	i32 contact_idx = 0;
 
-	zt_fvz(nidx, nodes_found) {
+	zt_fvz(nidx, zt_min(nodes_found, zt_elementsOf(nodes))) {
 		ztOcTree::Node *node = nodes[nidx];
 
 		zt_fvz(tridx, node->objects_count) {
@@ -31997,6 +32238,11 @@ i32 zt_staticBodyHasCollisionsAABB(ztStaticBody *static_body, const ztVec3 &aabb
 i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat &obb_rot, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
 {
 	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsOBB");
+
+	if (static_body->triangles_count == 0) {
+		return 0;
+	}
+
 	r32 max_ext = obb_extents.length();
 	ztVec3 aabb_center  = obb_center;
 	ztVec3 aabb_extents = zt_vec3(max_ext, max_ext, max_ext);
@@ -32035,6 +32281,7 @@ i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_c
 
 				ztVec3 center = (triangle->points[0] + triangle->points[1] + triangle->points[2]) * .33333f;
 				ztVec3 direction = center - aabb_center;
+				direction.normalize();
 
 				if (direction.dot(triangle->normal) >= 0.f) {
 					continue;
@@ -32049,6 +32296,7 @@ i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_c
 					if (zt_collisionTriangleInAABB(p0, p1, p2, ztVec3::zero, obb_extents, &intersect_point)) {
 						i32 idx = contact_idx++;
 						if (idx < contact_count) {
+							intersect_point = zt_closestPointTrianglePoint(p0, p1, p2, intersect_point);
 							contact_points[idx] = mat.getInverse().getMultiply(intersect_point);
 							contact_normals[idx] = triangle->normal;
 							contact_triangles[idx] = node->objects[tridx];
@@ -32067,6 +32315,10 @@ i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_c
 i32 zt_staticBodyHasCollisionsSphere(ztStaticBody *static_body, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
 {
 	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsSphere");
+	if (static_body->triangles_count == 0) {
+		return 0;
+	}
+
 	ztVec3 aabb_center = sphere_center;
 	ztVec3 aabb_extents = zt_vec3(sphere_radius, sphere_radius, sphere_radius);
 
@@ -32119,13 +32371,15 @@ void zt_movingBodyMake(ztMovingBody *moving_body, ztModel *model, r32 restitutio
 	moving_body->transform        = nullptr;
 	moving_body->transform_prev   = model == nullptr ? zt_transformMake() : model->transform;
 	moving_body->restitution      = restitution;
-	moving_body->flags           |= ztMovingBodyFlags_NeedsMatrixCalc;
+	moving_body->flags            = ztMovingBodyFlags_NeedsMatrixCalc;
 	moving_body->cg_bounding      = cg_bounding;
 	moving_body->cg_details_count = details_count;
 
 	zt_fiz(details_count) {
 		moving_body->cg_details[i] = details[i];
 	}
+
+	moving_body->collisions       = nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -32202,6 +32456,8 @@ bool zt_movingBodyLoad(ztSerial *serial, ztMovingBody *moving_body)
 			zt_logCritical("ztMovingBody version newer than supported");
 			return false;
 		}
+
+		zt_memSet(moving_body, zt_sizeof(ztMovingBody), 0);
 
 		_serialCheck(zt_serialGroupPush(serial));
 		{
@@ -32663,8 +32919,6 @@ void zt_physicsFree(ztPhysics *physics)
 	if (physics->moving_body_collisions) zt_freeArena(physics->moving_body_collisions, physics->arena);
 
 	zt_freeArena(physics, physics->arena);
-
-	zt_memSet(physics, zt_sizeof(ztPhysics), 0);
 }
 
 // ================================================================================================================================================================================================
@@ -32973,18 +33227,18 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 			switch (moving_body->cg_bounding.type)
 			{
 				case ztCollisionGeometryType_AxisAlignedBox: {
-					min -= moving_body->cg_bounding.aabb_extents * .5f;
-					max += moving_body->cg_bounding.aabb_extents * .5f;
+					min -= moving_body->cg_bounding.aabb_extents * .5f * moving_body->transform->scale;
+					max += moving_body->cg_bounding.aabb_extents * .5f * moving_body->transform->scale;
 				}; break;
 
 				case ztCollisionGeometryType_OrientedBox: {
-					min -= moving_body->cg_bounding.obb_extents * .5f;
-					max += moving_body->cg_bounding.obb_extents * .5f;
+					min -= moving_body->cg_bounding.obb_extents * .5f * moving_body->transform->scale;
+					max += moving_body->cg_bounding.obb_extents * .5f * moving_body->transform->scale;
 				}; break;
 
 				case ztCollisionGeometryType_Sphere: {
-					min -= ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f;
-					max += ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f;
+					min -= ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f * moving_body->transform->scale.x;
+					max += ztVec3::one * moving_body->cg_bounding.sphere_radius * .5f * moving_body->transform->scale.x;
 				}; break;
 
 				case ztCollisionGeometryType_Capsule: {
@@ -33029,12 +33283,12 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 						ztVec3 velocity_2 = moving_body_2->transform->position - moving_body_2->transform_prev.position;
 						r32 velocity_len_2 = velocity_2.length();
 
-						int iterations = zt_convertToi32Ceil(zt_max(velocity_len_1, velocity_len_2) / iteration_amt);
+						int iterations = zt_max(1, zt_convertToi32Ceil(zt_max(velocity_len_1, velocity_len_2) / iteration_amt));
 
 						ztVec3 velocity_per_1 = velocity_1 * (1.f / iterations);
 						ztVec3 velocity_per_2 = velocity_2 * (1.f / iterations);
-						r32 percent_of_move_1 = velocity_len_1 / (velocity_len_1 + velocity_len_2);
-						r32 percent_of_move_2 = velocity_len_2 / (velocity_len_1 + velocity_len_2);
+						r32 percent_of_move_1 = velocity_len_2 / (velocity_len_1 + velocity_len_2);
+						r32 percent_of_move_2 = velocity_len_1 / (velocity_len_1 + velocity_len_2);
 
 						ztTransform transform_2 = zt_transformMake(moving_body_2->transform_prev.position, moving_body_2->transform_prev.rotation, moving_body_2->transform_prev.scale);
 
@@ -33157,17 +33411,22 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 								}
 							}
 						}
-						moving_body_1->transform->position = transform_1.position;
-						moving_body_2->transform->position = transform_2.position;
-
 						moving_body_1->transform_prev.position = moving_body_1->transform->position;
 						moving_body_2->transform_prev.position = moving_body_2->transform->position;
+
+						moving_body_1->transform->position = transform_1.position;
+						moving_body_2->transform->position = transform_2.position;
 					}
 				}
 			}
 		}
 	}
 
+
+	int dbg_static_body_aabb_tests = 0;
+	int dbg_cg_details_tests = 0;
+	int dbg_total_contacts = 0;
+	int dbg_triangle_colliding_tests = 0;
 
 	collisions_iterations = 0;
 	while (collisions_iterations++ < 1) {
@@ -33192,8 +33451,10 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 				zt_fvz(sidx, physics->static_bodies_count) {
 					ztStaticBody *static_body = physics->static_bodies[sidx];
 
+					dbg_static_body_aabb_tests += 1;
 					if (zt_staticBodyHasCollisionsAABB(static_body, center, extents)) {
-						int iterations = zt_convertToi32Ceil(velocity_len / iteration_amt);
+						int iterations = zt_max(12, zt_convertToi32Ceil(velocity_len / iteration_amt));
+						//int iterations = zt_max(1, zt_min(12, zt_convertToi32Ceil(velocity_len / iteration_amt)));
 
 						ztVec3 velocity_per = velocity * (1.f / iterations);
 						ztVec3 current_pos = moving_body->transform_prev.position;
@@ -33204,20 +33465,21 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 							i32 contacts = 0;
 
 							zt_fjz(moving_body->cg_details_count) {
+								dbg_cg_details_tests += 1;
 								ztCollisionGeometry *cg = &moving_body->cg_details[j];
 								switch(cg->type)
 								{
 									case ztCollisionGeometryType_AxisAlignedBox: {
-										contacts += zt_staticBodyHasCollisionsAABB(static_body, current_pos + cg->aabb_center, cg->aabb_extents, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+										contacts += zt_staticBodyHasCollisionsAABB(static_body, current_pos + cg->aabb_center * moving_body->transform->scale, cg->aabb_extents * moving_body->transform->scale, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
 									}; break;
 
 									case ztCollisionGeometryType_OrientedBox: {
 										ztQuat rot = moving_body->transform->rotation * cg->obb_rotation;
-										contacts += zt_staticBodyHasCollisionsOBB(static_body, current_pos + cg->obb_center, cg->obb_extents, rot, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+										contacts += zt_staticBodyHasCollisionsOBB(static_body, current_pos + cg->obb_center * moving_body->transform->scale, cg->obb_extents * moving_body->transform->scale, rot, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
 									}; break;
 
 									case ztCollisionGeometryType_Sphere: {
-										contacts += zt_staticBodyHasCollisionsSphere(static_body, current_pos + cg->sphere_center, cg->sphere_radius, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
+										contacts += zt_staticBodyHasCollisionsSphere(static_body, current_pos + cg->sphere_center * moving_body->transform->scale, cg->sphere_radius * moving_body->transform->scale.x, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_normals) - contacts);
 									}; break;
 
 									case ztCollisionGeometryType_Capsule: {
@@ -33228,6 +33490,8 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 								}
 							}
 
+							dbg_total_contacts += contacts;
+
 							if (contacts > 0) {
 								collisions_count += 1;
 								zt_fiz(contacts) {
@@ -33236,19 +33500,18 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 									ztTriangle *tri = &static_body->triangles[contact_triangles[i]];
 									ztVec3 center = (tri->points[0] + tri->points[1] + tri->points[2]) * .3333f;
 
-									ztVec3 to_center = center - current_pos;
-									r32 dot = to_center.dot(contact_normals[i]);
-
+									r32 dot = velocity.dot(contact_normals[i]);
 									if (dot > 0.f) {
-										contact_distances[i] = ztReal32Min;
+										contact_distances[i] = ztReal32Max;
 									}
 								}
 
-								while (true) {
-									r32 largest_val = ztReal32Min;
+								int movement_iterations = 0;
+								while (++movement_iterations) {
+									r32 largest_val = ztReal32Max;
 									int largest_idx = -1;
 									zt_fiz(contacts) {
-										if (contact_distances[i] > largest_val) {
+										if (contact_distances[i] < largest_val) {
 											largest_val = contact_distances[i];
 											largest_idx = i;
 										}
@@ -33260,7 +33523,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 
 									int idx = largest_idx;
 
-									if(zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_TrackCollisions) && moving_body->collisions == nullptr) {
+									if (zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_TrackCollisions) && movement_iterations == 1) {
 										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
 											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
 											collision->moving_bodies[0] = moving_body;
@@ -33271,6 +33534,10 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 											collision->next = nullptr;
 											zt_singleLinkAddToEnd(moving_body->collisions, collision);
 										}
+									}
+
+									if (zt_bitIsSet(moving_body->flags, ztMovingBodyFlags_AllowPenetration)) {
+										break;
 									}
 
 									ztTriangle *tri = &static_body->triangles[contact_triangles[idx]];
@@ -33287,16 +33554,16 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 												switch(cg->type)
 												{
 													case ztCollisionGeometryType_AxisAlignedBox: {
-														collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center, cg->aabb_extents);
+														collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center * moving_body->transform->scale, cg->aabb_extents * moving_body->transform->scale);
 													}; break;
 
 													case ztCollisionGeometryType_OrientedBox: {
 														ztQuat rot = moving_body->transform->rotation * cg->obb_rotation;
-														collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center, cg->obb_extents, rot);
+														collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center * moving_body->transform->scale, cg->obb_extents * moving_body->transform->scale, rot);
 													}; break;
 
 													case ztCollisionGeometryType_Sphere: {
-														collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center, cg->sphere_radius);
+														collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center * moving_body->transform->scale, cg->sphere_radius * moving_body->transform->scale.x);
 													}; break;
 
 													case ztCollisionGeometryType_Capsule: {
@@ -33311,6 +33578,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 										}
 									};
 
+									dbg_triangle_colliding_tests += 1;
 									if (Triangle::colliding(tri, moving_body, current_pos)) {
 										bool backward = true;
 										r32 dist = iteration_amt;
@@ -33320,6 +33588,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 											ztVec3 to_move = contact_normals[idx] * dist * (backward ? 1.f : -1.f);
 											current_pos += to_move;
 
+											dbg_triangle_colliding_tests += 1;
 											backward = Triangle::colliding(tri, moving_body, current_pos);
 
 											if (splits >= 8 && !backward) break;
@@ -33328,7 +33597,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 										velocity_per *= ztVec3::one - zt_vec3(zt_abs(contact_normals[idx].x), zt_abs(contact_normals[idx].y), zt_abs(contact_normals[idx].z));
 									}
 
-									contact_distances[idx] = ztReal32Min;
+									contact_distances[idx] = ztReal32Max;
 								}
 							}
 						}
@@ -33336,10 +33605,13 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 					}
 				}
 
-				moving_body->transform_prev.position = moving_body->transform->position;
 			}
+			moving_body->transform_prev.position = moving_body->transform->position;
 		}
 	}
+
+	//zt_strMakePrintf(debug_info, 512, "dbg_static_body_aabb_tests: %d\ndbg_cg_details_tests: %d\ndbg_total_contacts: %d\ndbg_triangle_colliding_tests: %d", dbg_static_body_aabb_tests, dbg_cg_details_tests, dbg_total_contacts, dbg_triangle_colliding_tests);
+	//zt_debugDisplayGuiText(debug_info, zt_vec2(-5, -5), ztColor_White);
 }
 
 // ================================================================================================================================================================================================
@@ -36896,21 +37168,26 @@ ztInternal bool _zt_animSequenceUpdate(ztAnimSequence *sequence, r32 dt)
 {
 	ZT_PROFILE_ANIMATION("_zt_animSequenceUpdate");
 	int layers_processed = 0;
-	zt_fiz(sequence->layers_count) {
-		if (sequence->layers[i].state == ztAnimLayerState_Sleeping) {
-			continue;
-		}
+	{
+		ZT_PROFILE_ANIMATION("_zt_animSequenceUpdate:layer_loop");
+		zt_fiz(sequence->layers_count) {
+			ZT_PROFILE_ANIMATION("_zt_animSequenceUpdate:per_layer");
+			if (sequence->layers[i].state == ztAnimLayerState_Sleeping) {
+				continue;
+			}
 
-		if (_zt_animLayerUpdate(&sequence->layers[i], dt)) {
-			layers_processed += 1;
+			if (_zt_animLayerUpdate(&sequence->layers[i], dt)) {
+				layers_processed += 1;
+			}
 		}
 	}
-
-	if (layers_processed == 0 && sequence->loops) {
-		_zt_animSequenceStart(sequence, false, 0);
-		return true;
+	{
+		ZT_PROFILE_ANIMATION("_zt_animSequenceUpdate:loop_check");
+		if (layers_processed == 0 && sequence->loops) {
+			_zt_animSequenceStart(sequence, false, 0);
+			return true;
+		}
 	}
-
 	return layers_processed != 0;
 }
 
@@ -37075,11 +37352,12 @@ int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_na
 void zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt)
 {
 	ZT_PROFILE_ANIMATION("zt_animControllerUpdate");
-	zt_fiz(controllers_count) {
-		ztAnimController *controller = controllers[i];
+	zt_fvz(cidx, controllers_count) {
+		ztAnimController *controller = controllers[cidx];
 
 		if (controller->anim_sync) {
 			if (!_zt_animSequenceUpdate(controller->anim_sync, dt)) {
+				//zt_logDebug("Starting sequence: %s", controller->sequences_name[result]);
 				if (controller->queued != 0) {
 					i32 queued = controller->queued;
 					controller->queued = 0;
@@ -43615,6 +43893,13 @@ bool mainInitializationAndLoop()
 		}
 
 		zt_memArenaValidate(zt_memGetGlobalArena()); // make sure everything is ok in memory before we begin
+
+#		if defined(ZT_DEBUG)
+		{
+			ztMemoryArena *temp_arena = zt_memGetTempArena();
+			zt_assert(temp_arena && temp_arena->latest == nullptr);
+		}
+#		endif
 	}
 	zt_profilerFrameEnd();
 
