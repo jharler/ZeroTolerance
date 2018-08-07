@@ -1384,6 +1384,7 @@ ztTextureID zt_textureMakeIrradianceCubeMapFromCubeMap(ztTextureID cube_map_text
 ztTextureID zt_textureMakePrefilterCubeMapFromCubeMap(ztTextureID cube_map_texture_id);
 ztTextureID zt_textureMakeBidirectionalReflectanceDistributionFunctionLUT(i32 w, i32 h);
 ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h);
+ztTextureID zt_textureMakeColorLUT();
 
 byte       *zt_textureLoadPixelData(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 *width, i32 *height, i32* depth, bool should_flip = true);
 byte       *zt_textureLoadPixelData(byte *data, i32 data_size, i32 *width, i32 *height, i32* depth, bool should_flip = true);
@@ -1497,6 +1498,171 @@ void            zt_vertexArrayDefaultCalculateTangentBitangent(const ztVertexDef
 
 void            zt_triangleCalculateNormal(const ztVec3& v1, const ztVec3& v2, const ztVec3& v3, ztVec3 *normal);
 void            zt_triangleCalculateTangentBitangent(const ztVec3& v1, const ztVec3& v2, const ztVec3& v3, const ztVec2& uv1, const ztVec2& uv2, const ztVec2& uv3, ztVec4 *tangent, ztVec4 *bitangent);
+
+
+// ================================================================================================================================================================================================
+// post processing
+// ================================================================================================================================================================================================
+
+struct ztPostProcessingEffect;
+struct ztDrawList;
+struct ztCamera;
+
+// ================================================================================================================================================================================================
+
+#define FUNC_POST_PROCESSING_EFFECT_RENDER(name)    void name(ztPostProcessingEffect *effect, ztDrawList *draw_list, ztCamera *camera, ztTextureID screen_texture, ztTextureID target_texture)
+typedef FUNC_POST_PROCESSING_EFFECT_RENDER(ztPostProcessingEffectRender_Func);
+
+#define FUNC_POST_PROCESSING_EFFECT_SCREEN_CHANGE(name)    void name(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h)
+typedef FUNC_POST_PROCESSING_EFFECT_SCREEN_CHANGE(ztPostProcessingEffectScreenChange_Func);
+
+// ================================================================================================================================================================================================
+
+struct ztPostProcessingEffect
+{
+	ztShaderID  *shaders;
+	i32          shaders_count;
+	ztTextureID *render_textures;
+	i32          render_textures_count;
+	void        *user_data;
+	i32          screen_width;
+	i32          screen_height;
+
+	ZT_FUNCTION_POINTER_VAR(render_func, ztPostProcessingEffectRender_Func);
+	ZT_FUNCTION_POINTER_VAR(screen_change_func, ztPostProcessingEffectScreenChange_Func);
+};
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingEffectMake(ztPostProcessingEffect *effect, ztShaderID *shaders, i32 screen_w, i32 screen_h, i32 shaders_count, ztTextureID *render_textures, i32 render_textures_count, void *user_data, ZT_FUNCTION_POINTER_VAR(render_func, ztPostProcessingEffectRender_Func), ZT_FUNCTION_POINTER_VAR(screen_change_func, ztPostProcessingEffectScreenChange_Func));
+void zt_postProcessingEffectFree(ztPostProcessingEffect *effect);
+
+void zt_postProcessingEffectUpdateScreen(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h);
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: Gaussian Blur
+// Performs vertical and horizontal gaussian blurs
+
+struct ztPostProcessGaussianBlur
+{
+	i32 blur_passes;
+};
+
+ztPostProcessGaussianBlur *zt_postProcessingEffectMakeBlur(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, i32 blur_passes = 3);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: Bloom
+// Renders the bright areas of the scene to secondary buffers (sizes based on percentages passed in), then 
+// performs vertical and horizontal blurs, then adds each secondary buffer to the scene
+
+struct ztPostProcessBloom
+{
+	i32 blur_passes;
+};
+
+ztPostProcessBloom *zt_postProcessingEffectMakeBloom(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, i32 blur_passes = 3, r32 *percentages = nullptr, i32 percentages_count = 0);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: Color LUT
+// Uses look up table (LUT) textures to colorize the scene
+
+struct ztPostProcessColorLUT
+{
+	ztTextureID texture_one;
+	ztTextureID texture_two;
+	r32         percentage;
+};
+
+ztPostProcessColorLUT *zt_postProcessingEffectMakeColorLUT(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, ztTextureID texture_one, ztTextureID texture_two = ztInvalidID, r32 percentage = 0);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: SSAO
+// Screen Space Ambient Occlusion
+
+struct ztPostProcessSSAO
+{
+	ztCamera *camera;
+	r32       radius;
+	r32       bias;
+	int       samples;
+	r32       intensity;
+
+
+	ztTextureID position_tex;
+	ztTextureID normal_tex;
+	ztTextureID noise_tex;
+};
+
+ztPostProcessSSAO *zt_postProcessingEffectMakeSSAO(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, ztCamera *camera, ztTextureID position_tex, ztTextureID normal_tex, ztTextureID noise_tex, r32 radius = .5f, r32 bias = .025f, int samples = 64, r32 intensity = 1.f);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: Tonemap
+// Tonemaps the scene
+
+struct ztPostProcessTonemap
+{
+	r32 gamma;
+	r32 exposure;
+};
+
+ztPostProcessTonemap *zt_postProcessingEffectMakeTonemap(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 gamma = 2.2f, r32 exposure = 1.f);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// Effect: Vignette
+// Adds a vignette to the scene
+
+struct ztPostProcessVignette
+{
+	r32 radius;
+	r32 softness;
+	r32 opacity;
+};
+
+ztPostProcessVignette *zt_postProcessingEffectMakeVignette(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 radius = .55f, r32 softness = .75f, r32 opacity = .5f);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessingStack
+{
+	ztPostProcessingEffect *effects;
+	i32                     effects_count;
+
+	ztTextureID             buffer_tex;
+};
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingStackMake(ztPostProcessingStack *stack, i32 screen_w, i32 screen_h, ztPostProcessingEffect *effects, i32 effects_count);
+void zt_postProcessingStackFree(ztPostProcessingStack *stack);
+
+void zt_postProcessingStackRender(ztPostProcessingStack *stack, ztTextureID scene_texture, ztDrawList *draw_list, ztCamera *camera);
+void zt_postProcessingStackUpdateScreen(ztPostProcessingStack *stack, i32 screen_w, i32 screen_h);
 
 
 // ================================================================================================================================================================================================
@@ -1648,8 +1814,8 @@ struct ztTransform
 };
 
 
-ztTransform zt_transformMake(const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::zero);
-void        zt_transformMake(ztTransform *transform, const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::zero);
+ztTransform zt_transformMake(const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::one);
+void        zt_transformMake(ztTransform *transform, const ztVec3 &position = ztVec3::zero, const ztQuat &rotation = ztQuat::identity, const ztVec3 &scale = ztVec3::one);
 
 ztMat4      zt_transformToMat4(ztTransform *transform);     // scale, translate, rotate
 ztMat4      zt_transformToMat4SRT(ztTransform *transform);  // scale, rotate, translate
@@ -2892,6 +3058,9 @@ struct ztScene
 
 	ZT_FUNCTION_POINTER_VAR(            render_override, ztSceneRenderModelOverride_Func);
 	void                               *render_override_user_data;
+
+	ztVec3                              extents_min;
+	ztVec3                              extents_max;
 };
 
 // ================================================================================================================================================================================================
@@ -4964,6 +5133,9 @@ void                 zt_particleEmitter2DReset(ztParticleEmitter2D *emitter, r32
 #define ztPathNodeValue_Reset       -1
 #define ztPathNodeValue_Impassable  -100
 
+// ================================================================================================================================================================================================
+
+struct ztPathProgress;
 
 // ================================================================================================================================================================================================
 
@@ -4993,6 +5165,10 @@ struct ztPathNode
 #define ZT_FUNC_PATH_NODE_COST(name)   r32 name(ztPathNode *origin, ztPathNode *destination, void *user_data)
 typedef ZT_FUNC_PATH_NODE_COST(ztPathNodeCost_Func);
 
+ztPathNode *zt_pathNodesFindClosest(ztPathNode *nodes, int nodes_count, ztVec3 point);
+
+void zt_pathNodesPrepareForPathfinding(ztPathNode *nodes, int nodes_count, ztPathProgress *progress);
+
 
 // ================================================================================================================================================================================================
 
@@ -5012,7 +5188,6 @@ bool              zt_pathGridSquareGetNodeIndex(ztPathGridSquare *grid, ztPathNo
 r32               zt_pathNodeGetDistance(ztPathNode *node_one, ztPathNode *node_two);
 ztPathNode       *zt_pathGridSquareGetNode(ztPathGridSquare *grid, int col, int row);
 
-struct ztPathProgress;
 void zt_pathGridSquarePrepareForPathfinding(ztPathGridSquare *grid, ztPathProgress *progress);
 
 
@@ -5046,8 +5221,9 @@ typedef ZT_FUNC_PATH_EARLY_EXIT(ztPathEarlyExit_Func);
 
 // ================================================================================================================================================================================================
 
+ztPathProgress *zt_pathProgressMake(ztPathNode *nodes, int nodes_count, ztMemoryArena *arena);
 ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena);
-void zt_pathProgressFree(ztPathProgress *progress);
+void            zt_pathProgressFree(ztPathProgress *progress);
 
 // ================================================================================================================================================================================================
 
@@ -8214,9 +8390,10 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-depthtextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(1 - _input.position.z, 1 - _input.position.z, 1 - _input.position.z, 1);\n		}\n	}\n}",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
-	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(color.r <= 1 && color.g <= 1 && color.b <= 1) {\n			color = vec4(0);\n		}\n		\n		_output.color = color;\n	}\n}",
-	"// shader-blur-vert\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nprogram DefaultBlurVert\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		\n		for (int i = 1; i < 5; ++i) {\n			color += textureSample(textures.diffuse_tex, _input.uv + vec2(0, uniforms.texel_size * i)) * weights[i];\n			color += textureSample(textures.diffuse_tex, _input.uv - vec2(0, uniforms.texel_size * i)) * weights[i];\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
-	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		\n		for (int i = 1; i < 5; ++i) {\n			color += textureSample(textures.diffuse_tex, _input.uv + vec2(uniforms.texel_size * i, 0.0)) * weights[i];\n			color += textureSample(textures.diffuse_tex, _input.uv - vec2(uniforms.texel_size * i, 0.0)) * weights[i];\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
+	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(color.r <= 1. && color.g <= 1 && color.b <= 1) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
+//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		float brightness = (color.r * 0.2126) + (color.g * 0.7152) + (color.b * 0.0722);\n		_output.color = color * brightness;\n	}\n}",
+	"// shader-blur-vert\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
+	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
 };
 
 // ================================================================================================================================================================================================
@@ -13200,6 +13377,692 @@ void zt_triangleCalculateTangentBitangent(const ztVec3& v1, const ztVec3& v2, co
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+void zt_postProcessingEffectMake(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, ztShaderID *shaders, i32 shaders_count, ztTextureID *render_textures, i32 render_textures_count, void *user_data, ZT_FUNCTION_POINTER_VAR(render_func, ztPostProcessingEffectRender_Func), ZT_FUNCTION_POINTER_VAR(screen_change_func, ztPostProcessingEffectScreenChange_Func))
+{
+	zt_returnOnNull(effect);
+	zt_returnOnNull(shaders);
+	zt_assertReturnOnFail(shaders_count > 0);
+
+	effect->shaders_count = shaders_count;
+	effect->shaders = zt_mallocStructArray(ztShaderID, shaders_count);
+	zt_memCpy(effect->shaders, zt_sizeof(ztShaderID) * shaders_count, shaders, zt_sizeof(ztShaderID) * shaders_count);
+
+	if (render_textures_count > 0) {
+		effect->render_textures_count = render_textures_count;
+		effect->render_textures = zt_mallocStructArray(ztTextureID, render_textures_count);
+		zt_memCpy(effect->render_textures, zt_sizeof(ztTextureID) * render_textures_count, render_textures, zt_sizeof(ztTextureID) * render_textures_count);
+	}
+	else {
+		effect->render_textures = nullptr;
+		effect->render_textures_count = 0;
+	}
+
+	effect->user_data = user_data;
+	effect->render_func = render_func;
+	effect->screen_change_func = screen_change_func;
+
+	effect->screen_width = screen_w;
+	effect->screen_height = screen_h;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingEffectFree(ztPostProcessingEffect *effect)
+{
+	zt_returnOnNull(effect);
+
+	zt_fiz(effect->shaders_count) {
+		zt_shaderFree(effect->shaders[i]);
+	}
+
+	zt_free(effect->shaders);
+
+	zt_fiz(effect->render_textures_count) {
+		zt_textureFree(effect->render_textures[i]);
+	}
+
+	zt_free(effect->render_textures);
+
+	if (effect->user_data) {
+		zt_free(effect->user_data);
+	}
+
+	zt_memSet(effect, zt_sizeof(ztPostProcessingEffect), 0);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingEffectUpdateScreen(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h)
+{
+	zt_returnOnNull(effect);
+	zt_assertReturnOnFail(screen_w > 0 && screen_h > 0);
+
+	if (effect->screen_width == screen_w && effect->screen_height == screen_h) {
+		return;
+	}
+
+	ZT_FUNCTION_POINTER_ACCESS_SAFE(effect->screen_change_func, ztPostProcessingEffectScreenChange_Func)(effect, screen_w, screen_h);
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessGaussianBlurDetails
+{
+	enum Shader_Enum
+	{
+		Shader_BlurHorz,
+		Shader_BlurVert,
+
+		Shader_MAX,
+	};
+
+	ztPostProcessGaussianBlur settings;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_postProcessingEffectGaussianBlurMakeTextures(ztTextureID *textures, i32 screen_w, i32 screen_h, ztPostProcessGaussianBlurDetails *details)
+{
+	if (textures[0] != ztInvalidID) {
+		zt_textureFree(textures[0]);
+	}
+
+	textures[0] = zt_textureMakeRenderTarget(screen_w, screen_h, ztTextureFlags_HDR);
+	zt_textureSetName(textures[0], "Gaussian Blur Horz");
+
+	return 1;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectGaussianBlurRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectGaussianBlurRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectGaussianBlurRender");
+
+	ztPostProcessGaussianBlurDetails *details = (ztPostProcessGaussianBlurDetails*)effect->user_data;
+
+	static u32 texel_size_hash = zt_strHash("texel_size");
+	ztVec2i texture_size = zt_textureGetSize(effect->render_textures[0]);
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessGaussianBlurDetails::Shader_BlurHorz], texel_size_hash, 1.f / texture_size.x * 1.f);
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessGaussianBlurDetails::Shader_BlurVert], texel_size_hash, 1.f / texture_size.x * 1.f);
+
+	zt_fjz(details->settings.blur_passes) {
+		zt_drawListAddScreenRenderTexture(draw_list, j == 0 ? screen_texture : target_texture, camera, 1.f, effect->shaders[ztPostProcessGaussianBlurDetails::Shader_BlurHorz]);
+		zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, effect->render_textures[0]);
+
+		zt_drawListAddScreenRenderTexture(draw_list, effect->render_textures[0], camera, 1.f, effect->shaders[ztPostProcessGaussianBlurDetails::Shader_BlurVert]);
+		zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectGaussianScreenChange, FUNC_POST_PROCESSING_EFFECT_SCREEN_CHANGE(_zt_postProcessEffectGaussianScreenChange))
+{
+	zt_assert(effect->render_textures_count == _zt_postProcessingEffectGaussianBlurMakeTextures(effect->render_textures, screen_w, screen_h, (ztPostProcessGaussianBlurDetails*)effect->user_data));
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessGaussianBlur *zt_postProcessingEffectMakeGaussianBlur(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, i32 blur_passes)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	ztShaderID shaders[2] = {
+		zt_shaderGetDefault(ztShaderDefault_BlurHorz),
+		zt_shaderGetDefault(ztShaderDefault_BlurVert),
+	};
+
+	ztTextureID textures[1];
+	i32 textures_count = 0;
+
+	zt_fize(textures) textures[i] = ztInvalidID;
+
+	ztPostProcessGaussianBlurDetails *details = zt_mallocStruct(ztPostProcessGaussianBlurDetails);
+	details->settings.blur_passes = blur_passes;
+
+	textures_count = _zt_postProcessingEffectGaussianBlurMakeTextures(textures, screen_w, screen_h, details);
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), textures, textures_count, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectGaussianBlurRender), ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectGaussianScreenChange));
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessBloomDetails
+{
+	enum Shader_Enum
+	{
+		Shader_Bright,
+		Shader_BlurHorz,
+		Shader_BlurVert,
+		Shader_BloomOut,
+
+		Shader_MAX,
+	};
+
+	ztPostProcessBloom settings;
+
+	r32 percentages[32];
+	i32 percentages_count;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_postProcessingEffectBloomMakeTextures(ztTextureID *textures, i32 screen_w, i32 screen_h, ztPostProcessBloomDetails *details)
+{
+	i32 textures_count = 0;
+	zt_fiz(details->percentages_count * 2 + 1) {
+		if (textures[i] != ztInvalidID) {
+			zt_textureFree(textures[i]);
+		}
+	}
+
+	textures[textures_count++] = zt_textureMakeRenderTarget(screen_w, screen_h, ztTextureFlags_HDR);
+	zt_textureSetName(textures[textures_count - 1], "Bloom Bright");
+
+	zt_fiz(details->percentages_count) {
+		textures[textures_count++] = zt_textureMakeRenderTarget(zt_convertToi32Floor(screen_w * details->percentages[i]), zt_convertToi32Floor(screen_h * details->percentages[i]), ztTextureFlags_HDR);
+		zt_textureSetName(textures[textures_count - 1], "Bloom Blur Horz");
+		textures[textures_count++] = zt_textureMakeRenderTarget(zt_convertToi32Floor(screen_w * details->percentages[i]), zt_convertToi32Floor(screen_h * details->percentages[i]), ztTextureFlags_HDR);
+		zt_textureSetName(textures[textures_count - 1], "Bloom Blur Vert");
+	}
+
+	zt_assert(textures_count == details->percentages_count * 2 + 1);
+
+	return textures_count;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectBloomRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectBloomRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectBloomRender");
+
+	// render the bright areas
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[ztPostProcessBloomDetails::Shader_Bright]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, effect->render_textures[0]);
+
+	static u32 texel_size_hash = zt_strHash("texel_size");
+	ztVec2i texture_size = zt_textureGetSize(effect->render_textures[0]);
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessBloomDetails::Shader_BlurHorz], texel_size_hash, 1.f / texture_size.x * 1.f);
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessBloomDetails::Shader_BlurVert], texel_size_hash, 1.f / texture_size.x * 1.f);
+
+	ztPostProcessBloomDetails *details = (ztPostProcessBloomDetails*)effect->user_data;
+
+	// render the blurred textures
+	zt_fiz(details->percentages_count) {
+		i32 tex_idx = i * 2 + 1;
+
+		zt_fjz(details->settings.blur_passes) {
+			zt_drawListAddScreenRenderTexture(draw_list, j == 0 ? effect->render_textures[0] : effect->render_textures[tex_idx + 1], camera, details->percentages[i], effect->shaders[ztPostProcessBloomDetails::Shader_BlurHorz]);
+			zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, effect->render_textures[tex_idx]);
+
+			zt_drawListAddScreenRenderTexture(draw_list, effect->render_textures[tex_idx], camera, details->percentages[i], effect->shaders[ztPostProcessBloomDetails::Shader_BlurVert]);
+			zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, effect->render_textures[tex_idx + 1]);
+		}
+	}
+
+	// render final
+	static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+	static u32 bloom_tex_count_hash = zt_strHash("bloom_tex_count");
+
+	static u32 bloom_tex_hash[32] = { 0 };
+	if (bloom_tex_hash[0] == 0) {
+		zt_fize(bloom_tex_hash) {
+			zt_strMakePrintf(bloom_tex, 128, "bloom_tex[%d]", i);
+			bloom_tex_hash[i] = zt_strHash(bloom_tex);
+		}
+	}
+
+	zt_shaderSetVariableTex(effect->shaders[ztPostProcessBloomDetails::Shader_BloomOut], diffuse_tex_hash, screen_texture);
+	zt_shaderSetVariableInt(effect->shaders[ztPostProcessBloomDetails::Shader_BloomOut], bloom_tex_count_hash, (effect->render_textures_count - 1) / 2);
+
+	i32 texture_idx = 0;
+	for (int i = 2; i < effect->render_textures_count; i += 2) {
+		zt_shaderSetVariableTex(effect->shaders[ztPostProcessBloomDetails::Shader_BloomOut], bloom_tex_hash[texture_idx++], effect->render_textures[i]);
+	}
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[ztPostProcessBloomDetails::Shader_BloomOut]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectBloomScreenChange, FUNC_POST_PROCESSING_EFFECT_SCREEN_CHANGE(_zt_postProcessEffectBloomScreenChange))
+{
+	zt_assert(effect->render_textures_count == _zt_postProcessingEffectBloomMakeTextures(effect->render_textures, screen_w, screen_h, (ztPostProcessBloomDetails*)effect->user_data));
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessBloom *zt_postProcessingEffectMakeBloom(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, i32 blur_passes, r32 *percentages, i32 percentages_count)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	r32 local_percentages[] = { 1, 1 / 2.f, 1 / 4.f, 1 / 8.f };
+
+	if (percentages == nullptr) {
+		percentages = local_percentages;
+		percentages_count = zt_elementsOf(local_percentages);
+	}
+
+	zt_strMakePrintf(bloom_out_shader, 4096, "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d bloom_tex[%d];\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	int bloom_tex_count;\n}\n\n\nprogram Bloom\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		for(int i = 0; i < uniforms.bloom_tex_count; ++i) {\n			vec3 bloom_color = (textureSample(textures.bloom_tex[i], _input.uv) * _input.color).rgb;\n\n			bloom_color.r = max(0, min(1, bloom_color.r)); // somehow bloom_color is going negative...\n			bloom_color.g = max(0, min(1, bloom_color.g));\n			bloom_color.b = max(0, min(1, bloom_color.b));\n\n			color += bloom_color;\n		}\n		\n		_output.color = vec4(color, 1);\n	}\n}\n", percentages_count);
+
+	ztShaderID shaders[ztPostProcessBloomDetails::Shader_MAX] = {
+		zt_shaderGetDefault(ztShaderDefault_Bright),
+		zt_shaderGetDefault(ztShaderDefault_BlurHorz),
+		zt_shaderGetDefault(ztShaderDefault_BlurVert),
+		zt_shaderMake("Bloom Out", bloom_out_shader, zt_strLen(bloom_out_shader)),
+	};
+
+	ztTextureID textures[32];
+	i32 textures_count = 0;
+
+	zt_fize(textures) textures[i] = ztInvalidID;
+
+	zt_assertReturnValOnFail(percentages_count * 2 + 1 < zt_elementsOf(textures), false);
+
+	ztPostProcessBloomDetails *bloom_details = zt_mallocStruct(ztPostProcessBloomDetails);
+	zt_memCpy(bloom_details->percentages, zt_sizeof(r32) * zt_elementsOf(bloom_details->percentages), percentages, zt_sizeof(r32) * zt_elementsOf(bloom_details->percentages));
+	bloom_details->percentages_count = percentages_count;
+	bloom_details->settings.blur_passes = blur_passes;
+
+	textures_count = _zt_postProcessingEffectBloomMakeTextures(textures, screen_w, screen_h, bloom_details);
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), textures, textures_count, bloom_details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectBloomRender), ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectBloomScreenChange));
+
+	return &bloom_details->settings;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessColorLUTDetails
+{
+	ztPostProcessColorLUT settings;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectColorLUTRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectColorLUTRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectColorLUTRender");
+
+	ztPostProcessColorLUTDetails *details = (ztPostProcessColorLUTDetails*)effect->user_data;
+
+
+	static u32 color_lut_one_tex_hash = zt_strHash("color_lut_one_tex");
+	static u32 color_lut_two_tex_hash = zt_strHash("color_lut_two_tex");
+	static u32 percentage_hash = zt_strHash("percentage");
+
+	zt_shaderSetVariableFloat(effect->shaders[0], percentage_hash, details->settings.percentage);
+	zt_shaderSetVariableTex(effect->shaders[0], color_lut_one_tex_hash, details->settings.texture_one);
+	zt_shaderSetVariableTex(effect->shaders[0], color_lut_two_tex_hash, details->settings.texture_two);
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[0]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessColorLUT *zt_postProcessingEffectMakeColorLUT(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, ztTextureID texture_one, ztTextureID texture_two, r32 percentage)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d color_lut_one_tex;\n	texture2d color_lut_two_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float percentage;\n}\n\nvec3 textureSample3D(vec3 uv, float width, texture2d lut_tex)\n{\n	float inner_width = width - 1.0;\n	float slice_size = 1.0 / width; // space of 1 slice\n	float slice_pixel_size = slice_size / width; // space of 1 pixel\n	float slice_inner_size = slice_pixel_size * inner_width; // space of width pixels\n	float z_slice0 = min(floor(uv.z * inner_width), inner_width);\n	float z_slice1 = min(z_slice0 + 1.0, inner_width);\n	float x_offset = slice_pixel_size * 0.5 + uv.x * slice_inner_size;\n	float s0 = x_offset + (z_slice0 * slice_size);\n	float s1 = x_offset + (z_slice1 * slice_size);\n	float y_pixel_size = slice_size;\n	float y_offset = (y_pixel_size * 0.5 + (1 - uv.y) * (1.0 - y_pixel_size));\n	vec3 slice0_color = textureSample(lut_tex, vec2(s0, y_offset)).rgb;\n	vec3 slice1_color = textureSample(lut_tex, vec2(s1, y_offset)).rgb;\n	float z_offset = fract(uv.z * inner_width);\n	vec3 result = lerp(slice0_color, slice1_color, z_offset);\n	return result;\n}\n\nprogram ColorLUT\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		vec3 lut_one = textureSample3D(color, 32, textures.color_lut_one_tex);\n		\n		if (uniforms.percentage > 0) {\n			vec3 lut_two = textureSample3D(color, 32, textures.color_lut_two_tex);\n			lut_one = lerp(lut_one, lut_two, uniforms.percentage);\n		}\n		\n		_output.color = vec4(lut_one, 1);\n	}\n}";
+
+	ztShaderID shaders[1] = {
+		zt_shaderMake("Color LUT", shader, zt_strLen(shader)),
+	};
+
+	if (shaders[0] == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztPostProcessColorLUTDetails *details = zt_mallocStruct(ztPostProcessColorLUTDetails);
+	details->settings.texture_one = texture_one;
+	details->settings.texture_two = texture_two;
+	details->settings.percentage = percentage;
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), nullptr, 0, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectColorLUTRender), ZT_FUNCTION_POINTER_TO_VAR_NULL);
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessSSAODetails
+{
+	enum Shaders_Enum
+	{
+		Shaders_GenerateSSAO,
+		Shaders_ApplySSAO,
+	};
+
+	ztPostProcessSSAO settings;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_postProcessingEffectSSAOMakeTextures(ztTextureID *textures, i32 screen_w, i32 screen_h, ztPostProcessSSAODetails *details)
+{
+	if (textures[0] != ztInvalidID) {
+		zt_textureFree(textures[0]);
+	}
+
+	textures[0] = zt_textureMakeRenderTarget(screen_w, screen_h, ztTextureFlags_HDR);
+	zt_textureSetName(textures[0], "SSAO");
+
+	return 1;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectSSAORender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectSSAORender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectSSAORender");
+
+	ztPostProcessSSAODetails *details = (ztPostProcessSSAODetails*)effect->user_data;
+
+
+	static u32 position_tex_hash = zt_strHash("position_tex");
+	static u32 normal_tex_hash = zt_strHash("normal_tex");
+	static u32 noise_tex_hash = zt_strHash("noise_tex");
+	static u32 cam_proj_hash = zt_strHash("cam_proj");
+	static u32 radius_hash = zt_strHash("radius");
+	static u32 bias_hash = zt_strHash("bias");
+	static u32 samples_hash = zt_strHash("samples");
+
+	zt_shaderSetVariableTex(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], position_tex_hash, details->settings.position_tex);
+	zt_shaderSetVariableTex(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], normal_tex_hash, details->settings.normal_tex);
+	zt_shaderSetVariableTex(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], noise_tex_hash, details->settings.noise_tex);
+
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], radius_hash, details->settings.radius);
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], bias_hash, details->settings.bias);
+	zt_shaderSetVariableInt(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], samples_hash, details->settings.samples);
+
+	zt_shaderSetVariableMat4(effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO], cam_proj_hash, details->settings.camera->mat_proj);
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[ztPostProcessSSAODetails::Shaders_GenerateSSAO]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, effect->render_textures[0]);
+
+	static u32 intensity_hash = zt_strHash("intensity");
+	static u32 ao_tex_hash = zt_strHash("ao_tex");
+
+	zt_shaderSetVariableTex(effect->shaders[ztPostProcessSSAODetails::Shaders_ApplySSAO], ao_tex_hash, effect->render_textures[0]);
+
+	zt_shaderSetVariableFloat(effect->shaders[ztPostProcessSSAODetails::Shaders_ApplySSAO], intensity_hash, details->settings.intensity);
+
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[ztPostProcessSSAODetails::Shaders_ApplySSAO]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectSSAOScreenChange, FUNC_POST_PROCESSING_EFFECT_SCREEN_CHANGE(_zt_postProcessEffectSSAOScreenChange))
+{
+	zt_assert(effect->render_textures_count == _zt_postProcessingEffectSSAOMakeTextures(effect->render_textures, screen_w, screen_h, (ztPostProcessSSAODetails*)effect->user_data));
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessSSAO *zt_postProcessingEffectMakeSSAO(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, ztCamera *camera, ztTextureID position_tex, ztTextureID normal_tex, ztTextureID noise_tex, r32 radius, r32 bias, int samples, r32 intensity)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_returnValOnNull(camera, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	const char *shader_gen = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	mat4 proj;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d position_tex;\n	texture2d normal_tex;\n	texture2d noise_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	mat4 cam_proj;\n	float radius;\n	float bias;\n	int samples;\n}\n\n\nprogram AmbientOcclusion\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.proj = uniforms.cam_proj;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec2 noise_scale = textureSize(textures.position_tex) / vec2(4.0, 4.0);\n		\n		vec3 kernels[] = { vec3(-0.002653, -0.002754, 0.001899), vec3(-0.087793, -0.039482, 0.017967), vec3(-0.015935, 0.034456, 0.038461), vec3(0.016084, 0.012467, 0.003128), vec3(-0.036631, 0.008479, 0.050961), vec3(0.029393, -0.020169, 0.003774), vec3(-0.054996, 0.042855, 0.022173), vec3(-0.027956, -0.019687, 0.004943), vec3(0.004512, 0.016531, 0.012118), vec3(-0.013076, 0.000412, 0.015548), vec3(0.002620, 0.003538, 0.009588), vec3(0.044101, 0.023600, 0.000938), vec3(-0.042423, -0.002516, 0.031865), vec3(0.010303, -0.021516, 0.083335), vec3(-0.006624, -0.009561, 0.011636), vec3(0.098235, -0.085460, 0.046724), vec3(0.008439, 0.013164, 0.026478), vec3(0.006236, 0.072253, 0.056957), vec3(0.029851, 0.005779, 0.025764), vec3(-0.000024, -0.000100, 0.000855), vec3(0.021803, -0.036413, 0.027307), vec3(-0.022628, -0.100774, 0.077730), vec3(-0.140845, -0.064150, 0.055073), vec3(0.160229, 0.014875, 0.131890), vec3(-0.162901, 0.067310, 0.089489), vec3(0.009212, -0.012979, 0.019421), vec3(0.207777, 0.095488, 0.023471), vec3(-0.030307, 0.163340, 0.099766), vec3(0.012027, 0.081427, 0.076049), vec3(0.008256, -0.009202, 0.004746), vec3(-0.174059, -0.125532, 0.013659), vec3(-0.123190, -0.162086, 0.192199), vec3(0.079728, 0.045446, 0.083276), vec3(0.068169, 0.134876, 0.071926), vec3(0.011139, -0.011122, 0.001227), vec3(0.062146, -0.048333, 0.040802), vec3(0.318199, -0.194238, 0.005388), vec3(0.085928, -0.167529, 0.121446), vec3(0.035744, 0.264612, 0.218551), vec3(0.010980, 0.014685, 0.020474), vec3(-0.070881, 0.053770, 0.085137), vec3(0.190247, -0.205307, 0.058195), vec3(-0.128107, 0.048930, 0.050913), vec3(-0.414316, -0.126764, 0.022860), vec3(0.292767, -0.146901, 0.030233), vec3(0.011273, -0.010657, 0.008202), vec3(-0.331935, 0.039829, 0.017697), vec3(-0.152039, 0.111405, 0.150835), vec3(0.248028, -0.295074, 0.067144), vec3(-0.399653, 0.387673, 0.115775), vec3(0.095395, 0.077728, 0.078634), vec3(0.138522, 0.058387, 0.446292), vec3(-0.139391, 0.238982, 0.141845), vec3(0.291221, -0.412218, 0.372597), vec3(-0.057277, -0.063076, 0.079478), vec3(-0.468079, -0.235645, 0.473576), vec3(0.506897, -0.572697, 0.095597), vec3(-0.140104, 0.033207, 0.067720), vec3(0.002089, -0.006361, 0.002204), vec3(0.002283, 0.577194, 0.518092), vec3(-0.028116, 0.030414, 0.011354), vec3(0.325228, -0.451638, 0.287153), vec3(-0.515316, -0.485945, 0.523195), vec3(-0.004302, 0.027282, 0.024530) };\n\n		vec3 frag_pos   = textureSample(textures.position_tex, _input.uv).rgb;\n		vec3 normal     = textureSample(textures.normal_tex, _input.uv).rgb;\n		vec3 random_vec = vec3(textureSample(textures.noise_tex, _input.uv * noise_scale).xy, 0);\n\n		vec3 tangent = normalize(random_vec - normal * dot(random_vec, normal));\n		vec3 bitangent = cross(normal, tangent);\n		mat3 TBN = mat3(tangent, bitangent, normal);\n\n		float occlusion = 0;\n		for(int s = 0; s < uniforms.samples; ++s) {\n			vec3 sample = TBN * kernels[s]; // from tangent to view-space\n			sample = frag_pos + sample * uniforms.radius; \n\n			vec4 offset = vec4(sample, 1.0);\n			offset = uniforms.cam_proj * offset; // from view to clip-space\n			offset.xyz /= offset.w; // perspective divide\n			offset.xyz = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0\n\n			float sample_depth = textureSample(textures.position_tex, offset.xy).z;\n\n			if (sample_depth >= sample.z + uniforms.bias) {\n				float range_check = smoothstep(0.0, 1.0, uniforms.radius / abs(frag_pos.z - sample_depth));\n				occlusion += range_check;\n			}\n		}\n		\n		occlusion /= uniforms.samples;\n		_output.color = vec4(vec3(1 - occlusion), 1);\n	}\n}";
+	const char *shader_apply = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d ao_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float intensity;\n}\n\n\nprogram Tonemap\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n	\n		vec3 ao_color = textureSample(textures.ao_tex, _input.uv).rgb;\n		color *= pow(ao_color.r, uniforms.intensity);\n	\n		_output.color = vec4(color, 1);\n	}\n}\n";
+
+	ztShaderID shaders[2] = {
+		zt_shaderMake("SSAO Generate", shader_gen, zt_strLen(shader_gen)),
+		zt_shaderMake("SSAO Apply", shader_apply, zt_strLen(shader_apply)),
+	};
+
+	if (shaders[0] == ztInvalidID || shaders[1] == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztPostProcessSSAODetails *details = zt_mallocStruct(ztPostProcessSSAODetails);
+	details->settings.position_tex = position_tex;
+	details->settings.normal_tex = normal_tex;
+	details->settings.noise_tex = noise_tex;
+	details->settings.camera = camera;
+	details->settings.radius = radius;
+	details->settings.bias = bias;
+	details->settings.samples = samples;
+	details->settings.intensity = intensity;
+
+	ztTextureID textures[1];
+	i32 textures_count = 0;
+	zt_fize(textures) textures[i] = ztInvalidID;
+	textures_count = _zt_postProcessingEffectSSAOMakeTextures(textures, screen_w, screen_h, details);
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), textures, textures_count, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectSSAORender), ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectSSAOScreenChange));
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessTonemapDetails
+{
+	ztPostProcessTonemap settings;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectTonemapRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectTonemapRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectTonemapRender");
+
+	ztPostProcessTonemapDetails *details = (ztPostProcessTonemapDetails*)effect->user_data;
+
+
+	static u32 gamma_hash = zt_strHash("gamma");
+	static u32 exposure_hash = zt_strHash("exposure");
+
+	zt_shaderSetVariableFloat(effect->shaders[0], gamma_hash, details->settings.gamma);
+	zt_shaderSetVariableFloat(effect->shaders[0], exposure_hash, details->settings.exposure);
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[0]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessTonemap *zt_postProcessingEffectMakeTonemap(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 gamma, r32 exposure)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float gamma;\n	float exposure;\n}\n\n\nprogram Tonemap\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		vec3 mapped = vec3(1.0) - exp(-color * uniforms.exposure);\n		mapped = pow(mapped, vec3(1.0 / uniforms.gamma));\n		\n		_output.color = vec4(mapped, 1);\n	}\n}";
+
+	ztShaderID shaders[1] = {
+		zt_shaderMake("Tonemap", shader, zt_strLen(shader)),
+	};
+
+	if (shaders[0] == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztPostProcessTonemapDetails *details = zt_mallocStruct(ztPostProcessTonemapDetails);
+	details->settings.gamma = gamma;
+	details->settings.exposure = exposure;
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), nullptr, 0, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectTonemapRender), ZT_FUNCTION_POINTER_TO_VAR_NULL);
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessVignetteDetails
+{
+	ztPostProcessVignette settings;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectVignetteRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectVignetteRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectVignetteRender");
+
+	ztPostProcessVignetteDetails *details = (ztPostProcessVignetteDetails*)effect->user_data;
+
+
+	static u32 radius_hash = zt_strHash("radius");
+	static u32 softness_hash = zt_strHash("softness");
+	static u32 opacity_hash = zt_strHash("opacity");
+
+	zt_shaderSetVariableFloat(effect->shaders[0], radius_hash, details->settings.radius);
+	zt_shaderSetVariableFloat(effect->shaders[0], softness_hash, details->settings.softness);
+	zt_shaderSetVariableFloat(effect->shaders[0], opacity_hash, details->settings.opacity);
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[0]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessVignette *zt_postProcessingEffectMakeVignette(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 radius, r32 softness, r32 opacity)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float radius;\n	float softness;\n	float opacity;\n}\n\nprogram Vignette\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n\n		vec2 position = (_input.uv / 1.0) - vec2(0.5);\n		float len = length(position);\n		float vignette = smoothstep(uniforms.radius, uniforms.radius - uniforms.softness, len);\n		color = lerp(color, color * vignette, uniforms.opacity);\n		\n		_output.color = vec4(color, 1);\n	}\n}\n";
+
+	ztShaderID shaders[1] = {
+		zt_shaderMake("Vignette", shader, zt_strLen(shader)),
+	};
+
+	if (shaders[0] == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztPostProcessVignetteDetails *details = zt_mallocStruct(ztPostProcessVignetteDetails);
+	details->settings.radius = radius;
+	details->settings.softness = softness;
+	details->settings.opacity = opacity;
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), nullptr, 0, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectVignetteRender), ZT_FUNCTION_POINTER_TO_VAR_NULL);
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_postProcessingStackMake(ztPostProcessingStack *stack, i32 screen_w, i32 screen_h, ztPostProcessingEffect *effects, i32 effects_count)
+{
+	zt_returnOnNull(stack);
+	zt_returnOnNull(effects);
+	zt_assertReturnOnFail(screen_w > 0 && screen_h > 0);
+
+	stack->effects_count = zt_max(0, effects_count);
+
+	if (effects_count == 0) {
+		stack->effects = nullptr;
+		stack->buffer_tex = ztInvalidID;
+	}
+	else {
+		stack->effects = zt_mallocStructArray(ztPostProcessingEffect, effects_count);
+		zt_memCpy(stack->effects, zt_sizeof(ztPostProcessingEffect) * effects_count, effects, zt_sizeof(ztPostProcessingEffect) * effects_count);
+
+		stack->buffer_tex = zt_textureMakeRenderTarget(screen_w, screen_h, ztTextureFlags_HDR);
+		zt_textureSetName(stack->buffer_tex, "PostProcessing Stack Buffer");
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingStackFree(ztPostProcessingStack *stack)
+{
+	zt_returnOnNull(stack);
+
+	zt_fiz(stack->effects_count) {
+		zt_postProcessingEffectFree(&stack->effects[i]);
+	}
+	if (stack->effects) {
+		zt_free(stack->effects);
+	}
+
+	if (stack->buffer_tex != ztInvalidID) {
+		zt_textureFree(stack->buffer_tex);
+	}
+
+	zt_memSet(stack, zt_sizeof(ztPostProcessingStack), 0);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingStackRender(ztPostProcessingStack *stack, ztTextureID scene_texture, ztDrawList *draw_list, ztCamera *camera)
+{
+	zt_returnOnNull(stack);
+
+	ztTextureID render_tex[2] = { scene_texture, stack->buffer_tex };
+
+	zt_fiz(stack->effects_count) {
+
+		if (ZT_FUNCTION_POINTER_IS_VALID(stack->effects[i].render_func)) {
+			ZT_FUNCTION_POINTER_ACCESS(stack->effects[i].render_func, ztPostProcessingEffectRender_Func)(&stack->effects[i], draw_list, camera, render_tex[0], render_tex[1]);
+		}
+		else {
+			zt_drawListAddScreenRenderTexture(draw_list, render_tex[0], camera, 1, stack->effects[i].shaders[0]);
+			zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, render_tex[1]);
+		}
+		zt_swap(render_tex[0], render_tex[1]);
+	}
+
+	if (render_tex[0] != scene_texture) {
+		zt_drawListAddScreenRenderTexture(draw_list, render_tex[0], camera, 1, zt_shaderGetDefault(ztShaderDefault_Unlit));
+		zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, scene_texture);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_postProcessingStackUpdateScreen(ztPostProcessingStack *stack, i32 screen_w, i32 screen_h)
+{
+	zt_fiz(stack->effects_count) {
+		ZT_FUNCTION_POINTER_ACCESS_SAFE(stack->effects[i].screen_change_func, ztPostProcessingEffectScreenChange_Func)(&stack->effects[i], screen_w, screen_h);
+	}
+
+	if (stack->buffer_tex != ztInvalidID) {
+		zt_textureFree(stack->buffer_tex);
+		stack->buffer_tex = zt_textureMakeRenderTarget(screen_w, screen_h, ztTextureFlags_HDR);
+		zt_textureSetName(stack->buffer_tex, "PostProcessing Stack Buffer");
+	}
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztSprite zt_spriteMake(ztTextureID tex, int x, int y, int w, int h, int anchor_x, int anchor_y)
 {
 	ZT_PROFILE_RENDERING("zt_spriteMake");
@@ -16899,6 +17762,9 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 
 	scene->shader_point_light_shadows = ztInvalidID;
 
+	scene->extents_min = ztVec3::max;
+	scene->extents_max = ztVec3::min;
+
 	return scene;
 }
 
@@ -17026,6 +17892,9 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 	scene->list_trn_count = 0;
 	scene->list_std_count = 0;
 
+	scene->extents_min = ztVec3::max;
+	scene->extents_max = ztVec3::min;
+
 	zt_fiz(scene->models_count) {
 		if (scene->models[i].model->type != ztModelType_Empty) {
 			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent)) {
@@ -17033,6 +17902,14 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 			}
 			else {
 				scene->list_std[scene->list_std_count++] = &scene->models[i];
+			}
+
+			ztVec3 aabb_center, aabb_extents;
+			zt_modelGetAABB(scene->models[i].model, &aabb_center, &aabb_extents);
+
+			zt_fjze(scene->extents_min.values) {
+				scene->extents_min.values[j] = zt_min(scene->extents_min.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] - aabb_extents.values[j] * .5f));
+				scene->extents_max.values[j] = zt_max(scene->extents_max.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] + aabb_extents.values[j] * .5f));
 			}
 		}
 	}
@@ -17302,7 +18179,7 @@ void zt_sceneOptimize(ztScene *scene, ztCamera *camera)
 
 // ================================================================================================================================================================================================
 
-ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera, ztSceneLightingRules *lighting_rules, bool shadow_pass = false)
+ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztScene *scene, ztLight *light, ztCamera *camera, ztSceneLightingRules *lighting_rules, bool shadow_pass = false)
 {
 	ZT_PROFILE_RENDERING("_zt_sceneLightingMakeLightMat");
 	zt_assertReturnValOnFail(light != nullptr, ztMat4::identity);
@@ -17312,7 +18189,23 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	r32 shadow_near = .1f - lighting_rules->shadow_distance_behind_camera;
 	r32 shadow_far = lighting_rules->shadow_max_distance;
 
-	ztMat4 light_mat = ztMat4::identity.getLookAt(light->position.getNormal() * 1, ztVec3::zero);
+	ztVec3 scene_center = (scene->extents_min + scene->extents_max) * .5f;
+	ztVec3 scene_extents = scene->extents_max - scene->extents_min;
+
+	ztVec3 light_pos;
+	zt_collisionRayInAABB(light->position * 999.f, light->position.getNormal() * -1, scene_center, scene_extents, nullptr, &light_pos);
+
+	//light_pos *= .25f;
+	light_pos.normalize();
+
+	zt_debugDisplayLine(light_pos, ztVec3::zero, ztColor_Yellow);
+	zt_debugDisplaySphere(.5f, 16, 4, light_pos, ztColor_Yellow);
+
+	ztVec3 lookat = (scene_center - light_pos);
+	lookat.normalize();
+
+	//ztMat4 light_mat = ztMat4::identity.getLookAt(light->position.getNormal() * 1, ztVec3::zero);
+	ztMat4 light_mat = ztMat4::identity.getLookAt(light_pos, ztVec3::zero);
 
 	ztFrustum frustum = zt_cameraCalcViewFrustum(camera, shadow_far, shadow_near);
 
@@ -17337,9 +18230,24 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 		max_z = zt_max(max_z, point.z);
 	}
 
+	ztVec3 extents_min = light_mat.getMultiply(scene->extents_min);
+	ztVec3 extents_max = light_mat.getMultiply(scene->extents_max);
+
+//	min_x = zt_max(min_x, extents_min.x);
+//	max_x = zt_min(max_x, extents_max.x);
+//	min_y = zt_max(min_y, extents_min.y);
+//	max_y = zt_min(max_y, extents_max.y);
+//	min_z = zt_max(min_z, extents_min.z);
+//	max_z = zt_min(max_z, extents_max.z);
+
 	ztVec3 cube_center = zt_vec3((min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2);
 	//cube_center = light_mat.getMultiply(cube_center);
 	ztVec3 cube_size = zt_vec3(max_x - min_x, max_y - min_y, max_z - min_z);
+
+	ztMat4 result = ztMat4::makeOrthoProjection(min_x, max_x, max_z, min_z, min_y * 1, max_y * 1);
+	result = result * light_mat;
+	return result;
+
 
 	ztMat4 ortho_proj = ztMat4::identity;
 	ortho_proj.c0r0 = 2.f / cube_size.x;
@@ -17348,9 +18256,10 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztLight *light, ztCamera *camera
 	ortho_proj.c3r3 = 1;
 
 	ztMat4 light_move = ztMat4::identity.getTranslate(cube_center * -1);
-	light_mat = light_move * light_mat;
+	light_mat = light_move * ortho_proj;//light_mat;
 
-	return ortho_proj * light_mat;
+	//return ortho_proj * light_mat;
+	return light_mat;
 }
 
 // ================================================================================================================================================================================================
@@ -17549,7 +18458,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 	};
 
 	if (scene->directional_light.light) {
-		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light, camera, lighting_rules, true);
+		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene, scene->directional_light.light, camera, lighting_rules, true);
 
 		_zt_rendererCheckToResetStats();
 
@@ -18129,7 +19038,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 
 	ztMat4 light_mat;
 	if (scene->directional_light.light) {
-		light_mat = _zt_sceneLightingMakeLightMat(scene->directional_light.light, camera, lighting_rules);
+		light_mat = _zt_sceneLightingMakeLightMat(scene, scene->directional_light.light, camera, lighting_rules);
 	}
 	else {
 		light_mat = ztMat4::identity;
@@ -21576,6 +22485,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 			"reflect,vec3,vec3,vec3",
 			"sign,float,float",
 			"step,float,float,float",
+			"isnan,float,bool",
 
 			"int,int,int",
 			"int,uint,int",
@@ -25415,6 +26325,49 @@ ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h)
 	texture->flags = ztTextureFlags_Repeat | ztTextureFlags_HDR;
 
 	return texture_id;
+}
+
+// ================================================================================================================================================================================================
+
+ztTextureID zt_textureMakeColorLUT()
+{
+	i32 lut_w = 32 * 32;
+	i32 lut_h = 32;
+
+	byte *lut_texture = zt_mallocStructArrayArena(byte, lut_w * lut_h * 4, zt_memGetTempArena());
+
+	ztColor corners_beg[] = { zt_color(0, 0, 0, 1), zt_color(1, 0, 0, 1), zt_color(0, 1, 0, 1), zt_color(1, 1, 0, 1) };
+	ztColor corners_end[] = { zt_color(0, 0, 1, 1), zt_color(1, 0, 1, 1), zt_color(0, 1, 1, 1), zt_color(1, 1, 1, 1) };
+
+	zt_fvz(chunk, 32) {
+		r32 pct = chunk / 31.f;
+
+		ztColor corners[] = { ztVec4::lerp(corners_beg[0], corners_end[0], pct), ztVec4::lerp(corners_beg[1], corners_end[1], pct), ztVec4::lerp(corners_beg[2], corners_end[2], pct), ztVec4::lerp(corners_beg[3], corners_end[3], pct) };
+
+		zt_fyz(32) {
+			r32 y_pct = y / 31.f;
+			ztColor beg = ztVec4::lerp(corners[0], corners[2], y_pct);
+			ztColor end = ztVec4::lerp(corners[1], corners[3], y_pct);
+
+			zt_fxz(32) {
+				r32 x_pct = x / 31.f;
+				ztColor color = ztVec4::lerp(beg, end, x_pct);
+
+				i32 b_idx = ((y * 32 * 32) + (chunk * 32 + x)) * 4;
+
+				lut_texture[b_idx++] = zt_convertToi32Floor(color.r * 255);
+				lut_texture[b_idx++] = zt_convertToi32Floor(color.g * 255);
+				lut_texture[b_idx++] = zt_convertToi32Floor(color.b * 255);
+				lut_texture[b_idx] = 255;
+			}
+		}
+	}
+
+	ztTextureID texture = zt_textureMakeFromPixelData(lut_texture, 32 * 32, 32, ztTextureFlags_PixelPerfect | ztTextureFlags_FlipOnLoad);
+
+	zt_freeArena(lut_texture, zt_memGetTempArena());
+
+	return texture;
 }
 
 // ================================================================================================================================================================================================
@@ -41489,6 +42442,44 @@ void zt_particleEmitter2DReset(ztParticleEmitter2D *emitter, r32 prewarm_time)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ztPathNode *zt_pathNodesFindClosest(ztPathNode *nodes, int nodes_count, ztVec3 point)
+{
+	r32 closest_dist = ztReal32Max;
+	i32 closest_idx = -1;
+
+	zt_fiz(nodes_count) {
+		r32 dist = nodes[i].position.distanceForCompare(point);
+		if (dist < closest_dist) {
+			closest_dist = dist;
+			closest_idx = i;
+		}
+	}
+
+	if (closest_idx >= 0) {
+		return &nodes[closest_idx];
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_pathNodesPrepareForPathfinding(ztPathNode *nodes, int nodes_count, ztPathProgress *progress)
+{
+	ZT_PROFILE_PATHFINDING("zt_pathNodesPrepareForPathfinding");
+	zt_fiz(nodes_count) {
+		zt_bitRemove(nodes[i].flags, ztPathNodeFlags_Ignore);
+		nodes[i]._my_move_cost = ztPathNodeValue_Reset;
+	}
+
+	progress->frontier_idx = 0;
+	progress->visited_idx = 0;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 ztPathGridSquare *zt_pathGridSquareMake(int rows, int cols, bool allow_diagonals)
 {
 	ZT_PROFILE_PATHFINDING("zt_pathGridSquareMake");
@@ -41717,10 +42708,10 @@ ztInternal ztInline void _zt_pathArrayRemoveFromBegin(ztPathNode **arr, int len,
 
 // ================================================================================================================================================================================================
 
-ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena)
+ztPathProgress *zt_pathProgressMake(ztPathNode *nodes, int nodes_count, ztMemoryArena *arena)
 {
 	ZT_PROFILE_PATHFINDING("zt_pathProgressMake");
-	zt_returnValOnNull(grid, nullptr);
+	zt_returnValOnNull(nodes, nullptr);
 
 	if (arena == nullptr) {
 		arena = zt_memGetGlobalArena();
@@ -41733,18 +42724,26 @@ ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena
 	progress->origin = nullptr;
 	progress->destination = nullptr;
 
-	int nodes = grid->rows * grid->cols;
-
-	progress->frontier_len = nodes;
+	progress->frontier_len = nodes_count;
 	progress->frontier = zt_mallocStructArrayArena(ztPathNode *, progress->frontier_len, arena);
 
-	progress->visited_len = nodes;
+	progress->visited_len = nodes_count;
 	progress->visited = zt_mallocStructArrayArena(ztPathNode *, progress->visited_len, arena);
 
-	progress->path_size = nodes;
+	progress->path_size = nodes_count;
 	progress->path = zt_mallocStructArrayArena(ztPathNode *, progress->path_size, arena);
 
 	return progress;
+}
+
+// ================================================================================================================================================================================================
+
+ztPathProgress *zt_pathProgressMake(ztPathGridSquare *grid, ztMemoryArena *arena)
+{
+	ZT_PROFILE_PATHFINDING("zt_pathProgressMake");
+	zt_returnValOnNull(grid, nullptr);
+
+	return zt_pathProgressMake(grid->nodes, grid->rows * grid->cols, arena);
 }
 
 // ================================================================================================================================================================================================
