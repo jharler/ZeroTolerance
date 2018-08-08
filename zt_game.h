@@ -44545,10 +44545,10 @@ bool mainLoopCall(r64 *time_last)
 					RECT client_rect; GetClientRect(zt_game->win_details[0].handle, &client_rect);
 					RECT window_rect; GetWindowRect(zt_game->win_details[0].handle, &window_rect);
 					RECT clip_rect;
-					clip_rect.left   = window_rect.left + zt_convertToi32Floor(((window_rect.right - window_rect.left) - (client_rect.right)) / 2.f);
-					clip_rect.right  = clip_rect.left + client_rect.right;
-					clip_rect.top    = window_rect.top + zt_convertToi32Floor(((window_rect.bottom - window_rect.top) - (client_rect.bottom)) / 2.f);
-					clip_rect.bottom = clip_rect.top + client_rect.bottom;
+					clip_rect.left   = (window_rect.left + zt_convertToi32Floor(((window_rect.right - window_rect.left) - (client_rect.right)) / 2.f)) + 50;
+					clip_rect.right  = (clip_rect.left + client_rect.right) - 100;
+					clip_rect.top    = (window_rect.top + zt_convertToi32Floor(((window_rect.bottom - window_rect.top) - (client_rect.bottom)) / 2.f)) + 50;
+					clip_rect.bottom = (clip_rect.top + client_rect.bottom) - 100;
 					ClipCursor(&clip_rect);
 				}
 #				endif
