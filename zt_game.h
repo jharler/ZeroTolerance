@@ -1704,6 +1704,12 @@ struct ztMaterial
 	i32         roughness_flags;
 	u32         roughness_tex_override;
 
+	ztTextureID emissive_tex;
+	i32         emissive_flags;
+	u32         emissive_tex_override;
+	r32         emissive_strength;
+	u32         emissive_strength_override;
+
 	r32         shininess;
 	u32         shininess_override;
 };
@@ -1714,6 +1720,7 @@ ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4 &
 						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0,
 						   ztTextureID height_tex = ztInvalidID, i32 height_flags = 0,
 						   ztTextureID roughness_tex = ztInvalidID, i32 roughness_flags = 0,
+						   ztTextureID emissive_tex = ztInvalidID, i32 emissive_flags = 0, r32 emissive_strength = 1.f,
 						   r32 shininess = 0.5f);
 
 int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size);
@@ -29537,6 +29544,7 @@ ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color,
 						   ztTextureID normal_tex, i32 normal_flags, 
 						   ztTextureID height_tex, i32 height_flags,
 						   ztTextureID roughness_tex, i32 roughness_flags,
+						   ztTextureID emissive_tex, i32 emissive_flags, r32 emissive_strength,
 						   r32 shininess)
 {
 	ZT_PROFILE_RENDERING("zt_materialMake");
@@ -29544,32 +29552,38 @@ ztMaterial zt_materialMake(ztTextureID diffuse_tex, const ztVec4 &diffuse_color,
 
 	result.name[0] = 0;
 
-	result.diffuse_tex             = diffuse_tex;
-	result.diffuse_color           = diffuse_color;
-	result.diffuse_flags           = diffuse_flags;
-	result.diffuse_tex_override    = 0;
-	result.diffuse_color_override  = 0;
+	result.diffuse_tex                = diffuse_tex;
+	result.diffuse_color              = diffuse_color;
+	result.diffuse_flags              = diffuse_flags;
+	result.diffuse_tex_override       = 0;
+	result.diffuse_color_override     = 0;
 
-	result.specular_tex            = specular_tex;
-	result.specular_color          = specular_color;
-	result.specular_flags          = specular_flags;
-	result.specular_tex_override   = 0;
-	result.specular_color_override = 0;
+	result.specular_tex               = specular_tex;
+	result.specular_color             = specular_color;
+	result.specular_flags             = specular_flags;
+	result.specular_tex_override      = 0;
+	result.specular_color_override    = 0;
 
-	result.normal_tex              = normal_tex;
-	result.normal_flags            = normal_flags;
-	result.normal_tex_override     = 0;
+	result.normal_tex                 = normal_tex;
+	result.normal_flags               = normal_flags;
+	result.normal_tex_override        = 0;
 
-	result.height_tex              = height_tex;
-	result.height_flags            = height_flags;
-	result.height_tex_override     = 0;
+	result.height_tex                 = height_tex;
+	result.height_flags               = height_flags;
+	result.height_tex_override        = 0;
 
-	result.roughness_tex           = roughness_tex;
-	result.roughness_flags         = roughness_flags;
-	result.roughness_tex_override  = 0;
+	result.roughness_tex              = roughness_tex;
+	result.roughness_flags            = roughness_flags;
+	result.roughness_tex_override     = 0;
 
-	result.shininess               = shininess;
-	result.shininess_override      = 0;
+	result.emissive_tex               = emissive_tex;
+	result.emissive_flags             = emissive_flags;
+	result.emissive_tex_override      = 0;
+	result.emissive_strength          = emissive_strength;
+	result.emissive_strength_override = 0;
+
+	result.shininess                  = shininess;
+	result.shininess_override         = 0;
 
 	return result;
 }
@@ -29882,6 +29896,14 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 			zt_game->game_details.curr_frame.texture_switches += 1;
 			static u32 roughness_tex_hash = zt_strHash("roughness_tex");
 			zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
+
+			ztTextureID emissive_tex = zt_max(material->emissive_tex, ztTextureDefaultBlack);
+			zt_game->game_details.curr_frame.texture_switches += 1;
+			static u32 emissive_tex_hash = zt_strHash("emissive_tex");
+			zt_shaderSetVariableTex(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, emissive_tex);
+
+			static u32 emissive_strength_hash = zt_strHash("emissive_strength");
+			zt_shaderSetVariableFloat(shader, material->emissive_strength_override ? material->emissive_strength_override : emissive_strength_hash, material->emissive_strength);
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
