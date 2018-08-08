@@ -712,6 +712,8 @@ struct ztVec4
 	bool operator==(const ztVec4& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y) && zt_real32Eq(z, v.z) && zt_real32Eq(w, v.w); }
 	bool operator!=(const ztVec4& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y) || !zt_real32Eq(z, v.z) || !zt_real32Eq(w, v.w); }
 
+	r32 dot(const ztVec4 &v);
+
 	static ztVec4 lerp(const ztVec4& v1, const ztVec4& v2, r32 percent);
 	static ztVec4 lerpHermite(const ztVec4& v1, const ztVec4& v2, r32 percent);
 	static ztVec4 lerpSinerp(const ztVec4& v1, const ztVec4& v2, r32 percent);
@@ -3238,6 +3240,13 @@ ztInline ztVec3i zt_vec3i(ztVec3 v)
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztInline r32 ztVec4::dot(const ztVec4 &v)
+{
+	return x * v.x + y * v.y + z * v.z + w * v.w;
+}
+
 // ================================================================================================================================================================================================
 
 /*static*/ ztInline ztVec4 ztVec4::lerp(const ztVec4& v1, const ztVec4& v2, r32 percent)
