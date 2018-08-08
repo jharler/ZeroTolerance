@@ -1859,7 +1859,7 @@ struct ztPlane
 
 ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2);
 void    zt_planeNormalize(ztPlane *plane);
-
+r32     zt_planeDistanceFromPoint(const ztPlane *plane, const ztVec3 &point);
 
 // ================================================================================================================================================================================================
 // camera
@@ -2636,6 +2636,8 @@ enum ztLightType_Enum
 	ztLightType_Directional,
 	ztLightType_Spot,
 	ztLightType_Point,
+
+	ztLightType_MAX,
 };
 
 // ================================================================================================================================================================================================
@@ -2977,8 +2979,17 @@ enum ztSceneModelFlags_Enum
 
 // ================================================================================================================================================================================================
 
+enum ztSceneLightFlags_Enum
+{
+	ztSceneLightFlags_ExcludeFromCull = (1<<4),
+
+	ztSceneLightFlags_Culled          = (1<<31),
+};
+
+// ================================================================================================================================================================================================
+
 #ifndef ZT_SCENE_MAX_LIGHTS
-#define ZT_SCENE_MAX_LIGHTS	8
+#define ZT_SCENE_MAX_LIGHTS	64
 #endif
 
 // ================================================================================================================================================================================================
@@ -3028,6 +3039,8 @@ struct ztScene
 		ztLight                        *light;
 		ztTextureID                     shadowmap_tex;
 		r32                             far_plane;
+		i32                             flags;
+		r32                             dist_from_cam;
 	};
 
 
@@ -3040,8 +3053,12 @@ struct ztScene
 	ModelInfo                         **list_trn;
 	i32                                 list_trn_count;
 
+	LightInfo                         **list_light; // ordered in distance from camera
+	i32                                 list_light_count;
+
 	LightInfo                           directional_light;
 	LightInfo                           lights[ZT_SCENE_MAX_LIGHTS];
+	i32                                 lights_count;
 
 	ModelInfo                           skybox;
 
@@ -3085,7 +3102,7 @@ void     zt_sceneFree(ztScene *scene);
 
 bool     zt_sceneMakeVertexArray(ztScene *scene, int max_vertices);
 
-void     zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res = 1024);
+void     zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res = 1024, i32 flags = 0);
 void     zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
 void     zt_sceneAddDepthPass(ztScene *scene, i32 w, i32 h);
 
@@ -3093,6 +3110,7 @@ void     zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
 void     zt_sceneRemoveModel(ztScene *scene, ztModel *model);
 void     zt_sceneRefreshModel(ztScene *scene, ztModel *model);
 bool     zt_sceneHasModel(ztScene *scene, ztModel *model);
+bool     zt_sceneHasLight(ztScene *scene, ztLight *light);
 
 bool     zt_sceneAddRenderOverride(ztScene *scene, ZT_FUNCTION_POINTER_VAR(render_override, ztSceneRenderModelOverride_Func), void *render_override_user_data);
 bool     zt_sceneAddRenderOverrideForModel(ztScene *scene, ztModel *model, ZT_FUNCTION_POINTER_VAR(render_override, ztSceneRenderModelOverride_Func), void *render_override_user_data);
@@ -3841,6 +3859,7 @@ bool   zt_collisionLineInCircle               (const ztVec2 &line_beg, const ztV
 bool   zt_collisionPointInAABB                (const ztVec2 &point, const ztVec2 &aabb_center, const ztVec2 &aabb_extents);
 bool   zt_collisionPointInAABB                (const ztVec3 &point, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
 bool   zt_collisionRayInAABB                  (const ztVec3 &point, const ztVec3 &direction, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
+bool   zt_collisionRayInSphere                (const ztVec3 &point, const ztVec3 &direction, const ztVec3 &sphere_center, r32 sphere_radius, r32 *intersection_time = nullptr, ztVec3 *intersection_point = nullptr);
 bool   zt_collisionLineSegmentInAABB          (const ztVec2 &line_0, const ztVec2 &line_1, const ztVec2 &aabb_center, const ztVec2 &aabb_extents, r32 *intersection_time = nullptr, ztVec2 intersection_points[2] = nullptr);
 bool   zt_collisionLineSegmentInAABB          (const ztVec3 &line_0, const ztVec3 &line_1, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, r32 *intersection_time = nullptr, ztVec3 intersection_points[2] = nullptr, i32 *intersection_axis = nullptr);
 bool   zt_collisionAABBInAABB                 (const ztVec2 &aabb_center_1, const ztVec2 &aabb_extents_1, const ztVec2 &aabb_center_2, const ztVec2 &aabb_extents_2);
@@ -3863,6 +3882,7 @@ bool   zt_collisionLineSegmentInOBB           (const ztVec3 &line_0, const ztVec
 bool   zt_collisionPointInFrustum             (const ztFrustum& frustum, const ztVec3 &point, bool check_near_far = true);
 bool   zt_collisionLineInFrustum              (const ztFrustum& frustum, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *intersection_point = nullptr);
 bool   zt_collisionAABBInFrustum              (const ztFrustum& frustum, const ztVec3 &aabb_center, const ztVec3 &aabb_extents);
+bool   zt_collisionSphereInFrustum            (const ztFrustum& frustum, const ztVec3 &sphere_center, r32 sphere_radius);
 
 bool   zt_collisionLineInGrid                 (int x1, int y1, int x2, int y2, byte* array2d, int cols, int rows); // check for non-zero elements in the given line
 
@@ -8397,8 +8417,10 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-depthtextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(1 - _input.position.z, 1 - _input.position.z, 1 - _input.position.z, 1);\n		}\n	}\n}",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
-	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(color.r <= 1. && color.g <= 1 && color.b <= 1) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
-//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		float brightness = (color.r * 0.2126) + (color.g * 0.7152) + (color.b * 0.0722);\n		_output.color = color * brightness;\n	}\n}",
+	//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(length(color.rgb) < .5) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
+		"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(color.r <= 1. && color.g <= 1 && color.b <= 1) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
+	//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		float brightness = (color.r * 0.2126) + (color.g * 0.7152) + (color.b * 0.0722);\n		_output.color = color * brightness * brightness * brightness;\n	}\n}",
+	//"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		float brightness = (color.r * 0.2126) + (color.g * 0.7152) + (color.b * 0.0722);\n		if (brightness < 1.0) color = vec4(0,0,0,1);\n_output.color = vec4(color.rgb * brightness, 1);\n	}\n}",
 	"// shader-blur-vert\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
 	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
 };
@@ -15325,6 +15347,8 @@ ztLight zt_lightMakeDirectional(const ztVec3 &pos, const ztVec3 &dir, r32 intens
 	result.ambient       = ambient;
 	result.casts_shadows = casts_shadows;
 	result.color         = color;
+	result.cutoff_in     = 0;
+	result.cutoff_out    = 0;
 	return result;
 }
 
@@ -15360,6 +15384,8 @@ ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity, bool casts_shadows, c
 	result.ambient       = 0;
 	result.casts_shadows = casts_shadows;
 	result.color         = color;
+	result.cutoff_in     = 0;
+	result.cutoff_out    = 0;
 	return result;
 }
 
@@ -17733,11 +17759,13 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 {
 	ZT_PROFILE_RENDERING("zt_sceneMake");
 	ztScene *scene = zt_mallocStructArena(ztScene, arena);
-	scene->models = zt_mallocStructArray(ztScene::ModelInfo, max_models);
-	scene->list_std = zt_mallocStructArray(ztScene::ModelInfo*, max_models);
+	scene->models = zt_mallocStructArrayArena(ztScene::ModelInfo, max_models, arena);
+	scene->list_std = zt_mallocStructArrayArena(ztScene::ModelInfo*, max_models, arena);
 	scene->list_std_count = 0;
-	scene->list_trn = zt_mallocStructArray(ztScene::ModelInfo*, max_models);
+	scene->list_trn = zt_mallocStructArrayArena(ztScene::ModelInfo*, max_models, arena);
 	scene->list_trn_count = 0;
+	scene->list_light = zt_mallocStructArrayArena(ztScene::LightInfo*, ZT_SCENE_MAX_LIGHTS, arena);
+	scene->list_light_count = 0;
 	scene->models_count = 0;
 	scene->models_size = max_models;
 	scene->arena = arena;
@@ -17786,7 +17814,7 @@ void zt_sceneFree(ztScene *scene)
 
 	if (scene->vertex_array != ztInvalidID) {
 		zt_vertexArrayFree(scene->vertex_array);
-		zt_free(scene->vertex_array_vertices);
+		zt_freeArena(scene->vertex_array_vertices, scene->arena);
 		scene->vertex_array = ztInvalidID;
 	}
 
@@ -17803,6 +17831,7 @@ void zt_sceneFree(ztScene *scene)
 	zt_textureFree(scene->tex_brdf_lut);
 
 	zt_freeArena(scene->models, scene->arena);
+	zt_freeArena(scene->list_light, scene->arena);
 	zt_freeArena(scene->list_std, scene->arena);
 	zt_freeArena(scene->list_trn, scene->arena);
 
@@ -17813,7 +17842,43 @@ void zt_sceneFree(ztScene *scene)
 
 // ================================================================================================================================================================================================
 
-void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res)
+ztInternal void _zt_sceneRebuildLists(ztScene *scene)
+{
+	scene->list_trn_count = 0;
+	scene->list_std_count = 0;
+
+	scene->extents_min = ztVec3::max;
+	scene->extents_max = ztVec3::min;
+
+	zt_fiz(scene->models_count) {
+		if (scene->models[i].model->type != ztModelType_Empty) {
+			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent)) {
+				scene->list_trn[scene->list_trn_count++] = &scene->models[i];
+			}
+			else {
+				scene->list_std[scene->list_std_count++] = &scene->models[i];
+			}
+
+			ztVec3 aabb_center, aabb_extents;
+			zt_modelGetAABB(scene->models[i].model, &aabb_center, &aabb_extents);
+
+			zt_fjze(scene->extents_min.values) {
+				scene->extents_min.values[j] = zt_min(scene->extents_min.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] - aabb_extents.values[j] * .5f));
+				scene->extents_max.values[j] = zt_max(scene->extents_max.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] + aabb_extents.values[j] * .5f));
+			}
+		}
+	}
+
+	scene->list_light_count = 0;
+	zt_fiz(scene->lights_count) {
+		ztScene::LightInfo *light_info = &scene->lights[i];
+		scene->list_light[scene->list_light_count++] = light_info;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res, i32 flags)
 {
 	ZT_PROFILE_RENDERING("zt_sceneAddLight");
 	zt_returnOnNull(scene);
@@ -17823,22 +17888,54 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res)
 		scene->directional_light.light = light;
 	}
 	else {
-		zt_fiz(ZT_SCENE_MAX_LIGHTS) {
-			if (scene->lights[i].light == nullptr) {
-				scene->lights[i].light = light;
+		zt_assertReturnOnFail(scene->lights_count < zt_elementsOf(scene->lights));
 
-				if (light->casts_shadows) {
-					scene->lights[i].shadowmap_tex = zt_textureMakeCubeMapForDepth(shadow_map_res);
+		ztScene::LightInfo *light_info = &scene->lights[scene->lights_count++];
 
-					if((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
-						scene->shader_point_light_shadows = zt_shaderMakePointLightShadows();
-					}
-				}
+		light_info->light = light;
+		light_info->flags = flags;
 
-				break;
+		if (light->casts_shadows) {
+			light_info->shadowmap_tex = zt_textureMakeCubeMapForDepth(shadow_map_res);
+
+			if((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
+				scene->shader_point_light_shadows = zt_shaderMakePointLightShadows();
 			}
 		}
+
+		_zt_sceneRebuildLists(scene);
 	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneRemoveLight(ztScene *scene, ztLight *light)
+{
+	ZT_PROFILE_RENDERING("zt_sceneRemoveLight");
+	zt_returnOnNull(scene);
+	zt_returnOnNull(light);
+
+	zt_assertReturnOnFail(scene->lights_count < zt_elementsOf(scene->lights));
+
+	zt_fiz(scene->lights_count) {
+		if(scene->lights[i].light == light) {
+
+			if (light->casts_shadows) {
+				zt_textureFree(scene->lights[i].shadowmap_tex);
+			}
+
+			for(int j = i; j < scene->lights_count - 1; ++j) {
+				zt_memCpy(&scene->lights[j], zt_sizeof(ztScene::LightInfo), &scene->lights[j+1], zt_sizeof(ztScene::LightInfo));
+			}
+
+			scene->lights_count -= 1;
+
+			_zt_sceneRebuildLists(scene);
+			return;
+		}
+	}
+
+	zt_assert(false); // do not remove lights that aren't in the scene
 }
 
 // ================================================================================================================================================================================================
@@ -17853,7 +17950,7 @@ bool zt_sceneMakeVertexArray(ztScene *scene, int max_vertices)
 		zt_free(scene->vertex_array_vertices);
 	}
 
-	scene->vertex_array_vertices = zt_mallocStructArray(ztVertexDefaultLit, max_vertices);
+	scene->vertex_array_vertices = zt_mallocStructArrayArena(ztVertexDefaultLit, max_vertices, scene->arena);
 	scene->vertex_array_vertices_idx = 0;
 	scene->vertex_array_size = max_vertices;
 	scene->vertex_array = zt_vertexArrayMakeDefaultLit(scene->vertex_array_vertices, max_vertices);
@@ -17890,36 +17987,6 @@ void zt_sceneAddDepthPass(ztScene *scene, i32 w, i32 h)
 
 	scene->tex_depth = zt_textureMakeRenderTarget(w, h, ztTextureFlags_DepthMap);
 	zt_textureSetName(scene->tex_depth, "Scene Depth");
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal void _zt_sceneRebuildLists(ztScene *scene)
-{
-	scene->list_trn_count = 0;
-	scene->list_std_count = 0;
-
-	scene->extents_min = ztVec3::max;
-	scene->extents_max = ztVec3::min;
-
-	zt_fiz(scene->models_count) {
-		if (scene->models[i].model->type != ztModelType_Empty) {
-			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent)) {
-				scene->list_trn[scene->list_trn_count++] = &scene->models[i];
-			}
-			else {
-				scene->list_std[scene->list_std_count++] = &scene->models[i];
-			}
-
-			ztVec3 aabb_center, aabb_extents;
-			zt_modelGetAABB(scene->models[i].model, &aabb_center, &aabb_extents);
-
-			zt_fjze(scene->extents_min.values) {
-				scene->extents_min.values[j] = zt_min(scene->extents_min.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] - aabb_extents.values[j] * .5f));
-				scene->extents_max.values[j] = zt_max(scene->extents_max.values[j], scene->models[i].model->transform.position.values[j] + (aabb_center.values[j] + aabb_extents.values[j] * .5f));
-			}
-		}
-	}
 }
 
 // ================================================================================================================================================================================================
@@ -18075,6 +18142,26 @@ bool zt_sceneHasModel(ztScene *scene, ztModel *model)
 
 // ================================================================================================================================================================================================
 
+bool zt_sceneHasLight(ztScene *scene, ztLight *light)
+{
+	ZT_PROFILE_RENDERING("zt_sceneHasLight");
+	zt_returnValOnNull(scene, false);
+
+	if (light == nullptr) {
+		return false;
+	}
+
+	zt_fiz(scene->lights_count) {
+		if (scene->lights[i].light == light) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
 void zt_sceneUpdate(ztScene *scene, r32 dt)
 {
 	ZT_PROFILE_RENDERING("zt_sceneUpdate");
@@ -18113,6 +18200,10 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 		scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->calculated_transform.position.distance(camera->position));
 	}
 
+	zt_fiz(scene->lights_count) {
+		scene->lights[i].dist_from_cam = zt_abs(scene->lights[i].light->position.distance(camera->position));
+	}
+
 	ztFrustum camera_frustum = zt_cameraCalcViewFrustum(camera);
 
 	if (scene->culling_distance != ztReal32Max) {
@@ -18142,7 +18233,31 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 				scene->models_culled += 1;
 				scene->models[i].flags |= ztSceneModelFlags_Culled;
 			}
+		}
 
+		zt_fiz(scene->lights_count) {
+			if (zt_bitIsSet(scene->lights[i].flags, ztSceneLightFlags_ExcludeFromCull)) {
+				continue;
+			}
+			r32 radius = scene->lights[i].light->intensity * 1.5f;
+
+			bool visible = true;
+
+			if(scene->lights[i].dist_from_cam - radius > scene->culling_distance) {
+				visible = false;
+			}
+			else {
+				if(!zt_collisionSphereInFrustum(camera_frustum, scene->lights[i].light->position, radius)) {
+					visible = false;
+				}
+			}
+
+			if (visible) {
+				zt_bitRemove(scene->lights[i].flags, ztSceneLightFlags_Culled);
+			}
+			else {
+				scene->lights[i].flags |= ztSceneLightFlags_Culled;
+			}
 		}
 	}
 
@@ -18171,10 +18286,24 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 
 			return mone->dist_from_cam <  mtwo->dist_from_cam ? 1 : -1;
 		}
+
+		static int compareNearToFarLight(const void *vone, const void *vtwo)
+		{
+			const ztScene::LightInfo *lone = *(ztScene::LightInfo**)vone;
+			const ztScene::LightInfo *ltwo = *(ztScene::LightInfo**)vtwo;
+
+			if (zt_real32Eq(lone->dist_from_cam, ltwo->dist_from_cam)) {
+				return lone < ltwo ? 1 : -1;
+			}
+
+			return lone->dist_from_cam <  ltwo->dist_from_cam ? 1 : -1;
+		}
 	};
 
 	qsort(scene->list_std, scene->list_std_count, zt_sizeof(ztScene::ModelInfo*), sort::compareNearToFar);
 	qsort(scene->list_trn, scene->list_trn_count, zt_sizeof(ztScene::ModelInfo*), sort::compareFarToNear);
+
+	qsort(scene->list_light, scene->list_light_count, zt_sizeof(ztScene::LightInfo*), sort::compareNearToFarLight);
 }
 
 // ================================================================================================================================================================================================
@@ -18204,9 +18333,6 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztScene *scene, ztLight *light, 
 
 	//light_pos *= .25f;
 	light_pos.normalize();
-
-	zt_debugDisplayLine(light_pos, ztVec3::zero, ztColor_Yellow);
-	zt_debugDisplaySphere(.5f, 16, 4, light_pos, ztColor_Yellow);
 
 	ztVec3 lookat = (scene_center - light_pos);
 	lookat.normalize();
@@ -18525,19 +18651,23 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_textureRenderTargetCommit(scene->tex_directional_shadow_map);
 	}
 
-	zt_fkz(ZT_SCENE_MAX_LIGHTS) {
-		if (scene->lights[k].light == nullptr || scene->lights[k].shadowmap_tex == ztInvalidID) {
+	//zt_fkz(ZT_SCENE_MAX_LIGHTS) {
+	zt_fkz(scene->list_light_count) {
+
+		ztScene::LightInfo *light_info = scene->list_light[k];
+
+		if (light_info->light == nullptr || light_info->shadowmap_tex == ztInvalidID || zt_bitIsSet(light_info->flags, ztSceneLightFlags_Culled)) {
 			continue;
 		}
 
 		ztMat4 matrices[6];
-		if (!_zt_sceneLightingMakeLightMats(matrices, scene->lights[k].light, camera, lighting_rules, true)) {
+		if (!_zt_sceneLightingMakeLightMats(matrices, light_info->light, camera, lighting_rules, true)) {
 			continue;
 		}
 
 		_zt_rendererCheckToResetStats();
 
-		zt_textureRenderTargetPrepare(scene->lights[k].shadowmap_tex, true);
+		zt_textureRenderTargetPrepare(light_info->shadowmap_tex, true);
 		zt_rendererClear(zt_vec4(0, 0, 0, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
 		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
@@ -18548,7 +18678,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 			ztShaderID shader = ztInvalidID;
 
 			if (pass == 0) {
-				switch(scene->lights[k].light->type)
+				switch(light_info->light->type)
 				{
 					case ztLightType_Point:
 					case ztLightType_Spot: {
@@ -18574,9 +18704,9 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				zt_shaderSetVariableMat4(shader, shadow_matrices_hash[x], matrices[x]);
 			}
 
-			zt_shaderSetVariableVec3(shader, light_pos_hash, scene->lights[k].light->position);
+			zt_shaderSetVariableVec3(shader, light_pos_hash, light_info->light->position);
 			zt_shaderSetVariableFloat(shader, far_plane_hash, lighting_rules->shadow_max_distance);
-			scene->lights[k].far_plane = lighting_rules->shadow_max_distance;
+			light_info->far_plane = lighting_rules->shadow_max_distance;
 
 			zt_shaderApplyVariables(shader);
 
@@ -18597,7 +18727,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 						zt_shaderSetVariableMat4(shader_to_use, shadow_matrices_hash[x], matrices[x]);
 					}
 
-					zt_shaderSetVariableVec3(shader_to_use, light_pos_hash, scene->lights[k].light->position);
+					zt_shaderSetVariableVec3(shader_to_use, light_pos_hash, light_info->light->position);
 					zt_shaderSetVariableFloat(shader_to_use, far_plane_hash, lighting_rules->shadow_max_distance);
 
 					zt_shaderApplyVariables(shader_to_use);
@@ -18610,9 +18740,9 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				if (shader_to_use != shader) {
 					zt_shaderEnd(shader_to_use);
 					zt_shaderBegin(shader);
-					zt_shaderSetVariableVec3(shader, light_pos_hash, scene->lights[k].light->position);
+					zt_shaderSetVariableVec3(shader, light_pos_hash, light_info->light->position);
 					zt_shaderSetVariableFloat(shader, far_plane_hash, lighting_rules->shadow_max_distance);
-					scene->lights[k].far_plane = lighting_rules->shadow_max_distance;
+					light_info->far_plane = lighting_rules->shadow_max_distance;
 
 					zt_shaderApplyVariables(shader);
 				}
@@ -18626,7 +18756,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 			else break; // no support for textures yet
 		}
 
-		zt_textureRenderTargetCommit(scene->lights[k].shadowmap_tex);
+		zt_textureRenderTargetCommit(light_info->shadowmap_tex);
 	}
 
 #	endif
@@ -18834,10 +18964,13 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					static u32 spot_lights_shadowmap_use_hash  [ZT_SCENE_MAX_LIGHTS];
 					static u32 spot_lights_shadowmap_hash      [ZT_SCENE_MAX_LIGHTS];
 
-					zt_fiz(ZT_SCENE_MAX_LIGHTS) {
-						if (scene->lights[i].light != 0) {
+					//zt_fiz(ZT_SCENE_MAX_LIGHTS) {
+					zt_fiz(scene->list_light_count) {
+						ztScene::LightInfo *light_info = scene->list_light[i];
 
-							switch (scene->lights[i].light->type)
+						if (light_info->light != 0 && !zt_bitIsSet(light_info->flags, ztSceneLightFlags_Culled)) {
+
+							switch (light_info->light->type)
 							{
 								case ztLightType_Point: {
 									if (point_lights_ambient_color_hash[point_lights] == 0) {
@@ -18850,12 +18983,12 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights_shadowmap[%d]",     point_lights); point_lights_shadowmap_hash    [point_lights] = zt_strHash(varname);
 									}
 
-									zt_shaderSetVariableVec3 (*active_shader, point_lights_ambient_color_hash [point_lights], scene->lights[point_lights].light->color.rgb);
-									zt_shaderSetVariableFloat(*active_shader, point_lights_intensity_hash     [point_lights], scene->lights[point_lights].light->intensity);
-									zt_shaderSetVariableVec3 (*active_shader, point_lights_pos_hash           [point_lights], scene->lights[point_lights].light->position);
-									zt_shaderSetVariableFloat(*active_shader, point_lights_far_plane_hash     [point_lights], scene->lights[point_lights].far_plane);
-									zt_shaderSetVariableInt  (*active_shader, point_lights_shadowmap_use_hash [point_lights], scene->lights[point_lights].light->casts_shadows ? 1 : 0);
-									zt_shaderSetVariableTex  (*active_shader, point_lights_shadowmap_hash     [point_lights], scene->lights[point_lights].light->casts_shadows ? scene->lights[point_lights].shadowmap_tex : 0);
+									zt_shaderSetVariableVec3 (*active_shader, point_lights_ambient_color_hash [point_lights], light_info->light->color.rgb * light_info->light->intensity);
+									zt_shaderSetVariableFloat(*active_shader, point_lights_intensity_hash     [point_lights], light_info->light->intensity);
+									zt_shaderSetVariableVec3 (*active_shader, point_lights_pos_hash           [point_lights], light_info->light->position);
+									zt_shaderSetVariableFloat(*active_shader, point_lights_far_plane_hash     [point_lights], light_info->far_plane);
+									zt_shaderSetVariableInt  (*active_shader, point_lights_shadowmap_use_hash [point_lights], light_info->light->casts_shadows ? 1 : 0);
+									zt_shaderSetVariableTex  (*active_shader, point_lights_shadowmap_hash     [point_lights], light_info->light->casts_shadows ? light_info->shadowmap_tex : 0);
 									point_lights += 1;
 								} break;
 
@@ -18873,15 +19006,15 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 										zt_strPrintf(varname, zt_elementsOf(varname), "spot_lights_shadowmap[%d]",     spot_lights); spot_lights_shadowmap_hash    [spot_lights] = zt_strHash(varname);
 									}
 
-									zt_shaderSetVariableVec3 (*active_shader, spot_lights_ambient_color_hash [spot_lights], scene->lights[spot_lights].light->color.rgb);
-									zt_shaderSetVariableFloat(*active_shader, spot_lights_intensity_hash     [spot_lights], scene->lights[spot_lights].light->intensity);
-									zt_shaderSetVariableVec3 (*active_shader, spot_lights_direction_hash     [spot_lights], scene->lights[spot_lights].light->direction);
-									zt_shaderSetVariableVec3 (*active_shader, spot_lights_pos_hash           [spot_lights], scene->lights[spot_lights].light->position);
-									zt_shaderSetVariableFloat(*active_shader, spot_lights_cutoff_in_hash     [spot_lights], scene->lights[spot_lights].light->cutoff_in);
-									zt_shaderSetVariableFloat(*active_shader, spot_lights_cutoff_out_hash    [spot_lights], scene->lights[spot_lights].light->cutoff_out);
-									zt_shaderSetVariableFloat(*active_shader, spot_lights_far_plane_hash     [spot_lights], scene->lights[spot_lights].far_plane);
-									zt_shaderSetVariableInt  (*active_shader, spot_lights_shadowmap_use_hash [spot_lights], scene->lights[spot_lights].light->casts_shadows ? 1 : 0);
-									zt_shaderSetVariableTex  (*active_shader, spot_lights_shadowmap_hash     [spot_lights], scene->lights[spot_lights].light->casts_shadows ? scene->lights[spot_lights].shadowmap_tex : 0);
+									zt_shaderSetVariableVec3 (*active_shader, spot_lights_ambient_color_hash [spot_lights], light_info->light->color.rgb * light_info->light->intensity);
+									zt_shaderSetVariableFloat(*active_shader, spot_lights_intensity_hash     [spot_lights], light_info->light->intensity);
+									zt_shaderSetVariableVec3 (*active_shader, spot_lights_direction_hash     [spot_lights], light_info->light->direction);
+									zt_shaderSetVariableVec3 (*active_shader, spot_lights_pos_hash           [spot_lights], light_info->light->position);
+									zt_shaderSetVariableFloat(*active_shader, spot_lights_cutoff_in_hash     [spot_lights], light_info->light->cutoff_in);
+									zt_shaderSetVariableFloat(*active_shader, spot_lights_cutoff_out_hash    [spot_lights], light_info->light->cutoff_out);
+									zt_shaderSetVariableFloat(*active_shader, spot_lights_far_plane_hash     [spot_lights], light_info->far_plane);
+									zt_shaderSetVariableInt  (*active_shader, spot_lights_shadowmap_use_hash [spot_lights], light_info->light->casts_shadows ? 1 : 0);
+									zt_shaderSetVariableTex  (*active_shader, spot_lights_shadowmap_hash     [spot_lights], light_info->light->casts_shadows ? scene->lights[spot_lights].shadowmap_tex : 0);
 									spot_lights += 1;
 								} break;
 							}
@@ -31247,6 +31380,12 @@ void zt_planeNormalize(ztPlane *plane)
 	plane->distance /= scale;
 }
 
+// ================================================================================================================================================================================================
+
+r32 zt_planeDistanceFromPoint(const ztPlane *plane, const ztVec3 &point)
+{
+	return zt_vec4(point, 1).dot(zt_vec4(plane->normal, plane->distance));
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -34911,6 +35050,35 @@ bool zt_collisionRayInAABB(const ztVec3 &point, const ztVec3 &direction, const z
 
 // ================================================================================================================================================================================================
 
+bool zt_collisionRayInSphere(const ztVec3 &point, const ztVec3 &direction, const ztVec3 &sphere_center, r32 sphere_radius, r32 *intersection_time, ztVec3 *intersection_point)
+{
+	ztVec3 m = point - sphere_center;
+	r32 b = m.dot(direction);
+	r32 c = m.dot(m);
+
+	if (c > 0.f && b > 0.f) {
+		return false;
+	}
+
+	r32 discr = b * b - c;
+	if (discr < 0.f) {
+		return false;
+	}
+
+	r32 time = -b - zt_sqrt(discr);
+
+	if (time < 0.f) {
+		time = 0;
+	}
+
+	if (intersection_time) *intersection_time = time;
+	if (intersection_point) *intersection_point = point + direction * time;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_collisionLineSegmentInAABB(const ztVec2 &line_0, const ztVec2 &line_1, const ztVec2 &aabb_center, const ztVec2 &aabb_extents, r32 *intersection_time, ztVec2 intersection_points[2])
 {
 	ZT_PROFILE_PHYSICS("zt_collisionLineSegmentInAABB");
@@ -36203,6 +36371,19 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 
 #	undef test_plane
 	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_collisionSphereInFrustum(const ztFrustum& frustum, const ztVec3 &sphere_center, r32 sphere_radius)
+{
+	r32 dist_1 = zt_min(zt_planeDistanceFromPoint(&frustum.plane_near, sphere_center), zt_planeDistanceFromPoint(&frustum.plane_far, sphere_center));
+	r32 dist_2 = zt_min(zt_planeDistanceFromPoint(&frustum.plane_left, sphere_center), zt_planeDistanceFromPoint(&frustum.plane_right, sphere_center));
+	r32 dist_3 = zt_min(zt_planeDistanceFromPoint(&frustum.plane_top,  sphere_center), zt_planeDistanceFromPoint(&frustum.plane_bottom, sphere_center));
+
+	r32 dist = zt_min(zt_min(dist_1, dist_2), dist_3);
+
+	return (dist + sphere_radius) > 0;
 }
 
 // ================================================================================================================================================================================================
