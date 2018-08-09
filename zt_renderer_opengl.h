@@ -2711,12 +2711,24 @@ ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
 	const char *vert =
 		"#version 330 core\n"
 		"layout (location = 0) in vec3 position;\n"
+		"layout (location = 6) in ivec4 _bones;\n"
+		"layout (location = 7) in vec4  _weights;\n"
 		"\n"
 		"uniform mat4 model;\n"
+		"uniform mat4 bones[200];\n"
+		"uniform int bones_count;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	gl_Position = model * vec4(position, 1.0);\n"
+		"	mat4 model_mat = model;\n"
+		"	if (bones_count > 0) {\n"
+		"		mat4 bone_mat = bones[_bones.x] * _weights.x;\n"
+		"		bone_mat += bones[_bones.y] * _weights.y;\n"
+		"		bone_mat += bones[_bones.z] * _weights.z;\n"
+		"		bone_mat += bones[_bones.w] * _weights.w;\n"
+		"		model_mat = model * bone_mat;\n"
+		"	}\n"
+		"	gl_Position = model_mat * vec4(position, 1.0);\n"
 		"}\n";
 
 	const char *geom =
