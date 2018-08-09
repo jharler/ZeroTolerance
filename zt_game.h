@@ -2134,6 +2134,95 @@ void                      zt_cameraControlUpdateArcball(ztCameraControllerArcbal
 
 
 // ================================================================================================================================================================================================
+// character controller
+// ================================================================================================================================================================================================
+
+struct ztMovingBody;
+struct ztPhysics;
+
+// ================================================================================================================================================================================================
+
+enum ztCharacterControllerFlags_Enum
+{
+	ztCharacterControllerFlags_CanFly           = (1 << 0),
+	ztCharacterControllerFlags_FloatsOverGround = (1 << 1), // makes movement speed consistent regardless of ground angle
+	ztCharacterControllerFlags_IgnoreXRotation  = (1 << 2),
+};
+
+// ================================================================================================================================================================================================
+
+enum ztCharacterControllerStateFlags_Enum
+{
+	ztCharacterControllerStateFlags_Grounded      = (1 << 0),
+	ztCharacterControllerStateFlags_OnSlope       = (1 << 1),
+	ztCharacterControllerStateFlags_CollidingWall = (1 << 2),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztCharacterController
+{
+	// settings
+	ztMovingBody *moving_body;
+
+	i32           flags;
+	i32           state_flags;
+	r32           state_time;
+	i32           state_flags_prev;
+
+	r32           speed_sneak;
+	r32           speed_walk;
+	r32           speed_run;
+	r32           velocity_jump;
+	r32           slowdown_speed;
+	r32           velocity_damping;
+	r32           min_ramp_dot;
+
+	// current status
+	ztVec3        velocity;
+	ztVec3        rotation;
+	ztVec3        last_dir;
+
+	ztVec3        grounded_normal;
+
+
+	r32           move_z;
+	r32           move_x;
+	r32           move_y;
+	r32           jumping;
+
+	r32           rotate_horz;
+	r32           rotate_vert;
+
+	r32           running_time;
+	r32           sneaking_time;
+};
+
+
+void zt_characterControllerMake             (ztCharacterController *controller, ztMovingBody *moving_body, i32 flags = 0);
+void zt_characterControllerUpdatePrePhysics (ztCharacterController *controllers, int controllers_count, ztPhysics *physics, r32 dt, const ztVec3 &gravity);
+void zt_characterControllerUpdatePostPhysics(ztCharacterController *controllers, int controllers_count, r32 dt);
+
+// ================================================================================================================================================================================================
+
+struct ztCharacterCameraController
+{
+	ztCharacterController *ctrl;
+	ztCamera              *camera;
+	ztVec3                 offset_from_center;
+
+	r32                    mouse_sensitivity;
+
+	ztTransform            transform;
+};
+
+
+void zt_characterCameraControllerMake       (ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics);
+void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt);
+void zt_characterCameraControllerSync       (ztCharacterCameraController *char_cam_ctrl);
+
+
+// ================================================================================================================================================================================================
 // renderer functions
 // ================================================================================================================================================================================================
 
@@ -28043,6 +28132,582 @@ ztFrustum& ztFrustum::operator=(const ztFrustum& f)
 	return *this;
 }
 
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_characterControllerMake(ztCharacterController *controller, ztMovingBody *moving_body, i32 flags)
+{
+	zt_memSet(controller, zt_sizeof(ztCharacterController), 0);
+
+	controller->moving_body = moving_body;
+	controller->flags = flags;
+	controller->state_flags = 0;
+	controller->state_time = 0;
+	controller->state_flags_prev = 0;
+
+	moving_body->flags |= ztMovingBodyFlags_TrackCollisions;
+
+	controller->speed_walk = 3.f;
+	controller->speed_run = 6.f;
+	controller->speed_sneak = .5f;
+	controller->velocity_jump = 8.f;
+	controller->slowdown_speed = 10.f;
+	controller->velocity_damping = .05f;
+	controller->min_ramp_dot = .6f;// -1;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal ztInline r32 _zt_characterControllerGetSpeed(ztCharacterController *ctrl)
+{
+	return ctrl->sneaking_time ? ctrl->speed_sneak : (ctrl->running_time ? ctrl->speed_run : ctrl->speed_walk);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterControllerUpdatePrePhysics(ztCharacterController *controllers, int controllers_count, ztPhysics *physics, r32 dt, const ztVec3 &gravity)
+{
+	zt_fvz(cidx, controllers_count) {
+		ztCharacterController *ctrl = &controllers[cidx];
+
+		ztVec3 prev_pos = ctrl->moving_body->transform->position;
+		r32 speed = _zt_characterControllerGetSpeed(ctrl);
+
+		ztVec3 movement = ctrl->velocity;
+		if (ctrl->move_z < 0) { movement.z = zt_approach(zt_min(0, movement.z), -1, 2 * dt); }
+		if (ctrl->move_z > 0) { movement.z = zt_approach(zt_max(0, movement.z), 1, 2 * dt); }
+		if (ctrl->move_x < 0) { movement.x = zt_approach(zt_min(0, movement.x), -1, 2 * dt); }
+		if (ctrl->move_x > 0) { movement.x = zt_approach(zt_max(0, movement.x), 1, 2 * dt); }
+
+		if (ctrl->move_y && zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_CanFly)) {
+			if (ctrl->move_y < 0) { movement.y = zt_min(0, zt_approach(movement.y, -1, 2 * dt)); }
+			if (ctrl->move_y > 0) { movement.y = zt_max(0, zt_approach(movement.y, 1, 2 * dt)); }
+		}
+
+		if (zt_real32Eq(ctrl->move_x, 0)) {
+			movement.x = zt_approach(movement.x, 0, 4.75f * dt);
+			if (zt_real32Close(movement.x, 0)) movement.x = 0;
+		}
+		if (zt_real32Eq(ctrl->move_z, 0)) {
+			movement.z = zt_approach(movement.z, 0, 4.75f * dt);
+			if (zt_real32Close(movement.z, 0)) movement.z = 0;
+		}
+
+		ctrl->move_x = ctrl->move_y = ctrl->move_z = 0;
+
+		if (ctrl->jumping > 0) {
+			if (zt_bitIsSet(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded) && !zt_bitIsSet(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope)) {
+				ztVec3 jump_dir = zt_vec3(0, 1, 0);// ctrl->grounded_normal;
+				movement += jump_dir * ctrl->velocity_jump;
+				zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
+			}
+			ctrl->jumping = 0;
+		}
+
+		bool model_recalc = false;
+		if (ctrl->rotate_horz || ctrl->rotate_vert) {
+			model_recalc = true;
+
+			r32 delta_x = ctrl->rotate_horz;
+			r32 delta_y = ctrl->rotate_vert;
+
+			ctrl->rotation.y += delta_x;
+			if (ctrl->rotation.y <   0) ctrl->rotation.y += 360;
+			if (ctrl->rotation.y > 360) ctrl->rotation.y -= 360;
+
+			ctrl->rotation.x = zt_clamp(ctrl->rotation.x + delta_y, -89, 89);
+
+			ctrl->moving_body->transform->rotation = zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_IgnoreXRotation) ? ztQuat::identity : ztQuat::makeFromEuler(ctrl->rotation.x, 0, 0);
+			ctrl->moving_body->transform->rotation *= ztQuat::makeFromEuler(0, -ctrl->rotation.y, 0);
+			ctrl->moving_body->transform->rotation.normalize();
+
+			ctrl->rotate_horz = 0;
+			ctrl->rotate_vert = 0;
+		}
+
+		ctrl->velocity = movement;
+
+		if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_CanFly)) {
+			ctrl->velocity += gravity * dt;
+		}
+
+		if (ctrl->velocity != ztVec3::zero) {
+			ztVec3 dir = ctrl->moving_body->transform->rotation.rotatePosition(zt_vec3(0, 0, 1));
+			dir.y = 0;
+			r32 len = dir.length();
+			dir.normalize();
+			ctrl->last_dir = dir;
+
+			if (ctrl->velocity.y != 0) {
+				ctrl->moving_body->transform->position.y += ctrl->velocity.y * dt;
+			}
+
+			if (ctrl->velocity.z != 0) {
+				r32 z_move = -1 * ctrl->velocity.z * dt * speed;// *z_speed;
+
+				ctrl->moving_body->transform->position.x += dir.x * z_move;
+				ctrl->moving_body->transform->position.y += dir.y * z_move;
+				ctrl->moving_body->transform->position.z += dir.z * z_move;
+			}
+			if (ctrl->velocity.x != 0) {
+				ztVec3 side = zt_vec3(0, 1, 0).cross(dir);
+				side.normalize();
+
+				r32 x_move = -1 * ctrl->velocity.x * dt * speed;
+
+				ctrl->moving_body->transform->position.x += side.x * x_move;
+				ctrl->moving_body->transform->position.y += side.y * x_move;
+				ctrl->moving_body->transform->position.z += side.z * x_move;
+			}
+
+			zt_bitRemove(ctrl->moving_body->flags, ztMovingBodyFlags_AllowPenetration);
+			zt_bitRemove(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall);
+
+			zt_flink(collision, ctrl->moving_body->collisions) {
+				if (collision->moving_bodies[1] == nullptr) {
+					if (!zt_between(collision->contact_normal.dot(zt_vec3(0, 1, 0)), zt_max(.25f, ctrl->min_ramp_dot), 1)) {
+						r32 min_y = ztReal32Max;
+						zt_fiz(ctrl->moving_body->cg_details_count) {
+							switch (ctrl->moving_body->cg_details[i].type)
+							{
+								case ztCollisionGeometryType_AxisAlignedBox: {
+									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].aabb_extents.y / -2.f * ctrl->moving_body->transform->scale.y);
+								} break;
+
+								case ztCollisionGeometryType_OrientedBox: {
+									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].obb_extents.y / -2.f * ctrl->moving_body->transform->scale.y); // todo: should this take rotation into account?
+								} break;
+
+								case ztCollisionGeometryType_Sphere: {
+									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].sphere_radius * -1.f * ctrl->moving_body->transform->scale.y);
+								} break;
+							}
+						}
+
+						if (collision->contact_point.y > ctrl->moving_body->transform->position.y + min_y + .125f) {
+
+							ztVec3 collision_dir = collision->contact_point - ctrl->moving_body->transform->position;
+							collision_dir.y = 0;
+							collision_dir.normalize();
+
+							if (collision_dir.dot(dir) > .25f) {
+								ctrl->flags |= ztCharacterControllerStateFlags_CollidingWall;
+							}
+						}
+					}
+				}
+			}
+
+			if (zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround) && ctrl->velocity.y <= 0.f) {
+
+				struct FloatCollisionCheck
+				{
+					static void perform(ztCharacterController *ctrl, ztPhysics *physics, const ztVec3 &prev_pos, const ztVec3 &dir, bool *facing_slope)
+					{
+						if (physics == nullptr) {
+							return;
+						}
+
+						ztVec3 contact_points[16];
+						ztVec3 contact_normals[16];
+						i32    contact_triangles[16];
+						i32    contacts = 0;
+
+						bool collided = false;
+
+						zt_fvz(sb_idx, physics->static_bodies_count) {
+							ztStaticBody *static_body = physics->static_bodies[sb_idx];
+
+							contacts = 0;
+							zt_fiz(ctrl->moving_body->cg_details_count) {
+								switch (ctrl->moving_body->cg_details[i].type) {
+									case ztCollisionGeometryType_AxisAlignedBox: {
+										contacts += zt_staticBodyHasCollisionsAABB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].aabb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].aabb_extents * ctrl->moving_body->transform->scale, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+									} break;
+
+									case ztCollisionGeometryType_OrientedBox: {
+										ztQuat quat = ctrl->moving_body->transform->rotation * ctrl->moving_body->cg_details[i].obb_rotation;
+										contacts += zt_staticBodyHasCollisionsOBB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].obb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].obb_extents * ctrl->moving_body->transform->scale, quat, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+									} break;
+
+									case ztCollisionGeometryType_Sphere: {
+										contacts += zt_staticBodyHasCollisionsSphere(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].sphere_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].sphere_radius * ctrl->moving_body->transform->scale.x, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+									} break;
+								}
+							}
+
+							ctrl->state_flags |= ztCharacterControllerStateFlags_OnSlope;
+
+							if (contacts > 1) {
+								contacts = zt_min(contacts, zt_elementsOf(contact_points));
+
+								bool matching_normals = true;
+								zt_fiz(contacts - 1) {
+									if (contact_normals[i] != contact_normals[i + 1]) {
+										matching_normals = false;
+									}
+									if (contact_normals[i].dot(ztVec3::up) <= ctrl->min_ramp_dot) {
+										ctrl->flags |= ztCharacterControllerStateFlags_CollidingWall;
+									}
+								}
+
+								if (!matching_normals) {
+									// we are contacting triangles with differing angles
+									// if the angle facing upward the most is the top angle and we are facing towards it, then we need to eliminate penetration on the moving body in order to prevent the
+									// physics update from processing collisions and moving the body away from the direction we're heading (this causes a noticeable delay when walking up a ramp)
+
+									r32 flat_dot = -1;
+									i32 flat_idx = -1;
+									r32 topmost_y = ztReal32Min;
+									i32 topmost_idx = -1;
+
+
+									zt_fiz(contacts) {
+										r32 dot = contact_normals[i].dot(ztVec3::up);
+										if (dot > flat_dot) {
+											flat_dot = dot;
+											flat_idx = i;
+										}
+									}
+
+									zt_fiz(contacts) {
+										r32 y = contact_points[i].y;
+
+										if (i == flat_idx) {
+											y += .001f; // fudge a little to make sure if this is equal to (or very close) a slope, this counts as topmost
+										}
+
+										if (y > topmost_y) {
+											topmost_y = y;
+											topmost_idx = i;
+										}
+									}
+
+									ztVec3 dist_to_flat = contact_points[flat_idx] - ctrl->moving_body->transform->position;
+									r32 towards_flat_dot = dir.dot(dist_to_flat);
+									bool heading_towards_flatmost = towards_flat_dot > .15f;
+
+									if (flat_idx == topmost_idx && zt_bitIsSet(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall)) {
+										zt_bitRemove(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall);
+									}
+								}
+							}
+
+							bool on_slope = false;
+							bool slope_above = false;
+							bool has_moved_upward = false;
+							bool moved = false;
+
+							ztVec3 pos_before = ctrl->moving_body->transform->position;
+
+							zt_fvz(contact_idx, contacts) {
+								r32 highest_y = ztReal32Min;
+								i32 highest_idx = -1;
+
+
+								bool move_upward = true;
+								zt_fiz(contacts) {
+									if (contact_points[i].y > highest_y) {
+										r32 dot = contact_normals[i].dot(zt_vec3(0, 1, 0));
+										if (dot <= 0) continue;
+										if (prev_pos.y < contact_points[i].y) continue;
+
+										move_upward = dot > ctrl->min_ramp_dot;
+										highest_y = contact_points[i].y;
+										highest_idx = i;
+									}
+								}
+
+								if (highest_idx != -1) {
+									if (move_upward) {
+										has_moved_upward = true;
+										zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
+									}
+									else {
+										move_upward = has_moved_upward;
+										ctrl->grounded_normal = contact_normals[highest_idx];
+
+										if (facing_slope) {
+											ztVec3 contact_dir = ctrl->moving_body->transform->position - contact_points[highest_idx];
+											contact_dir.y = 0;
+											contact_dir.normalize();
+											*facing_slope = contact_dir.dot(dir) < 0;
+										}
+									}
+
+									collided = true;
+									struct Triangle
+									{
+										static bool colliding(ztTriangle *tri, ztMovingBody *moving_body, ztQuat mb_rot, const ztVec3 &current_pos)
+										{
+											bool collision = false;
+
+											zt_fjz(moving_body->cg_details_count) {
+												ztCollisionGeometry *cg = &moving_body->cg_details[j];
+												switch (cg->type)
+												{
+													case ztCollisionGeometryType_AxisAlignedBox: {
+														collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center * moving_body->transform->scale, cg->aabb_extents * moving_body->transform->scale);
+													}; break;
+
+													case ztCollisionGeometryType_OrientedBox: {
+														ztQuat rot = mb_rot * cg->obb_rotation;
+														collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center * moving_body->transform->scale, cg->obb_extents * moving_body->transform->scale, rot);
+													}; break;
+
+													case ztCollisionGeometryType_Sphere: {
+														collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center * moving_body->transform->scale, cg->sphere_radius * moving_body->transform->scale.x);
+													}; break;
+
+													case ztCollisionGeometryType_Capsule: {
+													}; break;
+
+													case ztCollisionGeometryType_Triangles: {
+													}; break;
+												}
+											}
+
+											return collision;
+										}
+									};
+
+									static const r32 iteration_amt = zt_inchesToUnits(1.f);
+
+									ztTriangle *tri = &static_body->triangles[contact_triangles[highest_idx]];
+									ztQuat quat = ctrl->moving_body->transform->rotation;
+
+									bool error_backing_out = false;
+									if (Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position)) {
+										moved = true;
+										bool backward = true;
+										bool backward_last = !backward;
+										r32 dist = iteration_amt;
+										ztVec3 direction = move_upward ? zt_vec3(0, 1, 0) : contact_normals[highest_idx] * zt_vec3(1, -1, 1);
+										zt_fvz(splits, 32) {
+											if (backward != backward_last) dist *= .5f;
+											backward_last = backward;
+
+											ztVec3 to_move = direction * dist * (backward ? 1.f : -1.f);
+											ctrl->moving_body->transform->position += to_move;
+
+											backward = Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position);
+
+											if (splits >= 8 && !backward) break;
+											if (splits == 31) {
+												error_backing_out = true;
+												//zt_logDebug("[%d] could not back out of collision!", zt_game->game_details.current_frame);
+											}
+										}
+									}
+									contact_points[highest_idx].y = ztReal32Min;
+
+									if (error_backing_out) {
+										ctrl->moving_body->transform->position = pos_before = ctrl->moving_body->transform_prev.position;
+										break;
+									}
+								}
+								//break; // only process the highest contact point [THIS MUST REMAIN COMMENTED OUT - THINGS GO THROUGH FLOORS WITHOUT IT]
+							}
+
+							if (has_moved_upward) {
+								ctrl->moving_body->transform_prev.position.y = ctrl->moving_body->transform->position.y;
+							}
+
+							int non_upward_normals = 0;
+							r32 highest_y_up = ztReal32Min;
+							r32 highest_y_slope = ztReal32Min;
+							zt_fiz(contacts) {
+								if (contact_normals[i] == ztVec3::up) {
+									highest_y_up = zt_max(highest_y_up, contact_points[i].y);
+									ctrl->grounded_normal = zt_vec3(0, 1, 0);
+								}
+								else {
+									highest_y_slope = zt_max(highest_y_slope, contact_points[i].y);
+									non_upward_normals += 1;
+								}
+							}
+
+							if (contacts > 1 && non_upward_normals > 1 && non_upward_normals != contacts && highest_y_up > highest_y_slope) {
+								// there's a problem with collisions involving multiple triangles.  the physics update will sometimes move the object in the wrong direction, so we lift up just slightly to avoid these collisions
+								//ctrl->moving_body->flags |= ztMovingBodyFlags_AllowPenetration;
+							}
+						}
+
+						if (collided || ctrl->velocity.y == 0) {
+							ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
+							ctrl->velocity.y = zt_max(ctrl->velocity.y, 0);
+						}
+						else {
+							zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
+						}
+					}
+				};
+
+
+				bool perform_collision_check = true;
+
+				if (ctrl->state_time < (1.f / 30.f) && ctrl->grounded_normal != zt_vec3(0, 1, 0)) {
+					// we're potentially moving down a slope, so do a collision test if we move straight down to determine if we are
+					// if we're going down a slope, we want to stick to the slope instead of "hopping" down it which is what happens if we rely on gravity
+
+					ztVec3 pos = ctrl->moving_body->transform->position;
+					i32    flags = ctrl->state_flags;
+					ztVec3 vel = ctrl->velocity;
+					ztVec3 moved_pos = ctrl->moving_body->transform->position = pos + zt_vec3(0, -.065f, 0);
+					bool   facing_slope = false;
+
+					FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, &facing_slope);
+
+					if (ctrl->moving_body->transform->position != moved_pos && zt_abs(ctrl->moving_body->transform->position.y - prev_pos.y) > 0.001f && !facing_slope) {
+						perform_collision_check = false;
+						ctrl->state_time = 0;
+					}
+					else {
+						ctrl->moving_body->transform->position = pos;
+						ctrl->velocity = vel;
+						ctrl->state_flags = flags;
+					}
+				}
+
+				if (perform_collision_check) {
+					FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, nullptr);
+				}
+			}
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterControllerUpdatePostPhysics(ztCharacterController *controllers, int controllers_count, r32 dt)
+{
+	zt_fiz(controllers_count) {
+		ztCharacterController *ctrl = &controllers[i];
+
+		bool collision_with_ground = false;
+		zt_flink(collision, ctrl->moving_body->collisions) {
+			if (collision->moving_bodies[1] == nullptr) {
+				if (zt_between(collision->contact_normal.dot(zt_vec3(0, 1, 0)), zt_max(.25f, ctrl->min_ramp_dot), 1)) {
+					collision_with_ground = true;
+					ctrl->velocity.y = zt_max(ctrl->velocity.y, 0);
+					ctrl->grounded_normal = collision->contact_normal;
+				}
+			}
+		}
+
+		if (collision_with_ground && ctrl->velocity.y == 0) {
+			ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
+			zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
+		}
+		else if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround)) {
+			zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
+
+			if (ctrl->state_time > .25f) {
+				ctrl->grounded_normal = zt_vec3(0, 1, 0);
+			}
+		}
+
+		if (ctrl->state_flags != ctrl->state_flags_prev) {
+			ctrl->state_time = 0;
+			ctrl->state_flags_prev = ctrl->state_flags;
+		}
+		else {
+			ctrl->state_time += dt;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterCameraControllerMake(ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics)
+{
+	char_cam_ctrl->ctrl = character_controller;
+	char_cam_ctrl->camera = camera;
+	char_cam_ctrl->offset_from_center = offset_from_center;
+	char_cam_ctrl->mouse_sensitivity = .005f;
+
+	{
+		char_cam_ctrl->transform.position = camera->position;
+		char_cam_ctrl->transform.rotation = camera->rotation;
+		char_cam_ctrl->transform.scale = ztVec3::one;
+
+		ztCollisionGeometry cg = {};
+
+		zt_movingBodyMake(moving_body, nullptr, 1, cg, cg);
+		moving_body->cg_bounding.type = ztCollisionGeometryType_AxisAlignedBox;
+		moving_body->cg_bounding.aabb_center = ztVec3::zero;
+		moving_body->cg_bounding.aabb_extents = zt_vec3(1, player_height, 1);
+		moving_body->cg_details[0].type = ztCollisionGeometryType_OrientedBox;
+		moving_body->cg_details[0].obb_center = ztVec3::zero;
+		moving_body->cg_details[0].obb_extents = zt_vec3(.5f, player_height, .5f);
+		moving_body->cg_details[0].obb_rotation = ztQuat::identity;
+		moving_body->cg_details_count = 1;
+		moving_body->transform = &char_cam_ctrl->transform;
+
+		zt_characterControllerMake(character_controller, moving_body, ztCharacterControllerFlags_FloatsOverGround | ztCharacterControllerFlags_IgnoreXRotation);
+
+		char_cam_ctrl->ctrl->rotation = camera->rotation.euler();
+		char_cam_ctrl->ctrl->rotation = zt_vec3(0, char_cam_ctrl->ctrl->rotation.y + 180, 0);
+
+		char_cam_ctrl->ctrl->rotate_vert = .0001f;
+		zt_characterControllerUpdatePrePhysics(char_cam_ctrl->ctrl, 1, nullptr, 0.001f, ztVec3::zero);
+		zt_characterCameraControllerSync(char_cam_ctrl);
+
+		zt_physicsAddMovingBody(physics, moving_body);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt)
+{
+	if (input_keys[ztInputKeys_W].pressed()) {
+		char_cam_ctrl->ctrl->move_z = zt_approach(char_cam_ctrl->ctrl->move_z, -1, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	if (input_keys[ztInputKeys_S].pressed()) {
+		char_cam_ctrl->ctrl->move_z = zt_approach(char_cam_ctrl->ctrl->move_z, 1, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	if (input_keys[ztInputKeys_A].pressed()) {
+		char_cam_ctrl->ctrl->move_x = zt_approach(char_cam_ctrl->ctrl->move_x, -1, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	if (input_keys[ztInputKeys_D].pressed()) {
+		char_cam_ctrl->ctrl->move_x = zt_approach(char_cam_ctrl->ctrl->move_x, 1, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+
+	if (input_keys[ztInputKeys_Space].justPressedOrRepeated()) {
+		char_cam_ctrl->ctrl->jumping = 1;
+	}
+
+	if (input_keys[ztInputKeys_Shift].pressed()) {
+		char_cam_ctrl->ctrl->sneaking_time += dt;
+	}
+	else char_cam_ctrl->ctrl->sneaking_time = 0;
+
+	if (input_keys[ztInputKeys_Control].pressed()) {
+		char_cam_ctrl->ctrl->running_time += dt;
+	}
+	else char_cam_ctrl->ctrl->running_time = 0;
+
+	if (input_mouse->delta_x != 0 || input_mouse->delta_y != 0) {
+		r32 delta_x = input_mouse->delta_x * char_cam_ctrl->mouse_sensitivity;
+		r32 delta_y = input_mouse->delta_y * char_cam_ctrl->mouse_sensitivity;
+
+		char_cam_ctrl->ctrl->rotate_horz += delta_x;
+		char_cam_ctrl->ctrl->rotate_vert += delta_y;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterCameraControllerSync(ztCharacterCameraController *char_cam_ctrl)
+{
+	char_cam_ctrl->camera->rotation = ztQuat::makeFromEuler(char_cam_ctrl->ctrl->rotation.x, 0, 0) * ztQuat::makeFromEuler(0, char_cam_ctrl->ctrl->rotation.y + 180, 0);
+	char_cam_ctrl->camera->position = char_cam_ctrl->ctrl->moving_body->transform->position + char_cam_ctrl->offset_from_center;
+
+	zt_cameraRecalcMatrices(char_cam_ctrl->camera);
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
