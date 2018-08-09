@@ -2834,7 +2834,7 @@ bool     zt_modelMakeFromMesh                (ztModel *model, ztMeshID mesh_id, 
 bool     zt_modelMakeFromVertexArray         (ztModel *model, ztVertexArrayID va_id, ztMaterial *material, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 bool     zt_modelMakeFromSprite              (ztModel *model, ztSprite *sprite, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 bool     zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimController *sprite_anim_controller, ztModelSpriteFacing_Enum facing, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
-bool     zt_modelMakeFromParticleEmitter     (ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
+bool     zt_modelMakeFromParticleEmitter     (ztModel *model, ztParticleEmitter *emitter, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent = nullptr);
 void     zt_modelFree                        (ztModel *model);
 
 // ================================================================================================================================================================================================
@@ -4844,6 +4844,7 @@ enum ztParticleRenderingType_Enum
 {
 	ztParticleRenderingType_BillBoard,
 	ztParticleRenderingType_Facing,
+	ztParticleRenderingType_Mesh,
 
 	ztParticleRenderingType_MAX,
 };
@@ -4864,6 +4865,18 @@ struct ztParticleRendering
 	struct {
 		ztSprite sprite;
 	} facing;
+
+	struct {
+		ztMeshID mesh_id;
+	} mesh;
+};
+
+// ================================================================================================================================================================================================
+
+struct ztParticleMeshInfo
+{
+	ztMeshID mesh_id;
+	char     name[128];
 };
 
 // ================================================================================================================================================================================================
@@ -4948,10 +4961,10 @@ struct ztParticleSystem
 
 // ================================================================================================================================================================================================
 
-bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztAssetManager *asset_manager, ztAssetID asset_id);
+bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count, ztAssetManager *asset_manager, ztAssetID asset_id);
 
-bool zt_serialRead (ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager);
-bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager);
+bool zt_serialRead (ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count);
+bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count);
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -5028,11 +5041,16 @@ struct ztParticleEmitterPool
 
 // ================================================================================================================================================================================================
 
+#define ZT_FUNC_PARTICLE_EMITTER_MESH_RENDER(name) void name(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztMeshID mesh_id, ztParticle2 *particle, const ztVec3 &position, const ztVec3 &rotation, const ztVec3 &scale, const ztColor &color, void *user_data)
+typedef ZT_FUNC_PARTICLE_EMITTER_MESH_RENDER(ztParticleEmitterRenderMesh_Func);
+
+// ================================================================================================================================================================================================
+
 ztParticleEmitter *zt_particleEmitterInit            (ztParticleSystem *system, i32 seed);
 void               zt_particleEmitterFree            (ztParticleEmitter *emitter);
 void               zt_particleEmitterReset           (ztParticleEmitter *emitter);
 bool               zt_particleEmitterUpdate          (ztParticleEmitter *emitter, r32 dt);
-void               zt_particleEmitterRender          (ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera);
+void               zt_particleEmitterRender          (ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera, ztParticleEmitterRenderMesh_Func *render_mesh = nullptr, void *render_mesh_user_data = nullptr);
 int                zt_particleEmitterGetTriangles    (ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size);
 int                zt_particleEmitterFillVertices    (ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefault *vertices, int size);
 int                zt_particleEmitterFillVertices    (ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefaultLit *vertices, int size);
@@ -15500,11 +15518,16 @@ bool zt_modelMakeFromSpriteAnimController(ztModel *model, ztSpriteAnimController
 
 // ================================================================================================================================================================================================
 
-bool zt_modelMakeFromParticleEmitter(ztModel *model, ztParticleEmitter *emitter, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
+bool zt_modelMakeFromParticleEmitter(ztModel *model, ztParticleEmitter *emitter, ztMaterial *materials, ztShaderID shader, ztShaderVariableValues *shader_vars, i32 flags, ztModel *parent)
 {
 	ZT_PROFILE_RENDERING("zt_modelMakeFromParticleEmitter");
-	ztMaterial mat = zt_materialMake(emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? emitter->system->system_rendering.billboard.sprite.tex : emitter->system->system_rendering.facing.sprite.tex);
-	return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, nullptr, nullptr, ztModelSpriteFacing_MAX, emitter, &mat, shader, shader_vars, flags, parent);
+	if (emitter->system->system_rendering.type == ztParticleRenderingType_Mesh) {
+		return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, nullptr, nullptr, ztModelSpriteFacing_MAX, emitter, materials, shader, shader_vars, flags, parent);
+	}
+	else {
+		ztMaterial mat = zt_materialMake(emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? emitter->system->system_rendering.billboard.sprite.tex : emitter->system->system_rendering.facing.sprite.tex);
+		return _zt_modelMakeBase(model, ztInvalidID, ztInvalidID, nullptr, nullptr, ztModelSpriteFacing_MAX, emitter, &mat, shader, shader_vars, flags, parent);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -16243,7 +16266,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 		}
 		serialCheck(zt_serialGroupPop(&serial));
 
-		textures = zt_mallocStructArray(ztTextureID, textures_count);
+		textures = textures_count == 0 ? nullptr : zt_mallocStructArray(ztTextureID, textures_count);
 
 		zt_fiz(textures_count) {
 			textures[i] = ztInvalidID;
@@ -18489,12 +18512,47 @@ ztInternal void _zt_sceneDrawSprite(ztScene *scene, ztModel *model, ztCamera *ca
 
 // ================================================================================================================================================================================================
 
+struct ztModelParticleRenderData
+{
+	ztModel *model;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_PARTICLE_EMITTER_MESH_RENDER(_zt_modelParticleRenderMesh)
+{
+	ztModelParticleRenderData *data = (ztModelParticleRenderData*)user_data;
+
+	// todo: support instanced rendering
+
+	ztTransform tx = zt_transformMake(position, ztQuat::makeFromEuler(rotation), scale);
+	ztMat4 mat = zt_transformToMat4(&tx);
+
+	static u32 diffuse_color_hash = zt_strHash("diffuse_color");
+	zt_shaderSetVariableVec4(data->model->shader, data->model->material.diffuse_color_override ? data->model->material.diffuse_color_override : diffuse_color_hash, color);
+
+	zt_shaderSetModelMatrices(data->model->shader, data->model->calculated_mat * mat);
+
+	zt_meshRender(mesh_id);
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal void _zt_sceneDrawParticle(ztScene *scene, ztModel *model, ztCamera *camera)
 {
 	ZT_PROFILE_RENDERING("_zt_sceneDrawParticle");
-	int verts = zt_particleEmitterFillVertices(model->particle_emitter, camera, scene->vertex_array_vertices, scene->vertex_array_size);
-	zt_vertexArrayUpdateDefaultLit(scene->vertex_array, scene->vertex_array_vertices, verts);
-	zt_vertexArrayDraw(scene->vertex_array);
+
+	if (model->particle_emitter->system->system_rendering.type == ztParticleRenderingType_Mesh) {
+		ztModelParticleRenderData data;
+		data.model = model;
+
+		zt_particleEmitterRender(model->particle_emitter, nullptr, camera, _zt_modelParticleRenderMesh, &data);
+	}
+	else {
+		int verts = zt_particleEmitterFillVertices(model->particle_emitter, camera, scene->vertex_array_vertices, scene->vertex_array_size);
+		zt_vertexArrayUpdateDefaultLit(scene->vertex_array, scene->vertex_array_vertices, verts);
+		zt_vertexArrayDraw(scene->vertex_array);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -19041,7 +19099,9 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 				model->material.diffuse_tex = sprite_anim->tex;
 			}
 			else if (model->type == ztModelType_ParticleSystem) {
-				model->material.diffuse_tex = model->particle_emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? model->particle_emitter->system->system_rendering.billboard.sprite.tex : model->particle_emitter->system->system_rendering.facing.sprite.tex;
+				if (model->particle_emitter->system->system_rendering.type != ztParticleRenderingType_Mesh) {
+					model->material.diffuse_tex = model->particle_emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard ? model->particle_emitter->system->system_rendering.billboard.sprite.tex : model->particle_emitter->system->system_rendering.facing.sprite.tex;
+				}
 			}
 
 			ztTextureID additional_textures[8];
@@ -29969,6 +30029,13 @@ void zt_materialFree(ztMaterial *material)
 	material->roughness_flags = 0;
 	material->roughness_tex_override = 0;
 
+	if (zt_bitIsSet(material->emissive_flags, ztMaterialFlags_OwnsTexture)) {
+		zt_textureFree(material->emissive_tex);
+	}
+	material->emissive_tex = ztInvalidID;
+	material->emissive_flags = 0;
+	material->emissive_tex_override = 0;
+
 	material->shininess_override = 0;
 }
 
@@ -39880,7 +39947,7 @@ bool zt_serialWrite(ztSerial *serial, ztParticleVariableColor *variable)
 
 // ================================================================================================================================================================================================
 
-bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id)
+bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count, ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	ZT_PROFILE_RENDERING("zt_particleSystemLoad");
 	zt_returnValOnNull(system, false);
@@ -39919,7 +39986,7 @@ bool zt_particleSystemLoad(ztParticleSystem *system, ztSpriteManager *sprite_man
 		goto on_error;
 	}
 
-	if (!zt_serialRead(&serial, system, sprite_manager)) {
+	if (!zt_serialRead(&serial, system, sprite_manager, mesh_info, mesh_info_count)) {
 		zt_serialClose(&serial);
 		error = "Unable to read particle system file";
 		goto on_error;
@@ -39937,7 +40004,7 @@ on_error:
 
 // ================================================================================================================================================================================================
 
-bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager)
+bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count)
 {
 	zt_memSet(system, zt_sizeof(ztParticleSystem), 0);
 
@@ -40043,6 +40110,22 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 				else zt_logCritical("particle system has invalid facing sprite");
 			} break;
 
+			case ztParticleRenderingType_Mesh: {
+				i32 hash = 0;
+				if (!zt_serialRead(serial, &hash)) return false;
+				ztMeshID mesh_id = ztInvalidID;
+				zt_fvz(midx, mesh_info_count) {
+					if(zt_strHash(mesh_info[midx].name) == hash) {
+						mesh_id = mesh_info[midx].mesh_id;
+						break;
+					}
+				}
+				if (mesh_id == ztInvalidID) {
+					zt_logCritical("particle system has invalid mesh");
+				}
+				system->system_rendering.mesh.mesh_id  = mesh_id;
+			} break;
+
 			default: zt_assert(false);
 		}
 
@@ -40124,7 +40207,7 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 
 // ================================================================================================================================================================================================
 
-bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager)
+bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *sprite_manager, ztParticleMeshInfo *mesh_info, i32 mesh_info_count)
 {
 	if (!zt_serialGroupPush(serial)) return false;
 	{
@@ -40198,6 +40281,17 @@ bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager 
 
 			case ztParticleRenderingType_Facing: {
 				if (!zt_serialWrite(serial, zt_spriteManagerFindSpriteHash(sprite_manager, &system->system_rendering.facing.sprite))) return false;
+			} break;
+
+			case ztParticleRenderingType_Mesh: {
+				i32 hash = 0;
+				zt_fiz(mesh_info_count) {
+					if(system->system_rendering.mesh.mesh_id == mesh_info[i].mesh_id) {
+						hash = zt_strHash(mesh_info[i].name);
+						break;
+					}
+				}
+				if(!zt_serialWrite(serial, hash)) return false;
 			} break;
 
 			default: zt_assert(false);
@@ -40946,7 +41040,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 
 // ================================================================================================================================================================================================
 
-int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztVec3 *ptr_pos, ztVec2 *ptr_uv, ztVec4 *ptr_colors, ztVertexDefault *vertex_default, ztVertexDefaultLit *vertex_default_lit, int size)
+int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDrawList *draw_list, ztVec3 *ptr_pos, ztVec2 *ptr_uv, ztVec4 *ptr_colors, ztVertexDefault *vertex_default, ztVertexDefaultLit *vertex_default_lit, int size, ztParticleEmitterRenderMesh_Func *render_mesh, void *render_mesh_user_data)
 {
 	ZT_PROFILE_PARTICLES("_zt_particleEmitterRender");
 
@@ -41327,7 +41421,9 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 		facing_nml[3] = zt_vec3(0, 0, 1);
 	}
 
-	if (draw_list) {
+	bool mesh_render = emitter->system->system_rendering.type == ztParticleRenderingType_Mesh;
+
+	if (draw_list && !mesh_render) {
 		zt_drawListPushBlendMode(draw_list, emitter->system->system_rendering.blend_mode_src, emitter->system->system_rendering.blend_mode_dst);
 	}
 
@@ -41367,7 +41463,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 
 		if(camera->type == ztCameraType_Perspective) {
 			ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::perspective");
-			if (draw_list) {
+			if (draw_list && !mesh_render) {
 				zt_drawListPushColor(draw_list, particle->color);
 			}
 
@@ -41700,6 +41796,12 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 						}
 					}
 				} break;
+
+				case ztParticleRenderingType_Mesh: {
+					if (render_mesh != nullptr) {
+						render_mesh(emitter, camera, draw_list, emitter->system->system_rendering.mesh.mesh_id, particle, position, particle->rotation, scale, particle->color, render_mesh_user_data);
+					}
+				} break;
 			}
 			if (draw_list) {
 				zt_drawListPopColor(draw_list);
@@ -41717,6 +41819,12 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 
 				case ztParticleRenderingType_Facing: {
 					sprite = &emitter->system->system_rendering.facing.sprite;
+				} break;
+
+				case ztParticleRenderingType_Mesh: {
+					if (render_mesh != nullptr) {
+						render_mesh(emitter, camera, draw_list, emitter->system->system_rendering.mesh.mesh_id, particle, position, particle->rotation, scale, particle->color, render_mesh_user_data);
+					}
 				} break;
 			}
 
@@ -41879,14 +41987,14 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 				}
 			}
 			else {
-				if (draw_list) {
+				if (draw_list && !mesh_render) {
 					zt_drawListAddSolidCircle2D(draw_list, position, .05f, 16, particle->color);
 				}
 			}
 		}
 	}
 
-	if (draw_list) {
+	if (draw_list && !mesh_render) {
 		zt_drawListPopBlendMode(draw_list);
 		if (emitter->system->system_rendering.type == ztParticleRenderingType_BillBoard || emitter->system->system_rendering.type == ztParticleRenderingType_Facing) {
 			zt_drawListPopColor(draw_list);
@@ -41939,31 +42047,31 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 
 // ================================================================================================================================================================================================
 
-void zt_particleEmitterRender(ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera)
+void zt_particleEmitterRender(ztParticleEmitter *emitter, ztDrawList *draw_list, ztCamera *camera, ztParticleEmitterRenderMesh_Func *render_mesh, void *render_mesh_user_data)
 {
-	zt_returnOnNull(draw_list);
-	_zt_particleEmitterRender(emitter, camera, draw_list, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
+	//zt_returnOnNull(draw_list);
+	_zt_particleEmitterRender(emitter, camera, draw_list, nullptr, nullptr, nullptr, nullptr, nullptr, 0, render_mesh, render_mesh_user_data);
 }
 
 // ================================================================================================================================================================================================
 
 int zt_particleEmitterGetTriangles(ztParticleEmitter *emitter, ztCamera *camera, ztVec3 *pos, ztVec2 *uv, ztVec4 *colors, int size)
 {
-	return _zt_particleEmitterRender(emitter, camera, nullptr, pos, uv, colors, nullptr, nullptr, size);
+	return _zt_particleEmitterRender(emitter, camera, nullptr, pos, uv, colors, nullptr, nullptr, size, nullptr, nullptr);
 }
 
 // ================================================================================================================================================================================================
 
 int zt_particleEmitterFillVertices(ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefault *vertices, int size)
 {
-	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, vertices, nullptr, size);
+	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, vertices, nullptr, size, nullptr, nullptr);
 }
 
 // ================================================================================================================================================================================================
 
 int zt_particleEmitterFillVertices(ztParticleEmitter *emitter, ztCamera *camera, ztVertexDefaultLit *vertices, int size)
 {
-	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, nullptr, vertices, size);
+	return _zt_particleEmitterRender(emitter, camera, nullptr, nullptr, nullptr, nullptr, nullptr, vertices, size, nullptr, nullptr);
 }
 
 // ================================================================================================================================================================================================
