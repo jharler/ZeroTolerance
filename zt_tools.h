@@ -5132,6 +5132,8 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 
 	zt_logMemory("memory (%llx): requesting %d bytes", (long long unsigned int)arena, bytes);
 
+	zt_assertReturnValOnFail(bytes > 0, nullptr);
+
 	if (arena == nullptr) {
 		zt_assert(zt != nullptr && zt->mem_malloc != nullptr);
 		zt_logMemory("memory (%llx): calling zt->mem_malloc", (long long unsigned int)zt->mem_malloc);
