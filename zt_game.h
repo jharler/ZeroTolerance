@@ -1615,6 +1615,21 @@ ztPostProcessSSAO *zt_postProcessingEffectMakeSSAO(ztPostProcessingEffect *effec
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+// Effect: Brightness & Contrast
+
+struct ztPostProcessBrightnessContrast
+{
+	r32 brightness;
+	r32 contrast;
+};
+
+ztPostProcessBrightnessContrast *zt_postProcessingEffectMakeBrightnessContrast(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 brightness = 1.f, r32 contrast = 1.f);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 // Effect: Tonemap
 // Tonemaps the scene
 
@@ -13903,6 +13918,61 @@ ztPostProcessSSAO *zt_postProcessingEffectMakeSSAO(ztPostProcessingEffect *effec
 	textures_count = _zt_postProcessingEffectSSAOMakeTextures(textures, screen_w, screen_h, details);
 
 	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), textures, textures_count, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectSSAORender), ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectSSAOScreenChange));
+
+	return &details->settings;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztPostProcessBrightnessContrastDetails
+{
+	ztPostProcessBrightnessContrast settings;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_postProcessEffectBrightnessContrastRender, FUNC_POST_PROCESSING_EFFECT_RENDER(_zt_postProcessEffectBrightnessContrastRender))
+{
+	ZT_PROFILE_RENDERING("_zt_postProcessEffectTonemapRender");
+
+	ztPostProcessBrightnessContrastDetails *details = (ztPostProcessBrightnessContrastDetails*)effect->user_data;
+
+
+	static u32 brightness_hash = zt_strHash("brightness");
+	static u32 contrast_hash = zt_strHash("contrast");
+
+	zt_shaderSetVariableFloat(effect->shaders[0], brightness_hash, details->settings.brightness);
+	zt_shaderSetVariableFloat(effect->shaders[0], contrast_hash, details->settings.contrast);
+
+	// render to target
+	zt_drawListAddScreenRenderTexture(draw_list, screen_texture, camera, 1, effect->shaders[0]);
+	zt_renderDrawList(camera, draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, target_texture);
+}
+
+// ================================================================================================================================================================================================
+
+ztPostProcessBrightnessContrast *zt_postProcessingEffectMakeBrightnessContrast(ztPostProcessingEffect *effect, i32 screen_w, i32 screen_h, r32 brightness, r32 contrast)
+{
+	zt_returnValOnNull(effect, nullptr);
+	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
+
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float brightness;\n	float contrast;\n}\n\n\nprogram Tonemap\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		color.rgb /= color.a;\n		\n		color.rgb = ((color.rgb - vec3(-0.5)) * max(uniforms.contrast, 0)) + vec3(0.5);\n		color.rgb += vec3(uniforms.brightness);\n		\n		color.rgb *= color.a;\n		\n		_output.color = color;\n	}\n}";
+
+	ztShaderID shaders[1] = {
+		zt_shaderMake("Brightness/Contrast", shader, zt_strLen(shader)),
+	};
+
+	if (shaders[0] == ztInvalidID) {
+		return nullptr;
+	}
+
+	ztPostProcessBrightnessContrastDetails *details = zt_mallocStruct(ztPostProcessBrightnessContrastDetails);
+	details->settings.brightness = brightness;
+	details->settings.contrast = contrast;
+
+	zt_postProcessingEffectMake(effect, screen_w, screen_h, shaders, zt_elementsOf(shaders), nullptr, 0, details, ZT_FUNCTION_POINTER_TO_VAR(_zt_postProcessEffectBrightnessContrastRender), ZT_FUNCTION_POINTER_TO_VAR_NULL);
 
 	return &details->settings;
 }
