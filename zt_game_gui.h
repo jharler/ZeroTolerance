@@ -1068,6 +1068,13 @@ typedef          ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(zt_guiDialogSpriteSelected_F
 void             zt_guiDialogSpriteSelector(ztSpriteManager *sprite_manager, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogSpriteSelected_Func), void *user_data = nullptr, const char *window_title = "Select Sprite");
 
 // ================================================================================================================================================================================================
+
+#define          ZT_FUNC_GUI_DIALOG_LIST_SELECTED(name) void name(int list_idx, char *list_item, bool cancelled, void *user_data)
+typedef          ZT_FUNC_GUI_DIALOG_LIST_SELECTED(zt_guiDialogListSelected_Func);
+
+void             zt_guiDialogListSelector(const char **list_items, int list_items_count, const char *select_text, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogListSelected_Func), void *user_data = nullptr, const char *window_title = "Select Item", ztVec2 size = zt_vec2(5, 5));
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -1085,6 +1092,8 @@ void             zt_guiDebugShowDetails                (bool show = true);
 ztGuiItem       *zt_guiDebugAddMetric                  (const char *sample);
 
 ztGuiItem       *zt_guiDebugGetMenuBar                 ();
+
+void             zt_guiDebugParticleEditorSetMeshes(ztParticleMeshInfo *meshes, i32 mesh_count);
 
 // ================================================================================================================================================================================================
 
@@ -1653,20 +1662,23 @@ struct ztConsoleCommand
 
 struct ztGuiGlobals
 {
-	int               gui_managers_count           = 0;
-	ztGuiManager     *gui_manager_active           = nullptr;
-	ztGuiManager     *gui_manager_first            = nullptr;
-	ztConsoleCommand *console_commands             = nullptr;
-	ztGuiItem        *console_window               = nullptr;
-	ztGuiItem        *console_display_container    = nullptr;
-	ztGuiItem        *console_display              = nullptr;
-	ztGuiItem        *console_command              = nullptr;
-	ztGuiItem        *menu_bar                     = nullptr;
-	ztMemoryArena    *arena                        = nullptr;
-	ztMemoryArena    *stack_arena                  = nullptr;
+	int                 gui_managers_count           = 0;
+	ztGuiManager       *gui_manager_active           = nullptr;
+	ztGuiManager       *gui_manager_first            = nullptr;
+	ztConsoleCommand   *console_commands             = nullptr;
+	ztGuiItem          *console_window               = nullptr;
+	ztGuiItem          *console_display_container    = nullptr;
+	ztGuiItem          *console_display              = nullptr;
+	ztGuiItem          *console_command              = nullptr;
+	ztGuiItem          *menu_bar                     = nullptr;
+	ztMemoryArena      *arena                        = nullptr;
+	ztMemoryArena      *stack_arena                  = nullptr;
+
+	ztParticleMeshInfo *particle_mesh_info           = nullptr;
+	i32                 particle_mesh_info_count     = 0;
 };
 
-#define ZT_GAME_GUI_GLOBALS_VERSION   1 // update this any time ztGuiGlobals is changed
+#define ZT_GAME_GUI_GLOBALS_VERSION   2 // update this any time ztGuiGlobals is changed
 
 // ================================================================================================================================================================================================
 
@@ -3358,6 +3370,11 @@ void zt_guiManagerFree(ztGuiManager *gm)
 		zt_freeArena(command, zt_gui->arena);
 		command = next;
 	}
+
+	if (zt_gui->particle_mesh_info) {
+		zt_freeArena(zt_gui->particle_mesh_info, zt_gui->arena);
+	}
+
 //	zt_freeArena(zt_gui, zt_gui->arena);
 	zt_gui = nullptr;
 }
@@ -16090,7 +16107,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogSpriteSelectorButton, ztInternal ZT_FU
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogSpriteSelectorCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogSpriteSelectorCleanup))
 {
 	ztSpriteSelectorData *data = (ztSpriteSelectorData*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(item));
-	
+
 	if (data->cancelled && ZT_FUNCTION_POINTER_IS_VALID(data->callback)) {
 		ZT_FUNCTION_POINTER_ACCESS(data->callback, zt_guiDialogSpriteSelected_Func)(data->sprite_manager, nullptr, 0, nullptr, true, user_data);
 	}
@@ -16167,6 +16184,116 @@ void zt_guiDialogSpriteSelector(ztSpriteManager *sprite_manager, ZT_FUNCTION_POI
 
 	zt_free(entries);
 
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+
+struct ztListSelectorData
+{
+	ztGuiItem *listbox;
+
+	ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogListSelected_Func);
+	void                   *user_data;
+
+	bool                    cancelled;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorOk))
+{
+	ZT_PROFILE_GAME("_zt_guiDialogListSelectorOk");
+
+	ztListSelectorData *data = (ztListSelectorData*)user_data;
+
+	int selected = zt_guiListBoxGetSelected(data->listbox);
+	ztString label = zt_guiItemGetLabel(zt_guiListBoxGetItem(data->listbox, selected));
+
+	char selected_text[256];
+	zt_strCpy(selected_text, zt_elementsOf(selected_text), label);
+
+	ZT_FUNCTION_POINTER_ACCESS_SAFE(data->callback, zt_guiDialogListSelected_Func)(selected, selected_text, false, data->user_data);
+
+	data->cancelled = false;
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorCancel))
+{
+	ZT_PROFILE_GAME("_zt_guiDialogListSelectorCancel");
+
+	ztListSelectorData *data = (ztListSelectorData*)user_data;
+	data->cancelled = true;
+	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogListSelectorCleanup))
+{
+	ztListSelectorData *data = (ztListSelectorData*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(item));
+
+	if (data->cancelled && ZT_FUNCTION_POINTER_IS_VALID(data->callback)) {
+		ZT_FUNCTION_POINTER_ACCESS(data->callback, zt_guiDialogListSelected_Func)(-1, nullptr, true, data->user_data);
+	}
+
+	zt_freeArena(data, item->gm->arena);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiDialogListSelector(const char **list_items, int list_items_count, const char *select_text, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogListSelected_Func), void *user_data, const char *window_title, ztVec2 size)
+{
+	ztGuiItem *window = zt_guiMakeWindow(window_title, ztGuiWindowBehaviorFlags_Modal | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowClose | ztGuiItemBehaviorFlags_BringToFront);
+	zt_guiItemSetSize(window, size);
+	zt_guiItemSetName(window, "List Select Item Window");
+	zt_guiItemBringToFront(window);
+
+	ztListSelectorData *data = zt_mallocStructArena(ztListSelectorData, window->gm->arena);
+	ztGuiItem *win_cleanup = zt_guiMakePanel(window, 0);
+	win_cleanup->functions.cleanup = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDialogListSelectorCleanup);
+	win_cleanup->functions.user_data = data;
+
+	zt_guiItemSetUserData(window, data);
+
+	data->callback = callback;
+	data->user_data = user_data;
+	data->cancelled = true;
+
+	r32 padding = zt_guiPadding();
+
+	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, select_text), 0, padding);
+
+	ztGuiItem *listbox = zt_guiMakeListBox(sizer, 0, list_items_count);
+	zt_fiz(list_items_count) {
+		zt_guiListBoxAppend(listbox, list_items[i], nullptr);
+	}
+
+	data->listbox = listbox;
+
+	zt_guiSizerAddItem(sizer, listbox, 1, padding);
+
+	ztGuiItem *button_sizer = zt_guiMakeSizer(sizer, ztGuiItemOrient_Horz);
+	zt_guiSizerAddItem(sizer, button_sizer, 0, 0);
+
+	ztGuiItem *button_ok = zt_guiMakeButton(button_sizer, "OK");
+	ztGuiItem *button_no = zt_guiMakeButton(button_sizer, "Cancel");
+
+	button_ok->size = button_no->size;
+
+	zt_guiSizerAddStretcher(button_sizer, 1);
+	zt_guiSizerAddItem(button_sizer, button_ok, 0, padding);
+	zt_guiSizerAddItem(button_sizer, button_no, 0, padding);
+
+	zt_guiButtonSetCallback(button_ok, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDialogListSelectorOk), data);
+	zt_guiButtonSetCallback(button_no, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDialogListSelectorCancel), data);
 }
 
 // ================================================================================================================================================================================================
@@ -16980,6 +17107,20 @@ ztGuiItem *zt_guiDebugAddMetric(const char *sample)
 ztGuiItem *zt_guiDebugGetMenuBar()
 {
 	return zt_gui->menu_bar;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiDebugParticleEditorSetMeshes(ztParticleMeshInfo *meshes, i32 mesh_count)
+{
+	if (zt_gui->particle_mesh_info) {
+		zt_freeArena(zt_gui->particle_mesh_info, zt_gui->arena);
+	}
+
+	zt_gui->particle_mesh_info = zt_mallocStructArrayArena(ztParticleMeshInfo, mesh_count, zt_gui->arena);
+	zt_gui->particle_mesh_info_count = mesh_count;
+
+	zt_memCpy(zt_gui->particle_mesh_info, zt_sizeof(ztParticleMeshInfo) * mesh_count, meshes, zt_sizeof(ztParticleMeshInfo) * mesh_count);
 }
 
 // ================================================================================================================================================================================================
@@ -22079,6 +22220,10 @@ struct ztParticleEditor
 	bool                      should_save;
 	bool                      has_changed;
 	bool                      ignore_diff;
+
+	ztScene                  *scene; // used for rendering mesh based particles
+	ztModel                   scene_model;
+	ztLight                   scene_light;
 };
 
 // ================================================================================================================================================================================================
@@ -22137,9 +22282,17 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 	if (editor->display_reset_time > 0) {
 		editor->display_reset_time -= dt;
 		if (editor->display_reset_time < 0) {
+			if(zt_sceneHasModel(editor->scene, &editor->scene_model)) {
+				zt_sceneRemoveModel(editor->scene, &editor->scene_model);
+			}
+
 			zt_particleEmitterFree(editor->particle_emitter);
 			zt_memCpy(&editor->display_particle_system, zt_sizeof(ztParticleSystem), &editor->particle_system, zt_sizeof(ztParticleSystem));
 			editor->particle_emitter = zt_particleEmitterInit(&editor->display_particle_system, zt_game->game_details.current_frame * 10000);
+
+			ztMaterial mat = zt_materialMake();
+			zt_modelMakeFromParticleEmitter(&editor->scene_model, editor->particle_emitter, &mat, zt_shaderGetDefault(ztShaderDefault_Lit), nullptr, 0, nullptr);
+			zt_sceneAddModel(editor->scene, &editor->scene_model);
 
 			r32 dt_each = 1 / 30.f;
 			r32 time = editor->time;
@@ -22182,6 +22335,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 		}
 	}
 
+	bool clear_background = true;
 	if(editor->particle_emitter != nullptr) {
 		if (editor->draw_guides) {
 			r32 emitter_life_pct = editor->display_particle_system.system_duration <= 0 ? 0 : 1 - (zt_max(0, editor->particle_emitter->life_left) / editor->display_particle_system.system_duration);
@@ -22236,13 +22390,30 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 			editor->camera_controller = zt_cameraControllerMakeArcball(&editor->camera, ztVec3::zero);
 		}
 
-		zt_particleEmitterRender(editor->particle_emitter, &editor->draw_list, &editor->camera);
+
+		if (editor->display_particle_system.system_rendering.type == ztParticleRenderingType_Mesh) {
+			clear_background = false;
+
+			zt_scenePrepare(editor->scene, &editor->camera);
+			zt_sceneOptimize(editor->scene, &editor->camera);
+
+			zt_textureRenderTargetPrepare(editor->render_tex, true);
+			{
+				zt_rendererClear(editor->background_color);
+				zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
+				zt_sceneRender(editor->scene, &editor->camera, nullptr);
+			}
+			zt_textureRenderTargetCommit(editor->render_tex);
+		}
+		else {
+			zt_particleEmitterRender(editor->particle_emitter, &editor->draw_list, &editor->camera, nullptr, nullptr);
+		}
 	}
 
 	zt_drawListPopTexture(&editor->draw_list);
 	zt_drawListPopShader(&editor->draw_list);
 
-	zt_renderDrawList(&editor->camera, &editor->draw_list, editor->background_color, editor->draw_2d ? ztRenderDrawListFlags_NoDepthTest : 0, editor->render_tex);
+	zt_renderDrawList(&editor->camera, &editor->draw_list, editor->background_color, (editor->draw_2d ? ztRenderDrawListFlags_NoDepthTest : 0) | (clear_background ? 0 : ztRenderDrawListFlags_NoClear), editor->render_tex);
 }
 
 // ================================================================================================================================================================================================
@@ -22270,6 +22441,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputKeyboard, ZT_FUNC_
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiParticleEditorDisplayCleanup))
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	zt_modelFree(&editor->scene_model);
+	zt_sceneFree(editor->scene);
 	zt_particleEmitterFree(editor->particle_emitter);
 	zt_textureFree(editor->render_tex);
 	zt_drawListFree(&editor->draw_list);
@@ -22378,10 +22551,38 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelected, ZT_FU
 
 // ================================================================================================================================================================================================
 
+ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorMeshSelected, ZT_FUNC_GUI_DIALOG_LIST_SELECTED(_zt_guiParticleEditorMeshSelected))
+{
+	ztParticleEditor *editor = (ztParticleEditor*)user_data;
+	if (!cancelled) {
+		ztMeshID mesh_id = zt_gui->particle_mesh_info[list_idx].mesh_id;
+		zt_guiItemSetLabel(editor->billboard_sprite_button, list_item);
+
+		editor->particle_system.system_rendering.mesh.mesh_id = mesh_id;
+		zt_guiSizerRecalc(editor->window);
+	}
+}
+
+// ================================================================================================================================================================================================
+
 ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelectButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorBillboardSpriteSelectButton))
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
-	zt_guiDialogSpriteSelector(&editor->sprite_manager, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorBillboardSpriteSelected), editor, "Select Sprite");
+
+	if(editor->display_particle_system.system_rendering.type == ztParticleRenderingType_Mesh) {
+
+		const char **mesh_list = zt_mallocStructArrayArena(const char*, zt_gui->particle_mesh_info_count, zt_memGetTempArena());
+		zt_fiz(zt_gui->particle_mesh_info_count) {
+			mesh_list[i] = zt_gui->particle_mesh_info[i].name;
+		}
+
+		zt_guiDialogListSelector(mesh_list, zt_gui->particle_mesh_info_count, "Select Mesh For Particle:", ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorMeshSelected), editor, "Select Mesh");
+
+		zt_freeArena(mesh_list, zt_memGetTempArena());
+	}
+	else {
+		zt_guiDialogSpriteSelector(&editor->sprite_manager, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorBillboardSpriteSelected), editor, "Select Sprite");
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -22395,9 +22596,15 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingTypeCombo, ZT_FUNC_GU
 	switch (selected)
 	{
 		case ztParticleRenderingType_BillBoard: {
+			zt_guiItemSetLabel(editor->billboard_sprite_button, "Select Sprite");
 		} break;
 
 		case ztParticleRenderingType_Facing: {
+			zt_guiItemSetLabel(editor->billboard_sprite_button, "Select Sprite");
+		} break;
+
+		case ztParticleRenderingType_Mesh: {
+			zt_guiItemSetLabel(editor->billboard_sprite_button, "Select Mesh");
 		} break;
 	}
 }
@@ -22424,7 +22631,7 @@ ztInternal void _zt_guiParticleEditorSave(ztParticleEditor *editor)
 
 	ztSerial serial;
 	if (zt_serialMakeWriter(&serial, editor->work_file, ZT_PARTICLE_SYSTEM_FILE_GUID, ZT_SPRITE_ANIM_FILE_VERSION)) {
-		if (!zt_serialWrite(&serial, &editor->particle_system, &editor->sprite_manager)) {
+		if (!zt_serialWrite(&serial, &editor->particle_system, &editor->sprite_manager, zt_gui->particle_mesh_info, zt_gui->particle_mesh_info_count)) {
 			error = "Unable to serialize particle system";
 		}
 		zt_serialClose(&serial);
@@ -22510,7 +22717,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileDialogCallback, ZT_F
 
 		ztParticleSystem particle_system;
 		if (zt_serialMakeReader(&serial, editor->work_file, ZT_PARTICLE_SYSTEM_FILE_GUID)) {
-			if (!zt_serialRead(&serial, &particle_system, &editor->sprite_manager)) {
+			if (!zt_serialRead(&serial, &particle_system, &editor->sprite_manager, zt_gui->particle_mesh_info, zt_gui->particle_mesh_info_count)) {
 				error = "Unable to serialize particle system";
 			}
 			zt_serialClose(&serial);
@@ -22616,6 +22823,10 @@ void _zt_guiParticleEditor()
 
 	ztGuiManager *gm = zt_gui->gui_manager_active;
 	ztParticleEditor *editor = zt_mallocStructArena(ztParticleEditor, gm->arena);
+
+	editor->scene = zt_sceneMake(gm->arena, 1, 16);
+	editor->scene_light = zt_lightMakeDirectional(zt_vec3(10, 10, 10), zt_vec3(-1, -1, -1), 1.f, .25f, false, ztColor_White);
+	zt_sceneAddLight(editor->scene, &editor->scene_light);
 
 	r32 padding = zt_guiPadding();
 
@@ -23045,13 +23256,14 @@ void _zt_guiParticleEditor()
 		ztGuiItem *rendering_panel = local::makePanelSizer(sizer_tools, "Rendering", padding);
 		{
 			local::makeLabel(rendering_panel, "Type:", padding);
-			ztGuiItem *combo_type = zt_guiMakeComboBox(rendering_panel, 2);
+			ztGuiItem *combo_type = zt_guiMakeComboBox(rendering_panel, ztParticleRenderingType_MAX);
 			editor->combo_rendering_type = combo_type;
 			zt_guiSizerAddItem(rendering_panel, combo_type, 1, padding);
 			zt_guiComboBoxSetCallback(combo_type, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorRenderingTypeCombo), editor);
 
 			zt_guiComboBoxAppend(combo_type, "Billboard", editor);
 			zt_guiComboBoxAppend(combo_type, "Facing", editor);
+			zt_guiComboBoxAppend(combo_type, "Mesh", editor);
 
 			local::makeLabel(rendering_panel, "Sprite:", padding);
 			ztGuiItem *button_sprite = zt_guiMakeButton(rendering_panel, "Select Sprite");
