@@ -2357,6 +2357,9 @@ bool zt_serialRead       (ztSerial *serial, ztMat4 *mat);
 bool zt_serialRead       (ztSerial *serial, ztQuat *quat);
 
 
+bool zt_serialWriteGuidVersion       (ztSerial *serial, ztGuid guid, i32 version);
+bool zt_serialReadAndCheckGuidVersion(ztSerial *serial, ztGuid guid, i32 version_min, i32 version_max = ztInt32Min);
+
 // ================================================================================================================================================================================================
 // base64 encoding/decoding
 // ================================================================================================================================================================================================
@@ -12375,6 +12378,46 @@ bool zt_serialRead(ztSerial *serial, void *value, i32 value_len, i32 *read_len)
 	return true;
 }
 
+// ================================================================================================================================================================================================
+
+bool zt_serialWriteGuidVersion(ztSerial *serial, ztGuid guid, i32 version)
+{
+	if (!zt_serialWrite(serial, guid)) return false;
+	if (!zt_serialWrite(serial, version)) return false;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialReadAndCheckGuidVersion(ztSerial *serial, ztGuid guid_in, i32 version_min, i32 version_max)
+{
+	ztGuid guid;
+	i32 version = 0;
+
+	if (!zt_serialRead(serial, &guid)) {
+		return false;
+	}
+
+	if (!zt_serialRead(serial, &version)) {
+		return false;
+	}
+
+	if (guid != guid) {
+		zt_logCritical("Serialization GUID mismatch");
+		return false;
+	}
+
+	if (version_max == ztInt32Min) {
+		version_max = version_min;
+	}
+
+	if (version < version_min || version > version_max) {
+		zt_logCritical("Serialization version mismatch");
+		return false;
+	}
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
