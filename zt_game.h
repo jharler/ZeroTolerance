@@ -1941,6 +1941,9 @@ ztVec2i  zt_cameraPerspWorldToScreen(ztCamera *camera, ztVec3 pos);
 
 void     zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up = zt_vec3(0,1,0));
 
+bool     zt_cameraSave(ztCamera *camera, ztSerial *serial);
+bool     zt_cameraLoad(ztCamera *camera, ztSerial *serial);
+
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -2097,6 +2100,8 @@ ztCameraControllerFPS zt_cameraControllerMakeFPS(ztCamera *camera, ztVec3 initia
 void                  zt_cameraControlUpdateFPS(ztCameraControllerFPS *controller, r32 dt);
 void                  zt_cameraControlUpdateWASD(ztCameraControllerFPS *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt); // simple WASD + mouse look camera manipulation - good for testing
 
+bool                  zt_cameraControllerFPSSave(ztCameraControllerFPS *controller, ztSerial *serial); // saves/loads the camera as well
+bool                  zt_cameraControllerFPSLoad(ztCameraControllerFPS *controller, ztSerial *serial);
 
 // ================================================================================================================================================================================================
 
@@ -2131,6 +2136,8 @@ struct ztCameraControllerArcball
 ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target = ztVec3::zero);
 void                      zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInputMouse *input_mouse, ztInputKeys *input_keys, r32 dt, i32 flags);
 
+bool                      zt_cameraControllerArcballSave(ztCameraControllerArcball *controller, ztSerial *serial); // saves/loads the camera as well
+bool                      zt_cameraControllerArcballLoad(ztCameraControllerArcball *controller, ztSerial *serial);
 
 
 // ================================================================================================================================================================================================
@@ -27435,6 +27442,89 @@ void zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up)
 	zt_cameraRecalcMatrices(camera);
 }
 
+// ================================================================================================================================================================================================
+
+#define ZT_CAMERA_SERIAL_GUID       zt_guidMake(0xe7e44f8a, 0xa1554b11, 0x966442d7, 0xa8f176ea)
+#define ZT_CAMERA_SERIAL_VERSION    10001
+
+// ================================================================================================================================================================================================
+
+#define _serialCheck(code)	if(!code) { zt_logCritical("Camera serialization failed."); return false; }
+
+bool zt_cameraSave(ztCamera *camera, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialWrite(serial, ZT_CAMERA_SERIAL_GUID));
+		_serialCheck(zt_serialWrite(serial, ZT_CAMERA_SERIAL_VERSION));
+
+		_serialCheck(zt_serialWrite(serial, (i32)camera->type));
+		_serialCheck(zt_serialWrite(serial, camera->position));
+		_serialCheck(zt_serialWrite(serial, camera->width));
+		_serialCheck(zt_serialWrite(serial, camera->height));
+		_serialCheck(zt_serialWrite(serial, camera->near_z));
+		_serialCheck(zt_serialWrite(serial, camera->far_z));
+		_serialCheck(zt_serialWrite(serial, camera->mat_view));
+		_serialCheck(zt_serialWrite(serial, camera->mat_proj));
+
+		if (camera->type == ztCameraType_Orthographic) {
+			_serialCheck(zt_serialWrite(serial, camera->native_w));
+			_serialCheck(zt_serialWrite(serial, camera->native_h));
+			_serialCheck(zt_serialWrite(serial, camera->zoom));
+		}
+		else {
+			_serialCheck(zt_serialWrite(serial, camera->fov));
+			_serialCheck(zt_serialWrite(serial, camera->rotation));
+			_serialCheck(zt_serialWrite(serial, camera->direction));
+		}
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_cameraLoad(ztCamera *camera, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		ztGuid guid;
+		i32 version = 0;
+		_serialCheck(zt_serialRead(serial, &guid));
+		_serialCheck(zt_serialRead(serial, &version));
+		if (guid    != ZT_CAMERA_SERIAL_GUID   ) { zt_logCritical("Camera serialization GUID mismatch"); return false; }
+		if (version != ZT_CAMERA_SERIAL_VERSION) { zt_logCritical("Camera serialization version mismatch"); return false; }
+
+		i32 camera_type = 0;
+		_serialCheck(zt_serialRead(serial, &camera_type));
+		camera->type = (ztCameraType_Enum)camera_type;
+
+		_serialCheck(zt_serialRead(serial, &camera->position));
+		_serialCheck(zt_serialRead(serial, &camera->width));
+		_serialCheck(zt_serialRead(serial, &camera->height));
+		_serialCheck(zt_serialRead(serial, &camera->near_z));
+		_serialCheck(zt_serialRead(serial, &camera->far_z));
+		_serialCheck(zt_serialRead(serial, &camera->mat_view));
+		_serialCheck(zt_serialRead(serial, &camera->mat_proj));
+
+		if (camera->type == ztCameraType_Orthographic) {
+			_serialCheck(zt_serialRead(serial, &camera->native_w));
+			_serialCheck(zt_serialRead(serial, &camera->native_h));
+			_serialCheck(zt_serialRead(serial, &camera->zoom));
+		}
+		else {
+			_serialCheck(zt_serialRead(serial, &camera->fov));
+			_serialCheck(zt_serialRead(serial, &camera->rotation));
+			_serialCheck(zt_serialRead(serial, &camera->direction));
+		}
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+
+	return true;
+}
+
+#undef _serialCheck
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -27791,6 +27881,75 @@ void zt_cameraControlUpdateWASD(ztCameraControllerFPS *camera, ztInputMouse *inp
 
 // ================================================================================================================================================================================================
 
+#define _serialCheck(code) if (!code) { zt_logCritical("CameraControllerFPS serialization failed"); return false; }
+
+#define ZT_CAMERA_CONTROLLER_FPS_SERIAL_GUID       zt_guidMake(0xe7e44f8a, 0xa1554b11, 0x966442d7, 0xa8f176ea)
+#define ZT_CAMERA_CONTROLLER_FPS_SERIAL_VERSION    10001
+
+bool zt_cameraControllerFPSSave(ztCameraControllerFPS *controller, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialWriteGuidVersion(serial, ZT_CAMERA_CONTROLLER_FPS_SERIAL_GUID, ZT_CAMERA_CONTROLLER_FPS_SERIAL_VERSION));
+
+		_serialCheck(zt_cameraSave(controller->camera, serial));
+
+		_serialCheck(zt_serialWrite(serial, controller->prev_pos));
+		_serialCheck(zt_serialWrite(serial, controller->mouse_sensitivity));
+		_serialCheck(zt_serialWrite(serial, controller->speed));
+		_serialCheck(zt_serialWrite(serial, controller->boosted_speed));
+		_serialCheck(zt_serialWrite(serial, controller->sneaking_speed));
+		_serialCheck(zt_serialWrite(serial, controller->flags));
+		_serialCheck(zt_serialWrite(serial, controller->mouse_delta_x));
+		_serialCheck(zt_serialWrite(serial, controller->mouse_delta_y));
+		_serialCheck(zt_serialWrite(serial, controller->is_boosted));
+		_serialCheck(zt_serialWrite(serial, controller->is_sneaking));
+		_serialCheck(zt_serialWrite(serial, controller->move_back));
+		_serialCheck(zt_serialWrite(serial, controller->move_forward));
+		_serialCheck(zt_serialWrite(serial, controller->strafe_left));
+		_serialCheck(zt_serialWrite(serial, controller->strafe_right));
+		_serialCheck(zt_serialWrite(serial, controller->rotation));
+		_serialCheck(zt_serialWrite(serial, controller->velocity));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_cameraControllerFPSLoad(ztCameraControllerFPS *controller, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialReadAndCheckGuidVersion(serial, ZT_CAMERA_CONTROLLER_FPS_SERIAL_GUID, ZT_CAMERA_CONTROLLER_FPS_SERIAL_VERSION));
+
+		_serialCheck(zt_cameraLoad(controller->camera, serial));
+
+		_serialCheck(zt_serialRead(serial, &controller->prev_pos));
+		_serialCheck(zt_serialRead(serial, &controller->mouse_sensitivity));
+		_serialCheck(zt_serialRead(serial, &controller->speed));
+		_serialCheck(zt_serialRead(serial, &controller->boosted_speed));
+		_serialCheck(zt_serialRead(serial, &controller->sneaking_speed));
+		_serialCheck(zt_serialRead(serial, &controller->flags));
+		_serialCheck(zt_serialRead(serial, &controller->mouse_delta_x));
+		_serialCheck(zt_serialRead(serial, &controller->mouse_delta_y));
+		_serialCheck(zt_serialRead(serial, &controller->is_boosted));
+		_serialCheck(zt_serialRead(serial, &controller->is_sneaking));
+		_serialCheck(zt_serialRead(serial, &controller->move_back));
+		_serialCheck(zt_serialRead(serial, &controller->move_forward));
+		_serialCheck(zt_serialRead(serial, &controller->strafe_left));
+		_serialCheck(zt_serialRead(serial, &controller->strafe_right));
+		_serialCheck(zt_serialRead(serial, &controller->rotation));
+		_serialCheck(zt_serialRead(serial, &controller->velocity));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+#undef _serialCheck
+
+// ================================================================================================================================================================================================
+
 ztCameraControllerArcball zt_cameraControllerMakeArcball(ztCamera *camera, ztVec3 target)
 {
 	ZT_PROFILE_RENDERING("zt_cameraControllerMakeArcball");
@@ -27889,6 +28048,57 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 		zt_cameraLookAt(controller->camera, controller->target, up);
 	}
 }
+
+// ================================================================================================================================================================================================
+
+#define _serialCheck(code) if (!code) { zt_logCritical("CameraControllerArcball serialization failed"); return false; }
+
+#define ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_GUID       zt_guidMake(0xf94a3f97, 0xab454407, 0xa8f60222, 0x9d88035c)
+#define ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_VERSION    10001
+
+bool zt_cameraControllerArcballSave(ztCameraControllerArcball *controller, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialWriteGuidVersion(serial, ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_GUID, ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_VERSION));
+
+		_serialCheck(zt_cameraSave(controller->camera, serial));
+
+		_serialCheck(zt_serialWrite(serial, controller->mouse_sensitivity));
+		_serialCheck(zt_serialWrite(serial, controller->target));
+		_serialCheck(zt_serialWrite(serial, controller->rotation));
+		_serialCheck(zt_serialWrite(serial, controller->mouse_delta_x));
+		_serialCheck(zt_serialWrite(serial, controller->mouse_delta_y));
+		_serialCheck(zt_serialWrite(serial, controller->is_boosted));
+		_serialCheck(zt_serialWrite(serial, controller->is_sneaking));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_cameraControllerArcballLoad(ztCameraControllerArcball *controller, ztSerial *serial)
+{
+	_serialCheck(zt_serialGroupPush(serial));
+	{
+		_serialCheck(zt_serialReadAndCheckGuidVersion(serial, ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_GUID, ZT_CAMERA_CONTROLLER_ARCBALL_SERIAL_VERSION));
+
+		_serialCheck(zt_cameraLoad(controller->camera, serial));
+
+		_serialCheck(zt_serialRead(serial, &controller->mouse_sensitivity));
+		_serialCheck(zt_serialRead(serial, &controller->target));
+		_serialCheck(zt_serialRead(serial, &controller->rotation));
+		_serialCheck(zt_serialRead(serial, &controller->mouse_delta_x));
+		_serialCheck(zt_serialRead(serial, &controller->mouse_delta_y));
+		_serialCheck(zt_serialRead(serial, &controller->is_boosted));
+		_serialCheck(zt_serialRead(serial, &controller->is_sneaking));
+	}
+	_serialCheck(zt_serialGroupPop(serial));
+	return true;
+}
+
+#undef _serialCheck
 
 // ================================================================================================================================================================================================
 
