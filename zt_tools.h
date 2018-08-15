@@ -9332,12 +9332,12 @@ i32 zt_fileSize(const char *file_name)
 	ZT_PROFILE_TOOLS("zt_fileSize");
 
 #	if defined(ZT_WINDOWS)
-	OFSTRUCT ofs;
-	u32 style = OF_READ;
+	u32 access = GENERIC_READ, creation = OPEN_EXISTING;
 
-	HFILE hfile = OpenFile(file_name, &ofs, style);
-	if (hfile == HFILE_ERROR) {
-		return 0;
+	HANDLE hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hfile == INVALID_HANDLE_VALUE) {
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		return false;
 	}
 
 	DWORD size = GetFileSize((HANDLE)hfile, NULL);
@@ -9364,13 +9364,14 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 	ZT_PROFILE_TOOLS("zt_fileModified");
 
 #	if defined(ZT_WINDOWS)
-	OFSTRUCT ofs;
-	u32 style = OF_READ;
+	u32 file_access = GENERIC_READ, file_creation = OPEN_EXISTING;
 
-	HFILE hfile = OpenFile(file_name, &ofs, style);
-	if (hfile == HFILE_ERROR) {
-		return 0;
+	HANDLE hfile = CreateFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hfile == INVALID_HANDLE_VALUE) {
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		return false;
 	}
+
 	FILETIME creation, access, write;
 	BOOL result = GetFileTime((HANDLE)hfile, &creation, &access, &write);
 	CloseHandle((HANDLE)hfile);
@@ -9403,13 +9404,14 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 	ZT_PROFILE_TOOLS("zt_fileModified");
 
 #	if defined(ZT_WINDOWS)
-	OFSTRUCT ofs;
-	u32 style = OF_READ;
+	u32 file_access = GENERIC_READ, file_creation = OPEN_EXISTING;
 
-	HFILE hfile = OpenFile(file_name, &ofs, style);
-	if (hfile == HFILE_ERROR) {
-		return 0;
+	HANDLE hfile = CreateFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hfile == INVALID_HANDLE_VALUE) {
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		return false;
 	}
+
 	FILETIME creation, access, write;
 	BOOL result = GetFileTime((HANDLE)hfile, &creation, &access, &write);
 	CloseHandle((HANDLE)hfile);
