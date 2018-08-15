@@ -25979,9 +25979,22 @@ ztShaderID zt_shaderBuildTonemap(ztShaderTonemapSettings *settings)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ztInternal ztTextureID _zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags, ztTextureID replace_id);
+
 ZT_FUNCTION_POINTER_REGISTER(_zt_rendererTextureReload, ztInternal ZT_FUNC_ASSET_UPDATED(_zt_rendererTextureReload))
 {
 	// TODO(josh): Implement
+	ZT_PROFILE_RENDERING("_zt_rendererTextureReload");
+	zt_logInfo("texture reload: asset_id: %d (%s)", asset_id, asset_manager->asset_name[asset_id]);
+	ztTextureID texture_id = (ztTextureID)(pointer)user_data;
+	zt_assert(texture_id >= 0 && texture_id < zt_game->textures_count);
+
+	ztTextureID result_texture_id = ztInvalidID;
+
+	result_texture_id = _zt_textureMake(asset_manager, asset_id, 0, texture_id);
+	if (result_texture_id == ztInvalidID) {
+		zt_logCritical("Unable to reload texture (%s)", asset_manager->asset_name[asset_id]);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -26032,12 +26045,17 @@ ztInternal ztTextureID _zt_textureGetNextID()
 
 // ================================================================================================================================================================================================
 
-ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error)
+ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 height, i32 depth, i32 flags, const char **error, ztTextureID replace_id = ztInvalidID)
 {
 	ZT_PROFILE_RENDERING("_zt_textureMakeBase");
 
-	ztTextureID texture_id = _zt_textureGetNextID();
+	ztTextureID texture_id = replace_id == ztInvalidID ? _zt_textureGetNextID() : replace_id;
 	ztTexture *texture = &zt_game->textures[texture_id];
+
+	if (replace_id != ztInvalidID) {
+		flags = texture->flags;
+		zt_textureFree(replace_id);
+	}
 
 	if (zt_bitIsSet(flags, ztTextureFlags_RenderTargetScreen)) {
 		width = zt_game->win_game_settings[0].native_w;
@@ -26092,7 +26110,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 
 // ================================================================================================================================================================================================
 
-ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags)
+ztInternal ztTextureID _zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags, ztTextureID replace_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureMake");
 	ztBlockProfiler bp_tex("zt_textureMake (from asset)");
@@ -26105,10 +26123,12 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 
 	zt_logInfo("loading texture asset: %s (%d)", asset_mgr->asset_name[asset_id], asset_id);
 
-	zt_fize(zt_game->textures) {
-		if (zt_game->textures[i].load_type == ztTextureLoadType_Asset && zt_game->textures[i].asset_id == asset_id) {
-			zt_logDebug("returning preloaded texture asset: %s (asset id: %d; texture id: %d)", asset_mgr->asset_name[asset_id], asset_id, i);
-			return i;
+	if (replace_id == ztInvalidID) {
+		zt_fize(zt_game->textures) {
+			if (zt_game->textures[i].load_type == ztTextureLoadType_Asset && zt_game->textures[i].asset_id == asset_id) {
+				zt_logDebug("returning preloaded texture asset: %s (asset id: %d; texture id: %d)", asset_mgr->asset_name[asset_id], asset_id, i);
+				return i;
+			}
 		}
 	}
 
@@ -26157,7 +26177,7 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 		goto on_error;
 	}
 
-	texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
+	texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error, replace_id);
 
 	if (texture_id != ztInvalidID) {
 		ztTexture *texture = &zt_game->textures[texture_id];
@@ -26179,7 +26199,13 @@ on_error:
 	if (pixel_data) {
 		stbi_image_free(pixel_data);
 	}
-	return ztInvalidID;
+	return ztInvalidID;}
+
+// ================================================================================================================================================================================================
+
+ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags)
+{
+	return _zt_textureMake(asset_mgr, asset_id, flags, ztInvalidID);
 }
 
 // ================================================================================================================================================================================================
@@ -26193,7 +26219,7 @@ ztTextureID zt_textureMake(byte *pixel_data, i32 width, i32 height, i32 flags)
 
 	int depth = 4;
 	const char *error = nullptr;
-	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error);
+	ztTextureID texture_id = _zt_textureMakeBase(pixel_data, width, height, depth, flags, &error, ztInvalidID);
 	if (texture_id != ztInvalidID) {
 		ztTexture *texture = &zt_game->textures[texture_id];
 		texture->load_type = ztTextureLoadType_Data;
@@ -26890,6 +26916,10 @@ void zt_textureFree(ztTextureID texture_id)
 		zt_freeArena(zt_game->textures[texture_id].data, zt_game->textures[texture_id].arena);
 	}
 	else {
+		if (zt_game->textures[texture_id].load_type == ztTextureLoadType_Asset && zt_game->textures[texture_id].asset_mgr) {
+			zt_assetRemoveReloadCallback(zt_game->textures[texture_id].asset_mgr, zt_game->textures[texture_id].asset_id, (void*)texture_id);
+		}
+
 		zt_game->textures[texture_id].asset_id = ztInvalidID;
 	}
 	zt_memSet(&zt_game->textures[texture_id], sizeof(ztTexture), 0);
