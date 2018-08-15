@@ -2154,6 +2154,7 @@ enum ztCharacterControllerFlags_Enum
 	ztCharacterControllerFlags_CanFly           = (1 << 0),
 	ztCharacterControllerFlags_FloatsOverGround = (1 << 1), // makes movement speed consistent regardless of ground angle
 	ztCharacterControllerFlags_IgnoreXRotation  = (1 << 2),
+	ztCharacterControllerFlags_IgnoreCollisions = (1 << 3),
 };
 
 // ================================================================================================================================================================================================
@@ -3657,6 +3658,7 @@ bool zt_staticBodyLoad(ztSerial *serial, ztStaticBody *static_body);
 i32 zt_staticBodyHasCollisionsAABB(ztStaticBody *static_body, const ztVec3 &aabb_center, const ztVec3 &aabb_extents, ztVec3 *contact_points = nullptr, ztVec3 *contact_normals = nullptr, i32 *contact_triangles = nullptr, i32 contact_count = 0);
 i32 zt_staticBodyHasCollisionsOBB(ztStaticBody *static_body, const ztVec3 &obb_center, const ztVec3 &obb_extents, const ztQuat &obb_rot, ztVec3 *contact_points = nullptr, ztVec3 *contact_normals = nullptr, i32 *contact_triangles = nullptr, i32 contact_count = 0);
 i32 zt_staticBodyHasCollisionsSphere(ztStaticBody *static_body, const ztVec3 &sphere_center, r32 sphere_radius, ztVec3 *contact_points = nullptr, ztVec3 *contact_normal = nullptr, i32 *contact_triangle = nullptr, i32 contact_count = 0);
+i32 zt_staticBodyHasCollisionsLine(ztStaticBody *static_body, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *contact_points = nullptr, ztVec3 *contact_normal = nullptr, i32 *contact_triangle = nullptr, i32 contact_count = 0);
 
 
 // ================================================================================================================================================================================================
@@ -5465,6 +5467,7 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id);
 void zt_audioClipPlayOnce(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
 void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 frequency = ztAudioClipDefaultFrequency);
 void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency = ztAudioClipDefaultFrequency);
+void zt_audioClipPlayLoopedDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 frequency = ztAudioClipDefaultFrequency);
 
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id);
 bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time = 0);
@@ -6468,6 +6471,7 @@ struct ztAudioDelay
 	ztAudioClipID clip_id;
 	r32           frequency;
 	r32           delay;
+	bool          loops;
 };
 
 // ================================================================================================================================================================================================
@@ -7801,19 +7805,23 @@ struct ztAssetPackedFileEntry
 
 ztInternal ztAssetManagerType_Enum _zt_assetGetFileType(const char *file_name)
 {
-	     if (zt_striEndsWith(file_name, ".png")) return ztAssetManagerType_ImagePNG;
-	else if (zt_striEndsWith(file_name, ".jpg")) return ztAssetManagerType_ImageJPG;
-	else if (zt_striEndsWith(file_name, ".hdr")) return ztAssetManagerType_ImageHDR;
-	else if (zt_striEndsWith(file_name, ".wav")) return ztAssetManagerType_AudioWAV;
-	else if (zt_striEndsWith(file_name, ".zts")) return ztAssetManagerType_Shader;
-	else if (zt_striEndsWith(file_name, ".ttf")) return ztAssetManagerType_Font;
-	else if (zt_striEndsWith(file_name, ".fnt")) return ztAssetManagerType_Font;
-	else if (zt_striEndsWith(file_name, ".obj")) return ztAssetManagerType_MeshOBJ;
-	else if (zt_striEndsWith(file_name, ".fbx")) return ztAssetManagerType_MeshFBX;
-	else if (zt_striEndsWith(file_name, ".mtl")) return ztAssetManagerType_Material;
-	else if (zt_striEndsWith(file_name, ".ztm")) return ztAssetManagerType_ModelZTM;
-	else if (zt_striEndsWith(file_name, ".xml")) return ztAssetManagerType_Xml;
-	else return ztAssetManagerType_Unknown;
+	ztAssetManagerType_Enum result = ztAssetManagerType_Unknown;
+
+	     if (zt_striEndsWith(file_name, ".png")) result = ztAssetManagerType_ImagePNG;
+	else if (zt_striEndsWith(file_name, ".jpg")) result = ztAssetManagerType_ImageJPG;
+	else if (zt_striEndsWith(file_name, ".hdr")) result = ztAssetManagerType_ImageHDR;
+	else if (zt_striEndsWith(file_name, ".wav")) result = ztAssetManagerType_AudioWAV;
+	else if (zt_striEndsWith(file_name, ".zts")) result = ztAssetManagerType_Shader;
+	else if (zt_striEndsWith(file_name, ".ttf")) result = ztAssetManagerType_Font;
+	else if (zt_striEndsWith(file_name, ".fnt")) result = ztAssetManagerType_Font;
+	else if (zt_striEndsWith(file_name, ".obj")) result = ztAssetManagerType_MeshOBJ;
+	else if (zt_striEndsWith(file_name, ".fbx")) result = ztAssetManagerType_MeshFBX;
+	else if (zt_striEndsWith(file_name, ".mtl")) result = ztAssetManagerType_Material;
+	else if (zt_striEndsWith(file_name, ".ztm")) result = ztAssetManagerType_ModelZTM;
+	else if (zt_striEndsWith(file_name, ".xml")) result = ztAssetManagerType_Xml;
+
+	zt_logDebug("asset type: %d - file: %s", (int)result, file_name);
+	return result;
 }
 
 // ================================================================================================================================================================================================
@@ -13880,7 +13888,7 @@ ztPostProcessColorLUT *zt_postProcessingEffectMakeColorLUT(ztPostProcessingEffec
 	zt_returnValOnNull(effect, nullptr);
 	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
 
-	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d color_lut_one_tex;\n	texture2d color_lut_two_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float percentage;\n}\n\nvec3 textureSample3D(vec3 uv, float width, texture2d lut_tex)\n{\n	float inner_width = width - 1.0;\n	float slice_size = 1.0 / width; // space of 1 slice\n	float slice_pixel_size = slice_size / width; // space of 1 pixel\n	float slice_inner_size = slice_pixel_size * inner_width; // space of width pixels\n	float z_slice0 = min(floor(uv.z * inner_width), inner_width);\n	float z_slice1 = min(z_slice0 + 1.0, inner_width);\n	float x_offset = slice_pixel_size * 0.5 + uv.x * slice_inner_size;\n	float s0 = x_offset + (z_slice0 * slice_size);\n	float s1 = x_offset + (z_slice1 * slice_size);\n	float y_pixel_size = slice_size;\n	float y_offset = (y_pixel_size * 0.5 + (1 - uv.y) * (1.0 - y_pixel_size));\n	vec3 slice0_color = textureSample(lut_tex, vec2(s0, y_offset)).rgb;\n	vec3 slice1_color = textureSample(lut_tex, vec2(s1, y_offset)).rgb;\n	float z_offset = fract(uv.z * inner_width);\n	vec3 result = lerp(slice0_color, slice1_color, z_offset);\n	return result;\n}\n\nprogram ColorLUT\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		vec3 lut_one = textureSample3D(color, 32, textures.color_lut_one_tex);\n		\n		if (uniforms.percentage > 0) {\n			vec3 lut_two = textureSample3D(color, 32, textures.color_lut_two_tex);\n			lut_one = lerp(lut_one, lut_two, uniforms.percentage);\n		}\n		\n		_output.color = vec4(lut_one, 1);\n	}\n}";
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d color_lut_one_tex;\n	texture2d color_lut_two_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float percentage;\n}\n\nvec3 textureSample3D(vec3 uv, float width, texture2d lut_tex)\n{\n	float inner_width = width - 1.0;\n	float slice_size = 1.0 / width; // space of 1 slice\n	float slice_pixel_size = slice_size / width; // space of 1 pixel\n	float slice_inner_size = slice_pixel_size * inner_width; // space of width pixels\n	float z_slice0 = min(floor(uv.z * inner_width), inner_width);\n	float z_slice1 = min(z_slice0 + 1.0, inner_width);\n	float x_offset = slice_pixel_size * 0.5 + uv.x * slice_inner_size;\n	float s0 = x_offset + (z_slice0 * slice_size);\n	float s1 = x_offset + (z_slice1 * slice_size);\n	float y_pixel_size = slice_size;\n	float y_offset = (y_pixel_size * 0.5 + (1 - uv.y) * (1.0 - y_pixel_size));\n	vec3 slice0_color = textureSample(lut_tex, vec2(s0, y_offset)).rgb;\n	vec3 slice1_color = textureSample(lut_tex, vec2(s1, y_offset)).rgb;\n	float z_offset = fract(uv.z * inner_width);\n	vec3 result = lerp(slice0_color, slice1_color, z_offset);\n	return result;\n}\n\nprogram ColorLUT\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		color.r = min(color.r, 1); color.g = min(color.g, 1); color.b = min(color.b, 1);\n		vec3 lut_one = textureSample3D(color, 32, textures.color_lut_one_tex);\n		\n		if (uniforms.percentage > 0) {\n			vec3 lut_two = textureSample3D(color, 32, textures.color_lut_two_tex);\n			lut_one = lerp(lut_one, lut_two, uniforms.percentage);\n		}\n		\n		_output.color = vec4(lut_one, 1);\n	}\n}";
 
 	ztShaderID shaders[1] = {
 		zt_shaderMake("Color LUT", shader, zt_strLen(shader)),
@@ -14109,7 +14117,7 @@ ztPostProcessTonemap *zt_postProcessingEffectMakeTonemap(ztPostProcessingEffect 
 	zt_returnValOnNull(effect, nullptr);
 	zt_assertReturnValOnFail(screen_w > 0 && screen_h > 0, nullptr);
 
-	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float gamma;\n	float exposure;\n}\n\n\nprogram Tonemap\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		vec3 mapped = vec3(1.0) - exp(-color * uniforms.exposure);\n		mapped = pow(mapped, vec3(1.0 / uniforms.gamma));\n		\n		_output.color = vec4(mapped, 1);\n	}\n}";
+	const char *shader = "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float gamma;\n	float exposure;\n}\n\n\nprogram Tonemap\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		vec3 mapped = vec3(1.0) - exp(-color * uniforms.exposure);\n		mapped = pow(mapped, vec3(1.0 / uniforms.gamma));\n		\n		color.r = min(1, color.r);\n		color.g = min(1, color.g);\n		color.b = min(1, color.b);\n		\n		_output.color = vec4(mapped, 1);\n	}\n}";
 
 	ztShaderID shaders[1] = {
 		zt_shaderMake("Tonemap", shader, zt_strLen(shader)),
@@ -17239,7 +17247,8 @@ void zt_modelChildRemove(ztModel *parent_model, ztModel *child_model)
 			}
 			break;
 		}
-	}	
+	}
+	child_model->parent = nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -18270,6 +18279,7 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 		if (scene->models[i].model == model) {
 			for (int j = i; j < scene->models_count - 1; ++j) {
 				scene->models[j] = scene->models[j + 1];
+				scene->models[j].index -= 1;
 			}
 			scene->models_count -= 1;
 
@@ -20366,7 +20376,9 @@ i32 zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i3
 {
 	ZT_PROFILE_GAME("zt_ocTreeFindNodesThatIntersect");
 	zt_returnValOnNull(octree, 0);
-	zt_returnValOnNull(octree->root_node, 0);
+	if (octree->root_node == nullptr) {
+		return 0;
+	}
 
 	struct local
 	{
@@ -26101,16 +26113,19 @@ ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 fl
 	}
 
 	if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageHDR) {
+		zt_logCritical("asset type mismatch.  asset type reported: %d", (int)asset_mgr->asset_type[asset_id]);
 		return ztInvalidID;
 	}
 
 	i32 size = zt_assetSize(asset_mgr, asset_id);
 	if (size <= 0) {
+		zt_logCritical("asset size reported as zero");
 		return ztInvalidID;
 	}
 
 	char *data = zt_mallocStructArrayArena(char, size, asset_mgr->arena);
 	if (!data) {
+		zt_logCritical("unable to allocate memory for texture");
 		return ztInvalidID;
 	}
 
@@ -26206,6 +26221,7 @@ ztTextureID zt_textureMakeFromFile(const char *file, i32 flags)
 	i32 size = 0;
 	void *data = zt_readEntireFile(file, &size);
 	if (data == nullptr || size == 0) {
+		zt_logCritical("unable to read texture file");
 		return ztInvalidID;
 	}
 
@@ -26328,6 +26344,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_f
 		asset_ids[i] = zt_assetLoad(asset_mgr, asset_name);
 
 		if(asset_ids[i] == ztInvalidID) {
+			zt_logCritical("unable to load cube map texture %d (%s)", i, asset_name);
 			return ztInvalidID;
 		}
 	}
@@ -26354,16 +26371,19 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 		}
 		zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
 		if (asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImagePNG && asset_mgr->asset_type[asset_id] != ztAssetManagerType_ImageJPG) {
+			zt_logCritical("asset type mismatch");
 			return ztInvalidID;
 		}
 
 		tex_size[i] = zt_assetSize(asset_mgr, asset_id);
 		if (tex_size[i] <= 0) {
+			zt_logCritical("asset size reported as zero");
 			return ztInvalidID;
 		}
 
 		tex_data[i] = zt_mallocStructArrayArena(byte, tex_size[i], asset_mgr->arena);
 		if (!tex_data[i]) {
+			zt_logCritical("unable to allocate memory for texture");
 			return ztInvalidID;
 		}
 
@@ -26407,6 +26427,7 @@ ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMap
 #			if defined(ZT_OPENGL)
 			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(zt_game->win_details[0].gl_context, pixel_data, width, height, depth);
 			if (texture->gl_texture == nullptr) {
+				zt_logCritical("unable to make cube map from pixel data");
 				return ztInvalidID;
 			}
 #			endif
@@ -26438,11 +26459,13 @@ ztTextureID zt_textureMakeCubeMapFromHDR(ztAssetManager *asset_mgr, ztAssetID as
 
 	ztTextureID tex = zt_textureMake(asset_mgr, asset_id);
 	if (tex == ztInvalidID) {
+		zt_logCritical("unable to load hdr texture for cube map");
 		return ztInvalidID;
 	}
 
 	ztTexture *texture_hdr = &zt_game->textures[tex];
 	if (!zt_bitIsSet(texture_hdr->flags, ztTextureFlags_HDR)) {
+		zt_logCritical("texture is not HDR and cannot be loaded into cube map");
 		zt_textureFree(tex);
 		return ztInvalidID;
 	}
@@ -28443,6 +28466,10 @@ void zt_characterControllerUpdatePrePhysics(ztCharacterController *controllers, 
 			ctrl->velocity += gravity * dt;
 		}
 
+		if (zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_IgnoreCollisions)) {
+			ctrl->moving_body->flags |= ztMovingBodyFlags_AllowPenetration;
+		}
+		
 		if (ctrl->velocity != ztVec3::zero) {
 			ztVec3 dir = ctrl->moving_body->transform->rotation.rotatePosition(zt_vec3(0, 0, 1));
 			dir.y = 0;
@@ -28472,317 +28499,324 @@ void zt_characterControllerUpdatePrePhysics(ztCharacterController *controllers, 
 				ctrl->moving_body->transform->position.z += side.z * x_move;
 			}
 
-			zt_bitRemove(ctrl->moving_body->flags, ztMovingBodyFlags_AllowPenetration);
-			zt_bitRemove(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall);
+			if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_IgnoreCollisions)) {
+				zt_bitRemove(ctrl->moving_body->flags, ztMovingBodyFlags_AllowPenetration);
+				zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_CollidingWall);
 
-			zt_flink(collision, ctrl->moving_body->collisions) {
-				if (collision->moving_bodies[1] == nullptr) {
-					if (!zt_between(collision->contact_normal.dot(zt_vec3(0, 1, 0)), zt_max(.25f, ctrl->min_ramp_dot), 1)) {
-						r32 min_y = ztReal32Max;
-						zt_fiz(ctrl->moving_body->cg_details_count) {
-							switch (ctrl->moving_body->cg_details[i].type)
-							{
-								case ztCollisionGeometryType_AxisAlignedBox: {
-									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].aabb_extents.y / -2.f * ctrl->moving_body->transform->scale.y);
-								} break;
-
-								case ztCollisionGeometryType_OrientedBox: {
-									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].obb_extents.y / -2.f * ctrl->moving_body->transform->scale.y); // todo: should this take rotation into account?
-								} break;
-
-								case ztCollisionGeometryType_Sphere: {
-									min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].sphere_radius * -1.f * ctrl->moving_body->transform->scale.y);
-								} break;
-							}
-						}
-
-						if (collision->contact_point.y > ctrl->moving_body->transform->position.y + min_y + .125f) {
-
-							ztVec3 collision_dir = collision->contact_point - ctrl->moving_body->transform->position;
-							collision_dir.y = 0;
-							collision_dir.normalize();
-
-							if (collision_dir.dot(dir) > .25f) {
-								ctrl->flags |= ztCharacterControllerStateFlags_CollidingWall;
-							}
-						}
-					}
-				}
-			}
-
-			if (zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround) && ctrl->velocity.y <= 0.f) {
-
-				struct FloatCollisionCheck
-				{
-					static void perform(ztCharacterController *ctrl, ztPhysics *physics, const ztVec3 &prev_pos, const ztVec3 &dir, bool *facing_slope)
-					{
-						if (physics == nullptr) {
-							return;
-						}
-
-						ztVec3 contact_points[16];
-						ztVec3 contact_normals[16];
-						i32    contact_triangles[16];
-						i32    contacts = 0;
-
-						bool collided = false;
-
-						zt_fvz(sb_idx, physics->static_bodies_count) {
-							ztStaticBody *static_body = physics->static_bodies[sb_idx];
-
-							contacts = 0;
+				zt_flink(collision, ctrl->moving_body->collisions) {
+					if (collision->moving_bodies[1] == nullptr) {
+						if (!zt_between(collision->contact_normal.dot(zt_vec3(0, 1, 0)), zt_max(.25f, ctrl->min_ramp_dot), 1)) {
+							r32 min_y = ztReal32Max;
 							zt_fiz(ctrl->moving_body->cg_details_count) {
-								switch (ctrl->moving_body->cg_details[i].type) {
+								switch (ctrl->moving_body->cg_details[i].type)
+								{
 									case ztCollisionGeometryType_AxisAlignedBox: {
-										contacts += zt_staticBodyHasCollisionsAABB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].aabb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].aabb_extents * ctrl->moving_body->transform->scale, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].aabb_extents.y / -2.f * ctrl->moving_body->transform->scale.y);
 									} break;
 
 									case ztCollisionGeometryType_OrientedBox: {
-										ztQuat quat = ctrl->moving_body->transform->rotation * ctrl->moving_body->cg_details[i].obb_rotation;
-										contacts += zt_staticBodyHasCollisionsOBB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].obb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].obb_extents * ctrl->moving_body->transform->scale, quat, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].obb_extents.y / -2.f * ctrl->moving_body->transform->scale.y); // todo: should this take rotation into account?
 									} break;
 
 									case ztCollisionGeometryType_Sphere: {
-										contacts += zt_staticBodyHasCollisionsSphere(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].sphere_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].sphere_radius * ctrl->moving_body->transform->scale.x, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										min_y = zt_min(min_y, ctrl->moving_body->cg_details[i].sphere_radius * -1.f * ctrl->moving_body->transform->scale.y);
 									} break;
 								}
 							}
 
-							ctrl->state_flags |= ztCharacterControllerStateFlags_OnSlope;
+							if (collision->contact_point.y > ctrl->moving_body->transform->position.y + min_y + .125f) {
 
-							if (contacts > 1) {
-								contacts = zt_min(contacts, zt_elementsOf(contact_points));
+								ztVec3 collision_dir = collision->contact_point - ctrl->moving_body->transform->position;
+								collision_dir.y = 0;
+								collision_dir.normalize();
 
-								bool matching_normals = true;
-								zt_fiz(contacts - 1) {
-									if (contact_normals[i] != contact_normals[i + 1]) {
-										matching_normals = false;
-									}
-									if (contact_normals[i].dot(ztVec3::up) <= ctrl->min_ramp_dot) {
-										ctrl->flags |= ztCharacterControllerStateFlags_CollidingWall;
-									}
+								if (collision_dir.dot(dir) > .25f) {
+									ctrl->state_flags |= ztCharacterControllerStateFlags_CollidingWall;
 								}
-
-								if (!matching_normals) {
-									// we are contacting triangles with differing angles
-									// if the angle facing upward the most is the top angle and we are facing towards it, then we need to eliminate penetration on the moving body in order to prevent the
-									// physics update from processing collisions and moving the body away from the direction we're heading (this causes a noticeable delay when walking up a ramp)
-
-									r32 flat_dot = -1;
-									i32 flat_idx = -1;
-									r32 topmost_y = ztReal32Min;
-									i32 topmost_idx = -1;
-
-
-									zt_fiz(contacts) {
-										r32 dot = contact_normals[i].dot(ztVec3::up);
-										if (dot > flat_dot) {
-											flat_dot = dot;
-											flat_idx = i;
-										}
-									}
-
-									zt_fiz(contacts) {
-										r32 y = contact_points[i].y;
-
-										if (i == flat_idx) {
-											y += .001f; // fudge a little to make sure if this is equal to (or very close) a slope, this counts as topmost
-										}
-
-										if (y > topmost_y) {
-											topmost_y = y;
-											topmost_idx = i;
-										}
-									}
-
-									ztVec3 dist_to_flat = contact_points[flat_idx] - ctrl->moving_body->transform->position;
-									r32 towards_flat_dot = dir.dot(dist_to_flat);
-									bool heading_towards_flatmost = towards_flat_dot > .15f;
-
-									if (flat_idx == topmost_idx && zt_bitIsSet(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall)) {
-										zt_bitRemove(ctrl->flags, ztCharacterControllerStateFlags_CollidingWall);
-									}
-								}
-							}
-
-							bool on_slope = false;
-							bool slope_above = false;
-							bool has_moved_upward = false;
-							bool moved = false;
-
-							ztVec3 pos_before = ctrl->moving_body->transform->position;
-
-							zt_fvz(contact_idx, contacts) {
-								r32 highest_y = ztReal32Min;
-								i32 highest_idx = -1;
-
-
-								bool move_upward = true;
-								zt_fiz(contacts) {
-									if (contact_points[i].y > highest_y) {
-										r32 dot = contact_normals[i].dot(zt_vec3(0, 1, 0));
-										if (dot <= 0) continue;
-										if (prev_pos.y < contact_points[i].y) continue;
-
-										move_upward = dot > ctrl->min_ramp_dot;
-										highest_y = contact_points[i].y;
-										highest_idx = i;
-									}
-								}
-
-								if (highest_idx != -1) {
-									if (move_upward) {
-										has_moved_upward = true;
-										zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
-									}
-									else {
-										move_upward = has_moved_upward;
-										ctrl->grounded_normal = contact_normals[highest_idx];
-
-										if (facing_slope) {
-											ztVec3 contact_dir = ctrl->moving_body->transform->position - contact_points[highest_idx];
-											contact_dir.y = 0;
-											contact_dir.normalize();
-											*facing_slope = contact_dir.dot(dir) < 0;
-										}
-									}
-
-									collided = true;
-									struct Triangle
-									{
-										static bool colliding(ztTriangle *tri, ztMovingBody *moving_body, ztQuat mb_rot, const ztVec3 &current_pos)
-										{
-											bool collision = false;
-
-											zt_fjz(moving_body->cg_details_count) {
-												ztCollisionGeometry *cg = &moving_body->cg_details[j];
-												switch (cg->type)
-												{
-													case ztCollisionGeometryType_AxisAlignedBox: {
-														collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center * moving_body->transform->scale, cg->aabb_extents * moving_body->transform->scale);
-													}; break;
-
-													case ztCollisionGeometryType_OrientedBox: {
-														ztQuat rot = mb_rot * cg->obb_rotation;
-														collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center * moving_body->transform->scale, cg->obb_extents * moving_body->transform->scale, rot);
-													}; break;
-
-													case ztCollisionGeometryType_Sphere: {
-														collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center * moving_body->transform->scale, cg->sphere_radius * moving_body->transform->scale.x);
-													}; break;
-
-													case ztCollisionGeometryType_Capsule: {
-													}; break;
-
-													case ztCollisionGeometryType_Triangles: {
-													}; break;
-												}
-											}
-
-											return collision;
-										}
-									};
-
-									static const r32 iteration_amt = zt_inchesToUnits(1.f);
-
-									ztTriangle *tri = &static_body->triangles[contact_triangles[highest_idx]];
-									ztQuat quat = ctrl->moving_body->transform->rotation;
-
-									bool error_backing_out = false;
-									if (Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position)) {
-										moved = true;
-										bool backward = true;
-										bool backward_last = !backward;
-										r32 dist = iteration_amt;
-										ztVec3 direction = move_upward ? zt_vec3(0, 1, 0) : contact_normals[highest_idx] * zt_vec3(1, -1, 1);
-										zt_fvz(splits, 32) {
-											if (backward != backward_last) dist *= .5f;
-											backward_last = backward;
-
-											ztVec3 to_move = direction * dist * (backward ? 1.f : -1.f);
-											ctrl->moving_body->transform->position += to_move;
-
-											backward = Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position);
-
-											if (splits >= 8 && !backward) break;
-											if (splits == 31) {
-												error_backing_out = true;
-												//zt_logDebug("[%d] could not back out of collision!", zt_game->game_details.current_frame);
-											}
-										}
-									}
-									contact_points[highest_idx].y = ztReal32Min;
-
-									if (error_backing_out) {
-										ctrl->moving_body->transform->position = pos_before = ctrl->moving_body->transform_prev.position;
-										break;
-									}
-								}
-								//break; // only process the highest contact point [THIS MUST REMAIN COMMENTED OUT - THINGS GO THROUGH FLOORS WITHOUT IT]
-							}
-
-							if (has_moved_upward) {
-								ctrl->moving_body->transform_prev.position.y = ctrl->moving_body->transform->position.y;
-							}
-
-							int non_upward_normals = 0;
-							r32 highest_y_up = ztReal32Min;
-							r32 highest_y_slope = ztReal32Min;
-							zt_fiz(contacts) {
-								if (contact_normals[i] == ztVec3::up) {
-									highest_y_up = zt_max(highest_y_up, contact_points[i].y);
-									ctrl->grounded_normal = zt_vec3(0, 1, 0);
-								}
-								else {
-									highest_y_slope = zt_max(highest_y_slope, contact_points[i].y);
-									non_upward_normals += 1;
-								}
-							}
-
-							if (contacts > 1 && non_upward_normals > 1 && non_upward_normals != contacts && highest_y_up > highest_y_slope) {
-								// there's a problem with collisions involving multiple triangles.  the physics update will sometimes move the object in the wrong direction, so we lift up just slightly to avoid these collisions
-								//ctrl->moving_body->flags |= ztMovingBodyFlags_AllowPenetration;
 							}
 						}
-
-						if (collided || ctrl->velocity.y == 0) {
-							ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
-							ctrl->velocity.y = zt_max(ctrl->velocity.y, 0);
-						}
-						else {
-							zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
-						}
-					}
-				};
-
-
-				bool perform_collision_check = true;
-
-				if (ctrl->state_time < (1.f / 30.f) && ctrl->grounded_normal != zt_vec3(0, 1, 0)) {
-					// we're potentially moving down a slope, so do a collision test if we move straight down to determine if we are
-					// if we're going down a slope, we want to stick to the slope instead of "hopping" down it which is what happens if we rely on gravity
-
-					ztVec3 pos = ctrl->moving_body->transform->position;
-					i32    flags = ctrl->state_flags;
-					ztVec3 vel = ctrl->velocity;
-					ztVec3 moved_pos = ctrl->moving_body->transform->position = pos + zt_vec3(0, -.065f, 0);
-					bool   facing_slope = false;
-
-					FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, &facing_slope);
-
-					if (ctrl->moving_body->transform->position != moved_pos && zt_abs(ctrl->moving_body->transform->position.y - prev_pos.y) > 0.001f && !facing_slope) {
-						perform_collision_check = false;
-						ctrl->state_time = 0;
-					}
-					else {
-						ctrl->moving_body->transform->position = pos;
-						ctrl->velocity = vel;
-						ctrl->state_flags = flags;
 					}
 				}
 
-				if (perform_collision_check) {
-					FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, nullptr);
+				if (zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround) && ctrl->velocity.y <= 0.f) {
+
+					struct FloatCollisionCheck
+					{
+						static void perform(ztCharacterController *ctrl, ztPhysics *physics, const ztVec3 &prev_pos, const ztVec3 &dir, bool *facing_slope)
+						{
+							if (physics == nullptr) {
+								return;
+							}
+
+							ztVec3 contact_points[16];
+							ztVec3 contact_normals[16];
+							i32    contact_triangles[16];
+							i32    contacts = 0;
+
+							bool collided = false;
+
+							zt_fvz(sb_idx, physics->static_bodies_count) {
+								ztStaticBody *static_body = physics->static_bodies[sb_idx];
+
+								contacts = 0;
+								zt_fiz(ctrl->moving_body->cg_details_count) {
+									switch (ctrl->moving_body->cg_details[i].type) {
+										case ztCollisionGeometryType_AxisAlignedBox: {
+											contacts += zt_staticBodyHasCollisionsAABB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].aabb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].aabb_extents * ctrl->moving_body->transform->scale, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										} break;
+
+										case ztCollisionGeometryType_OrientedBox: {
+											ztQuat quat = ctrl->moving_body->transform->rotation * ctrl->moving_body->cg_details[i].obb_rotation;
+											quat.normalize();
+
+											contacts += zt_staticBodyHasCollisionsOBB(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].obb_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].obb_extents * ctrl->moving_body->transform->scale, quat, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										} break;
+
+										case ztCollisionGeometryType_Sphere: {
+											contacts += zt_staticBodyHasCollisionsSphere(static_body, ctrl->moving_body->transform->position + ctrl->moving_body->cg_details[i].sphere_center * ctrl->moving_body->transform->scale, ctrl->moving_body->cg_details[i].sphere_radius * ctrl->moving_body->transform->scale.x, contact_points + contacts, contact_normals + contacts, contact_triangles + contacts, zt_elementsOf(contact_points) - contacts);
+										} break;
+									}
+								}
+
+								ctrl->state_flags |= ztCharacterControllerStateFlags_OnSlope;
+
+								if (contacts > 1) {
+									contacts = zt_min(contacts, zt_elementsOf(contact_points));
+
+									bool matching_normals = true;
+									zt_fiz(contacts - 1) {
+										if (contact_normals[i] != contact_normals[i + 1]) {
+											matching_normals = false;
+										}
+										if (contact_normals[i].dot(ztVec3::up) <= ctrl->min_ramp_dot) {
+											ctrl->state_flags |= ztCharacterControllerStateFlags_CollidingWall;
+										}
+									}
+
+									if (!matching_normals) {
+										// we are contacting triangles with differing angles
+										// if the angle facing upward the most is the top angle and we are facing towards it, then we need to eliminate penetration on the moving body in order to prevent the
+										// physics update from processing collisions and moving the body away from the direction we're heading (this causes a noticeable delay when walking up a ramp)
+
+										r32 flat_dot = -1;
+										i32 flat_idx = -1;
+										r32 topmost_y = ztReal32Min;
+										i32 topmost_idx = -1;
+
+
+										zt_fiz(contacts) {
+											r32 dot = contact_normals[i].dot(ztVec3::up);
+											if (dot > flat_dot) {
+												flat_dot = dot;
+												flat_idx = i;
+											}
+										}
+
+										zt_fiz(contacts) {
+											r32 y = contact_points[i].y;
+
+											if (i == flat_idx) {
+												y += .001f; // fudge a little to make sure if this is equal to (or very close) a slope, this counts as topmost
+											}
+
+											if (y > topmost_y) {
+												topmost_y = y;
+												topmost_idx = i;
+											}
+										}
+
+										ztVec3 dist_to_flat = contact_points[flat_idx] - ctrl->moving_body->transform->position;
+										r32 towards_flat_dot = dir.dot(dist_to_flat);
+										bool heading_towards_flatmost = towards_flat_dot > .15f;
+
+										if (flat_idx == topmost_idx && zt_bitIsSet(ctrl->state_flags, ztCharacterControllerStateFlags_CollidingWall)) {
+											zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_CollidingWall);
+										}
+									}
+								}
+
+								bool on_slope = false;
+								bool slope_above = false;
+								bool has_moved_upward = false;
+								bool moved = false;
+
+								ztVec3 pos_before = ctrl->moving_body->transform->position;
+
+								zt_fvz(contact_idx, contacts) {
+									r32 highest_y = ztReal32Min;
+									i32 highest_idx = -1;
+
+
+									bool move_upward = true;
+									zt_fiz(contacts) {
+										if (contact_points[i].y > highest_y) {
+											r32 dot = contact_normals[i].dot(zt_vec3(0, 1, 0));
+											if (dot <= 0) continue;
+											if (prev_pos.y < contact_points[i].y) continue;
+
+											move_upward = dot > ctrl->min_ramp_dot;
+											highest_y = contact_points[i].y;
+											highest_idx = i;
+										}
+									}
+
+									if (highest_idx != -1) {
+										if (move_upward) {
+											has_moved_upward = true;
+											zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
+										}
+										else {
+											move_upward = has_moved_upward;
+											ctrl->grounded_normal = contact_normals[highest_idx];
+
+											if (facing_slope) {
+												ztVec3 contact_dir = ctrl->moving_body->transform->position - contact_points[highest_idx];
+												contact_dir.y = 0;
+												contact_dir.normalize();
+												*facing_slope = contact_dir.dot(dir) < 0;
+											}
+										}
+
+										collided = true;
+										struct Triangle
+										{
+											static bool colliding(ztTriangle *tri, ztMovingBody *moving_body, ztQuat mb_rot, const ztVec3 &current_pos)
+											{
+												bool collision = false;
+
+												zt_fjz(moving_body->cg_details_count) {
+													ztCollisionGeometry *cg = &moving_body->cg_details[j];
+													switch (cg->type)
+													{
+														case ztCollisionGeometryType_AxisAlignedBox: {
+															collision = collision || zt_collisionTriangleInAABB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->aabb_center * moving_body->transform->scale, cg->aabb_extents * moving_body->transform->scale);
+														}; break;
+
+														case ztCollisionGeometryType_OrientedBox: {
+															ztQuat rot = mb_rot * cg->obb_rotation;
+															collision = collision || zt_collisionTriangleInOBB(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->obb_center * moving_body->transform->scale, cg->obb_extents * moving_body->transform->scale, rot);
+														}; break;
+
+														case ztCollisionGeometryType_Sphere: {
+															collision = collision || zt_collisionTriangleInSphere(tri->points[0], tri->points[1], tri->points[2], current_pos + cg->sphere_center * moving_body->transform->scale, cg->sphere_radius * moving_body->transform->scale.x);
+														}; break;
+
+														case ztCollisionGeometryType_Capsule: {
+														}; break;
+
+														case ztCollisionGeometryType_Triangles: {
+														}; break;
+													}
+												}
+
+												return collision;
+											}
+										};
+
+										static const r32 iteration_amt = zt_inchesToUnits(1.f);
+
+										ztTriangle *tri = &static_body->triangles[contact_triangles[highest_idx]];
+										ztQuat quat = ctrl->moving_body->transform->rotation;
+
+										bool error_backing_out = false;
+										if (Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position)) {
+											moved = true;
+											bool backward = true;
+											bool backward_last = !backward;
+											r32 dist = iteration_amt;
+											ztVec3 direction = move_upward ? zt_vec3(0, 1, 0) : contact_normals[highest_idx] * zt_vec3(1, -1, 1);
+											zt_fvz(splits, 32) {
+												if (backward != backward_last) dist *= .5f;
+												backward_last = backward;
+
+												ztVec3 to_move = direction * dist * (backward ? 1.f : -1.f);
+												ctrl->moving_body->transform->position += to_move;
+
+												backward = Triangle::colliding(tri, ctrl->moving_body, quat, ctrl->moving_body->transform->position);
+
+												if (splits >= 8 && !backward) {
+													ctrl->moving_body->transform->position += direction * iteration_amt * -2.f;
+													break;
+												}
+												if (splits == 31) {
+													error_backing_out = true;
+													//zt_logDebug("[%d] could not back out of collision!", zt_game->game_details.current_frame);
+												}
+											}
+										}
+										contact_points[highest_idx].y = ztReal32Min;
+
+										if (error_backing_out) {
+											ctrl->moving_body->transform->position = pos_before = ctrl->moving_body->transform_prev.position;
+											break;
+										}
+									}
+									//break; // only process the highest contact point [THIS MUST REMAIN COMMENTED OUT - THINGS GO THROUGH FLOORS WITHOUT IT]
+								}
+
+								if (has_moved_upward) {
+									ctrl->moving_body->transform_prev.position.y = ctrl->moving_body->transform->position.y;
+								}
+
+								int non_upward_normals = 0;
+								r32 highest_y_up = ztReal32Min;
+								r32 highest_y_slope = ztReal32Min;
+								zt_fiz(contacts) {
+									if (contact_normals[i] == ztVec3::up) {
+										highest_y_up = zt_max(highest_y_up, contact_points[i].y);
+										ctrl->grounded_normal = zt_vec3(0, 1, 0);
+									}
+									else {
+										highest_y_slope = zt_max(highest_y_slope, contact_points[i].y);
+										non_upward_normals += 1;
+									}
+								}
+
+								if (contacts > 1 && non_upward_normals > 1 && non_upward_normals != contacts && highest_y_up > highest_y_slope) {
+									// there's a problem with collisions involving multiple triangles.  the physics update will sometimes move the object in the wrong direction, so we lift up just slightly to avoid these collisions
+									//ctrl->moving_body->flags |= ztMovingBodyFlags_AllowPenetration;
+								}
+							}
+
+							if (collided || ctrl->velocity.y == 0) {
+								ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
+								ctrl->velocity.y = zt_max(ctrl->velocity.y, 0);
+							}
+							else {
+								zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
+							}
+						}
+					};
+
+
+					bool perform_collision_check = true;
+
+					if (ctrl->state_time < (1.f / 30.f) && ctrl->grounded_normal != zt_vec3(0, 1, 0)) {
+						// we're potentially moving down a slope, so do a collision test if we move straight down to determine if we are
+						// if we're going down a slope, we want to stick to the slope instead of "hopping" down it which is what happens if we rely on gravity
+
+						ztVec3 pos = ctrl->moving_body->transform->position;
+						i32    flags = ctrl->state_flags;
+						ztVec3 vel = ctrl->velocity;
+						ztVec3 moved_pos = ctrl->moving_body->transform->position = pos + zt_vec3(0, -.065f, 0);
+						bool   facing_slope = false;
+
+						FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, &facing_slope);
+
+						if (ctrl->moving_body->transform->position != moved_pos && zt_abs(ctrl->moving_body->transform->position.y - prev_pos.y) > 0.001f && !facing_slope) {
+							perform_collision_check = false;
+							ctrl->state_time = 0;
+						}
+						else {
+							ctrl->moving_body->transform->position = pos;
+							ctrl->velocity = vel;
+							ctrl->state_flags = flags;
+						}
+					}
+
+					if (perform_collision_check) {
+						FloatCollisionCheck::perform(ctrl, physics, prev_pos, dir, nullptr);
+					}
 				}
 			}
 		}
@@ -28807,15 +28841,17 @@ void zt_characterControllerUpdatePostPhysics(ztCharacterController *controllers,
 			}
 		}
 
-		if (collision_with_ground && ctrl->velocity.y == 0) {
-			ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
-			zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
-		}
-		else if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround)) {
-			zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
+		if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_IgnoreCollisions)) {
+			if (collision_with_ground && ctrl->velocity.y == 0) {
+				ctrl->state_flags |= ztCharacterControllerStateFlags_Grounded;
+				zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_OnSlope);
+			}
+			else if (!zt_bitIsSet(ctrl->flags, ztCharacterControllerFlags_FloatsOverGround)) {
+				zt_bitRemove(ctrl->state_flags, ztCharacterControllerStateFlags_Grounded);
 
-			if (ctrl->state_time > .25f) {
-				ctrl->grounded_normal = zt_vec3(0, 1, 0);
+				if (ctrl->state_time > .25f) {
+					ctrl->grounded_normal = zt_vec3(0, 1, 0);
+				}
 			}
 		}
 
@@ -34214,7 +34250,9 @@ void zt_staticBodyGenerateOcTree(ztStaticBody *static_body, i32 max_objects_per_
 	data.triangles = static_body->triangles;
 	data.triangles_count = static_body->triangles_count;
 
-	zt_ocTreeMake(&static_body->octree, max_objects_per_node, max_node_levels, (static_body->min + static_body->max) * .5f, (static_body->max - static_body->min) + ztVec3::one, zt_ocTreeItemContainedTestTriangles, &data);
+	if (data.triangles_count > 0) {
+		zt_ocTreeMake(&static_body->octree, max_objects_per_node, max_node_levels, (static_body->min + static_body->max) * .5f, (static_body->max - static_body->min) + ztVec3::one, zt_ocTreeItemContainedTestTriangles, &data);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -34477,6 +34515,50 @@ i32 zt_staticBodyHasCollisionsSphere(ztStaticBody *static_body, const ztVec3 &sp
 							contact_normals[idx] = triangle->normal;
 							contact_triangles[idx] = node->objects[tridx];
 						}
+					}
+				}
+			}
+		}
+	}
+
+	return contact_idx;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_staticBodyHasCollisionsLine(ztStaticBody *static_body, const ztVec3 &line_beg, const ztVec3 &line_end, ztVec3 *contact_points, ztVec3 *contact_normals, i32 *contact_triangles, i32 contact_count)
+{
+	ZT_PROFILE_PHYSICS("zt_staticBodyHasCollisionsLine");
+	if (static_body->triangles_count == 0) {
+		return 0;
+	}
+
+	ztOcTree::Node *nodes[128];
+	i32 nodes_found = zt_ocTreeFindNodesThatIntersectLine(&static_body->octree, nodes, zt_elementsOf(nodes), line_beg, line_end);
+
+	i32 contact_idx = 0;
+
+	zt_fvz(nidx, nodes_found) {
+		ztOcTree::Node *node = nodes[nidx];
+
+		zt_fvz(tridx, node->objects_count) {
+			bool abort = false;
+			zt_fiz(zt_min(contact_idx, contact_count)) {
+				if (contact_triangles[i] == node->objects[tridx]) {
+					abort = true;
+					break;
+				}
+			}
+
+			if (!abort) {
+				ztTriangle *triangle = &static_body->triangles[node->objects[tridx]];
+				ztVec3 intersect_point;
+				if (zt_collisionLineInTriangle(line_beg, line_end, triangle->points[0], triangle->points[1], triangle->points[2], &intersect_point, nullptr)) {
+					i32 idx = contact_idx++;
+					if (idx < contact_count) {
+						contact_points[idx] = intersect_point;
+						contact_normals[idx] = triangle->normal;
+						contact_triangles[idx] = node->objects[tridx];
 					}
 				}
 			}
@@ -36066,7 +36148,7 @@ bool zt_collisionRayInSphere(const ztVec3 &point, const ztVec3 &direction, const
 {
 	ztVec3 m = point - sphere_center;
 	r32 b = m.dot(direction);
-	r32 c = m.dot(m);
+	r32 c = m.dot(m) - (sphere_radius * sphere_radius);
 
 	if (c > 0.f && b > 0.f) {
 		return false;
@@ -37884,6 +37966,22 @@ ztVec3 zt_closestPointOBBPoint(const ztVec3 &obb_center, const ztVec3 &obb_size,
 
 ztVec3 zt_closestPointTrianglePoint(const ztVec3 &p1, const ztVec3 &p2, const ztVec3 &p3, const ztVec3& point)
 {
+#if 1
+	ztVec3 point1 = zt_closestPointLineSegmentPoint(p1, p2, point);
+	ztVec3 point2 = zt_closestPointLineSegmentPoint(p1, p3, point);
+	ztVec3 point3 = zt_closestPointLineSegmentPoint(p2, p3, point);
+
+	r32 dist1 = point1.distanceForCompare(point);
+	r32 dist2 = point2.distanceForCompare(point);
+	r32 dist3 = point3.distanceForCompare(point);
+
+	if (dist1 <= dist2 && dist1 <= dist3) return point1;
+	if (dist2 <= dist1 && dist2 <= dist3) return point2;
+	if (dist3 <= dist1 && dist3 <= dist2) return point3;
+
+	return point;
+
+#else
 	ztVec3 p2_1 = p2 - p1;
 	ztVec3 p3_1 = p3 - p1;
 	ztVec3 p3_2 = p3 - p2;
@@ -37929,6 +38027,7 @@ ztVec3 zt_closestPointTrianglePoint(const ztVec3 &p1, const ztVec3 &p2, const zt
 	r32 v = vb / (va + vb + vc);
 	r32 w = 1.f - u - v;
 	return u * p1 + v * p2 + w * p3;
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -38447,6 +38546,7 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 				else if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs)) {
 					tween_item[i].time = tween_item[i].length - ((tween_item[i].time - tween_item[i].delay) - tween_item[i].length);
 					tween_item[i].flags |= ztTweenItemFlags_DirectionBack;
+					tween_item[i].delay = 0;
 				}
 				else {
 					tween_item[i].time = tween_item[i].length + tween_item[i].delay;
@@ -38465,7 +38565,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 						*tween_item[i].real.value = zt_lerp(tween_item[i].real.value_beg, tween_item[i].real.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
 					}
 					else {
-						*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func));
+						ztTweenEase_Func *ease_in = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_in) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func) : nullptr;
+						ztTweenEase_Func *ease_out = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_out) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func) : nullptr;
+
+						*tween_item[i].real.value = zt_tweenValue(tween_item[i].real.value_beg, tween_item[i].real.value_end, percent, ease_in, ease_out);
 					}
 				} break;
 
@@ -38474,7 +38577,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 						*tween_item[i].vec2.value = ztVec2::lerp(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
 					}
 					else {
-						*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func));
+						ztTweenEase_Func *ease_in = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_in) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func) : nullptr;
+						ztTweenEase_Func *ease_out = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_out) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func) : nullptr;
+
+						*tween_item[i].vec2.value = zt_tweenValue(tween_item[i].vec2.value_beg, tween_item[i].vec2.value_end, percent, ease_in, ease_out);
 					}
 				} break;
 
@@ -38483,7 +38589,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 						*tween_item[i].vec3.value = ztVec3::lerp(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
 					}
 					else {
-						*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func));
+						ztTweenEase_Func *ease_in = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_in) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func) : nullptr;
+						ztTweenEase_Func *ease_out = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_out) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func) : nullptr;
+
+						*tween_item[i].vec3.value = zt_tweenValue(tween_item[i].vec3.value_beg, tween_item[i].vec3.value_end, percent, ease_in, ease_out);
 					}
 				} break;
 
@@ -38492,7 +38601,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 						*tween_item[i].vec4.value = ztVec4::lerp(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
 					}
 					else {
-						*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func));
+						ztTweenEase_Func *ease_in = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_in) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func) : nullptr;
+						ztTweenEase_Func *ease_out = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_out) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func) : nullptr;
+
+						*tween_item[i].vec4.value = zt_tweenValue(tween_item[i].vec4.value_beg, tween_item[i].vec4.value_end, percent, ease_in, ease_out);
 					}
 				} break;
 
@@ -38501,7 +38613,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 						*tween_item[i].quat.value = ztQuat::lerp(tween_item[i].quat.value_beg, tween_item[i].quat.value_end, zt_animCurveGetValue(tween_item[i].curve, percent));
 					}
 					else {
-						tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func), ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func));
+						ztTweenEase_Func *ease_in = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_in) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_in, ztTweenEase_Func) : nullptr;
+						ztTweenEase_Func *ease_out = ZT_FUNCTION_POINTER_IS_VALID(tween_item[i].ease_out) ? ZT_FUNCTION_POINTER_ACCESS(tween_item[i].ease_out, ztTweenEase_Func) : nullptr;
+
+						tween_item[i].quat.value->xyzw = zt_tweenValue(tween_item[i].quat.value_beg.xyzw, tween_item[i].quat.value_end.xyzw, percent, ease_in, ease_out);
 					}
 				} break;
 			}
@@ -44363,7 +44478,7 @@ void zt_eventUpdate(ztEvent *evt, r32 dt)
 	zt_returnOnNull(evt);
 
 	if (evt->triggered) {
-		evt->time -= dt;
+		evt->time += dt;
 	}
 }
 
@@ -44724,6 +44839,8 @@ void zt_audioClipFree(ztAudioClipID audio_clip_id)
 		}
 	}
 
+	audio_clip->fade_out_time = 0;
+
 #	if defined(ZT_DSOUND)
 	if (audio_clip->ds_buffer) {
 		ztds_bufferFree(audio_clip->ds_buffer);
@@ -44801,6 +44918,7 @@ void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 fre
 			zt_game->audio_delays[i].clip_id = audio_clip_id + 1;
 			zt_game->audio_delays[i].frequency = frequency;
 			zt_game->audio_delays[i].delay = delay;
+			zt_game->audio_delays[i].loops = false;
 			zt_game->audio_has_delay = true;
 			break;
 		}
@@ -44845,12 +44963,49 @@ void zt_audioClipPlayLooped(ztAudioClipID audio_clip_id, r32 frequency)
 
 // ================================================================================================================================================================================================
 
+void zt_audioClipPlayLoopedDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 frequency)
+{
+	ZT_PROFILE_AUDIO("zt_audioClipPlayOnceDelayed");
+	if (zt_game->audio_muted) {
+		return;
+	}
+
+	if (audio_clip_id < 0 || audio_clip_id >= zt_game->audio_clips_count) {
+		return;
+	}
+
+	zt_fize(zt_game->audio_delays) {
+		if (zt_game->audio_delays[i].clip_id <= 0) {
+			zt_game->audio_delays[i].clip_id = audio_clip_id + 1;
+			zt_game->audio_delays[i].frequency = frequency;
+			zt_game->audio_delays[i].delay = delay;
+			zt_game->audio_delays[i].loops = true;
+			zt_game->audio_has_delay = true;
+			break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_audioClipIsPlaying(ztAudioClipID audio_clip_id)
 {
 	ZT_PROFILE_AUDIO("zt_audioClipIsPlaying");
 	zt_assertReturnValOnFail(audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count, false);
 	ztAudioClip *audio_clip = &zt_game->audio_clips[audio_clip_id];
-	return zt_bitIsSet(audio_clip->flags, ztAudioClipFlags_Playing);
+	if (zt_bitIsSet(audio_clip->flags, ztAudioClipFlags_Playing)) {
+		return true;
+	}
+
+	if (zt_game->audio_has_delay) {
+		zt_fize(zt_game->audio_delays) {
+			if (zt_game->audio_delays[i].clip_id == audio_clip_id) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 // ================================================================================================================================================================================================
@@ -44882,6 +45037,7 @@ bool zt_audioClipStop(ztAudioClipID audio_clip_id, r32 fade_out_time)
 
 		zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Playing);
 		zt_bitRemove(audio_clip->flags, ztAudioClipFlags_Looping);
+		audio_clip->fade_out_time = 0;
 	}
 	return true;
 }
@@ -44991,6 +45147,11 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 
 				r32 vol = zt_lerp(0, zt_game->audio_systems[zt_game->audio_clips[i].system].volume, pct);
 				_zt_audioApplyVolume(&zt_game->audio_clips[i], vol);
+
+				if (zt_real32Eq(pct, 0)) {
+					zt_audioClipStop(i);
+					zt_game->audio_clips[i].fade_out_time = 0;
+				}
 			}
 		}
 	}
@@ -45001,7 +45162,12 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 			if (zt_game->audio_delays[i].clip_id > 0) {
 				zt_game->audio_delays[i].delay -= dt;
 				if(zt_game->audio_delays[i].delay <= 0) {
-					zt_audioClipPlayOnce(zt_game->audio_delays[i].clip_id - 1, zt_game->audio_delays[i].frequency);
+					if (zt_game->audio_delays[i].loops) {
+						zt_audioClipPlayLooped(zt_game->audio_delays[i].clip_id - 1, zt_game->audio_delays[i].frequency);
+					}
+					else {
+						zt_audioClipPlayOnce(zt_game->audio_delays[i].clip_id - 1, zt_game->audio_delays[i].frequency);
+					}
 					zt_game->audio_delays[i].clip_id = ztInvalidID;
 				}
 				else delays += 1;
