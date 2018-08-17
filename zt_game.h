@@ -662,9 +662,9 @@ struct ztInputMouse
 	bool over_window;
 	ztInputMouseCursor_Enum cursor;
 
-	bool pressed(int button)      { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_Pressed); }
-	bool justPressed(int button)  { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_JustPressed); }
-	bool justReleased(int button) { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputKeyFlags_JustReleased); }
+	bool pressed(int button)      { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputMouseFlags_Pressed); }
+	bool justPressed(int button)  { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputMouseFlags_JustPressed); }
+	bool justReleased(int button) { zt_assert(button >= 0 && button < zt_elementsOf(button_states)); return zt_bitIsSet(button_states[button], ztInputMouseFlags_JustReleased); }
 
 	bool leftPressed()      { return pressed(0); }
 	bool leftJustPressed()  { return justPressed(0); }
@@ -837,6 +837,94 @@ bool zt_inputReplayMakeWriter(ztInputReplayData *replay_data, const char *file_n
 bool zt_inputReplayMakeReader(ztInputReplayData *replay_data, const char *file_name);
 void zt_inputReplayFree(ztInputReplayData *replay_data);
 bool zt_inputReplayProcessFrame(ztInputReplayData *replay_data, i32 frame, bool *input_this_frame, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum input_keystrokes[16]);
+
+
+// ================================================================================================================================================================================================
+// Input mapping
+// ================================================================================================================================================================================================
+
+struct ztInputEntryVal;
+
+// ================================================================================================================================================================================================
+
+enum ztInputEntryFlags_Enum
+{
+	ztInputEntryFlags_DisallowKey        = (1 << 0),
+	ztInputEntryFlags_DisallowMouse      = (1 << 1),
+	ztInputEntryFlags_DisallowController = (1 << 2),
+	ztInputEntryFlags_Immutable          = (1 << 3),
+};
+
+// ================================================================================================================================================================================================
+
+struct ztInputEntry
+{
+	i32  id;
+	char name[64];
+	char display[64];
+	i32  flags;
+};
+
+// ================================================================================================================================================================================================
+
+enum ztInputMappingType_Enum
+{
+	ztInputMappingType_Invalid,
+
+	ztInputMappingType_Key,
+	ztInputMappingType_Mouse,
+	ztInputMappingType_Controller,
+
+	ztInputMappingType_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+struct ztInputMapping
+{
+	ztInputMappingType_Enum type;
+
+	union {
+		ztInputKeys_Enum    key;
+		int                 mouse_button;
+		int                 controller_button;
+	};
+};
+
+// ================================================================================================================================================================================================
+
+ztInputMapping zt_inputMappingMakeKey              (ztInputKeys_Enum key);
+ztInputMapping zt_inputMappingMakeMouseButton      (int mouse_button);
+ztInputMapping zt_inputMappingMakeControllerButton (int controller_button);
+
+// ================================================================================================================================================================================================
+
+struct ztInputRegistry
+{
+	ztInputEntry    *entries;
+	ztInputEntryVal *entries_vals;
+	i32              entries_size;
+	i32              entries_count;
+
+	ztInputMapping  *mappings;
+	i32             *mappings_entries;
+	i32              mappings_size;
+	i32              mappings_count;
+
+	ztInputEntryVal *values;
+};
+
+// ================================================================================================================================================================================================
+
+void             zt_inputRegistryMake(ztInputRegistry *input_registry, i32 max_entries, i32 max_mappings);
+void             zt_inputRegistryFree(ztInputRegistry *input_registry);
+
+ztInputEntryVal *zt_inputRegistryAddEntry(ztInputRegistry *input_registry, const char *name, const char *display, i32 flags, ztInputMapping *default_mappings, i32 default_mappings_count);
+ztInputEntryVal *zt_inputRegistryAddEntry(ztInputRegistry *input_registry, const char *name, const char *display, i32 flags, ztInputMapping default_mapping);
+void             zt_inputRegistryUpdate  (ztInputRegistry *input_registry, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt);
+
+r32              zt_inputRegistryGetInputValue(ztInputEntryVal *entry_val, r32 *time_active = nullptr);
+
 
 
 // ================================================================================================================================================================================================
@@ -2213,6 +2301,21 @@ void zt_characterControllerUpdatePostPhysics(ztCharacterController *controllers,
 
 // ================================================================================================================================================================================================
 
+enum ztCharacterCameraControllerInput_Enum
+{
+	ztCharacterCameraControllerInput_Forward,
+	ztCharacterCameraControllerInput_Backward,
+	ztCharacterCameraControllerInput_StrafeLeft,
+	ztCharacterCameraControllerInput_StrafeRight,
+	ztCharacterCameraControllerInput_Jump,
+	ztCharacterCameraControllerInput_Run,
+	ztCharacterCameraControllerInput_Sneak,
+
+	ztCharacterCameraControllerInput_MAX
+};
+
+// ================================================================================================================================================================================================
+
 struct ztCharacterCameraController
 {
 	ztCharacterController *ctrl;
@@ -2222,11 +2325,24 @@ struct ztCharacterCameraController
 	r32                    mouse_sensitivity;
 
 	ztTransform            transform;
+
+	ztInputEntryVal       *input_entries[ztCharacterCameraControllerInput_MAX];
 };
 
+// Registers the following input mappings:
 
-void zt_characterCameraControllerMake       (ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics);
-void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt);
+//     char_cam_ctrl.forward          W
+//     char_cam_ctrl.backward         S
+//     char_cam_ctrl.strafe_left      A
+//     char_cam_ctrl.strafe_right     D
+//     char_cam_ctrl.jump             Space
+//     char_cam_ctrl.run              Ctrl
+//     char_cam_ctrl.sneak            Shift
+
+
+void zt_characterCameraControllerMake       (ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics, ztInputRegistry *input_registry);
+void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt); // ignores input registry
+void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, const ztVec2 &view_delta, r32 dt); // uses input registry
 void zt_characterCameraControllerSync       (ztCharacterCameraController *char_cam_ctrl);
 
 
@@ -6336,6 +6452,7 @@ struct ztFont
 	char           name[128];
 	i32            size_pixels;
 	ztTextureID    texture;
+	bool           texture_override;
 
 	i32           *glyph_code_point;
 
@@ -9358,6 +9475,216 @@ void _zt_inputClearState( bool lost_focus )
 	zt_game->input_this_frame = false;
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+struct ztInputEntryVal
+{
+	r32 value;
+	r32 time;
+};
+
+// ================================================================================================================================================================================================
+
+ztInputMapping zt_inputMappingMakeKey(ztInputKeys_Enum key)
+{
+	ztInputMapping map;
+	map.type = ztInputMappingType_Key;
+	map.key = key;
+
+	return map;
+}
+
+// ================================================================================================================================================================================================
+
+ztInputMapping zt_inputMappingMakeMouseButton(int mouse_button)
+{
+	ztInputMapping map;
+	map.type = ztInputMappingType_Mouse;
+	map.mouse_button = zt_clamp(mouse_button, 0, 2);
+
+	return map;
+}
+
+// ================================================================================================================================================================================================
+
+ztInputMapping zt_inputMappingMakeControllerButton(int controller_button)
+{
+	ztInputMapping map;
+	map.type = ztInputMappingType_Controller;
+	map.controller_button = zt_clamp(controller_button, 0, ztInputControllerButton_MAX - 1);
+
+	return map;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+void zt_inputRegistryMake(ztInputRegistry *input_registry, i32 max_entries, i32 max_mappings)
+{
+	zt_returnOnNull(input_registry);
+	zt_assertReturnOnFail(max_entries > 0 && max_mappings > 0);
+
+	input_registry->entries_size = max_entries;
+	input_registry->entries_count = 0;
+	input_registry->entries = zt_mallocStructArray(ztInputEntry, max_entries);
+	input_registry->entries_vals = zt_mallocStructArray(ztInputEntryVal, max_entries);
+
+	input_registry->mappings_size = max_mappings;
+	input_registry->mappings_count = 0;
+	input_registry->mappings = zt_mallocStructArray(ztInputMapping, max_mappings);
+	input_registry->mappings_entries = zt_mallocStructArray(i32, max_mappings);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_inputRegistryFree(ztInputRegistry *input_registry)
+{
+	if (input_registry == nullptr) {
+		return;
+	}
+
+	if (input_registry->entries) {
+		zt_free(input_registry->entries);
+		zt_free(input_registry->entries_vals);
+	}
+
+	if(input_registry->mappings) {
+		zt_free(input_registry->mappings);
+		zt_free(input_registry->mappings_entries);
+	}
+
+	zt_memSet(input_registry, zt_sizeof(ztInputRegistry), 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztInputEntryVal *zt_inputRegistryAddEntry(ztInputRegistry *input_registry, const char *name, const char *display, i32 flags, ztInputMapping *default_mappings, i32 default_mappings_count)
+{
+	zt_returnValOnNull(input_registry, nullptr);
+	zt_returnValOnNull(name, nullptr);
+
+	i32 hash = zt_strHash(name);
+
+	int idx = -1;
+
+	zt_fiz(input_registry->entries_count) {
+		if (input_registry->entries[i].id == hash) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx == -1) {
+		if (input_registry->entries_count >= input_registry->entries_size) {
+			zt_logCritical("hit maximum number of input entries");
+			return nullptr;
+		}
+
+		idx = input_registry->entries_count++;
+
+		input_registry->entries[idx].id = hash;
+		zt_strCpy(input_registry->entries[idx].name, zt_elementsOf(input_registry->entries[idx].name), name);
+		zt_strCpy(input_registry->entries[idx].display, zt_elementsOf(input_registry->entries[idx].display), name);
+		input_registry->entries[idx].flags = flags;
+
+		input_registry->entries_vals[idx].value = 0;
+	}
+
+	zt_fiz(default_mappings_count) {
+		if (input_registry->mappings_count >= input_registry->mappings_size) {
+			zt_logCritical("hit maximum number of input mappings");
+			break;
+		}
+		else {
+			int midx = input_registry->mappings_count++;
+			input_registry->mappings[midx] = default_mappings[i];
+			input_registry->mappings_entries[midx] = idx;
+		}
+	}
+
+	return &input_registry->entries_vals[idx];
+}
+
+// ================================================================================================================================================================================================
+
+ztInputEntryVal *zt_inputRegistryAddEntry(ztInputRegistry *input_registry, const char *name, const char *display, i32 flags, ztInputMapping default_mapping)
+{
+	return zt_inputRegistryAddEntry(input_registry, name, display, flags, &default_mapping, 1);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_inputRegistryUpdate(ztInputRegistry *input_registry, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt)
+{
+	zt_returnOnNull(input_registry);
+
+	zt_fiz(input_registry->entries_count) {
+		if (input_registry->entries_vals[i].value != 0) {
+			input_registry->entries_vals[i].time += dt;
+			input_registry->entries_vals[i].value = 0;
+		}
+		else {
+			input_registry->entries_vals[i].time = 0;
+		}
+	}
+
+	zt_fiz(input_registry->mappings_count) {
+		ztInputEntry *entry = &input_registry->entries[input_registry->mappings_entries[i]];
+		ztInputEntryVal *val = &input_registry->entries_vals[input_registry->mappings_entries[i]];
+		ztInputMapping *mapping = &input_registry->mappings[i];
+
+		switch(mapping->type)
+		{
+			case ztInputMappingType_Key: {
+				if (input_keys[mapping->key].pressed()) {
+					if (input_keys[mapping->key].justPressedOrRepeated()) {
+						val->time = 0;
+					}
+					val->value = 1;
+				}
+			} break;
+
+			case ztInputMappingType_Mouse: {
+				if (zt_bitIsSet(input_mouse->button_states[mapping->mouse_button], ztInputMouseFlags_Pressed)) {
+					val->value = 1;
+				}
+			} break;
+
+			case ztInputMappingType_Controller: {
+				if (zt_bitIsSet(input_controller->button_states[mapping->controller_button], ztInputControllerFlags_Pressed)) {
+					val->value = 1;
+				}
+
+			} break;
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+r32 zt_inputRegistryGetInputValue(ztInputEntryVal *entry_val, r32 *time_active)
+{
+	if (entry_val == nullptr) {
+		return 0;
+	}
+
+	if (entry_val->value != 0) {
+		if(time_active) *time_active = entry_val->time;
+		return entry_val->value;
+	}
+
+	if (time_active) {
+		*time_active = 0;
+	}
+
+	return 0;
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 bool zt_rendererSupported(ztRenderer_Enum renderer)
@@ -28897,7 +29224,7 @@ void zt_characterControllerUpdatePostPhysics(ztCharacterController *controllers,
 
 // ================================================================================================================================================================================================
 
-void zt_characterCameraControllerMake(ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics)
+void zt_characterCameraControllerMake(ztCharacterCameraController *char_cam_ctrl, ztCharacterController *character_controller, ztMovingBody *moving_body, ztCamera *camera, r32 player_height, const ztVec3 &offset_from_center, ztPhysics *physics, ztInputRegistry *input_registry)
 {
 	char_cam_ctrl->ctrl = character_controller;
 	char_cam_ctrl->camera = camera;
@@ -28932,6 +29259,16 @@ void zt_characterCameraControllerMake(ztCharacterCameraController *char_cam_ctrl
 		zt_characterCameraControllerSync(char_cam_ctrl);
 
 		zt_physicsAddMovingBody(physics, moving_body);
+
+		if (input_registry) {
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Forward     ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.forward"     , "Player Move Forward",  ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_W));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Backward    ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.backward"    , "Player Move Backward", ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_S));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_StrafeLeft  ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.strafe_left" , "Player Strafe Left",   ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_A));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_StrafeRight ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.strafe_right", "Player Strafe Right",  ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_D));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Jump        ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.jump"        , "Player Jump",          ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_Space));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Run         ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.run"         , "Player Run",           ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_Control));
+			char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Sneak       ] = zt_inputRegistryAddEntry(input_registry, "char_cam_ctrl.sneak"       , "Player Sneak",         ztInputEntryFlags_DisallowMouse, zt_inputMappingMakeKey(ztInputKeys_Shift));
+		}
 	}
 }
 
@@ -28969,6 +29306,58 @@ void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_c
 	if (input_mouse->delta_x != 0 || input_mouse->delta_y != 0) {
 		r32 delta_x = input_mouse->delta_x * char_cam_ctrl->mouse_sensitivity;
 		r32 delta_y = input_mouse->delta_y * char_cam_ctrl->mouse_sensitivity;
+
+		char_cam_ctrl->ctrl->rotate_horz += delta_x;
+		char_cam_ctrl->ctrl->rotate_vert += delta_y;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_characterCameraControllerPlayerInput(ztCharacterCameraController *char_cam_ctrl, const ztVec2 &view_delta, r32 dt)
+{
+	zt_returnOnNull(char_cam_ctrl);
+	zt_fize(char_cam_ctrl->input_entries) {
+		zt_returnOnNull(char_cam_ctrl->input_entries[i]);
+	}
+
+	r32 forward_val = zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Forward]);
+	if (forward_val) {
+		char_cam_ctrl->ctrl->move_z = zt_approach(char_cam_ctrl->ctrl->move_z, -forward_val, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	r32 backward_val = zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Backward]);
+	if (backward_val) {
+		char_cam_ctrl->ctrl->move_z = zt_approach(char_cam_ctrl->ctrl->move_z, backward_val, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	r32 strafe_left_val = zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_StrafeLeft]);
+	if (strafe_left_val) {
+		char_cam_ctrl->ctrl->move_x = zt_approach(char_cam_ctrl->ctrl->move_x, -strafe_left_val, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+	r32 strafe_right_val = zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_StrafeRight]);
+	if (strafe_right_val) {
+		char_cam_ctrl->ctrl->move_x = zt_approach(char_cam_ctrl->ctrl->move_x, strafe_right_val, _zt_characterControllerGetSpeed(char_cam_ctrl->ctrl) * dt);
+	}
+
+	r32 jump_time = -1;
+	if (zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Jump], &jump_time)) {
+		if (jump_time == 0) {
+			char_cam_ctrl->ctrl->jumping = 1;
+		}
+	}
+
+	if (zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Sneak])) {
+		char_cam_ctrl->ctrl->sneaking_time += dt;
+	}
+	else char_cam_ctrl->ctrl->sneaking_time = 0;
+
+	if (zt_inputRegistryGetInputValue(char_cam_ctrl->input_entries[ztCharacterCameraControllerInput_Run])) {
+		char_cam_ctrl->ctrl->running_time += dt;
+	}
+	else char_cam_ctrl->ctrl->running_time = 0;
+
+	if (view_delta.x != 0 || view_delta.y != 0) {
+		r32 delta_x = view_delta.x * char_cam_ctrl->mouse_sensitivity;
+		r32 delta_y = view_delta.y * char_cam_ctrl->mouse_sensitivity;
 
 		char_cam_ctrl->ctrl->rotate_horz += delta_x;
 		char_cam_ctrl->ctrl->rotate_vert += delta_y;
@@ -29147,10 +29536,12 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (asset_mgr) {
 			font->arena = asset_mgr->arena;
 			font->texture = texture_override_asset_id;
+			font->texture_override = texture_override_asset_id != ztInvalidID;
 		}
 		else {
 			font->arena = zt_memGetGlobalArena();
 			font->texture = texture_override_tex_id;
+			font->texture_override = texture_override_tex_id != ztInvalidID;
 		}
 
 		struct local
@@ -29377,10 +29768,12 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 		if (asset_mgr) {
 			font->arena = asset_mgr->arena;
 			font->texture = texture_override_asset_id;
+			font->texture_override = texture_override_asset_id != ztInvalidID;
 		}
 		else {
 			font->arena = zt_memGetGlobalArena();
 			font->texture = texture_override_tex_id;
+			font->texture_override = texture_override_tex_id != ztInvalidID;
 		}
 
 		struct local
@@ -29735,9 +30128,10 @@ void zt_fontFree(ztFontID font_id)
 
 	ztFont *font = &zt_game->fonts[font_id];
 
-	if (font->texture != ztInvalidID) {
+	if (font->texture != ztInvalidID && font->texture_override == false) {
 		zt_textureFree(font->texture);
 	}
+	font->texture = ztInvalidID;
 
 	if (font->glyph_code_point) {
 		zt_freeArena(font->glyph_code_point, font->arena);
