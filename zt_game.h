@@ -924,6 +924,7 @@ ztInputEntryVal *zt_inputRegistryAddEntry(ztInputRegistry *input_registry, const
 void             zt_inputRegistryUpdate  (ztInputRegistry *input_registry, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, r32 dt);
 
 r32              zt_inputRegistryGetInputValue(ztInputEntryVal *entry_val, r32 *time_active = nullptr);
+bool             zt_inputRegistryGetInputValueJustPressed(ztInputEntryVal *entry_val);
 
 
 
@@ -5969,6 +5970,7 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #include <windows.h>
 #include <windowsx.h>
 #include <xinput.h>
+#include <winbase.h>
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
 #include <emscripten.h>
@@ -9682,6 +9684,20 @@ r32 zt_inputRegistryGetInputValue(ztInputEntryVal *entry_val, r32 *time_active)
 	return 0;
 }
 
+// ================================================================================================================================================================================================
+
+bool zt_inputRegistryGetInputValueJustPressed(ztInputEntryVal *entry_val)
+{
+	if (entry_val == nullptr) {
+		return 0;
+	}
+
+	if (entry_val->value != 0 && entry_val->time == 0) {
+		return true;
+	}
+
+	return false;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -11804,6 +11820,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 				switch (command->type)
 				{
 					case ztDrawCommandType_ChangeShader: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::no depth:change shader");
 						if (command->shader != current_shader) {
 							zt_assertReturnOnFail(shaders_count < zt_elementsOf(shaders));
 							cmp_shader = shaders[shaders_count++] = _zt_castMem(ztCompileShader);
@@ -11824,6 +11841,7 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					} break;
 
 					case ztDrawCommandType_ChangeTexture: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::no depth:change texture");
 						if (command->texture_count > 0) {
 							{
 								// make sure the last texture used actually has items, otherwise, remove it from the list
@@ -11912,10 +11930,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					} break;
 
 					case ztDrawCommandType_ChangeClipping: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::no depth:clip change");
 						cmp_clip_region = command->clip_idx < 0 ? nullptr : &clip_regions[command->clip_idx];
 					} break;
 
 					default: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::no depth:default");
 						ztCompileItem *cmp_item = _zt_castMem(ztCompileItem);
 						cmp_item->command = command;
 						cmp_item->clip_region = cmp_clip_region;
@@ -46080,6 +46100,70 @@ ztInternal void _zt_winLogSystemInfo()
 	}
 }
 
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_exceptionPopulateCallStack( char *error_message, int len, const char *lead )
+{
+#if !defined(ZT_NO_PROFILE)
+	if (zt_game != nullptr && zt_game->profiler != nullptr) {
+		int thread_idx = zt_threadGetIndex();
+
+		ztProfiledThread *pt = &zt_game->profiler->threads[thread_idx];
+
+		ztProfiledSection *current = pt->current;
+		if(current) {
+			zt_strCat(error_message, len, lead);
+			zt_strCat(error_message, len, "\n\n");
+			zt_strCat(error_message, len, "Call stack:\n");
+		}
+
+		while(current) {
+			zt_strCat(error_message, len, "    ");
+			zt_strCat(error_message, len, current->section);
+			zt_strCat(error_message, len, "\n");
+
+			current = current->parent;
+		}
+	}
+#else
+	zt_strCpy(error_message, len, lead);
+#endif
+}
+
+// ================================================================================================================================================================================================
+
+static LPTOP_LEVEL_EXCEPTION_FILTER _zt_callbackPreviousUnhandledExceptions = nullptr;
+
+// ================================================================================================================================================================================================
+
+ztInternal long __stdcall _zt_callbackUnhandledExceptions(struct _EXCEPTION_POINTERS *exceptions)
+{
+	char error_message[2048] = {0};
+	_zt_exceptionPopulateCallStack(error_message, zt_elementsOf(error_message), "An exception has occurred.");
+
+	if (error_message[0] != 0) {
+		MessageBoxA(zt_game->win_details[0].handle, error_message, "Exception Occurred", MB_OK | MB_ICONERROR);
+	}
+
+	zt_logCritical(error_message);
+
+	if (_zt_callbackPreviousUnhandledExceptions(exceptions)) {
+		return _zt_callbackPreviousUnhandledExceptions(exceptions);
+	}
+	else {
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_callbacksSetErrorHandlers()
+{
+	_zt_callbackPreviousUnhandledExceptions = SetUnhandledExceptionFilter( _zt_callbackUnhandledExceptions );
+}
+
+
+
 #endif // !ZT_DLL
 
 // ================================================================================================================================================================================================
@@ -46581,7 +46665,7 @@ int32_t androidHandleInput(struct android_app* app, AInputEvent* evt)
 // ================================================================================================================================================================================================
 
 
-#endif
+#endif // ZT_EMSCRIPTEN/ZT_ANDROID
 
 // ================================================================================================================================================================================================
 
@@ -46771,6 +46855,10 @@ bool mainInitializationAndLoop()
 
 int main(int argc, const char **argv)
 {
+#	if defined(ZT_WINDOWS)
+	_zt_callbacksSetErrorHandlers();
+#	endif
+
 	char *app_path = (char*)malloc(ztFileMaxPath);
 
 #	if !defined(ZT_EMSCRIPTEN) && !defined(ZT_ANDROID)
@@ -46894,10 +46982,13 @@ int main(int argc, const char **argv)
 		zt_textureFree(0); // free the white tex
 		zt_textureFree(1); // free the black tex
 
+		ztTextureID default_font_tex = zt_game->fonts[ztFontDefault].texture;
 
 		zt_fiz(zt_game->fonts_count_system) {
 			zt_fontFree(i);
 		}
+
+		zt_textureFree(default_font_tex);
 
 		_zt_threadJobQueueFree();
 
