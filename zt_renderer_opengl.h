@@ -243,11 +243,14 @@ int     ztgl_clearErrors();
 #if defined(ZT_OPENGL_DEBUGGING)
 #if defined(ZT_OPENGL_DEBUGGING_LOGALL)
 #	define ztgl_callAndReportOnErrorFast(function) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; ztgl_checkAndReportError(#function);
+#	define ztgl_callAndReturnValOnErrorFast(function, retval) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; if (ztgl_checkAndReportError(#function)) return retval;
 #else
 #	define ztgl_callAndReportOnErrorFast(function) function; ztgl_checkAndReportError(#function, __LINE__);
+#	define ztgl_callAndReturnValOnErrorFast(function, retval) if (ztgl_checkAndReportError(#function)) return retval;
 #endif
 #else
 #	define ztgl_callAndReportOnErrorFast(function) function;
+#	define ztgl_callAndReturnValOnErrorFast(function, retval) function;
 #endif
 
 
@@ -3947,10 +3950,10 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 
 	if (create) {
 #		if defined(ZT_OPENGL_HAS_VAOS)
-		ztgl_callAndReturnValOnError(glGenVertexArrays(1, &vertex_array->vao), false);
+		ztgl_callAndReturnValOnErrorFast(glGenVertexArrays(1, &vertex_array->vao), false);
 #		endif
 
-		ztgl_callAndReturnValOnError(glGenBuffers(1, &vertex_array->vbo), false);
+		ztgl_callAndReturnValOnErrorFast(glGenBuffers(1, &vertex_array->vbo), false);
 		vertex_array->vert_count = vert_count;
 
 #		if !defined(ZT_OPENGL_HAS_VAOS)
@@ -3961,11 +3964,11 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 	}
 
 #	if defined(ZT_OPENGL_HAS_VAOS)
-	ztgl_callAndReturnValOnError(glBindVertexArray(vertex_array->vao), false);
+	ztgl_callAndReturnValOnErrorFast(glBindVertexArray(vertex_array->vao), false);
 #	endif
 	{
-		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), false);
-		ztgl_callAndReturnValOnError(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_DYNAMIC_DRAW), false);
+		ztgl_callAndReturnValOnErrorFast(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->vbo), false);
+		ztgl_callAndReturnValOnErrorFast(glBufferData(GL_ARRAY_BUFFER, vert_count * vert_size, vert_data, GL_DYNAMIC_DRAW), false);
 
 		int size = 0;
 		zt_fiz(entries_count) {
@@ -3974,8 +3977,8 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 			{
 				case GL_FLOAT: {
 					attrib_size = 4;
-					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
-					ztgl_callAndReturnValOnError(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
+					ztgl_callAndReturnValOnErrorFast(glEnableVertexAttribArray(i), false);
+					ztgl_callAndReturnValOnErrorFast(glVertexAttribPointer(i, entries[i].size / attrib_size, entries[i].type, GL_FALSE, vert_size, (GLvoid*)size), false);
 				} break;
 
 				case GL_INT: {
@@ -3983,8 +3986,8 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 					zt_assert(false); // not supported in ES2
 #					else
 					attrib_size = 4;
-					ztgl_callAndReturnValOnError(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size), false);
-					ztgl_callAndReturnValOnError(glEnableVertexAttribArray(i), false);
+					ztgl_callAndReturnValOnErrorFast(glVertexAttribIPointer(i, entries[i].size / attrib_size, entries[i].type, vert_size, (GLvoid*)size), false);
+					ztgl_callAndReturnValOnErrorFast(glEnableVertexAttribArray(i), false);
 #					endif
 				} break;
 
@@ -3995,10 +3998,10 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 
 			size += entries[i].size;
 		}
-		ztgl_callAndReturnValOnError(glBindBuffer(GL_ARRAY_BUFFER, 0), false);
+		ztgl_callAndReturnValOnErrorFast(glBindBuffer(GL_ARRAY_BUFFER, 0), false);
 	}
 #	if defined(ZT_OPENGL_HAS_VAOS)
-	ztgl_callAndReturnValOnError(glBindVertexArray(0), false);
+	ztgl_callAndReturnValOnErrorFast(glBindVertexArray(0), false);
 #	else
 	if (vert_data) {
 		zt_memCpy(vertex_array->vert_data, vertex_array->vert_count, vert_data, vert_count);
