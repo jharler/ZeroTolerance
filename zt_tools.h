@@ -1220,11 +1220,14 @@ struct ztGuid
 		u64 guid[2];
 		u32 guid_32[4];
 	};
+
+	static const ztGuid invalid;
 };
 
 
 // ================================================================================================================================================================================================
 
+ztInline ztGuid  zt_guid(u32 part1, u32 part2, u32 part3, u32 part4);
 ztInline ztGuid  zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4);
 ztInline bool    zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2);
 
@@ -1431,7 +1434,7 @@ void                       *zt_functionPointerAccess(ztFunctionID function_id);
                             ztFunctionID function_id_var = ztInvalidID
 
 #define                     ZT_FUNCTION_POINTER_IS_VALID(function_id) \
-                            (function_id != ztInvalidID)
+                            (function_id != ztInvalidID && function_id != 0)
 
 #define                     ZT_FUNCTION_POINTER_TO_VAR(function_name) \
                             function_name##_FunctionID
@@ -1728,13 +1731,17 @@ int                   zt_striCount         (const char *haystack, const char *ne
 int                   zt_striCount         (const char *haystack, int haystack_len, const char *needle);
 
 bool                  zt_strStartsWith     (const char *s, const char *starts_with);
+bool                  zt_strStartsWith     (const char *s, int s_len, const char *starts_with);
 bool                  zt_strStartsWith     (const char *s, int s_len, const char *starts_with, int sw_len);
 bool                  zt_strEndsWith       (const char *s, const char *ends_with);
+bool                  zt_strEndsWith       (const char *s, int s_len, const char *ends_with);
 bool                  zt_strEndsWith       (const char *s, int s_len, const char *ends_with, int ew_len);
 
 bool                  zt_striStartsWith    (const char *s, const char *starts_with);
+bool                  zt_striStartsWith    (const char *s, int s_len, const char *starts_with);
 bool                  zt_striStartsWith    (const char *s, int s_len, const char *starts_with, int sw_len);
 bool                  zt_striEndsWith      (const char *s, const char *ends_with);
+bool                  zt_striEndsWith      (const char *s, int s_len, const char *ends_with);
 bool                  zt_striEndsWith      (const char *s, int s_len, const char *ends_with, int ew_len);
 
 const char           *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
@@ -1757,10 +1764,13 @@ int                   zt_strGetBetween     (char *buffer, int buffer_len, const 
 
 enum ztStrTokenizeFlags_Enum
 {
-	ztStrTokenizeFlags_IncludeTokens  = (1<<0),
-	ztStrTokenizeFlags_ProcessQuotes  = (1<<1),
-	ztStrTokenizeFlags_KeepQuotes     = (1<<2),
-	ztStrTokenizeFlags_TrimWhitespace = (1<<3),
+	ztStrTokenizeFlags_IncludeTokens           = (1<<0),
+	ztStrTokenizeFlags_ProcessQuotes           = (1<<1),
+	ztStrTokenizeFlags_KeepQuotes              = (1<<2),
+	ztStrTokenizeFlags_TrimWhitespace          = (1<<3),
+	ztStrTokenizeFlags_ProcessCommentsC        = (1<<4),
+	ztStrTokenizeFlags_ProcessCommentsCpp      = (1<<5),
+	ztStrTokenizeFlags_ExcludeWhitespaceTokens = (1<<6), // if IncludeTokens is set, will ignore whitespace tokens
 };
 
 
@@ -3853,10 +3863,17 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztInline ztGuid zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4)
+ztInline ztGuid zt_guid(u32 part1, u32 part2, u32 part3, u32 part4)
 {
 	ztGuid guid = { (((u64)part1) << 32) | (part2), (((u64)part3) << 32) | (part4) };
 	return guid;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline ztGuid zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4)
+{
+	return zt_guid(part1, part2, part3, part4);
 }
 
 // ================================================================================================================================================================================================
@@ -5519,7 +5536,7 @@ void zt_memSetTempArena(ztMemoryArena *arena, bool free_current)
 // ================================================================================================================================================================================================
 
 #ifndef ZT_MEMORY_TEMP_ARENA_SIZE
-#define ZT_MEMORY_TEMP_ARENA_SIZE zt_megabytes(2)
+#define ZT_MEMORY_TEMP_ARENA_SIZE zt_megabytes(8)
 #endif
 
 // ================================================================================================================================================================================================
@@ -5600,6 +5617,8 @@ void zt_memFreeGlobal(void *data)
 /*static*/ const ztMat4 ztMat4::identity = zt_mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
 /*static*/ const ztQuat ztQuat::identity = zt_quat(0, 0, 0, 1);
+
+/*static*/ const ztGuid ztGuid::invalid = zt_guidMake(0, 0, 0, 0);
 
 // ================================================================================================================================================================================================
 
@@ -7842,6 +7861,15 @@ bool zt_strStartsWith(const char *s, const char *starts_with)
 
 // ================================================================================================================================================================================================
 
+bool zt_strStartsWith(const char *s, int s_len, const char *starts_with)
+{
+	ZT_PROFILE_TOOLS("zt_strStartsWith");
+
+	return zt_strStartsWith(s, s_len, starts_with, zt_strLen(starts_with));
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_strStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
 	ZT_PROFILE_TOOLS("zt_strStartsWith");
@@ -7863,6 +7891,15 @@ bool zt_strEndsWith(const char *s, const char *ends_with)
 	ZT_PROFILE_TOOLS("zt_strEndsWith");
 
 	return zt_strEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_strEndsWith(const char *s, int s_len, const char *ends_with)
+{
+	ZT_PROFILE_TOOLS("zt_strEndsWith");
+
+	return zt_strEndsWith(s, s_len, ends_with, zt_strLen(ends_with));
 }
 
 // ================================================================================================================================================================================================
@@ -7892,6 +7929,15 @@ bool zt_striStartsWith(const char *s, const char *starts_with)
 
 // ================================================================================================================================================================================================
 
+bool zt_striStartsWith(const char *s, int s_len, const char *starts_with)
+{
+	ZT_PROFILE_TOOLS("zt_striStartsWith");
+
+	return zt_striStartsWith(s, s_len, starts_with, zt_strLen(starts_with));
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_striStartsWith(const char *s, int s_len, const char *starts_with, int sw_len)
 {
 	ZT_PROFILE_TOOLS("zt_striStartsWith");
@@ -7913,6 +7959,15 @@ bool zt_striEndsWith(const char *s, const char *ends_with)
 	ZT_PROFILE_TOOLS("zt_striEndsWith");
 
 	return zt_striEndsWith(s, zt_strLen(s), ends_with, zt_strLen(ends_with));
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_striEndsWith(const char *s, int s_len, const char *ends_with)
+{
+	ZT_PROFILE_TOOLS("zt_striEndsWith");
+
+	return zt_striEndsWith(s, s_len, ends_with, zt_strLen(ends_with));
 }
 
 // ================================================================================================================================================================================================
@@ -8107,12 +8162,17 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 		return 1;
 	}
 
-	bool include_tokens  = zt_bitIsSet(flags, ztStrTokenizeFlags_IncludeTokens);
-	bool process_quotes  = zt_bitIsSet(flags, ztStrTokenizeFlags_ProcessQuotes);
-	bool keep_quotes     = zt_bitIsSet(flags, ztStrTokenizeFlags_KeepQuotes);
-	bool trim_whitespace = zt_bitIsSet(flags, ztStrTokenizeFlags_TrimWhitespace);
+	bool include_tokens   = zt_bitIsSet(flags, ztStrTokenizeFlags_IncludeTokens);
+	bool process_quotes   = zt_bitIsSet(flags, ztStrTokenizeFlags_ProcessQuotes);
+	bool keep_quotes      = zt_bitIsSet(flags, ztStrTokenizeFlags_KeepQuotes);
+	bool trim_whitespace  = zt_bitIsSet(flags, ztStrTokenizeFlags_TrimWhitespace);
+	bool comments_c       = zt_bitIsSet(flags, ztStrTokenizeFlags_ProcessCommentsC);
+	bool comments_cpp     = zt_bitIsSet(flags, ztStrTokenizeFlags_ProcessCommentsCpp);
+	bool ignore_ws_tokens = zt_bitIsSet(flags, ztStrTokenizeFlags_ExcludeWhitespaceTokens);
 
 	bool in_quotes = false;
+	bool in_comments_c = false;
+	bool in_comments_cpp = false;
 	bool prev_was_escape = false;
 	int whitespace_run = 0;
 	int t_idx = 0;
@@ -8150,6 +8210,26 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 				prev_was_escape = s[i] == '\\';
 			}
 		}
+		else if (in_comments_c) {
+			if (ctok)  {
+				ctok->len += 1;
+			}
+			if (s[i] == '/' && s[i - 1] == '*') {
+				in_comments_c = false;
+			}
+		}
+		else if (in_comments_cpp) {
+			if (ctok) {
+				ctok->len += 1;
+			}
+			if (s[i] == '\r' || s[i] == '\n') {
+				in_comments_cpp = false;
+				i -= 1;
+				if (ctok) {
+					ctok->len -= 1;
+				}
+			}
+		}
 		else {
 			if (process_quotes && s[i] == '\"') {
 				if (!keep_quotes) {
@@ -8169,49 +8249,71 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 			}
 			else {
 				bool is_token = false;
-				for (int t = 0; t < t_len; ++t) {
-					if (s[i] == tokens[t]) {
-						is_token = true;
-
-						if (ctok && trim_whitespace && whitespace_run) {
-							ctok->len -= whitespace_run;
-						}
-						whitespace_run = 0;
-
-						if (!ctok || ctok->len != 0)
-							t_idx += 1;
-						ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
-						if (include_tokens) {
-							if (ctok) {
-								ctok->beg = i;
-								ctok->len = 1;
-							}
-							t_idx += 1;
-							ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
-						}
-						if (ctok) {
-							ctok->beg = i + 1;
-							ctok->len = 0;
-						}
-						break;
+				if (comments_c && i > 0 && s[i - 1] == '/' && s[i] == '*') {
+					in_comments_c = true;
+					if (ctok) {
+						ctok->len += 1;
 					}
 				}
+				else if (comments_cpp && i > 0 && s[i - 1] == '/' && s[i] == '/') {
+					in_comments_cpp = true;
+					if (ctok) {
+						ctok->len += 1;
+					}
+				}
+				else {
+					for (int t = 0; t < t_len; ++t) {
+						if (s[i] == tokens[t]) {
+							is_token = true;
 
-				if (!is_token) {
-					if (trim_whitespace) {
-						if (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')
-							whitespace_run += 1;
-						else
+							if (ctok && trim_whitespace && whitespace_run) {
+								ctok->len -= whitespace_run;
+							}
 							whitespace_run = 0;
+
+							if (!ctok || ctok->len != 0)
+								t_idx += 1;
+							ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
+							if (include_tokens) {
+								bool skip_due_to_whitespace = false;
+								if (trim_whitespace && ignore_ws_tokens) {
+									if (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n') {
+										skip_due_to_whitespace = true;
+									}
+								}
+								if (!skip_due_to_whitespace) {
+									if (ctok) {
+										ctok->beg = i;
+										ctok->len = 1;
+									}
+									t_idx += 1;
+									ctok = t_idx < results_count ? &results[t_idx] : &dummy_token;
+								}
+							}
+							if (ctok) {
+								ctok->beg = i + 1;
+								ctok->len = 0;
+							}
+							break;
+						}
 					}
 
-					if (ctok) {
-						if (!trim_whitespace || whitespace_run == 0)
-							ctok->len += 1;
-						else if (trim_whitespace && whitespace_run != 0 && ctok->len == 0)
-							ctok->beg += 1;
-						else
-							ctok->len += 1;
+					if (!is_token) {
+						if (trim_whitespace) {
+							if (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')
+								whitespace_run += 1;
+							else
+								whitespace_run = 0;
+						}
+
+						if (ctok) {
+							if (!trim_whitespace || whitespace_run == 0)
+								ctok->len += 1;
+							else if (trim_whitespace && whitespace_run != 0 && ctok->len == 0)
+								ctok->beg += 1;
+							else
+								ctok->len += 1;
+						}
 					}
 				}
 			}
