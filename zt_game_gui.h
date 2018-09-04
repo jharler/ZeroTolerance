@@ -209,32 +209,41 @@ struct ztGuiTheme;
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_THEME_GET_RVALUE(name)	bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiThemeValue_Enum value, r32 *result)
-typedef ZT_FUNC_THEME_GET_RVALUE(ztGuiThemeGetRValue_Func);
+#define ZT_FUNC_THEME_GET_RVALUE_DECL(name)	bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiThemeValue_Enum value, r32 *result)
+typedef ZT_FUNC_THEME_GET_RVALUE_DECL(ztGuiThemeGetRValue_Func);
+#define ZT_FUNC_THEME_GET_RVALUE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_GET_RVALUE_DECL(name))
 
-#define ZT_FUNC_THEME_GET_IVALUE(name) bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiThemeValue_Enum value, i32 *result)
-typedef ZT_FUNC_THEME_GET_IVALUE(ztGuiThemeGetIValue_Func);
+#define ZT_FUNC_THEME_GET_IVALUE_DECL(name) bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiThemeValue_Enum value, i32 *result)
+typedef ZT_FUNC_THEME_GET_IVALUE_DECL(ztGuiThemeGetIValue_Func);
+#define ZT_FUNC_THEME_GET_IVALUE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_GET_IVALUE_DECL(name))
 
-#define ZT_FUNC_THEME_UPDATE_ITEM(name) bool name(ztGuiTheme *theme, ztGuiItem *item)
-typedef ZT_FUNC_THEME_UPDATE_ITEM(ztGuiThemeUpdateItem_Func);
+#define ZT_FUNC_THEME_UPDATE_ITEM_DECL(name) bool name(ztGuiTheme *theme, ztGuiItem *item)
+typedef ZT_FUNC_THEME_UPDATE_ITEM_DECL(ztGuiThemeUpdateItem_Func);
+#define ZT_FUNC_THEME_UPDATE_ITEM(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_UPDATE_ITEM_DECL(name))
 
-#define ZT_FUNC_THEME_UPDATE_SUBITEM(name) bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiItem *subitem, void *data)
-typedef ZT_FUNC_THEME_UPDATE_SUBITEM(ztGuiThemeUpdateSubitem_Func);
+#define ZT_FUNC_THEME_UPDATE_SUBITEM_DECL(name) bool name(ztGuiTheme *theme, ztGuiItem *item, ztGuiItem *subitem, void *data)
+typedef ZT_FUNC_THEME_UPDATE_SUBITEM_DECL(ztGuiThemeUpdateSubitem_Func);
+#define ZT_FUNC_THEME_UPDATE_SUBITEM(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_UPDATE_SUBITEM_DECL(name))
 
-#define ZT_FUNC_THEME_SIZE_ITEM(name) bool name(ztGuiTheme *theme, ztGuiItem *item)
-typedef ZT_FUNC_THEME_SIZE_ITEM(ztGuiThemeSizeItem_Func);
+#define ZT_FUNC_THEME_SIZE_ITEM_DECL(name) bool name(ztGuiTheme *theme, ztGuiItem *item)
+typedef ZT_FUNC_THEME_SIZE_ITEM_DECL(ztGuiThemeSizeItem_Func);
+#define ZT_FUNC_THEME_SIZE_ITEM(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_SIZE_ITEM_DECL(name))
 
-#define ZT_FUNC_THEME_RENDER_ITEM(name) bool name(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos, bool *needs_postrender)
-typedef ZT_FUNC_THEME_RENDER_ITEM(ztGuiThemeRenderItem_Func);
+#define ZT_FUNC_THEME_RENDER_ITEM_DECL(name) bool name(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos, bool *needs_postrender)
+typedef ZT_FUNC_THEME_RENDER_ITEM_DECL(ztGuiThemeRenderItem_Func);
+#define ZT_FUNC_THEME_RENDER_ITEM(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_RENDER_ITEM_DECL(name))
 
-#define ZT_FUNC_THEME_POSTRENDER_ITEM(name) bool name(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos)
-typedef ZT_FUNC_THEME_POSTRENDER_ITEM(ztGuiThemePostRenderItem_Func);
+#define ZT_FUNC_THEME_POSTRENDER_ITEM_DECL(name) bool name(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item, ztVec2 pos)
+typedef ZT_FUNC_THEME_POSTRENDER_ITEM_DECL(ztGuiThemePostRenderItem_Func);
+#define ZT_FUNC_THEME_POSTRENDER_ITEM(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_POSTRENDER_ITEM_DECL(name))
 
-#define ZT_FUNC_THEME_RENDER_PASS_BEGIN(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
-typedef ZT_FUNC_THEME_RENDER_PASS_BEGIN(ztGuiThemeRenderPassBegin_Func);
+#define ZT_FUNC_THEME_RENDER_PASS_BEGIN_DECL(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
+typedef ZT_FUNC_THEME_RENDER_PASS_BEGIN_DECL(ztGuiThemeRenderPassBegin_Func);
+#define ZT_FUNC_THEME_RENDER_PASS_BEGIN(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_RENDER_PASS_BEGIN_DECL(name))
 
-#define ZT_FUNC_THEME_RENDER_PASS_END(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
-typedef ZT_FUNC_THEME_RENDER_PASS_END(ztGuiThemeRenderPassEnd_Func);
+#define ZT_FUNC_THEME_RENDER_PASS_END_DECL(name) void name(ztGuiTheme *theme, ztGuiItem *item, ztDrawList *draw_list)
+typedef ZT_FUNC_THEME_RENDER_PASS_END_DECL(ztGuiThemeRenderPassEnd_Func);
+#define ZT_FUNC_THEME_RENDER_PASS_END(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_THEME_RENDER_PASS_END_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -317,23 +326,29 @@ enum ztGuiItemOrient_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_ITEM_UPDATE(name) void name(ztGuiItem *item, r32 dt, void *user_data)
-typedef ZT_FUNC_GUI_ITEM_UPDATE(zt_guiItemUpdate_Func);
+#define ZT_FUNC_GUI_ITEM_UPDATE_DECL(name) void name(ztGuiItem *item, r32 dt, void *user_data)
+typedef ZT_FUNC_GUI_ITEM_UPDATE_DECL(zt_guiItemUpdate_Func);
+#define ZT_FUNC_GUI_ITEM_UPDATE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_UPDATE_DECL(name))
 
-#define ZT_FUNC_GUI_ITEM_RENDER(name) void name(ztGuiItem *item, ztDrawList *draw_list, ztGuiTheme *theme, const ztVec2& offset, bool enabled, void *user_data)
-typedef ZT_FUNC_GUI_ITEM_RENDER(zt_guiItemRender_Func);
+#define ZT_FUNC_GUI_ITEM_RENDER_DECL(name) void name(ztGuiItem *item, ztDrawList *draw_list, ztGuiTheme *theme, const ztVec2& offset, bool enabled, void *user_data)
+typedef ZT_FUNC_GUI_ITEM_RENDER_DECL(zt_guiItemRender_Func);
+#define ZT_FUNC_GUI_ITEM_RENDER(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_RENDER_DECL(name))
 
-#define ZT_FUNC_GUI_ITEM_CLEANUP(name) void name(ztGuiItem *item, void *user_data)
-typedef ZT_FUNC_GUI_ITEM_CLEANUP(zt_guiItemCleanup_Func);
+#define ZT_FUNC_GUI_ITEM_CLEANUP_DECL(name) void name(ztGuiItem *item, void *user_data)
+typedef ZT_FUNC_GUI_ITEM_CLEANUP_DECL(zt_guiItemCleanup_Func);
+#define ZT_FUNC_GUI_ITEM_CLEANUP(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_CLEANUP_DECL(name))
 
-#define ZT_FUNC_GUI_ITEM_BEST_SIZE(name) void name(ztGuiItem *item, ztVec2 *min_size, ztVec2 *max_size, ztVec2 *size, ztGuiTheme *theme, void *user_data)
-typedef ZT_FUNC_GUI_ITEM_BEST_SIZE(zt_guiItemBestSize_Func);
+#define ZT_FUNC_GUI_ITEM_BEST_SIZE_DECL(name) void name(ztGuiItem *item, ztVec2 *min_size, ztVec2 *max_size, ztVec2 *size, ztGuiTheme *theme, void *user_data)
+typedef ZT_FUNC_GUI_ITEM_BEST_SIZE_DECL(zt_guiItemBestSize_Func);
+#define ZT_FUNC_GUI_ITEM_BEST_SIZE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_BEST_SIZE_DECL(name))
 
-#define ZT_FUNC_GUI_ITEM_INPUT_KEY(name) bool name(ztGuiItem *item, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], void *user_data)
-typedef ZT_FUNC_GUI_ITEM_INPUT_KEY(zt_guiItemInputKey_Func);
+#define ZT_FUNC_GUI_ITEM_INPUT_KEY_DECL(name) bool name(ztGuiItem *item, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], void *user_data)
+typedef ZT_FUNC_GUI_ITEM_INPUT_KEY_DECL(zt_guiItemInputKey_Func);
+#define ZT_FUNC_GUI_ITEM_INPUT_KEY(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_INPUT_KEY_DECL(name))
 
-#define ZT_FUNC_GUI_ITEM_INPUT_MOUSE(name) bool name(ztGuiItem *item, ztInputMouse *input_mouse, bool key_ctrl, bool key_alt, bool key_shift, void *user_data)
-typedef ZT_FUNC_GUI_ITEM_INPUT_MOUSE(zt_guiItemInputMouse_Func);
+#define ZT_FUNC_GUI_ITEM_INPUT_MOUSE_DECL(name) bool name(ztGuiItem *item, ztInputMouse *input_mouse, bool key_ctrl, bool key_alt, bool key_shift, void *user_data)
+typedef ZT_FUNC_GUI_ITEM_INPUT_MOUSE_DECL(zt_guiItemInputMouse_Func);
+#define ZT_FUNC_GUI_ITEM_INPUT_MOUSE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_ITEM_INPUT_MOUSE_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -452,7 +467,7 @@ void       zt_guiWindowSetMenuBar       (ztGuiItem *window, ztGuiItem *menubar);
 ztGuiItem *zt_guiWindowGetContentParent (ztGuiItem *window);
 void       zt_guiWindowCollapse         (ztGuiItem *window, bool collapse);
 bool       zt_guiWindowIsCollapsed      (ztGuiItem *window);
-
+bool       zt_guiWindowIsOnTop          (ztGuiItem *window);
 
 
 
@@ -527,8 +542,9 @@ enum ztGuiButtonBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_BUTTON_PRESSED(name) void name(ztGuiItem *button, void *user_data)
-typedef ZT_FUNC_GUI_BUTTON_PRESSED(zt_guiButtonPressed_Func);
+#define ZT_FUNC_GUI_BUTTON_PRESSED_DECL(name) void name(ztGuiItem *button, void *user_data)
+typedef ZT_FUNC_GUI_BUTTON_PRESSED_DECL(zt_guiButtonPressed_Func);
+#define ZT_FUNC_GUI_BUTTON_PRESSED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_BUTTON_PRESSED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -597,8 +613,9 @@ void             zt_guiRadioButtonSetValue (ztGuiItem *radio, bool value);
 
 extern const ztGuid ZT_GUI_SLIDER_GUID;
 
-#define ZT_FUNC_GUI_SLIDER_CHANGED(name) void name(ztGuiItem *slider, r32 value, void *user_data)
-typedef ZT_FUNC_GUI_SLIDER_CHANGED(zt_guiSliderChanged_Func);
+#define ZT_FUNC_GUI_SLIDER_CHANGED_DECL(name) void name(ztGuiItem *slider, r32 value, void *user_data)
+typedef ZT_FUNC_GUI_SLIDER_CHANGED_DECL(zt_guiSliderChanged_Func);
+#define ZT_FUNC_GUI_SLIDER_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_SLIDER_CHANGED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -617,8 +634,9 @@ void             zt_guiSliderSetCallback (ztGuiItem *slider, ZT_FUNCTION_POINTER
 
 extern const ztGuid ZT_GUI_SCROLLBAR_GUID;
 
-#define ZT_FUNC_GUI_SCROLLBAR_SCROLLED(name) void name(ztGuiItem *scrollbar, r32 value, void *user_data)
-typedef ZT_FUNC_GUI_SCROLLBAR_SCROLLED(zt_guiScrollbarScrolled_Func);
+#define ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(name) void name(ztGuiItem *scrollbar, r32 value, void *user_data)
+typedef ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(zt_guiScrollbarScrolled_Func);
+#define ZT_FUNC_GUI_SCROLLBAR_SCROLLED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -684,8 +702,9 @@ enum ztGuiTextEditBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_TEXTEDIT_KEY(name) void name(ztGuiItem *textedit, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], bool *should_process, void *user_data)
-typedef ZT_FUNC_GUI_TEXTEDIT_KEY(zt_guiTextEditKey_Func);
+#define ZT_FUNC_GUI_TEXTEDIT_KEY_DECL(name) void name(ztGuiItem *textedit, ztInputKeys input_keys[ztInputKeys_MAX], ztInputKeys_Enum input_key_strokes[ZT_MAX_INPUT_KEYSTROKES], bool *should_process, void *user_data)
+typedef ZT_FUNC_GUI_TEXTEDIT_KEY_DECL(zt_guiTextEditKey_Func);
+#define ZT_FUNC_GUI_TEXTEDIT_KEY(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_TEXTEDIT_KEY_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -717,8 +736,9 @@ enum ztGuiMenuBehaviorFlags_Enum
 	ztGuiMenuBehaviorFlags_FreeOnClose = (1 << (ztGuiItemBehaviorFlags_MaxBit + 1)),
 };
 
-#define ZT_FUNC_GUI_MENU_SELECTED(name) void name(ztGuiItem *menu, i32 menu_item, void *user_data)
-typedef ZT_FUNC_GUI_MENU_SELECTED(zt_guiMenuSelected_Func);
+#define ZT_FUNC_GUI_MENU_SELECTED_DECL(name) void name(ztGuiItem *menu, i32 menu_item, void *user_data)
+typedef ZT_FUNC_GUI_MENU_SELECTED_DECL(zt_guiMenuSelected_Func);
+#define ZT_FUNC_GUI_MENU_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_MENU_SELECTED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -750,8 +770,9 @@ enum ztGuiTreeItemFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_TREE_ITEM_SELECTED(name) void name(ztGuiItem *tree, ztGuiTreeNodeID node_id, void *user_data)
-typedef ZT_FUNC_GUI_TREE_ITEM_SELECTED(zt_guiTreeItemSelected_Func);
+#define ZT_FUNC_GUI_TREE_ITEM_SELECTED_DECL(name) void name(ztGuiItem *tree, ztGuiTreeNodeID node_id, void *user_data)
+typedef ZT_FUNC_GUI_TREE_ITEM_SELECTED_DECL(zt_guiTreeItemSelected_Func);
+#define ZT_FUNC_GUI_TREE_ITEM_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_TREE_ITEM_SELECTED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -780,8 +801,9 @@ ztGuiTreeNodeID  zt_guiTreeFindNodeWithUserDataOf (ztGuiItem *tree, void *user_d
 
 extern const ztGuid ZT_GUI_COMBOBOX_GUID;
 
-#define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(name) void name(ztGuiItem *combobox, int selected, void *user_data)
-typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(zt_guiComboBoxItemSelected_Func);
+#define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(name) void name(ztGuiItem *combobox, int selected, void *user_data)
+typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(zt_guiComboBoxItemSelected_Func);
+#define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -821,8 +843,9 @@ void        zt_guiSpriteDisplaySetSprite(ztGuiItem *item_id, ztGuiThemeSprite *s
 
 extern const ztGuid ZT_GUI_SPINNER_GUID;
 
-#define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(name) void name(ztGuiItem *spinner, int value, void *user_data)
-typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(zt_guiSpinnerValueChanged_Func);
+#define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED_DECL(name) void name(ztGuiItem *spinner, int value, void *user_data)
+typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED_DECL(zt_guiSpinnerValueChanged_Func);
+#define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_SPINNER_VALUE_CHANGED_DECL(name))
 
 ztGuiItem  *zt_guiMakeSpinner        (ztGuiItem *parent, int *live_value = nullptr);
 
@@ -850,8 +873,9 @@ enum ztGuiCycleBoxBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(name) void name(ztGuiItem *cyclebox, int value, void *user_data)
-typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(zt_guiCycleBoxValueChanged_Func);
+#define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(name) void name(ztGuiItem *cyclebox, int value, void *user_data)
+typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(zt_guiCycleBoxValueChanged_Func);
+#define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -887,8 +911,9 @@ enum ztGuiListBoxBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) void name(ztGuiItem *listbox, int selected, void *user_data)
-typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(zt_guiListBoxItemSelected_Func);
+#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(name) void name(ztGuiItem *listbox, int selected, void *user_data)
+typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(zt_guiListBoxItemSelected_Func);
+#define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -933,8 +958,9 @@ enum ztGuiColorPickerBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_COLOR_PICKER_CHANGED(name) void name(ztGuiItem *color_picker, ztColor color_chosen, void *user_data)
-typedef ZT_FUNC_GUI_COLOR_PICKER_CHANGED(zt_guiColorPickerChanged_Func);
+#define ZT_FUNC_GUI_COLOR_PICKER_CHANGED_DECL(name) void name(ztGuiItem *color_picker, ztColor color_chosen, void *user_data)
+typedef ZT_FUNC_GUI_COLOR_PICKER_CHANGED_DECL(zt_guiColorPickerChanged_Func);
+#define ZT_FUNC_GUI_COLOR_PICKER_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_COLOR_PICKER_CHANGED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -962,8 +988,9 @@ enum ztGuiGradientPickerBehaviorFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED(name) void name(ztGuiItem *gradient_picker, ztColorGradient2 *gradient_chosen, void *user_data)
-typedef ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED(zt_guiColorGradientChanged_Func);
+#define ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED_DECL(name) void name(ztGuiItem *gradient_picker, ztColorGradient2 *gradient_chosen, void *user_data)
+typedef ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED_DECL(zt_guiColorGradientChanged_Func);
+#define ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_GRADIENT_PICKER_CHANGED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -1056,8 +1083,9 @@ void        zt_guiSplitterSetSecondItem (ztGuiItem *splitter, ztGuiItem *item);
 // GUI Control: Editors
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(name) void name(ztGuiItem *editor, void *user_data)
-typedef ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(zt_guiEditorValueChanged_Func);
+#define ZT_FUNC_GUI_EDITOR_VALUE_CHANGED_DECL(name) void name(ztGuiItem *editor, void *user_data)
+typedef ZT_FUNC_GUI_EDITOR_VALUE_CHANGED_DECL(zt_guiEditorValueChanged_Func);
+#define ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -1116,8 +1144,9 @@ struct ztGuiDialogMessageOption
 
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(name) void name(ztGuiDialogMessageOption *option, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(zt_guiDialogMessageClosed_Func);
+#define  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED_DECL(name) void name(ztGuiDialogMessageOption *option, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED_DECL(zt_guiDialogMessageClosed_Func);
+#define  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -1136,8 +1165,9 @@ void     zt_guiDialogMessageBoxYesNoCancel (const char *title, const char *messa
 // GUI Dialog: Get User Text
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(name) void name(const char *value, bool cancelled, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(zt_guiDialogGetUserText_Func);
+#define  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(name) void name(const char *value, bool cancelled, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(zt_guiDialogGetUserText_Func);
+#define  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(name))
 
 void     zt_guiDialogGetUserText (const char *title, const char *message, const char *def_value, bool allow_cancel, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogGetUserText_Func), void *user_data);
 
@@ -1156,8 +1186,9 @@ enum ztGuiDialogFileSelectFlags_Enum
 
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_FILE_SELECTED(name) void name(char *path, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_FILE_SELECTED(zt_guiDialogFileSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_FILE_SELECTED_DECL(name) void name(char *path, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_FILE_SELECTED_DECL(zt_guiDialogFileSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_FILE_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_FILE_SELECTED_DECL(name))
 
 void     zt_guiDialogFileSelect(const char *title, i32 flags, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogFileSelected_Func), void *user_data, char *start_dir = nullptr);
 
@@ -1168,11 +1199,12 @@ void     zt_guiDialogFileSelect(const char *title, i32 flags, ZT_FUNCTION_POINTE
 // GUI Dialog: Color Picker
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED(name) void name(ztColor color_chosen, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED(zt_guiDialogColorPickerSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED_DECL(name) void name(ztColor color_chosen, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED_DECL(zt_guiDialogColorPickerSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_COLOR_PICKER_SELECTED_DECL(name))
 
 void     zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogColorPickerSelected_Func), void *user_data = nullptr, const char *window_title = "Select a Color");
-
+ 
 
 
 
@@ -1180,8 +1212,9 @@ void     zt_guiDialogColorPicker(ztColor *selected_color, i32 behavior_flags, ZT
 // GUI Dialog: Color Gradient
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(name) void name(ztColorGradient2 *gradient, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(zt_guiDialogColorGradientEditorComplete_Func);
+#define  ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE_DECL(name) void name(ztColorGradient2 *gradient, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE_DECL(zt_guiDialogColorGradientEditorComplete_Func);
+#define  ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_COLOR_GRADIENT_EDITOR_COMPLETE_DECL(name))
 
 void     zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flags, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogColorGradientEditorComplete_Func), void *user_data = nullptr, const char *window_title = "Color Gradient");
 
@@ -1192,8 +1225,9 @@ void     zt_guiDialogColorGradient(ztColorGradient2 *gradient, i32 behavior_flag
 // GUI Dialog: Anim Curve Editor
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE(name) void name(ztAnimCurve *curve, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE(zt_guiDialogAnimCurveEditorComplete_Func);
+#define  ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE_DECL(name) void name(ztAnimCurve *curve, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE_DECL(zt_guiDialogAnimCurveEditorComplete_Func);
+#define  ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_ANIM_CURVE_EDITOR_COMPLETE_DECL(name))
 
 void     zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogAnimCurveEditorComplete_Func), void *user_data = nullptr, const char *window_title = "Curve Editor");
 
@@ -1204,8 +1238,9 @@ void     zt_guiDialogAnimCurveEditor(ztAnimCurve *curve, i32 behavior_flags, ZT_
 // GUI Dialog: Sprite Selector
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(name) void name(ztSpriteManager *sprite_manager, ztSpriteManager::Entry *entry, i32 sprite_name_hash, const char *sprite_name, bool cancelled, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(zt_guiDialogSpriteSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED_DECL(name) void name(ztSpriteManager *sprite_manager, ztSpriteManager::Entry *entry, i32 sprite_name_hash, const char *sprite_name, bool cancelled, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED_DECL(zt_guiDialogSpriteSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED_DECL(name))
 
 void     zt_guiDialogSpriteSelector(ztSpriteManager *sprite_manager, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogSpriteSelected_Func), void *user_data = nullptr, const char *window_title = "Select Sprite");
 
@@ -1216,8 +1251,9 @@ void     zt_guiDialogSpriteSelector(ztSpriteManager *sprite_manager, ZT_FUNCTION
 // GUI Dialog: List Item Selector
 // ================================================================================================================================================================================================
 
-#define  ZT_FUNC_GUI_DIALOG_LIST_SELECTED(name) void name(int list_idx, char *list_item, bool cancelled, void *user_data)
-typedef  ZT_FUNC_GUI_DIALOG_LIST_SELECTED(zt_guiDialogListSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_LIST_SELECTED_DECL(name) void name(int list_idx, char *list_item, bool cancelled, void *user_data)
+typedef  ZT_FUNC_GUI_DIALOG_LIST_SELECTED_DECL(zt_guiDialogListSelected_Func);
+#define  ZT_FUNC_GUI_DIALOG_LIST_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_LIST_SELECTED_DECL(name))
 
 void     zt_guiDialogListSelector(const char **list_items, int list_items_count, const char *select_text, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogListSelected_Func), void *user_data = nullptr, const char *window_title = "Select Item", ztVec2 size = zt_vec2(5, 5));
 
@@ -1247,11 +1283,13 @@ void        zt_guiDebugParticleEditorSetMeshes (ztParticleMeshInfo *meshes, i32 
 
 #define ztDebugConsoleParams(PARAMS)	char PARAMS[16][256]
 
-#define ZT_FUNC_DEBUG_CONSOLE_COMMAND(name) void name(ztDebugConsoleParams(params), int params_count, void *user_data)
-typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND(zt_debugConsole_Func);
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_DECL(name) void name(ztDebugConsoleParams(params), int params_count, void *user_data)
+typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND_DECL(zt_debugConsole_Func);
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_DEBUG_CONSOLE_COMMAND_DECL(name))
 
-#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(name) void name(char **params, int params_count, char *auto_fill, int auto_fill_len, void *user_data)
-typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(zt_debugConsoleAutoComplete_Func);
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE_DECL(name) void name(char **params, int params_count, char *auto_fill, int auto_fill_len, void *user_data)
+typedef ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE_DECL(zt_debugConsoleAutoComplete_Func);
+#define ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -1297,8 +1335,9 @@ void  zt_guiDebugMemoryInspectorRemoveArena (ztMemoryArena *arena);
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS(name) void name(void *memory, int version)
-typedef ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS(zt_dllSetGameGuiGlobals_Func);
+#define ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS_DECL(name) void name(void *memory, int version)
+typedef ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS_DECL(zt_dllSetGameGuiGlobals_Func);
+#define ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_DLL_SET_GAME_GUI_GLOBALS_DECL(name))
 
 #if !defined(ZT_DLL)
 void zt_dllSendGameGuiGlobals(zt_dllSetGameGuiGlobals_Func *set_globals);
@@ -1708,6 +1747,7 @@ struct ztGuiSplitterState
 
 struct ztGuiItem
 {
+	const char          *type;
 	i32                  id;
 	ztGuid               guid;
 
@@ -1777,6 +1817,15 @@ struct ztGuiItem
 
 // ================================================================================================================================================================================================
 
+struct ztGuiItemType
+{
+	ztGuid         guid;
+	char           type_name[128];
+	ztGuiItemType *next;
+};
+
+// ================================================================================================================================================================================================
+
 enum ztGuiManagerItemCacheFlags_Enum
 {
 	ztGuiManagerItemCacheFlags_Used       = (1<<0),
@@ -1833,6 +1882,8 @@ struct ztGuiManager
 	bool           in_update;
 
 	ztStringPool   string_pool;
+
+	ztGuiItemType *item_types;
 
 	ztGuiManager  *next;
 };
@@ -1953,7 +2004,7 @@ extern ztGuiGlobals *zt_gui;
 
 // ================================================================================================================================================================================================
 
-ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, i32 item_flags, i32 draw_list_size = 0);
+ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, const char *item_type, i32 item_flags, i32 draw_list_size = 0);
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -2067,9 +2118,9 @@ void zt_guiInitGlobalMemory(ztMemoryArena *arena)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_THEME_GET_RVALUE(_zt_guiDefaultThemeGetRValue))
+ZT_FUNC_THEME_GET_RVALUE(_zt_guiBaseThemeGetRValue)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeGetRValue");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeGetRValue");
 
 	r32 ppu = zt_pixelsPerUnit();
 
@@ -2142,9 +2193,9 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetRValue, ztInternal ZT_FUNC_TH
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetIValue, ztInternal ZT_FUNC_THEME_GET_IVALUE(_zt_guiDefaultThemeGetIValue))
+ZT_FUNC_THEME_GET_IVALUE(_zt_guiBaseThemeGetIValue)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeGetIValue");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeGetIValue");
 
 	switch (value)
 	{
@@ -2176,18 +2227,18 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeGetIValue, ztInternal ZT_FUNC_TH
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateItem, ztInternal ZT_FUNC_THEME_UPDATE_ITEM(_zt_guiDefaultThemeUpdateItem))
+ZT_FUNC_THEME_UPDATE_ITEM(_zt_guiBaseThemeUpdateItem)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeUpdateItem");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeUpdateItem");
 
 	return false;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUNC_THEME_UPDATE_SUBITEM(_zt_guiDefaultThemeUpdateSubitem))
+ZT_FUNC_THEME_UPDATE_SUBITEM(_zt_guiBaseThemeUpdateSubitem)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeUpdateSubitem");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeUpdateSubitem");
 
 	r32 ppu = zt_pixelsPerUnit();
 
@@ -2283,18 +2334,18 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeUpdateSubitem, ztInternal ZT_FUN
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THEME_SIZE_ITEM(_zt_guiDefaultThemeSizeItem))
+ZT_FUNC_THEME_SIZE_ITEM(_zt_guiBaseThemeSizeItem)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeSizeItem");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeSizeItem");
 
 	r32 ppu = zt_pixelsPerUnit();
 
 	if (item->guid == ZT_GUI_COLLAPSING_PANEL_GUID) {
 		ztVec2 ext = zt_fontGetExtents(ztFontDefault, item->label);
 		ztVec2 m_size = ext;
-		r32 padding = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+		r32 padding = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 		m_size.x += padding * 2;
-		r32 panel_height = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_CollapsingPanelHeight, &panel_height);
+		r32 panel_height = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_CollapsingPanelHeight, &panel_height);
 		m_size.y = zt_max(m_size.y, panel_height);
 
 		item->size.x = zt_max(item->size.x, m_size.x);
@@ -2311,8 +2362,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 	// ================================================================================================================================================================================================
 
 	else if(item->guid == ZT_GUI_BUTTON_GUID || item->guid == ZT_GUI_TOGGLE_BUTTON_GUID) {
-		r32 button_padding_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingW, &button_padding_w);
-		r32 button_padding_h = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingH, &button_padding_h);
+		r32 button_padding_w = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingW, &button_padding_w);
+		r32 button_padding_h = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingH, &button_padding_h);
 
 		ztVec2 text_size = item->label ? zt_fontGetExtents(ztFontDefault, item->label) : ztVec2::zero;
 		if (item->button.icon) {
@@ -2344,8 +2395,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 		else {
 			r32 min_x = text_size.x + button_padding_w * 2;
 			r32 min_y = text_size.y + button_padding_h * 2;
-			r32 button_default_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonDefaultW, &button_default_w);
-			r32 button_default_h = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonDefaultH, &button_default_h);
+			r32 button_default_w = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonDefaultW, &button_default_w);
+			r32 button_default_h = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonDefaultH, &button_default_h);
 			item->size.x = zt_max(min_x, button_default_w);
 			item->size.y = zt_max(min_y, button_default_h);
 		}
@@ -2355,9 +2406,9 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 
 	else if (item->guid == ZT_GUI_CHECKBOX_GUID || item->guid == ZT_GUI_RADIO_BUTTON_GUID) {
 		ztVec2 txt_size = zt_fontGetExtents(ztFontDefault, item->label);
-		r32 padding    = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
-		r32 checkbox_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_CheckboxW, &checkbox_w);
-		r32 checkbox_h = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_CheckboxW, &checkbox_h);
+		r32 padding    = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+		r32 checkbox_w = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_CheckboxW, &checkbox_w);
+		r32 checkbox_h = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_CheckboxW, &checkbox_h);
 		item->size.x = txt_size.x + padding + checkbox_w;
 		item->size.y = zt_max(txt_size.y, checkbox_h);
 
@@ -2455,9 +2506,9 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeSizeItem, ztInternal ZT_FUNC_THE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_THEME_RENDER_ITEM(_zt_guiDefaultThemeRenderItem))
+ZT_FUNC_THEME_RENDER_ITEM(_zt_guiBaseThemeRenderItem)
 {
-	ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem");
+	ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem");
 
 	struct local
 	{
@@ -2577,7 +2628,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	zt_alignToPixel(&size, ppu);
 
 	if (item->guid == ZT_GUI_WINDOW_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Window");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Window");
 
 		if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiWindowInternalStates_Collapsed))) {
 			ztVec2 win_size = zt_vec2(item->size.x, 25 / ppu);
@@ -2610,7 +2661,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_PANEL_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Panel");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Panel");
 
 		if (zt_bitIsSet(item->behavior_flags, ztGuiPanelBehaviorFlags_DrawBackground)) {
 			local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
@@ -2620,12 +2671,12 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_COLLAPSING_PANEL_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:CollapsingPanel");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:CollapsingPanel");
 
 		local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
 
 		if (item->label != nullptr) {
-			r32 panel_height = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_CollapsingPanelHeight, &panel_height);
+			r32 panel_height = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_CollapsingPanelHeight, &panel_height);
 
 			ztVec2 title_pos = zt_vec2(pos.x - ((item->size.x) / 2) + 25 / ppu, pos.y + (item->size.y - (panel_height)) / 2);
 			ztVec2 title_size;
@@ -2641,7 +2692,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_STATIC_TEXT_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:StaticText");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:StaticText");
 #			if 0
 		if (zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Dirty))) {
 			if (item->draw_list) {
@@ -2693,14 +2744,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_TOGGLE_BUTTON_GUID || item->guid == ZT_GUI_BUTTON_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Button");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Button");
 
 		if (!zt_bitIsSet(item->behavior_flags, ztGuiButtonBehaviorFlags_NoBackground) || pressed || highlighted) {
 			local::drawOutlinedSolidRect(draw_list, pos, item->size, highlighted, pressed);
 		}
 
-		r32 button_padding_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingW, &button_padding_w);
-		r32 button_padding_h = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingH, &button_padding_h);
+		r32 button_padding_w = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingW, &button_padding_w);
+		r32 button_padding_h = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ButtonPaddingH, &button_padding_h);
 
 		ztVec2 text_pos = ztVec2::zero;
 		if (item->button.icon) {
@@ -2794,14 +2845,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_CHECKBOX_GUID || item->guid == ZT_GUI_RADIO_BUTTON_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:CheckRadio");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:CheckRadio");
 
 		bool checkbox = zt_bitIsSet(item->behavior_flags, ztGuiButtonInternalBehaviorFlags_IsCheckbox);
 		bool radio    = zt_bitIsSet(item->behavior_flags, ztGuiButtonInternalBehaviorFlags_IsRadio);
 
-		r32 checkbox_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, item->guid == ZT_GUI_CHECKBOX_GUID ? ztGuiThemeValue_r32_CheckboxW : ztGuiThemeValue_r32_RadiobuttonW, &checkbox_w);
-		r32 checkbox_h = 0; _zt_guiDefaultThemeGetRValue(theme, item, item->guid == ZT_GUI_CHECKBOX_GUID ? ztGuiThemeValue_r32_CheckboxW : ztGuiThemeValue_r32_RadiobuttonW, &checkbox_h);
-		r32 padding    = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+		r32 checkbox_w = 0; _zt_guiBaseThemeGetRValue(theme, item, item->guid == ZT_GUI_CHECKBOX_GUID ? ztGuiThemeValue_r32_CheckboxW : ztGuiThemeValue_r32_RadiobuttonW, &checkbox_w);
+		r32 checkbox_h = 0; _zt_guiBaseThemeGetRValue(theme, item, item->guid == ZT_GUI_CHECKBOX_GUID ? ztGuiThemeValue_r32_CheckboxW : ztGuiThemeValue_r32_RadiobuttonW, &checkbox_h);
+		r32 padding    = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 
 		ztVec2 box_size = zt_vec2(checkbox_w, checkbox_h);
 		ztVec2 box_pos, txt_size, txt_pos;
@@ -2841,7 +2892,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_SCROLLBAR_GUID || item->guid == ZT_GUI_SLIDER_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:ScrollbarSlider");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:ScrollbarSlider");
 
 		ztVec2 handle_pos, handle_size;
 
@@ -2850,7 +2901,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 		}
 
 		r32 scrollbar_button_w = 0;
-		_zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ScrollbarButtonW, &scrollbar_button_w);
+		_zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ScrollbarButtonW, &scrollbar_button_w);
 
 		if (item->slider.orient == ztGuiItemOrient_Horz) {
 			handle_pos = pos + zt_vec2(item->slider.handle_pos, 0);
@@ -2907,7 +2958,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_TEXTEDIT_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:TextEdit");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:TextEdit");
 
 		ztVec2 size = item->size;
 		zt_alignToPixel(&size, zt_pixelsPerUnit());
@@ -2956,7 +3007,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_MENU_GUID || item->guid == ZT_GUI_MENUBAR_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Menu");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Menu");
 
 		if (item->guid == ZT_GUI_MENU_GUID) {
 			local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
@@ -3010,8 +3061,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 
 			if (item->guid == ZT_GUI_MENU_GUID) {
 				if (item->menu.submenus[i] != nullptr) {
-					r32 icon_x = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_MenuSubmenuIconX, &icon_x);
-					r32 icon_y = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_MenuSubmenuIconY, &icon_y);
+					r32 icon_x = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_MenuSubmenuIconX, &icon_x);
+					r32 icon_y = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_MenuSubmenuIconY, &icon_y);
 					r32 y = zt_max(icon_y, ext.y) / 2.f;
 					zt_drawListAddText2D(draw_list, ztFontDefault, ">", zt_vec2((item->size.x + pos.x) - (padding * 3 + icon_x / 2.f), pos.y - y + padding));
 				}
@@ -3027,7 +3078,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_TREE_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Tree");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Tree");
 
 		local::drawOutlinedSolidRect(draw_list, pos, item->size, false, false);
 
@@ -3054,14 +3105,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_COMBOBOX_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Combobox");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Combobox");
 
 		bool pressed = false, highlighted = zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
 		zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(highlighted, pressed), local::outline(highlighted, pressed));
 
-		r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+		r32 padding = 0;  _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 
-		r32 button_w = 0; _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
+		r32 button_w = 0; _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_ComboboxButtonW, &button_w);
 		ztSprite sprite_arrow = zt_spriteMake(zt_game->fonts[ztFontDefault].texture, zt_vec2i(992, 14), zt_vec2i(12, 12));
 		zt_drawListAddSprite(draw_list, &sprite_arrow, zt_vec3(pos.x + (item->size.x - button_w) / 2, pos.y, 0));
 
@@ -3086,7 +3137,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_CYCLEBOX_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Cyclebox");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Cyclebox");
 
 		//bool pressed = false, highlighted = zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
 		//if (highlighted) {
@@ -3101,7 +3152,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_SPINNER_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:Spinner");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:Spinner");
 
 		bool pressed = item->gm->item_has_mouse == item;
 		bool highlighted = zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver);
@@ -3109,7 +3160,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 		zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(highlighted, pressed), local::outline(highlighted, pressed));
 		zt_drawListAddLine(draw_list, zt_vec3(pos.x - item->size.x / 2 + (1/ppu), pos.y, 0), zt_vec3(pos.x + item->size.x / 2, pos.y, 0));
 
-		r32 padding = 0;  _zt_guiDefaultThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
+		r32 padding = 0;  _zt_guiBaseThemeGetRValue(theme, item, ztGuiThemeValue_r32_Padding, &padding);
 
 		ztVec3 pos_txt_p = zt_vec3(pos.x, (pos.y + (item->size.y / 2)) - (6 / ppu), 0);
 		ztVec3 pos_txt_m = zt_vec3(pos.x, (pos.y - (item->size.y / 2)) + (7 / ppu), 0);
@@ -3127,7 +3178,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDefaultThemeRenderItem, ztInternal ZT_FUNC_T
 	// ================================================================================================================================================================================================
 
 	else if (item->guid == ZT_GUI_LISTBOX_GUID) {
-		ZT_PROFILE_GUI("_zt_guiDefaultThemeRenderItem:ListBox");
+		ZT_PROFILE_GUI("_zt_guiBaseThemeRenderItem:ListBox");
 
 		zt_drawListAddSolidOutlinedRect2D(draw_list, pos, item->size, local::face(false, false), local::outline(false, false));
 
@@ -3273,13 +3324,13 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 
 		gm->default_theme.theme_data      = nullptr;
 		gm->default_theme.flags           = 0;
-		gm->default_theme.get_rvalue      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeGetRValue);
-		gm->default_theme.get_ivalue      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeGetIValue);
-		gm->default_theme.render_item     = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeRenderItem);
+		gm->default_theme.get_rvalue      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeGetRValue);
+		gm->default_theme.get_ivalue      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeGetIValue);
+		gm->default_theme.render_item     = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeRenderItem);
 		gm->default_theme.postrender_item = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-		gm->default_theme.update_item     = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeUpdateItem);
-		gm->default_theme.update_subitem  = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeUpdateSubitem);
-		gm->default_theme.size_item       = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDefaultThemeSizeItem);
+		gm->default_theme.update_item     = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeUpdateItem);
+		gm->default_theme.update_subitem  = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeUpdateSubitem);
+		gm->default_theme.size_item       = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiBaseThemeSizeItem);
 		gm->default_theme.pass_begin      = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 		gm->default_theme.pass_end        = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 
@@ -3313,7 +3364,7 @@ r32 zt_guiThemeGetRValue(ztGuiTheme *theme, ztGuiThemeValue_Enum value, ztGuiIte
 
 	r32 result = 0;
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->get_rvalue) || !ZT_FUNCTION_POINTER_ACCESS(theme->get_rvalue, ztGuiThemeGetRValue_Func)(theme, item, value, &result)) {
-		_zt_guiDefaultThemeGetRValue(theme, item, value, &result);
+		_zt_guiBaseThemeGetRValue(theme, item, value, &result);
 	}
 
 	return result;
@@ -3329,7 +3380,7 @@ i32 zt_guiThemeGetIValue(ztGuiTheme *theme, ztGuiThemeValue_Enum value, ztGuiIte
 
 	i32 result = 0;
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->get_ivalue) || !ZT_FUNCTION_POINTER_ACCESS(theme->get_ivalue, ztGuiThemeGetIValue_Func)(theme, item, value, &result)) {
-		_zt_guiDefaultThemeGetIValue(theme, item, value, &result);
+		_zt_guiBaseThemeGetIValue(theme, item, value, &result);
 	}
 
 	return result;
@@ -3346,7 +3397,7 @@ void zt_guiThemeUpdateItem(ztGuiTheme *theme, ztGuiItem *item)
 	zt_returnOnNull(item);
 
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->update_item) || !ZT_FUNCTION_POINTER_ACCESS(theme->update_item, ztGuiThemeUpdateItem_Func)(theme, item)) {
-		_zt_guiDefaultThemeUpdateItem(theme, item);
+		_zt_guiBaseThemeUpdateItem(theme, item);
 	}
 }
 
@@ -3361,7 +3412,7 @@ void zt_guiThemeUpdateSubitem(ztGuiTheme *theme, ztGuiItem *item, ztGuiItem * su
 	zt_returnOnNull(subitem);
 
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->update_subitem) || !ZT_FUNCTION_POINTER_ACCESS(theme->update_subitem, ztGuiThemeUpdateSubitem_Func)(theme, item, subitem, data)) {
-		_zt_guiDefaultThemeUpdateSubitem(theme, item, subitem, data);
+		_zt_guiBaseThemeUpdateSubitem(theme, item, subitem, data);
 	}
 }
 
@@ -3375,7 +3426,7 @@ void zt_guiThemeSizeItem(ztGuiTheme *theme, ztGuiItem *item)
 	zt_returnOnNull(item);
 
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->size_item) || !ZT_FUNCTION_POINTER_ACCESS(theme->size_item, ztGuiThemeSizeItem_Func)(theme, item)) {
-		_zt_guiDefaultThemeSizeItem(theme, item);
+		_zt_guiBaseThemeSizeItem(theme, item);
 	}
 }
 
@@ -3391,7 +3442,7 @@ void zt_guiThemeRender(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *item
 
 	bool needs_postrender = false;
 	if (!ZT_FUNCTION_POINTER_IS_VALID(theme->render_item) || !ZT_FUNCTION_POINTER_ACCESS(theme->render_item, ztGuiThemeRenderItem_Func)(theme, draw_list, item, pos, &needs_postrender)) {
-		_zt_guiDefaultThemeRenderItem(theme, draw_list, item, pos, &needs_postrender);
+		_zt_guiBaseThemeRenderItem(theme, draw_list, item, pos, &needs_postrender);
 	}
 
 	if (needs_postrender) {
@@ -3538,6 +3589,13 @@ void zt_guiManagerFree(ztGuiManager *gm)
 	zt_memFreeArena(gm->string_pool.arena);
 	//zt_stringPoolFree(&gm->string_pool); can skip this since it was contained in the arena
 	gm->string_pool = {};
+
+	ztGuiItemType *item_type_prev = nullptr;
+	zt_flink(item_type, gm->item_types) {
+		if(item_type_prev) zt_freeArena(item_type_prev, gm->arena);
+		item_type_prev = item_type;
+	}
+	if(item_type_prev) zt_freeArena(item_type_prev, gm->arena);
 
 	zt_freeArena(gm, gm->arena);
 
@@ -4324,7 +4382,7 @@ ztInternal bool _zt_guiProcessDrag(ztGuiDragState *drag_state, ztGuiManager *gm,
 
 // ================================================================================================================================================================================================
 
-ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, i32 item_flags, i32 draw_list_size)
+ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, const char *item_type, i32 item_flags, i32 draw_list_size)
 {
 	ZT_PROFILE_GUI("_zt_guiMakeItemBase");
 
@@ -4346,7 +4404,25 @@ ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, i32 item_flags, i
 
 	zt_memSet(item, zt_sizeof(ztGuiItem), 0);
 
+	ztGuiItemType *item_type_ptr = nullptr;
+
+	zt_flink(it, gm->item_types) {
+		if (it->guid == guid) {
+			item_type_ptr = it;
+			break;
+		}
+	}
+
+	if (item_type_ptr == nullptr) {
+		item_type_ptr = zt_mallocStructArena(ztGuiItemType, gm->arena);
+		item_type_ptr->guid = guid;
+		zt_strCpy(item_type_ptr->type_name, zt_elementsOf(item_type_ptr->type_name), item_type);
+		item_type_ptr->next = nullptr;
+		zt_singleLinkAddToEnd(gm->item_types, item_type_ptr);
+	}
+
 	item->id             = item_id;
+	item->type           = item_type_ptr->type_name;
 	item->guid           = guid;
 	item->behavior_flags = item_flags;
 	item->state_flags    = zt_bit(ztGuiItemStates_Visible) | zt_bit(ztGuiItemStates_Dirty) | zt_bit(ztGuiItemStates_Resized);
@@ -4406,7 +4482,7 @@ ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, i32 item_flags, i
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiWindowUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiWindowUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiWindowUpdate");
 
@@ -4453,14 +4529,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowUpdate, ztInternal ZT_FUNC_GUI_ITEM_UP
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiWindowRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiWindowRender)
 {
 	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonClose, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiWindowOnButtonClose))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiWindowOnButtonClose)
 {
 	ZT_PROFILE_GUI("_zt_guiWindowOnButtonClose");
 
@@ -4476,7 +4552,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonClose, ztInternal ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonToggle, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiWindowOnButtonToggle))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiWindowOnButtonToggle)
 {
 	ZT_PROFILE_GUI("_zt_guiWindowOnButtonToggle");
 
@@ -4486,7 +4562,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowOnButtonToggle, ztInternal ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiWindowInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiWindowInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiWindowInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiWindowInputMouse");
 
@@ -4553,7 +4629,7 @@ ztGuiItem *zt_guiMakeWindow(const char *title, i32 behavior_flags)
 {
 	ZT_PROFILE_GUI("zt_guiMakeWindow");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(nullptr, ZT_GUI_WINDOW_GUID, behavior_flags | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront /* | ztGuiItemBehaviorFlags_ClipChildren*/);
+	ztGuiItem *item = _zt_guiMakeItemBase(nullptr, ZT_GUI_WINDOW_GUID, "Window", behavior_flags | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront /* | ztGuiItemBehaviorFlags_ClipChildren*/);
 	if (!item) return nullptr;
 
 	if (zt_bitIsSet(behavior_flags, ztGuiWindowBehaviorFlags_ShowTitle)) {
@@ -4568,7 +4644,7 @@ ztGuiItem *zt_guiMakeWindow(const char *title, i32 behavior_flags)
 			scroll_container = zt_guiMakeScrollContainer(item, sflags);
 		}
 
-		item->window.content = _zt_guiMakeItemBase(item, ZT_GUI_PANEL_GUID, 0);
+		item->window.content = _zt_guiMakeItemBase(item, ZT_GUI_PANEL_GUID, "Window Content", 0);
 		zt_debugOnly(zt_guiItemSetName(item->window.content, "Window Content Panel"));
 
 		ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -4700,10 +4776,20 @@ bool zt_guiWindowIsCollapsed(ztGuiItem *window)
 }
 
 // ================================================================================================================================================================================================
+
+bool zt_guiWindowIsOnTop(ztGuiItem *window)
+{
+	ZT_PROFILE_GUI("zt_guiWindowIsOnTop");
+	zt_assertReturnValOnFail(window->guid == ZT_GUI_WINDOW_GUID, false);
+
+	return window->sib_next == nullptr;
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiPanelCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiPanelCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiPanelCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiPanelCleanup");
 
@@ -4714,7 +4800,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiPanelCleanup, ztInternal ZT_FUNC_GUI_ITEM_CL
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiPanelRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiPanelRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiPanelRender)
 {
 	ZT_PROFILE_GUI("_zt_guiPanelRender");
 
@@ -4727,7 +4813,7 @@ ztGuiItem *zt_guiMakePanel(ztGuiItem *parent, i32 behavior_flags, void *user_dat
 {
 	ZT_PROFILE_GUI("zt_guiMakePanel");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_PANEL_GUID, behavior_flags);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_PANEL_GUID, "Panel", behavior_flags);
 	zt_returnValOnNull(item, nullptr);
 
 	item->panel.user_data = user_data;
@@ -4745,7 +4831,7 @@ ztGuiItem *zt_guiMakePanel(ztGuiItem *parent, i32 behavior_flags, void *user_dat
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiCollapsingPanelUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiCollapsingPanelUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiCollapsingPanelUpdate");
 
@@ -4787,7 +4873,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelUpdate, ztInternal ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiCollapsingPanelRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiCollapsingPanelRender)
 {
 	ZT_PROFILE_GUI("_zt_guiCollapsingPanelRender");
 
@@ -4823,7 +4909,7 @@ ztInternal void _zt_guiCollapsingPanelToggle(ztGuiItem *item)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelOnToggle, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCollapsingPanelOnToggle))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCollapsingPanelOnToggle)
 {
 	ZT_PROFILE_GUI("_zt_guiCollapsingPanelOnToggle");
 
@@ -4833,7 +4919,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelOnToggle, ztInternal ZT_FUNC_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollapsingPanelBestSize, static ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiCollapsingPanelBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiCollapsingPanelBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiCollapsingPanelBestSize");
 
@@ -4846,7 +4932,7 @@ ztGuiItem *zt_guiMakeCollapsingPanel(ztGuiItem *parent, const char *label)
 {
 	ZT_PROFILE_GUI("zt_guiMakeCollapsingPanel");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COLLAPSING_PANEL_GUID, /*ztGuiItemBehaviorFlags_ClipChildren*/ 0, (zt_strLen(label) * 2) + 19);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COLLAPSING_PANEL_GUID, "Collapsing Panel", /*ztGuiItemBehaviorFlags_ClipChildren*/ 0, (zt_strLen(label) * 2) + 19);
 	zt_returnValOnNull(item, nullptr);
 
 	item->state_flags |= zt_bit(ztGuiCollapsingPanelInternalStates_Collapsed);
@@ -4911,7 +4997,7 @@ void zt_guiCollapsingPanelExpand(ztGuiItem *panel)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiStaticTextRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiStaticTextRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiStaticTextRender)
 {
 	ZT_PROFILE_GUI("_zt_guiStaticTextRender");
 	//	zt_assert(zt_strLen(item->label) < item->draw_list->commands_size / 2); // this means you need to set the max chars in the constructor to be higher
@@ -4921,7 +5007,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiStaticTextRender, ztInternal ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiStaticTextBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiStaticTextBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiStaticTextBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiStaticTextBestSize");
 
@@ -4934,7 +5020,7 @@ ztGuiItem *zt_guiMakeStaticText(ztGuiItem *parent, const char *label, i32 behavi
 {
 	ZT_PROFILE_GUI("zt_guiMakeStaticText");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_STATIC_TEXT_GUID, behavior_flags);// , zt_max(zt_strLen(label), max_chars) * 2);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_STATIC_TEXT_GUID, "Static Text", behavior_flags);// , zt_max(zt_strLen(label), max_chars) * 2);
 	zt_returnValOnNull(item, nullptr);
 
 	item->functions.render    = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiStaticTextRender);
@@ -4952,7 +5038,7 @@ ztGuiItem *zt_guiMakeStaticText(ztGuiItem *parent, const char *label, i32 behavi
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiButtonBaseUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiButtonBaseUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseUpdate");
 
@@ -4973,7 +5059,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseUpdate, ztInternal ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiButtonBaseRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiButtonBaseRender)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseRender");
 
@@ -4982,7 +5068,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseRender, ztInternal ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiButtonBaseCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiButtonBaseCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseCleanup");
 
@@ -4992,7 +5078,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseCleanup, ztInternal ZT_FUNC_GUI_IT
 }
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiButtonBaseInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiButtonBaseInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseInputMouse");
 
@@ -5037,7 +5123,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseInputMouse, ztInternal ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiButtonBaseBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiButtonBaseBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiButtonBaseBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseBestSize");
 
@@ -5050,7 +5136,7 @@ ztInternal ztGuiItem *_zt_guiMakeButtonBase(ztGuiItem *parent, const char *label
 {
 	ZT_PROFILE_GUI("_zt_guiMakeButtonBase");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_BUTTON_GUID, behavior_flags | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus, zt_strLen(label) * 2);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_BUTTON_GUID, "Button", behavior_flags | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus, zt_strLen(label) * 2);
 	zt_returnValOnNull(item, nullptr);
 
 	zt_guiItemSetLabel(item, label);
@@ -5306,7 +5392,7 @@ ztInternal void _zt_guiSliderDoCallback(ztGuiItem *item)
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSliderBaseUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSliderBaseUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiSliderBaseUpdate");
 
@@ -5343,7 +5429,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseUpdate, ztInternal ZT_FUNC_GUI_ITE
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSliderBaseRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSliderBaseRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSliderBaseRender)
 {
 	ZT_PROFILE_GUI("_zt_guiSliderBaseRender");
 
@@ -5423,7 +5509,7 @@ ztInternal void _zt_guiItemSliderProcessDragReturn(ztGuiItem *item, ztGuiTheme *
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiItemSliderInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiItemSliderInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiItemSliderInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiItemSliderInputMouse");
 
@@ -5521,7 +5607,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiItemSliderInputMouse, ztInternal ZT_FUNC_GUI
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiItemSliderBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiItemSliderBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiItemSliderBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiItemSliderBestSize");
 
@@ -5562,7 +5648,7 @@ ztInternal ztGuiItem *_zt_guiMakeSliderBase(ztGuiItem *parent, ztGuiItemOrient_E
 {
 	ZT_PROFILE_GUI("_zt_guiMakeSliderBase");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SLIDER_GUID, ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, scrollbar ? ZT_GUI_SCROLLBAR_GUID : ZT_GUI_SLIDER_GUID, scrollbar ? "Scrollbar" : "Slider", ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -5580,7 +5666,6 @@ ztInternal ztGuiItem *_zt_guiMakeSliderBase(ztGuiItem *parent, ztGuiItemOrient_E
 	item->functions.update      = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiSliderBaseUpdate);
 
 	if (scrollbar) {
-		item->guid = ZT_GUI_SCROLLBAR_GUID;
 		item->slider.step = .1f;
 		item->slider.step_page = .25f;
 		item->slider.handle_pct = .5f;
@@ -5877,7 +5962,7 @@ ztInternal void _zt_guiScrollContainerCalcViewportSizePos(ztGuiItem *item, ztVec
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiScrollContainerUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiScrollContainerUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiScrollContainerUpdate");
 
@@ -5928,7 +6013,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerUpdate, ztInternal ZT_FUNC_GU
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiScrollContainerInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiScrollContainerInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiScrollContainerInputMouse");
 
@@ -5944,7 +6029,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerInputMouse, ztInternal ZT_FUN
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerInputKey, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiScrollContainerInputKey))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiScrollContainerInputKey)
 {
 	ZT_PROFILE_GUI("_zt_guiScrollContainerInputKey");
 
@@ -5968,7 +6053,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerInputKey, ztInternal ZT_FUNC_
 
 // ------------------------------------------------------------------------------------
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiScrollContainerBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiScrollContainerBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiScrollContainerBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiScrollContainerBestSize");
 
@@ -5987,7 +6072,7 @@ ztGuiItem *zt_guiMakeScrollContainer(ztGuiItem *parent, i32 behavior_flags)
 
 	zt_returnValOnNull(parent, nullptr);
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SCROLL_CONTAINER_GUID, ztGuiItemBehaviorFlags_LateUpdate | ztGuiItemBehaviorFlags_ClipChildren | behavior_flags);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SCROLL_CONTAINER_GUID, "Scroll Container", ztGuiItemBehaviorFlags_LateUpdate | ztGuiItemBehaviorFlags_ClipChildren | behavior_flags);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -6293,7 +6378,7 @@ ztInternal void _zt_guiTextEditRecalcCursor(ztGuiItem *item)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiTextEditUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiTextEditUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditUpdate");
 
@@ -6320,7 +6405,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditUpdate, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiTextEditRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiTextEditRender)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditRender");
 
@@ -6329,7 +6414,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditRender, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiTextEditCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiTextEditCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditCleanup");
 
@@ -6455,7 +6540,7 @@ ztInternal void _zt_guiTextEditSelectEnd(ztGuiItem *item)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputKey, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiTextEditInputKey))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiTextEditInputKey)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditInputKey");
 
@@ -6747,7 +6832,7 @@ ztInternal int _zt_guiTextEditGetCursorIndexAtPosition(ztGuiItem *item, ztVec2 p
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiTextEditInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiTextEditInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditInputMouse");
 
@@ -6775,7 +6860,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditInputMouse, ztInternal ZT_FUNC_GUI_I
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTextEditBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiTextEditBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiTextEditBestSize)
 {
 }
 
@@ -6785,7 +6870,7 @@ ztGuiItem *zt_guiMakeTextEdit(ztGuiItem *parent, const char *value, i32 flags, i
 {
 	ZT_PROFILE_GUI("zt_guiMakeTextEdit");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_TEXTEDIT_GUID, ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_WantsFocus | flags, buffer_size * 2);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_TEXTEDIT_GUID, "TextEdit", ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_WantsFocus | flags, buffer_size * 2);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -7017,7 +7102,7 @@ ztInternal void _zt_guiMenuCloseAll()
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiMenuBaseUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiMenuBaseUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiMenuBaseUpdate");
 
@@ -7068,7 +7153,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseUpdate, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiMenuBaseRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiMenuBaseRender)
 {
 	ZT_PROFILE_GUI("_zt_guiMenuBaseRender");
 
@@ -7077,7 +7162,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBaseRender, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiMenuCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiMenuCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiMenuCleanup");
 
@@ -7095,7 +7180,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiMenuInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiMenuInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiMenuInputMouse");
 
@@ -7213,7 +7298,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuInputMouse, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiMenuBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiMenuBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiMenuBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiMenuBestSize");
 
@@ -7228,7 +7313,7 @@ ztInternal ztGuiItem *_zt_guiMakeMenuBase(ztGuiItem *parent, ztGuiItem *owner, b
 {
 	ZT_PROFILE_GUI("_zt_guiMakeMenuBase");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, bar ? ZT_GUI_MENUBAR_GUID : ZT_GUI_MENU_GUID, behavior_flags | (bar ? 0 : ztGuiItemBehaviorFlags_ClipContents) /* <- this was commented out... why? */ | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, bar ? ZT_GUI_MENUBAR_GUID : ZT_GUI_MENU_GUID, bar ? "Menu Bar" : "Menu", behavior_flags | (bar ? 0 : ztGuiItemBehaviorFlags_ClipContents) /* <- this was commented out... why? */ | ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_BringToFront);
 	zt_returnValOnNull(item, nullptr);
 
 	if (!bar) {
@@ -7607,7 +7692,7 @@ ztInternal void _zt_guiTreeRecalc(ztGuiItem *tree)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiTreeUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiTreeUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiTreeUpdate");
 
@@ -7618,14 +7703,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDA
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiTreeRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiTreeRender)
 {
 	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiTreeCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiTreeCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiTreeCleanup");
 
@@ -7668,7 +7753,7 @@ ztInternal ztGuiTreeItem *_zt_guiTreeMouseIntersecting(ztGuiTreeItem *root, ztVe
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiTreeInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiTreeInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiTreeInputMouse");
 
@@ -7699,7 +7784,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeInputMouse, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeBestSize, static ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiTreeBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiTreeBestSize)
 {
 }
 // ================================================================================================================================================================================================
@@ -7708,7 +7793,7 @@ ztGuiItem *zt_guiMakeTree(ztGuiItem *parent, i32 max_items)
 {
 	ZT_PROFILE_GUI("zt_guiMakeTree");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_TREE_GUID, ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_ClipContents);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_TREE_GUID, "Tree", ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_ClipContents);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -7801,7 +7886,7 @@ ztInternal bool _zt_guiTreeToggleItem(ztGuiItem *tree, ztGuiTreeItem *root, ztGu
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiTreeOnToggle, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiTreeOnToggle))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiTreeOnToggle)
 {
 	ZT_PROFILE_GUI("_zt_guiTreeOnToggle");
 
@@ -8091,7 +8176,7 @@ ztGuiTreeNodeID  zt_guiTreeFindNodeWithUserDataOf(ztGuiItem *tree, void *user_da
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiComboBoxRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiComboBoxRender)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxRender");
 
@@ -8100,7 +8185,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxRender, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiComboBoxCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiComboBoxCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxCleanup");
 
@@ -8118,7 +8203,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiComboBoxInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiComboBoxInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxInputMouse");
 
@@ -8145,7 +8230,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxInputMouse, ztInternal ZT_FUNC_GUI_I
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxInputKey, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiComboBoxInputKey))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiComboBoxInputKey)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxInputKey");
 
@@ -8171,7 +8256,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxInputKey, ztInternal ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxBestSize, static ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiComboBoxBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiComboBoxBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxBestSize");
 
@@ -8184,7 +8269,7 @@ ztGuiItem *zt_guiMakeComboBox(ztGuiItem *parent, i32 max_items)
 {
 	ZT_PROFILE_GUI("zt_guiMakeComboBox");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COMBOBOX_GUID, ztGuiItemBehaviorFlags_WantsFocus);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COMBOBOX_GUID, "Combobox", ztGuiItemBehaviorFlags_WantsFocus);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -8220,7 +8305,7 @@ ztGuiItem *zt_guiMakeComboBox(ztGuiItem *parent, i32 max_items)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiComboBoxMenuSelected, ztInternal ZT_FUNC_GUI_MENU_SELECTED(_zt_guiComboBoxMenuSelected))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiComboBoxMenuSelected)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxMenuSelected");
 
@@ -8459,7 +8544,7 @@ ztInternal void _zt_guiCycleBoxCycleRight(ztGuiItem *item)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiCycleBoxRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiCycleBoxRender)
 {
 	ZT_PROFILE_GUI("_zt_guiCycleBoxRender");
 
@@ -8468,7 +8553,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxRender, ztInternal ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiCycleBoxCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiCycleBoxCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiCycleBoxCleanup");
 
@@ -8482,7 +8567,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxInputKey, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiCycleBoxInputKey))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiCycleBoxInputKey)
 {
 	ZT_PROFILE_GUI("_zt_guiCycleBoxInputKey");
 
@@ -8498,7 +8583,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxInputKey, ztInternal ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxBestSize, static ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiCycleBoxBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiCycleBoxBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiCycleBoxBestSize");
 
@@ -8507,7 +8592,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxBestSize, static ZT_FUNC_GUI_ITEM_BE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxButtonLeft, static ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonLeft))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonLeft)
 {
 	ztGuiItem *item = (ztGuiItem*)user_data;
 	_zt_guiCycleBoxCycleLeft(item);
@@ -8515,7 +8600,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxButtonLeft, static ZT_FUNC_GUI_BUTTO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCycleBoxButtonRight, static ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonRight))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiCycleBoxButtonRight)
 {
 	ztGuiItem *item = (ztGuiItem*)user_data;
 	_zt_guiCycleBoxCycleRight(item);
@@ -8527,7 +8612,7 @@ ztGuiItem *zt_guiMakeCycleBox(ztGuiItem *parent, i32 max_items, i32 behavior_fla
 {
 	ZT_PROFILE_GUI("zt_guiMakeCycleBox");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_CYCLEBOX_GUID, ztGuiItemBehaviorFlags_WantsFocus|behavior_flags);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_CYCLEBOX_GUID, "Cyclebox", ztGuiItemBehaviorFlags_WantsFocus|behavior_flags);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -8693,7 +8778,7 @@ void zt_guiCycleBoxSetCallback(ztGuiItem *cyclebox, ZT_FUNCTION_POINTER_VAR(on_i
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpriteDisplayRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpriteDisplayRender)
 {
 	ZT_PROFILE_GUI("_zt_guiSpriteDisplayRender");
 	zt_guiThemeRender(theme, draw_list, item, offset + item->pos);
@@ -8701,7 +8786,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayRender, ztInternal ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiSpriteDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiSpriteDisplayCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiSpriteDisplayCleanup");
 
@@ -8712,7 +8797,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayCleanup, ztInternal ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpriteDisplayBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiSpriteDisplayBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiSpriteDisplayBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiSpriteDisplayBestSize");
 
@@ -8733,7 +8818,7 @@ ztInternal ztGuiItem *_zt_guiMakeSpriteDisplay(ztGuiItem *parent, ztGuiThemeSpri
 {
 	ZT_PROFILE_GUI("zt_guiMakeSpriteDisplay");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPRITE_DISPLAY_GUID, ztGuiItemBehaviorFlags_WantsFocus);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPRITE_DISPLAY_GUID, "Sprite Display", ztGuiItemBehaviorFlags_WantsFocus);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -8800,7 +8885,7 @@ void zt_guiSpriteDisplaySetSprite(ztGuiItem *item, ztGuiThemeSprite *sprite, con
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSpinnerUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSpinnerUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiSpinnerUpdate");
 
@@ -8817,7 +8902,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerUpdate, ztInternal ZT_FUNC_GUI_ITEM_U
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpinnerRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSpinnerRender)
 {
 	ZT_PROFILE_GUI("_zt_guiSpinnerRender");
 
@@ -8826,7 +8911,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerRender, ztInternal ZT_FUNC_GUI_ITEM_R
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSpinnerInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiSpinnerInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiSpinnerInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiSpinnerInputMouse");
 
@@ -8891,7 +8976,7 @@ ztGuiItem *zt_guiMakeSpinner(ztGuiItem *parent, int *live_value)
 {
 	ZT_PROFILE_GUI("zt_guiMakeSpinner");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPINNER_GUID, ztGuiItemBehaviorFlags_WantsFocus);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPINNER_GUID, "Spinner", ztGuiItemBehaviorFlags_WantsFocus);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -9100,7 +9185,7 @@ ztInternal void _zt_guiListBoxAdjustItemsPositions(ztGuiItem *listbox)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxScrolled, ztInternal ZT_FUNC_GUI_SCROLLBAR_SCROLLED(_zt_guiListBoxScrolled))
+ZT_FUNC_GUI_SCROLLBAR_SCROLLED(_zt_guiListBoxScrolled)
 {
 	ztGuiItem *listbox = (ztGuiItem*)user_data;
 	_zt_guiListBoxAdjustItemsPositions(listbox);
@@ -9108,7 +9193,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxScrolled, ztInternal ZT_FUNC_GUI_SCRO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiListBoxUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiListBoxUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiListBoxUpdate");
 
@@ -9182,7 +9267,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxUpdate, ztInternal ZT_FUNC_GUI_ITEM_U
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiListBoxRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiListBoxRender)
 {
 	ZT_PROFILE_GUI("_zt_guiListBoxRender");
 
@@ -9259,7 +9344,7 @@ ztInternal int _zt_guiListBoxSetSelected(ztGuiItem *listbox, int item_idx, bool 
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiListBoxInputKeyboard))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiListBoxInputKeyboard)
 {
 	ZT_PROFILE_GUI("_zt_guiListBoxInputKeyboard");
 
@@ -9455,7 +9540,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputKeyboard, ztInternal ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiListBoxInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiListBoxInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiListBoxInputMouse");
 
@@ -9506,7 +9591,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxInputMouse, ztInternal ZT_FUNC_GUI_IT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiListBoxCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiListBoxCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiListBoxCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiListBoxCleanup");
 
@@ -9525,7 +9610,7 @@ ztGuiItem *zt_guiMakeListBox(ztGuiItem *parent, i32 behavior_flags, i32 max_item
 {
 	ZT_PROFILE_GUI("zt_guiMakeListBox");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_LISTBOX_GUID, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsKeyboardAlways | ztGuiItemBehaviorFlags_ClipChildren | ztGuiItemBehaviorFlags_ClipContents);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_LISTBOX_GUID, "Listbox", behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsKeyboardAlways | ztGuiItemBehaviorFlags_ClipChildren | ztGuiItemBehaviorFlags_ClipContents);
 	zt_returnValOnNull(item, nullptr);
 
 	ztGuiTheme *theme = zt_guiItemGetTheme(item);
@@ -9889,7 +9974,7 @@ void zt_guiListBoxRemoveItem(ztGuiItem *listbox, int item)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiColorPickerInputMouse");
 
@@ -9903,7 +9988,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerInputMouse, ZT_FUNC_GUI_ITEM_INPU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerRender)
 {
 	ZT_PROFILE_GUI("_zt_guiColorPickerRender");
 
@@ -9921,7 +10006,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerRender, ZT_FUNC_GUI_ITEM_RENDER(_
 ztGuiItem *zt_guiMakeColorPicker(ztGuiItem *parent, ztColor color, i32 behavior_flags, ztColor *live_value)
 {
 	ZT_PROFILE_GUI("zt_guiMakeColorPicker");
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COLOR_PICKER_GUID, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_COLOR_PICKER_GUID, "Color Picker", behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
 	item->color = color;
 	item->size = zt_vec2(1, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
 
@@ -9965,7 +10050,7 @@ void zt_guiColorPickerSetLiveValue(ztGuiItem *color_picker, ztColor *live_value)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiGradientPickerInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiGradientPickerInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiGradientPickerInputMouse");
 
@@ -9979,7 +10064,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerInputMouse, ZT_FUNC_GUI_ITEM_I
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiGradientPickerRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiGradientPickerRender)
 {
 	ZT_PROFILE_GUI("_zt_guiGradientPickerRender");
 
@@ -10015,7 +10100,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerRender, ZT_FUNC_GUI_ITEM_RENDE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiGradientPickerCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiGradientPickerCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiGradientPickerCleanup");
 
@@ -10027,7 +10112,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiGradientPickerCleanup, ZT_FUNC_GUI_ITEM_CLEA
 ztGuiItem *zt_guiMakeGradientPicker(ztGuiItem *parent, ztColorGradient2 *gradient, i32 behavior_flags, ztColorGradient2 *live_value)
 {
 	ZT_PROFILE_GUI("zt_guiMakeGradientPicker");
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_GRADIENT_PICKER_GUID, behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_GRADIENT_PICKER_GUID, "Gradient Picker", behavior_flags | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
 
 	item->size = zt_vec2(1, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
 
@@ -10090,7 +10175,7 @@ void zt_guiGradientPickerSetLiveValue(ztGuiItem *gradient_picker, ztColorGradien
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiAnimCurveInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiAnimCurveInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiAnimCurveInputMouse");
 
@@ -10104,7 +10189,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveInputMouse, ZT_FUNC_GUI_ITEM_INPUT_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiAnimCurveRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiAnimCurveRender)
 {
 	ZT_PROFILE_GUI("_zt_guiAnimCurveRender");
 
@@ -10135,7 +10220,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveRender, ZT_FUNC_GUI_ITEM_RENDER(_zt
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiAnimCurveCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiAnimCurveCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiAnimCurveCleanup");
 
@@ -10147,7 +10232,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiAnimCurveCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_
 ztGuiItem *zt_guiMakeAnimCurve(ztGuiItem *parent, ztAnimCurve *curve, i32 behavior_flags, ztAnimCurve *live_value)
 {
 	ZT_PROFILE_GUI("zt_guiMakeAnimCurve");
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_ANIM_CURVE_GUID, behavior_flags | ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_ANIM_CURVE_GUID, "Anim Curve", behavior_flags | ztGuiItemBehaviorFlags_ClipContents | ztGuiItemBehaviorFlags_WantsFocus | ztGuiItemBehaviorFlags_WantsInput);
 	item->size = zt_vec2(1.5f, zt_guiThemeGetRValue(zt_guiItemGetTheme(item), ztGuiThemeValue_r32_TextEditDefaultH, item));
 
 	item->anim_curve.curve = zt_mallocStructArena(ztAnimCurve, item->gm->arena);
@@ -10261,7 +10346,7 @@ struct ztGuiEditorValue
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorUpdate");
 
@@ -10344,7 +10429,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_gu
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiEditorTextChange))
+ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiEditorTextChange)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorTextChange");
 
@@ -10414,7 +10499,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorSpinnerChanged, ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(_zt_guiEditorSpinnerChanged))
+ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(_zt_guiEditorSpinnerChanged)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorSpinnerChanged");
 
@@ -10777,7 +10862,7 @@ struct ztGuiEditorQuat
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorQuatUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorQuatUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorQuatUpdate)
 {
 	ztGuiEditorQuat *editor_info = (ztGuiEditorQuat*)item->panel.user_data;;
 	
@@ -11410,7 +11495,7 @@ ztInternal void _zt_guiEditorPartVarRealUpdateGui(ztParticleVariableRealEditor *
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarRealButtonCfgMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarRealButtonCfgMenu)
 {
 	ztParticleVariableRealEditor *editor = (ztParticleVariableRealEditor*)user_data;
 
@@ -11448,7 +11533,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfgMenu, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarRealButtonCfg))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarRealButtonCfg)
 {
 	ztParticleVariableRealEditor *editor = (ztParticleVariableRealEditor*)user_data;
 
@@ -11468,7 +11553,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealButtonCfg, ZT_FUNC_GUI_BUTT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarRealUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarRealUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarRealUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorPartVarRealUpdate");
 
@@ -11643,7 +11728,7 @@ ztInternal void _zt_guiEditorPartVarColorUpdateGui(ztParticleVariableColorEditor
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarColorButtonCfgMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarColorButtonCfgMenu)
 {
 	ztParticleVariableColorEditor *editor = (ztParticleVariableColorEditor*)user_data;
 
@@ -11674,7 +11759,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfgMenu, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarColorButtonCfg))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarColorButtonCfg)
 {
 	ztParticleVariableColorEditor *editor = (ztParticleVariableColorEditor*)user_data;
 
@@ -11694,7 +11779,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorButtonCfg, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarColorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarColorUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarColorUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorPartVarColorUpdate");
 
@@ -11946,7 +12031,7 @@ ztInternal void _zt_guiEditorPartVarVec2UpdateUnified(ztParticleVariableVec2Edit
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec2ButtonCfgMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec2ButtonCfgMenu)
 {
 	ztParticleVariableVec2Editor *editor = (ztParticleVariableVec2Editor*)user_data;
 
@@ -12039,7 +12124,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfgMenu, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec2ButtonCfg))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec2ButtonCfg)
 {
 	ztParticleVariableVec2Editor *editor = (ztParticleVariableVec2Editor*)user_data;
 
@@ -12064,7 +12149,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2ButtonCfg, ZT_FUNC_GUI_BUTT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec2Update, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec2Update))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec2Update)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorPartVarVec2Update");
 
@@ -12422,7 +12507,7 @@ ztInternal void _zt_guiEditorPartVarVec3UpdateUnified(ztParticleVariableVec3Edit
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfgMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec3ButtonCfgMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiEditorPartVarVec3ButtonCfgMenu)
 {
 	ztParticleVariableVec3Editor *editor = (ztParticleVariableVec3Editor*)user_data;
 
@@ -12515,7 +12600,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfgMenu, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfg, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec3ButtonCfg))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiEditorPartVarVec3ButtonCfg)
 {
 	ztParticleVariableVec3Editor *editor = (ztParticleVariableVec3Editor*)user_data;
 
@@ -12541,7 +12626,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3ButtonCfg, ZT_FUNC_GUI_BUTT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiEditorPartVarVec3Update, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec3Update))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorPartVarVec3Update)
 {
 	ZT_PROFILE_GUI("_zt_guiEditorPartVarVec3Update");
 
@@ -12774,7 +12859,7 @@ struct ztGuiEditorFlags
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiFlagEditorCheckbox, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiFlagEditorCheckbox))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiFlagEditorCheckbox)
 {
 	ztGuiEditorFlags *flags = (ztGuiEditorFlags *)user_data;
 
@@ -12790,7 +12875,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiFlagEditorCheckbox, ZT_FUNC_GUI_BUTTON_PRESS
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiFlagEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiFlagEditorUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiFlagEditorUpdate)
 {
 	ztGuiEditorFlags *flags = (ztGuiEditorFlags *)user_data;
 
@@ -13076,7 +13161,7 @@ ztInternal void _zt_guiSizerRecalc(ztGuiItem *item, bool force = false)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSizerUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSizerUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiSizerUpdate");
 
@@ -13523,7 +13608,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPD
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiSizerCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiSizerCleanup)
 {
 	ZT_PROFILE_GUI("_zt_guiSizerCleanup");
 
@@ -13538,7 +13623,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerCleanup, ztInternal ZT_FUNC_GUI_ITEM_CL
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSizerBestSize, ztInternal ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiSizerBestSize))
+ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiSizerBestSize)
 {
 	ZT_PROFILE_GUI("_zt_guiSizerBestSize");
 
@@ -13552,7 +13637,7 @@ ztGuiItem *zt_guiMakeSizer(ztGuiItem *parent, ztGuiItemOrient_Enum orient, bool 
 {
 	ZT_PROFILE_GUI("zt_guiMakeSizer");
 
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SIZER_GUID, ztGuiItemBehaviorFlags_LateUpdate);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SIZER_GUID, "Sizer", ztGuiItemBehaviorFlags_LateUpdate);
 	zt_returnValOnNull(item, nullptr);
 
 	item->sizer.orient = orient;
@@ -13645,7 +13730,7 @@ void zt_guiSizerAddStretcher(ztGuiItem *sizer, int proportion, r32 padding)
 {
 	ZT_PROFILE_GUI("zt_guiSizerAddStretcher");
 
-	ztGuiItem *stretcher = _zt_guiMakeItemBase(sizer, ZT_GUI_SIZER_STRETCHER_GUID, 0);
+	ztGuiItem *stretcher = _zt_guiMakeItemBase(sizer, ZT_GUI_SIZER_STRETCHER_GUID, "Sizer Stretcher", 0);
 	zt_debugOnly(zt_guiItemSetName(stretcher, "Sizer Stretcher"));
 
 	zt_guiSizerAddItem(sizer, stretcher, proportion, padding);
@@ -13782,7 +13867,7 @@ void zt_guiColumnSizerSetProp(ztGuiItem *sizer, int col, int prop)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSplitterRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSplitterRender)
 {
 	ZT_PROFILE_GUI("_zt_guiSplitterRender");
 
@@ -13791,7 +13876,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiSplitterInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiSplitterInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiSplitterInputMouse");
 
@@ -13901,7 +13986,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterInputMouse, ZT_FUNC_GUI_ITEM_INPUT_M
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSplitterUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSplitterUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiSplitterUpdate");
 	if (!zt_bitIsSet(item->state_flags, zt_bit(ztGuiItemStates_Dirty))) {
@@ -13953,7 +14038,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiSplitterUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_
 ztGuiItem *zt_guiMakeSplitter(ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 split_percent)
 {
 	ZT_PROFILE_GUI("zt_guiMakeSplitter");
-	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPLITTER_GUID, ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
+	ztGuiItem *item = _zt_guiMakeItemBase(parent, ZT_GUI_SPLITTER_GUID, "Splitter", ztGuiItemBehaviorFlags_WantsInput | ztGuiItemBehaviorFlags_WantsFocus);
 
 	item->splitter.orient = orient;
 	item->splitter.split_percent = split_percent;
@@ -14066,7 +14151,7 @@ struct ztGuiDialogMessage
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogMessageBoxButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogMessageBoxButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogMessageBoxButton)
 {
 	ztGuiDialogMessage *dialog_data = (ztGuiDialogMessage*)user_data;
 
@@ -14216,7 +14301,7 @@ struct ztGuiDialogGetUserText
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogGetUserTextButtonOK, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogGetUserTextButtonOK))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogGetUserTextButtonOK)
 {
 	ztGuiDialogGetUserText *dialog_data = (ztGuiDialogGetUserText*)user_data;
 
@@ -14231,7 +14316,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogGetUserTextButtonOK, ZT_FUNC_GUI_BUTTO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogGetUserTextButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogGetUserTextButtonCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogGetUserTextButtonCancel)
 {
 	ztGuiDialogGetUserText *dialog_data = (ztGuiDialogGetUserText*)user_data;
 
@@ -14246,7 +14331,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogGetUserTextButtonCancel, ZT_FUNC_GUI_B
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogGetUserTextEditKey, ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiDialogGetUserTextEditKey))
+ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiDialogGetUserTextEditKey)
 {
 	ztGuiDialogGetUserText *dialog_data = (ztGuiDialogGetUserText*)user_data;
 
@@ -14424,7 +14509,7 @@ ztInternal void _zt_guiDialogFileSelectLoadPath(ztDialogFileSelect *file_sel, co
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectDriveListChanged, ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_guiDialogFileSelectDriveListChanged))
+ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_guiDialogFileSelectDriveListChanged)
 {
 	ztDialogFileSelect *file_sel = (ztDialogFileSelect*)user_data;
 
@@ -14445,7 +14530,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectDriveListChanged, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectFileListChanged, ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_guiDialogFileSelectFileListChanged))
+ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_guiDialogFileSelectFileListChanged)
 {
 	ztDialogFileSelect *file_sel = (ztDialogFileSelect*)user_data;
 
@@ -14481,7 +14566,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectFileListChanged, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectButtonSelect, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogFileSelectButtonSelect))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogFileSelectButtonSelect)
 {
 	ztDialogFileSelect *file_sel = (ztDialogFileSelect*)user_data;
 
@@ -14502,7 +14587,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectButtonSelect, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogFileSelectButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogFileSelectButtonCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogFileSelectButtonCancel)
 {
 	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
 }
@@ -14637,7 +14722,7 @@ struct ztGuiColorPickerData
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelPreviewRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelPreviewRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelPreviewRender)
 {
 	ztColor colors[4] = { item->color, item->color, item->color, item->color };
 	zt_drawListPushTexture(draw_list, ztTextureDefault);
@@ -14647,7 +14732,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelPreviewRender, ZT_FUNC_GUI_I
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerPanelInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiColorPickerPanelInputMouse)
 {
 	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
 
@@ -14666,7 +14751,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelInputMouse, ZT_FUNC_GUI_ITEM
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiColorPickerPanelCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiColorPickerPanelCleanup)
 {
 	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
 	zt_textureFree(picker_data->tex_details);
@@ -14674,7 +14759,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelCleanup, ZT_FUNC_GUI_ITEM_CL
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiColorPickerPanelRender)
 {
 	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
 
@@ -14871,7 +14956,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerPanelRender, ZT_FUNC_GUI_ITEM_REN
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonOk))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonOk)
 {
 	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
 	if (picker_data->color_val) {
@@ -14887,7 +14972,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonOk, ZT_FUNC_GUI_BUTTON_PRES
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiColorPickerButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiColorPickerButtonCancel)
 {
 	ztGuiColorPickerData *picker_data = (ztGuiColorPickerData*)user_data;
 	if (picker_data->color_val && zt_bitIsSet(picker_data->cp_behavior_flags, ztGuiColorPickerBehaviorFlags_LiveEdit)) {
@@ -15027,7 +15112,7 @@ struct ztGuiColorGradientEditor
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteColor, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteColor))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteColor)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15056,7 +15141,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteColor, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteAlpha, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteAlpha))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonDeleteAlpha)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15086,7 +15171,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonDeleteAlpha, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_colorGradientPanelInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_colorGradientPanelInputMouse)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15105,7 +15190,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelInputMouse, ZT_FUNC_GUI_ITEM_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_colorGradientPanelRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_colorGradientPanelRender)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15285,7 +15370,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelRender, ZT_FUNC_GUI_ITEM_REND
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_colorGradientPanelCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_colorGradientPanelCleanup)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15296,7 +15381,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientPanelCleanup, ZT_FUNC_GUI_ITEM_CLE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonOk))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonOk)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15313,7 +15398,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonOk, ZT_FUNC_GUI_BUTTON_PRESS
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_colorGradientButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_colorGradientButtonCancel)
 {
 	ztGuiColorGradientEditor *grad_editor = (ztGuiColorGradientEditor*)user_data;
 
@@ -15525,7 +15610,7 @@ ztInternal void _zt_animCurveUpdateGui(ztGuiAnimCurveEditor *curve_editor)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplayAddKeyMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_animCurveDisplayAddKeyMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_animCurveDisplayAddKeyMenu)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -15534,7 +15619,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplayAddKeyMenu, ZT_FUNC_GUI_MENU_SE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputKeyboard, ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_animCurveDisplay_InputKeyboard))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_animCurveDisplay_InputKeyboard)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -15638,7 +15723,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputKeyboard, ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_animCurveDisplay_InputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_animCurveDisplay_InputMouse)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -15666,7 +15751,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_InputMouse, ZT_FUNC_GUI_ITEM_I
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDER(_zt_animCurveDisplay_Render))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_animCurveDisplay_Render)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -16035,7 +16120,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveDisplay_Render, ZT_FUNC_GUI_ITEM_RENDE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveComboType))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveComboType)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -16080,7 +16165,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_S
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveEaseComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveEaseComboType))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_animCurveEaseComboType)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -16094,7 +16179,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveEaseComboType, ZT_FUNC_GUI_COMBOBOX_IT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonOk))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonOk)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -16111,7 +16196,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveButtonOk, ZT_FUNC_GUI_BUTTON_PRESSED(_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_animCurveButtonCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_animCurveButtonCancel)
 {
 	ztGuiAnimCurveEditor *curve_editor = (ztGuiAnimCurveEditor*)user_data;
 
@@ -16280,7 +16365,7 @@ struct ztSpriteSelectorData
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogSpriteSelectorButton, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogSpriteSelectorButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogSpriteSelectorButton)
 {
 	ztSpriteSelectorData *data = (ztSpriteSelectorData*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	ztSpriteManager::Entry *sprite_entry = (ztSpriteManager::Entry*)user_data;
@@ -16295,7 +16380,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogSpriteSelectorButton, ztInternal ZT_FU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogSpriteSelectorCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogSpriteSelectorCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogSpriteSelectorCleanup)
 {
 	ztSpriteSelectorData *data = (ztSpriteSelectorData*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(item));
 
@@ -16394,7 +16479,7 @@ struct ztListSelectorData
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorOk))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorOk)
 {
 	ZT_PROFILE_GAME("_zt_guiDialogListSelectorOk");
 
@@ -16414,7 +16499,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorOk, ZT_FUNC_GUI_BUTTON_PRE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogListSelectorCancel)
 {
 	ZT_PROFILE_GAME("_zt_guiDialogListSelectorCancel");
 
@@ -16425,7 +16510,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorCancel, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDialogListSelectorCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogListSelectorCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDialogListSelectorCleanup)
 {
 	ztListSelectorData *data = (ztListSelectorData*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(item));
 
@@ -17167,7 +17252,7 @@ struct ztDebugRenderingDetails
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugRenderingDetailsUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugRenderingDetailsUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugRenderingDetailsUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugRenderingDetailsUpdate");
 
@@ -17181,7 +17266,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugRenderingDetailsUpdate, ztInternal ZT_F
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugRenderingDetailsCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugRenderingDetailsCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugRenderingDetailsCleanup)
 {
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
@@ -17241,7 +17326,7 @@ ztInternal bool _zt_guiDebugRenderingDetails()
 
 	_zt_guiDebugRenderDetailsSize(details);
 
-	ztGuiItem *update = _zt_guiMakeItemBase(window, ZT_GUI_RENDERING_DETAIL_UPDATE_GUID, 0);
+	ztGuiItem *update = _zt_guiMakeItemBase(window, ZT_GUI_RENDERING_DETAIL_UPDATE_GUID, "Rendering Detail Update", 0);
 	update->functions.update    = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugRenderingDetailsUpdate);
 	update->functions.cleanup   = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugRenderingDetailsCleanup);
 	update->functions.user_data = details;
@@ -17329,7 +17414,7 @@ struct ztDebugFpsDisplay
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugFpsDisplayUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugFpsDisplayUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugFpsDisplayUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugFpsDisplayUpdate");
 
@@ -17343,14 +17428,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugFpsDisplayUpdate, ztInternal ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugFpsDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugFpsDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugFpsDisplayCleanup)
 {
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugFpsDisplayButtonExpand, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugFpsDisplayButtonExpand))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugFpsDisplayButtonExpand)
 {
 	if (_zt_guiDebugRenderingDetails()) {
 		zt_guiItemSetLabel(button, "-");
@@ -17399,7 +17484,7 @@ ztInternal void _zt_guiDebugFpsDisplay()
 
 	zt_guiItemSetSize(fps->panel, zt_vec2(3.25f, 20 / zt_pixelsPerUnit()));
 
-	ztGuiItem *update = _zt_guiMakeItemBase(fps->panel, ZT_GUI_DEBUG_FPS_DISPLAY_GUID, 0);
+	ztGuiItem *update = _zt_guiMakeItemBase(fps->panel, ZT_GUI_DEBUG_FPS_DISPLAY_GUID, "FPS Display", 0);
 	update->functions.update    = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugFpsDisplayUpdate);
 	update->functions.cleanup   = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiDebugFpsDisplayCleanup);
 	update->functions.user_data = fps;
@@ -17447,14 +17532,14 @@ struct ztDebugConsole
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugConsoleCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugConsoleCleanup)
 {
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleInputKey, ztInternal ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiDebugConsoleInputKey))
+ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiDebugConsoleInputKey)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugConsoleInputKey");
 
@@ -17597,7 +17682,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleLogMessageCallback, ztInternal v
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_List, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_List))
+ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_List)
 {
 	zt_debugConsoleLogCommand("  Available commands:");
 
@@ -17610,7 +17695,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_List, ztInternal ZT_FUNC
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_Help, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_Help))
+ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_Help)
 {
 	if (params_count == 1 || zt_strEquals(params[1], "help")) {
 		zt_debugConsoleLogHelp("  Syntax: help <<cmd>");
@@ -17635,21 +17720,21 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_Help, ztInternal ZT_FUNC
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommandAutoComplete_Help, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(_zt_guiDebugConsoleCommandAutoComplete_Help))
+ZT_FUNC_DEBUG_CONSOLE_COMMAND_AUTOCOMPLETE(_zt_guiDebugConsoleCommandAutoComplete_Help)
 {
 
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_Exit, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_Exit))
+ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_Exit)
 {
 	zt_game->quit_requested = true;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugConsoleCommand_PlayAudio, ztInternal ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_PlayAudio))
+ZT_FUNC_DEBUG_CONSOLE_COMMAND(_zt_guiDebugConsoleCommand_PlayAudio)
 {
 	ztAudioClipID audio_clip_id = zt_strToInt(params[1], ztInvalidID);
 	if (audio_clip_id >= 0 && audio_clip_id < zt_game->audio_clips_count) {
@@ -18025,7 +18110,7 @@ ztInternal void _zt_guiDebugGuiHierarchyAppend(ztDebugGuiHierarchy *dgh, ztGuiIt
 		return;
 	}
 
-	zt_strMakePrintf(buffer, 1024, "%s - %s", /*zt_guiItemTypeName(item->type)*/"temporarily invalid", item->name ? item->name : "(unnamed)");
+	zt_strMakePrintf(buffer, 1024, "%s - %s", item->type, item->name ? item->name : "(unnamed)");
 
 	ztGuiTreeNodeID root = zt_guiTreeAppend(dgh->tree, buffer, item, parent_node);
 	ztGuiItem *child = item->first_child;
@@ -18081,7 +18166,7 @@ ztInternal void _zt_guiDebugGuiHierarchyPopulateItem(ztDebugGuiHierarchy *dgh, z
 		"<color=8abbf8>Bring to Front:</color>          %s\n"
 		"<color=8abbf8>Label:</color>                   %s\n",
 		item->id,
-		"temporarily invalid", //zt_guiItemTypeName(item->type),
+		item->type,
 		item->name ? item->name : "(unnamed)",
 		item->tooltip ? item->tooltip : "(no tooltip)",
 		item->size.x, item->size.y,
@@ -18107,7 +18192,7 @@ ztInternal void _zt_guiDebugGuiHierarchyPopulateItem(ztDebugGuiHierarchy *dgh, z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnTreeSel, ztInternal ZT_FUNC_GUI_TREE_ITEM_SELECTED(_zt_guiDebugGuiHierarchyOnTreeSel))
+ZT_FUNC_GUI_TREE_ITEM_SELECTED(_zt_guiDebugGuiHierarchyOnTreeSel)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugGuiHierarchyOnTreeSel");
 
@@ -18121,7 +18206,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnTreeSel, ztInternal ZT_FU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnRefreshTree, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugGuiHierarchyOnRefreshTree))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugGuiHierarchyOnRefreshTree)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugGuiHierarchyOnRefreshTree");
 
@@ -18132,7 +18217,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnRefreshTree, ztInternal Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnToggleHighlight, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugGuiHierarchyOnToggleHighlight))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugGuiHierarchyOnToggleHighlight)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugGuiHierarchyOnToggleHighlight");
 
@@ -18154,7 +18239,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyOnToggleHighlight, ztIntern
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugGuiHierarchyCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugGuiHierarchyCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugGuiHierarchyCleanup)
 {
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
@@ -18311,14 +18396,14 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugTextureViewerOnRefresh, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugTextureViewerOnRefresh))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugTextureViewerOnRefresh)
 {
 	_zt_guiDebugTextureViewerRefresh();
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugTextureViewerOnComboBox, ztInternal ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiDebugTextureViewerOnComboBox))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiDebugTextureViewerOnComboBox)
 {
 	_zt_guiDebugTextureViewerLoadTexture((ztTextureID)(pointer)zt_guiComboBoxGetItemUserData(combobox, selected));
 }
@@ -18394,7 +18479,7 @@ struct ztDebugProfiler
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugProfilerDisplayRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugProfilerDisplayRender)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerDisplayRender");
 
@@ -18406,7 +18491,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayRender, ztInternal ZT_FU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugProfilerDisplayInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugProfilerDisplayInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerDisplayInputMouse");
 
@@ -18419,7 +18504,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayInputMouse, ztInternal Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugProfilerDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugProfilerDisplayCleanup)
 {
 	zt_freeArena(item->functions.user_data, item->gm->arena);
 }
@@ -18472,7 +18557,7 @@ ztInternal void _zt_guiDebugProfilerSectionListProcessHidden(ztDebugProfilerOver
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerSectionListButton, ztInternal ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerSectionListButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerSectionListButton)
 {
 	if(zt_strEquals(button->label, "+")) {
 		zt_guiItemSetLabel(button, "-");
@@ -18832,7 +18917,7 @@ ztInternal void _zt_guiDebugProfilerOverviewRefreshGrouping(ztDebugProfilerOverv
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugProfilerOverviewInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugProfilerOverviewInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewInputMouse");
 	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)item->panel.user_data;
@@ -18844,7 +18929,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewInputMouse, ztInternal 
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonPause, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonPause))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonPause)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewButtonCheck");
 	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)user_data;
@@ -18863,7 +18948,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonPause, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonCheck, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonCheck))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDebugProfilerOverviewButtonCheck)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewButtonCheck");
 	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)user_data;
@@ -18874,7 +18959,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewButtonCheck, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugProfilerOverviewRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugProfilerOverviewRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugProfilerOverviewRender)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugProfilerOverviewRender");
 	ztDebugProfilerOverview *dpo = (ztDebugProfilerOverview*)item->panel.user_data;
@@ -19415,7 +19500,7 @@ ztInternal void _zt_guiDebugMemoryDisplayRefresh(ztDebugMemory *mem)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayComboSelected, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiDebugMemoryDisplayComboSelected))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiDebugMemoryDisplayComboSelected)
 {
 	ztDebugMemory *mem = (ztDebugMemory*)user_data;
 	mem->active_arena = selected;
@@ -19424,7 +19509,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayComboSelected, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayUpdate, ztInternal ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugMemoryDisplayUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiDebugMemoryDisplayUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayUpdate");
 
@@ -19445,7 +19530,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayUpdate, ztInternal ZT_FUNC
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugMemoryDisplayRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiDebugMemoryDisplayRender)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayRender");
 
@@ -19672,7 +19757,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayRender, ztInternal ZT_FUNC
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayInputMouse, ztInternal ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugMemoryDisplayInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiDebugMemoryDisplayInputMouse)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugMemoryDisplayInputMouse");
 
@@ -19685,7 +19770,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayInputMouse, ztInternal ZT_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiDebugMemoryDisplayCleanup, ztInternal ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugMemoryDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiDebugMemoryDisplayCleanup)
 {
 	ztDebugMemory *mem = (ztDebugMemory*)item->functions.user_data;
 	zt_freeArena(mem->source_dir_listing, item->gm->arena);
@@ -20093,7 +20178,7 @@ ztInternal bool _zt_debugSpriteEdDisplayGetFileName(ztDebugSpriteEditor *editor,
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayEditorChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_debugSpriteEdDisplayEditorChanged))
+ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_debugSpriteEdDisplayEditorChanged)
 {
 	ztDebugSpriteEditor *editor_ = (ztDebugSpriteEditor*)user_data;
 
@@ -20106,7 +20191,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayEditorChanged, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_debugSpriteEdDisplayRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_debugSpriteEdDisplayRender)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20240,14 +20325,14 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayRender, ZT_FUNC_GUI_ITEM_RE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_debugSpriteEdDisplayUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_debugSpriteEdDisplayUpdate)
 {
 	//ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_debugSpriteEdDisplayInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_debugSpriteEdDisplayInputMouse)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20554,7 +20639,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayInputMouse, ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboTexture, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboTexture))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboTexture)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20625,7 +20710,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboTexture, ZT_FUNC_GUI_COMB
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboType))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteEditorComboType)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 	_zt_debugSpriteEdDisplayApplyVals(editor);
@@ -20633,7 +20718,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEditorComboType, ZT_FUNC_GUI_COMBOBO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_debugSpriteEdDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_debugSpriteEdDisplayCleanup)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20642,7 +20727,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayCleanup, ZT_FUNC_GUI_ITEM_C
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_debugSpriteEdDisplayTextChange))
+ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_debugSpriteEdDisplayTextChange)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 	_zt_debugSpriteEdDisplayApplyVals(editor);
@@ -20650,7 +20735,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayTextChange, ZT_FUNC_GUI_TEX
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonBestFit, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonBestFit))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonBestFit)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20842,7 +20927,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonBestFit, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk)
 {
 	zt_guiItemQueueFree(zt_guiItemGetTopLevelParent(button));
 
@@ -20907,7 +20992,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplitDialogOk, ZT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplit, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplit))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonGridSplit)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -20935,7 +21020,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonGridSplit, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonDelete, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonDelete))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonDelete)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 	editor->sprite_size[editor->sprite_active] = ztVec2::zero;
@@ -20944,7 +21029,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonDelete, ZT_FUNC_GUI_B
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonSave))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonSave)
 {
 	ztDebugSpriteEditor *editor = (ztDebugSpriteEditor*)user_data;
 
@@ -21003,7 +21088,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonSave, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteEdDisplayButtonReset, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonReset))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteEdDisplayButtonReset)
 {
 }
 
@@ -21388,7 +21473,7 @@ ztInternal int _zt_debugSpriteAnimEdAddSpriteEntry(ztSpriteAnimEditor *editor, i
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdSelectSpriteWindowButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdSelectSpriteWindowButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdSelectSpriteWindowButton)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	ztSpriteManager::Entry *sprite_entry = (ztSpriteManager::Entry*)user_data;
@@ -21507,7 +21592,7 @@ ztInternal void _zt_debugSpriteAnimEdSelectSprite(ztSpriteAnimEditor *editor, in
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdSelectSpriteButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdSelectSpriteButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdSelectSpriteButton)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	int entry = (int)(pointer)user_data;
@@ -21516,7 +21601,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdSelectSpriteButton, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonEntryMoveUp, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryMoveUp))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryMoveUp)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	int entry = (int)(pointer)user_data;
@@ -21541,7 +21626,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonEntryMoveUp, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonEntryMoveDn, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryMoveDn))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryMoveDn)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	int entry = (int)(pointer)user_data;
@@ -21566,7 +21651,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonEntryMoveDn, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonEntryDelete, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryDelete))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonEntryDelete)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)zt_guiItemGetUserData(zt_guiItemGetTopLevelParent(button));
 	int entry = (int)(pointer)user_data;
@@ -21698,7 +21783,7 @@ ztInternal void _zt_debugSpriteAnimEdLoadSeq(ztSpriteAnimEditor *editor, int seq
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqRenameResult, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_debugSpriteAnimEdButtonSeqRenameResult))
+ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_debugSpriteAnimEdButtonSeqRenameResult)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21713,7 +21798,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqRenameResult, ZT_FUNC
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileNewDialogCallback, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_debugSpriteAnimEdButtonFileNewDialogCallback))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_debugSpriteAnimEdButtonFileNewDialogCallback)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21732,7 +21817,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileNewDialogCallback, Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileNew, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileNew))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileNew)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21749,7 +21834,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileNew, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileOpenDialogCallback, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_debugSpriteAnimEdButtonFileOpenDialogCallback))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_debugSpriteAnimEdButtonFileOpenDialogCallback)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21823,7 +21908,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileOpenDialogCallback, 
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileOpen, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileOpen))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileOpen)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21840,7 +21925,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileOpen, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileSave))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonFileSave)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21889,7 +21974,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonFileSave, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqRename, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonSeqRename))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonSeqRename)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 	if (editor->active_sequence >= 0) {
@@ -21899,7 +21984,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqRename, ZT_FUNC_GUI_B
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqDelete, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonSeqDelete))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonSeqDelete)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 	if (editor->active_sequence < 0) {
@@ -21934,7 +22019,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonSeqDelete, ZT_FUNC_GUI_B
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonPlay, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonPlay))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_debugSpriteAnimEdButtonPlay)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21956,7 +22041,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdButtonPlay, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdDialogNewSeq, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_debugSpriteAnimEdDialogNewSeq))
+ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_debugSpriteAnimEdDialogNewSeq)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -21994,7 +22079,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdDialogNewSeq, ZT_FUNC_GUI_DIAL
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdComboSeq, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteAnimEdComboSeq))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_debugSpriteAnimEdComboSeq)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -22010,7 +22095,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdComboSeq, ZT_FUNC_GUI_COMBOBOX
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_debugSpriteAnimEdUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_debugSpriteAnimEdUpdate)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -22116,7 +22201,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdUpdate, ZT_FUNC_GUI_ITEM_UPDAT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_debugSpriteAnimEdCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_debugSpriteAnimEdCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_debugSpriteAnimEdCleanup)
 {
 	ztSpriteAnimEditor *editor = (ztSpriteAnimEditor*)user_data;
 
@@ -22423,14 +22508,14 @@ struct ztParticleEditor
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorUpdate)
 {
 	//ztParticleEditor *editor = (ztParticleEditor*)user_data;
 }
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayRender, ZT_FUNC_GUI_ITEM_RENDER(_zt_guiParticleEditorDisplayRender))
+ZT_FUNC_GUI_ITEM_RENDER(_zt_guiParticleEditorDisplayRender)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_drawListPushBlendMode(draw_list, ztRendererBlendMode_One, ztRendererBlendMode_Zero);
@@ -22441,7 +22526,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayRender, ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorDisplayUpdate))
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiParticleEditorDisplayUpdate)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22613,7 +22698,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayUpdate, ZT_FUNC_GUI_ITE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputMouse, ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiParticleEditorDisplayInputMouse))
+ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiParticleEditorDisplayInputMouse)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_memCpy(&editor->input_mouse, zt_sizeof(ztInputMouse), input_mouse, zt_sizeof(ztInputMouse));
@@ -22624,7 +22709,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputMouse, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputKeyboard, ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiParticleEditorDisplayInputKeyboard))
+ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiParticleEditorDisplayInputKeyboard)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_memCpy(editor->input_keys, zt_sizeof(ztInputKeys) * zt_elementsOf(editor->input_keys), input_keys, zt_sizeof(ztInputKeys) * zt_elementsOf(editor->input_keys));
@@ -22633,7 +22718,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayInputKeyboard, ZT_FUNC_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorDisplayCleanup, ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiParticleEditorDisplayCleanup))
+ZT_FUNC_GUI_ITEM_CLEANUP(_zt_guiParticleEditorDisplayCleanup)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_modelFree(&editor->scene_model);
@@ -22658,7 +22743,7 @@ ztInternal void _zt_guiParticleEditorShapeTypeHideEditors(ztParticleEditor *edit
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorShapeTypeCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorShapeTypeCombo))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorShapeTypeCombo)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	_zt_guiParticleEditorShapeTypeHideEditors(editor, (ztParticleShapeType_Enum)selected);
@@ -22703,7 +22788,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorShapeTypeCombo, ZT_FUNC_GUI_CO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelected, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorTrailSpriteSelected))
+ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorTrailSpriteSelected)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	if (!cancelled) {
@@ -22720,7 +22805,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelected, ZT_FUNC_G
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelectButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorTrailSpriteSelectButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorTrailSpriteSelectButton)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	zt_guiDialogSpriteSelector(&editor->sprite_manager, ZT_FUNCTION_POINTER_TO_VAR(_zt_guiParticleEditorTrailSpriteSelected), editor, "Select Sprite");
@@ -22728,7 +22813,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorTrailSpriteSelectButton, ZT_FU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelected, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorBillboardSpriteSelected))
+ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_guiParticleEditorBillboardSpriteSelected)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	if (!cancelled) {
@@ -22746,7 +22831,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelected, ZT_FU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorMeshSelected, ZT_FUNC_GUI_DIALOG_LIST_SELECTED(_zt_guiParticleEditorMeshSelected))
+ZT_FUNC_GUI_DIALOG_LIST_SELECTED(_zt_guiParticleEditorMeshSelected)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 	if (!cancelled) {
@@ -22760,7 +22845,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorMeshSelected, ZT_FUNC_GUI_DIAL
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelectButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorBillboardSpriteSelectButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorBillboardSpriteSelectButton)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22782,7 +22867,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorBillboardSpriteSelectButton, Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingTypeCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingTypeCombo))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingTypeCombo)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22806,7 +22891,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingTypeCombo, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorRenderingBlendCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingBlendCombo))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiParticleEditorRenderingBlendCombo)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22849,7 +22934,7 @@ ztInternal void _zt_guiParticleEditorSave(ztParticleEditor *editor)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorButtonFileSave))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiParticleEditorButtonFileSave)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22890,7 +22975,7 @@ ztInternal void _zt_guiParticleEditorUpdateGui(ztParticleEditor *editor, ztParti
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileDialogCallback, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_guiParticleEditorButtonFileDialogCallback))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_guiParticleEditorButtonFileDialogCallback)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -22937,7 +23022,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorButtonFileDialogCallback, ZT_F
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiParticleEditorMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_guiParticleEditorMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiParticleEditorMenu)
 {
 	ztParticleEditor *editor = (ztParticleEditor*)user_data;
 
@@ -23598,7 +23683,7 @@ enum
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiInitDebugOnMenuItem, ztInternal ZT_FUNC_GUI_MENU_SELECTED(_zt_guiInitDebugOnMenuItem))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_guiInitDebugOnMenuItem)
 {
 	switch (menu_item)
 	{
