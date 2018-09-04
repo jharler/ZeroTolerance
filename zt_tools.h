@@ -2045,7 +2045,6 @@ typedef ZT_FUNC_THREAD_EXIT(ztThreadExit_Func);
 #define ZT_FUNC_THREAD(name)	int (name)(ztThreadID thread_id, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data)
 typedef ZT_FUNC_THREAD(ztThread_Func);
 
-
 // ================================================================================================================================================================================================
 
 ztThread  *zt_threadMake         (ztThread_Func *thread_func, void *user_data, ztThreadExit_Func *exit_test, void *exit_test_user_data, ztThreadID *out_thread_id);
@@ -2310,7 +2309,7 @@ bool zt_serialMakeWriter (ztSerial *serial, ztFile *file, const char *identifier
 
 // if opening a reader fails, check the mode in the ztSerial instance.  if it's ztSerialMode_Corrupt, then the file's checksum did not match
 bool zt_serialMakeReader (ztSerial *serial, const char *file_name, const char *identifier);
-bool zt_serialMakeReader (ztSerial *serial, void *data, i32 data_size, const char *identifier);
+bool zt_serialMakeReader (ztSerial *serial, const void *data, i32 data_size, const char *identifier);
 bool zt_serialMakeReader (ztSerial *serial, ztFile *file, const char *identifier);
 
 void zt_serialClose      (ztSerial *serial);
@@ -2379,6 +2378,7 @@ bool zt_serialReadAndCheckGuidVersion(ztSerial *serial, ztGuid guid, i32 version
 int     zt_base64Encode        (const byte *data_to_encode, int data_len, char *encoded_data_buffer, int encoded_data_buffer_size);
 int     zt_base64Decode        (const char *data_to_decode, int data_len, byte *decoded_data_buffer, int decoded_data_buffer_size);
 
+bool    zt_binaryFileToBase64Source(const char *binary_file, const char *function_name);
 
 // ================================================================================================================================================================================================
 // random numbers
@@ -4319,8 +4319,9 @@ ztInline i32 zt_strCodepoint(const char *s, int pos)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_DLL_SET_GLOBALS(name) void name(void *memory, int version)
-typedef ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals_Func);
+#define ZT_FUNC_DLL_SET_GLOBALS_DECL(name) void name(void *memory, int version)
+typedef ZT_FUNC_DLL_SET_GLOBALS_DECL(zt_dllSetGlobals_Func);
+#define ZT_FUNC_DLL_SET_GLOBALS(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_DLL_SET_GLOBALS_DECL(name))
 
 #if !defined(ZT_DLL)
 
@@ -4459,7 +4460,7 @@ ztGlobals zt_local = {};
 #if defined(ZT_DLL)
 	ztGlobals *zt = &zt_local;
 
-	ZT_DLLEXPORT ZT_FUNC_DLL_SET_GLOBALS(zt_dllSetGlobals)
+	ZT_DLLEXPORT ZT_FUNC_DLL_SET_GLOBALS_DECL(zt_dllSetGlobals)
 	{
 		if (version == ZT_GLOBALS_VERSION) {
 			zt = (ztGlobals *)memory;
@@ -12002,7 +12003,7 @@ bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *id
 
 // ================================================================================================================================================================================================
 
-bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char *identifier)
+bool zt_serialMakeReader(ztSerial *serial, const void *data, i32 data_size, const char *identifier)
 {
 	ZT_PROFILE_TOOLS("zt_serialMakeReader");
 
@@ -12013,7 +12014,7 @@ bool zt_serialMakeReader(ztSerial *serial, void *data, i32 data_size, const char
 	zt_memSet(serial, zt_sizeof(ztSerial), 0);
 
 	serial->close_file = false;
-	serial->file_data = data;
+	serial->file_data = (void*)data;
 	serial->file_data_size = data_size;
 
 	return _zt_serialMakeReaderDoHeader(serial, identifier);
@@ -12612,6 +12613,80 @@ int zt_base64Decode(const char *data_to_decode, int data_len, byte *decoded_data
 
 #	undef b64_find_next_char
 #	undef b64_decode
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_binaryFileToBase64Source(const char *binary_file, const char *function_name)
+{
+	char output_file_name[ztFileMaxPath] = {0};
+	zt_strCpy(output_file_name, ztFileMaxPath, binary_file);
+	zt_strCat(output_file_name, ztFileMaxPath, ".code");
+
+	ztFile output_file;
+	if (!zt_fileOpen(&output_file, output_file_name, ztFileOpenMethod_WriteOver)) {
+		return false;
+	}
+
+	i32 data_size = 0;
+	void *data = zt_readEntireFile(binary_file, &data_size);
+	if (data == nullptr) {
+		return false;
+	}
+
+	i32 base64_size = zt_base64GetEncodedSize(data_size) + 1;
+	char *base64_data = zt_mallocStructArrayArena(char, base64_size, zt_memGetTempArena());
+	if(base64_data == nullptr) {
+		zt_fileClose(&output_file);
+		zt_free(data);
+		return false;
+	}
+
+	int encoded_size = zt_base64Encode((byte*)data, data_size, base64_data, base64_size);
+
+	zt_assert(encoded_size <= base64_size);
+
+	zt_free(data);
+
+	zt_fileWritef(&output_file, 
+		"void *%s(i32 *data_size, ztMemoryArena *arena) // this function was automatically generated\n"
+		"{\n"
+		"\ti32 encoded_size = %d;\n"
+		"\tchar *encoded_data_strings[] = {\n", function_name, encoded_size);
+
+	i32 chunk_size = 4096;
+	i32 encoded_pos = 0;
+	i32 encoded_rem = encoded_size - 1; // remove null terminator
+
+	while (encoded_rem > 0) {
+		zt_fileWritef(&output_file, "\t\t\"");
+		zt_fileWrite(&output_file, base64_data + encoded_pos, zt_min(chunk_size, encoded_rem));
+		zt_fileWritef(&output_file, "\",\n");
+
+		encoded_rem -= chunk_size;
+		encoded_pos += chunk_size;
+	}
+
+	zt_fileWritef(&output_file,
+		"\t};\n\t*data_size = %d;\n"
+		"\tchar *encoded_data = zt_mallocStructArrayArena(char, encoded_size, zt_memGetTempArena());\n"
+		"\ti32 encoded_data_pos = 0;\n"
+		"\tzt_fize(encoded_data_strings) {\n"
+		"\t\ti32 string_len = zt_strLen(encoded_data_strings[i]);\n"
+		"\t\tzt_memCpy(encoded_data + encoded_data_pos, string_len, encoded_data_strings[i], string_len);\n"
+		"\t\tencoded_data_pos += string_len;\n"
+		"\t}\n"
+		"\tbyte *data = zt_mallocStructArrayArena(byte, *data_size, arena);\n"
+		"\tzt_base64Decode(encoded_data, encoded_size, data, *data_size);\n"
+		"\tzt_freeArena(encoded_data, zt_memGetTempArena());\n"
+		"\treturn data;\n"
+		"}\n", data_size);
+
+	zt_fileClose(&output_file);
+
+	zt_freeArena(base64_data, zt_memGetTempArena());
+
+	return true;
 }
 
 
