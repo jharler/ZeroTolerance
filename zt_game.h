@@ -2841,6 +2841,7 @@ struct ztSpriteManager
 
 void               zt_spriteManagerMake(ztSpriteManager *sprite_manager, int max_sprites);
 bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset_mgr, ztAssetID asset_id, ztTextureID tex);
+bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, const void *file_data, i32 file_data_size, ztTextureID tex);
 bool               zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztTextureID tex);
 bool               zt_spriteManagerLoadAll(ztSpriteManager *sprite_manager); // loads all .spr files from the data/textures directory
 bool               zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial);
@@ -15487,6 +15488,35 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztAssetManager *asset
 on_error:
 	zt_logCritical(error);
 	zt_freeArena(data, asset_mgr->arena);
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, const void *file_data, i32 file_data_size, ztTextureID tex)
+{
+	ZT_PROFILE_RENDERING("zt_spriteManagerLoad");
+	zt_logDebug("sprite manager: loading from %d bytes of file data", file_data_size);
+
+	const char *error = nullptr;
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, file_data, file_data_size, ZT_SPRITE_FILE_GUID)) {
+		error = "sprite manager: unable to serialize file";
+		goto on_error;
+	}
+
+	if (!zt_spriteManagerLoad(sprite_manager, &serial, tex)) {
+		error = "sprite manager: unable to load file data";
+		zt_serialClose(&serial);
+		goto on_error;
+	}
+
+	zt_serialClose(&serial);
+	return true;
+
+on_error:
+	zt_logCritical(error);
 	return false;
 }
 
