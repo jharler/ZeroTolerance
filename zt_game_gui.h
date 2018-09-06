@@ -317,6 +317,30 @@ bool            zt_guiManagerMouseOverGui     (ztGuiManager *gui_manager);
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+enum ztGuiEventFlags_Enum
+{
+	ztGuiEventFlags_Handled = (1<<0),
+};
+
+
+struct ztGuiEvent
+{
+	ztGuiItem *item;
+	ztGuid     guid;
+	ztVariant  values[8];
+	i32        flags;
+
+	const i32  index = -1;
+};
+
+
+ztGuiEvent *zt_guiGetEvent(ztGuiItem *item, ztGuiEvent *after = nullptr);
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 enum ztGuiItemOrient_Enum
 {
 	ztGuiItemOrient_Horz = (1 << 1),
@@ -549,7 +573,12 @@ typedef ZT_FUNC_GUI_BUTTON_PRESSED_DECL(zt_guiButtonPressed_Func);
 
 // ================================================================================================================================================================================================
 
-ztGuiItem  *zt_guiMakeButton            (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
+extern ztGuid ZT_GUI_BUTTON_EVENT_PRESSED;
+extern ztGuid ZT_GUI_BUTTON_EVENT_TOGGLED;
+
+// ================================================================================================================================================================================================
+
+ztGuiItem  *zt_guiMakeButton(ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
 ztGuiItem  *zt_guiMakeToggleButton      (ztGuiItem *parent, const char *label, i32 behavior_flags = 0, bool *live_value = nullptr);
 
 //          used for button and toggle button
@@ -620,7 +649,11 @@ typedef ZT_FUNC_GUI_SLIDER_CHANGED_DECL(zt_guiSliderChanged_Func);
 
 // ================================================================================================================================================================================================
 
-ztGuiItem       *zt_guiMakeSlider        (ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
+extern const ztGuid ZT_GUI_SLIDER_EVENT_VALUE_CHANGED;
+
+// ================================================================================================================================================================================================
+
+ztGuiItem       *zt_guiMakeSlider(ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value = nullptr);
 
 r32              zt_guiSliderGetValue    (ztGuiItem *slider);
 void             zt_guiSliderSetValue    (ztGuiItem *slider, r32 value);
@@ -638,6 +671,10 @@ extern const ztGuid ZT_GUI_SCROLLBAR_GUID;
 #define ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(name) void name(ztGuiItem *scrollbar, r32 value, void *user_data)
 typedef ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(zt_guiScrollbarScrolled_Func);
 #define ZT_FUNC_GUI_SCROLLBAR_SCROLLED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_SCROLLBAR_SCROLLED_DECL(name))
+
+// ================================================================================================================================================================================================
+
+extern const ztGuid ZT_GUI_SCROLLBAR_EVENT_VALUE_CHANGED;
 
 // ================================================================================================================================================================================================
 
@@ -709,7 +746,11 @@ typedef ZT_FUNC_GUI_TEXTEDIT_KEY_DECL(zt_guiTextEditKey_Func);
 
 // ================================================================================================================================================================================================
 
-ztGuiItem  *zt_guiMakeTextEdit            (ztGuiItem *parent, const char *value, i32 behavior_flags = 0, i32 buffer_size = 1024);
+extern const ztGuid ZT_GUI_TEXTEDIT_EVENT_KEY;
+
+// ================================================================================================================================================================================================
+
+ztGuiItem  *zt_guiMakeTextEdit(ztGuiItem *parent, const char *value, i32 behavior_flags = 0, i32 buffer_size = 1024);
 
 int         zt_guiTextEditGetValue        (ztGuiItem *text, char *buffer, int buffer_len);
 void        zt_guiTextEditSetValue        (ztGuiItem *text, const char *value);
@@ -743,7 +784,11 @@ typedef ZT_FUNC_GUI_MENU_SELECTED_DECL(zt_guiMenuSelected_Func);
 
 // ================================================================================================================================================================================================
 
-ztGuiItem  *zt_guiMakeMenu   (ztGuiItem *parent, i32 behavior_flags = 0);
+extern const ztGuid ZT_GUI_MENU_EVENT_SELECTED;
+
+// ================================================================================================================================================================================================
+
+ztGuiItem  *zt_guiMakeMenu(ztGuiItem *parent, i32 behavior_flags = 0);
 ztGuiItem  *zt_guiMakeMenuBar(ztGuiItem *parent);
 
 void        zt_guiMenuAppend          (ztGuiItem *menu, const char *label, i32 id, void *user_data = nullptr, ztSprite *icon = nullptr);
@@ -777,6 +822,10 @@ typedef ZT_FUNC_GUI_TREE_ITEM_SELECTED_DECL(zt_guiTreeItemSelected_Func);
 
 // ================================================================================================================================================================================================
 
+extern const ztGuid ZT_GUI_TREE_EVENT_ITEM_SELECTED;
+
+// ================================================================================================================================================================================================
+
 ztGuiItem       *zt_guiMakeTree(ztGuiItem *parent, i32 max_items);
 
 ztGuiTreeNodeID  zt_guiTreeAppend                 (ztGuiItem *tree, const char *item, void *user_data, ztGuiTreeNodeID parent_id = ztInvalidID, i32 flags = 0);
@@ -805,6 +854,10 @@ extern const ztGuid ZT_GUI_COMBOBOX_GUID;
 #define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(name) void name(ztGuiItem *combobox, int selected, void *user_data)
 typedef ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(zt_guiComboBoxItemSelected_Func);
 #define ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED_DECL(name))
+
+// ================================================================================================================================================================================================
+
+extern const ztGuid ZT_GUI_COMBOBOX_EVENT_ITEM_SELECTED;
 
 // ================================================================================================================================================================================================
 
@@ -848,6 +901,12 @@ extern const ztGuid ZT_GUI_SPINNER_GUID;
 typedef ZT_FUNC_GUI_SPINNER_VALUE_CHANGED_DECL(zt_guiSpinnerValueChanged_Func);
 #define ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_SPINNER_VALUE_CHANGED_DECL(name))
 
+// ================================================================================================================================================================================================
+
+extern const ztGuid ZT_GUI_SPINNER_EVENT_VALUE_CHANGED;
+
+// ================================================================================================================================================================================================
+
 ztGuiItem  *zt_guiMakeSpinner        (ztGuiItem *parent, int *live_value = nullptr);
 
 int         zt_guiSpinnerGetValue    (ztGuiItem *spinner);	// -1 or +1
@@ -877,6 +936,10 @@ enum ztGuiCycleBoxBehaviorFlags_Enum
 #define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(name) void name(ztGuiItem *cyclebox, int value, void *user_data)
 typedef ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(zt_guiCycleBoxValueChanged_Func);
 #define ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_CYCLEBOX_VALUE_CHANGED_DECL(name))
+
+// ================================================================================================================================================================================================
+
+extern const ztGuid ZT_GUI_CYCLEBOX_EVENT_ITEM_SELECTED;
 
 // ================================================================================================================================================================================================
 
@@ -915,6 +978,10 @@ enum ztGuiListBoxBehaviorFlags_Enum
 #define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(name) void name(ztGuiItem *listbox, int selected, void *user_data)
 typedef ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(zt_guiListBoxItemSelected_Func);
 #define ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED_DECL(name))
+
+// ================================================================================================================================================================================================
+
+extern const ztGuid ZT_GUI_LISTBOX_EVENT_ITEM_SELECTED;
 
 // ================================================================================================================================================================================================
 
@@ -1090,6 +1157,10 @@ typedef ZT_FUNC_GUI_EDITOR_VALUE_CHANGED_DECL(zt_guiEditorValueChanged_Func);
 
 // ================================================================================================================================================================================================
 
+extern const ztGuid ZT_GUI_EDITOR_EVENT_VALUE_CHANGED; // currently only works with r32 and i32 editors
+
+// ================================================================================================================================================================================================
+
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, r32 *value, r32 min, r32 max, r32 step);
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, i32 *value, i32 min, i32 max, i32 step);
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, ztVec2 *value, ztVec2 min, ztVec2 max, r32 step = .1f, bool label_above = true, const char *label_x = "X", const char *label_y = "Y");
@@ -1151,13 +1222,16 @@ typedef  ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED_DECL(zt_guiDialogMessageClosed_Func);
 
 // ================================================================================================================================================================================================
 
-void     zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogMessageOption *options, int options_count, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
+extern const ztGuid ZT_GUI_DIALOG_MESSAGE_EVENT_CLOSED;
 
-void     zt_guiDialogMessageBoxOk          (const char *title, const char *message);
-void     zt_guiDialogMessageBoxOk          (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data);
-void     zt_guiDialogMessageBoxOkCancel    (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Ok, 1 - Cancel
-void     zt_guiDialogMessageBoxYesNo       (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Yes, 1 - No
-void     zt_guiDialogMessageBoxYesNoCancel (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data); // id: 0 - Yes, 1 - Now, 2 - Cancel
+// ================================================================================================================================================================================================
+
+void     zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogMessageOption *options, int options_count, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogMessageClosed_Func), void *user_data = nullptr);
+
+void     zt_guiDialogMessageBoxOk          (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogMessageClosed_Func), void *user_data = nullptr);
+void     zt_guiDialogMessageBoxOkCancel    (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogMessageClosed_Func), void *user_data = nullptr); // id: 0 - Ok, 1 - Cancel
+void     zt_guiDialogMessageBoxYesNo       (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogMessageClosed_Func), void *user_data = nullptr); // id: 0 - Yes, 1 - No
+void     zt_guiDialogMessageBoxYesNoCancel (const char *title, const char *message, ZT_FUNCTION_POINTER_VAR_DEFNULL(callback, zt_guiDialogMessageClosed_Func), void *user_data = nullptr); // id: 0 - Yes, 1 - Now, 2 - Cancel
 
 
 
@@ -1169,6 +1243,8 @@ void     zt_guiDialogMessageBoxYesNoCancel (const char *title, const char *messa
 #define  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(name) void name(const char *value, bool cancelled, void *user_data)
 typedef  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(zt_guiDialogGetUserText_Func);
 #define  ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT_DECL(name))
+
+// ================================================================================================================================================================================================
 
 void     zt_guiDialogGetUserText (const char *title, const char *message, const char *def_value, bool allow_cancel, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogGetUserText_Func), void *user_data);
 
@@ -1819,6 +1895,10 @@ enum ztGuiManagerItemCacheFlags_Enum
 #define ZT_GUI_MANAGER_MAX_ITEMS	1024 * 64
 #endif
 
+#ifndef ZT_GUI_MANAGER_MAX_EVENTS_PER_FRAME
+#define ZT_GUI_MANAGER_MAX_EVENTS_PER_FRAME 128
+#endif
+
 // ================================================================================================================================================================================================
 
 struct ztGuiManager
@@ -1864,6 +1944,9 @@ struct ztGuiManager
 	ztStringPool   string_pool;
 
 	ztGuiItemType *item_types;
+
+	ztGuiEvent     events[ZT_GUI_MANAGER_MAX_EVENTS_PER_FRAME];
+	i32            events_count;
 
 	ztGuiManager  *next;
 };
@@ -1948,14 +2031,14 @@ enum ztGuiButtonInternalBehaviorFlags_Enum
 	ztGuiButtonInternalBehaviorFlags_IsRadio        = (1 << (ztGuiButtonBehaviorFlags_MaxBit + 3)),
 };
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztGuiButtonInternalStates_Enum
 {
 	ztGuiButtonInternalStates_IsToggled = (ztGuiItemStates_MAX + 1),
 };
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 enum ztGuiSliderInternalStates_Enum
 {
@@ -1985,6 +2068,10 @@ extern ztGuiGlobals *zt_gui;
 // ================================================================================================================================================================================================
 
 ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, const char *item_type, void *item_state, i32 item_flags, i32 draw_list_size = 0);
+
+// ================================================================================================================================================================================================
+
+ztGuiEvent *_zt_guiMakeEvent(ztGuiItem *item, ztGuid guid, i32 flags = 0);
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -3344,6 +3431,10 @@ ztGuiManager *zt_guiManagerMake(ztCamera *gui_camera, ztGuiTheme *theme_default,
 #		endif
 	}
 
+	zt_fize(gm->events) {
+		((int)gm->events[i].index) = i;
+	}
+
 	if (zt_gui->gui_managers_count++ == 0) {
 		zt_gui->gui_manager_active = gm;
 		zt_gui->gui_manager_first = gm;
@@ -3475,6 +3566,25 @@ void zt_guiThemePostRender(ztGuiTheme *theme, ztDrawList *draw_list, ztGuiItem *
 r32 zt_guiPadding()
 {
 	return 3.f / zt_pixelsPerUnit();
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiEvent *zt_guiGetEvent(ztGuiItem *item, ztGuiEvent *after)
+{
+	ztGuiManager *gm = item == nullptr ? zt_guiGetActiveManager() : item->gm;
+
+	int start = after == nullptr ? 0 : after->index + 1;
+
+	for(int i = start; i < gm->events_count; ++i) {
+		if (item == nullptr || gm->events[i].item == item) {
+			if (!zt_bitIsSet(gm->events[i].flags, ztGuiEventFlags_Handled)) {
+				return &gm->events[i];
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -3846,6 +3956,7 @@ bool zt_guiManagerHandleInput(ztGuiManager *gm, ztInputKeys input_keys[ztInputKe
 	gm->key_state_ctrl  = input_keys[ztInputKeys_Control].pressed();
 	gm->key_state_shift = input_keys[ztInputKeys_Shift].pressed();
 
+	gm->events_count = 0;
 
 	bool mouse_captured = gm->item_has_mouse != nullptr;
 	if (mouse_captured) {
@@ -4493,6 +4604,30 @@ ztGuiItem *_zt_guiMakeItemBase(ztGuiItem *parent, ztGuid guid, const char *item_
 }
 
 // ================================================================================================================================================================================================
+
+ztGuiEvent *_zt_guiMakeEvent(ztGuiItem *item, ztGuid guid, i32 flags)
+{
+	ztGuiManager *gm = item == nullptr ? zt_guiGetActiveManager() : item->gm;
+
+	if (gm->events_count < zt_elementsOf(gm->events)) {
+		ztGuiEvent *result = &gm->events[gm->events_count++];
+
+		result->item = item;
+		result->guid = guid;
+		result->flags = flags;
+
+		return result;
+	}
+
+	static ztGuiEvent dummy_event;
+	dummy_event.item = item;
+	dummy_event.guid = guid;
+	dummy_event.flags = flags;
+
+	return &dummy_event;
+}
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -5086,6 +5221,11 @@ ztGuiItem *zt_guiMakeStaticText(ztGuiItem *parent, const char *label, i32 behavi
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+ztGuid ZT_GUI_BUTTON_EVENT_PRESSED = zt_guid(0x8130f4e4, 0xe4d0459f, 0xa8d2c07a, 0x28b1db38);
+ztGuid ZT_GUI_BUTTON_EVENT_TOGGLED = zt_guid(0xc63a1a3c, 0x2f6446ea, 0x9a808290, 0xc70a6b73);
+
+// ================================================================================================================================================================================================
+
 ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiButtonBaseUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiButtonBaseUpdate");
@@ -5135,6 +5275,7 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiButtonBaseInputMouse)
 
 	if (input_mouse->leftJustReleased()) {
 		if (item->gm->item_has_mouse == item && zt_bitIsSet(item->gm->item_cache_flags[item->id], ztGuiManagerItemCacheFlags_MouseOver)) {
+			ztGuid event_guid = ZT_GUI_BUTTON_EVENT_PRESSED;
 			bool value = true;
 			if (zt_bitIsSet(item->behavior_flags, ztGuiButtonInternalBehaviorFlags_IsToggleButton)) {
 				value = !zt_bitIsSet(item->state_flags, zt_bit(ztGuiButtonInternalStates_IsToggled));
@@ -5144,6 +5285,7 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiButtonBaseInputMouse)
 				else {
 					zt_bitRemove(item->state_flags, zt_bit(ztGuiButtonInternalStates_IsToggled));
 				}
+				event_guid = ZT_GUI_BUTTON_EVENT_TOGGLED;
 			}
 			if (zt_bitIsSet(item->behavior_flags, ztGuiButtonInternalBehaviorFlags_IsRadio)) {
 				value = true;
@@ -5169,6 +5311,7 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiButtonBaseInputMouse)
 			if (ZT_FUNCTION_POINTER_IS_VALID(button_state->on_pressed)) {
 				ZT_FUNCTION_POINTER_ACCESS(button_state->on_pressed, zt_guiButtonPressed_Func)(item, button_state->on_pressed_user_data);
 			}
+			_zt_guiMakeEvent(item, event_guid);
 			return true;
 		}
 	}
@@ -5405,9 +5548,14 @@ void zt_guiRadioButtonSetValue(ztGuiItem *radio, bool value)
 	}
 }
 
-// ------------------------------------------------------------------------------------
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+const ztGuid ZT_GUI_SLIDER_EVENT_VALUE_CHANGED = zt_guid(0x18021460, 0x78994635, 0xbf3fcdc1, 0x0c0cf959);
+
+// ================================================================================================================================================================================================
+
 
 ztInternal void _zt_guiSliderBaseCalcHandleSizeAndPos(ztGuiItem *item)
 {
@@ -5450,9 +5598,11 @@ ztInternal void _zt_guiSliderDoCallback(ztGuiItem *item)
 	if (ZT_FUNCTION_POINTER_IS_VALID(slider_state->on_scrollbar_scroll)) {
 		ZT_FUNCTION_POINTER_ACCESS(slider_state->on_scrollbar_scroll, zt_guiScrollbarScrolled_Func)(item, slider_state->value, slider_state->on_scrollbar_scroll_user_data);
 	}
+
+	_zt_guiMakeEvent(item, ZT_GUI_SLIDER_EVENT_VALUE_CHANGED)->values[0] = zt_variantMake_r32(slider_state->value);
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSliderBaseUpdate)
 {
@@ -5491,7 +5641,7 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSliderBaseUpdate)
 	}
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_RENDER(_zt_guiSliderBaseRender)
 {
@@ -5525,7 +5675,7 @@ ztInternal int _zt_guiItemSliderMouseOverButton(ztGuiItem *item, ztGuiTheme *the
 	return 0;
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal void _zt_guiItemSliderProcessDragReturn(ztGuiItem *item, ztGuiTheme *theme, ztInputMouse *input_mouse)
 {
@@ -5575,7 +5725,7 @@ ztInternal void _zt_guiItemSliderProcessDragReturn(ztGuiItem *item, ztGuiTheme *
 	_zt_guiSliderBaseCalcHandleSizeAndPos(item);
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiItemSliderInputMouse)
 {
@@ -5675,7 +5825,7 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiItemSliderInputMouse)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiItemSliderBestSize)
 {
@@ -5714,7 +5864,7 @@ ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiItemSliderBestSize)
 	}
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztInternal ztGuiItem *_zt_guiMakeSliderBase(ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value, bool scrollbar)
 {
@@ -5799,6 +5949,10 @@ void zt_guiSliderSetCallback(ztGuiItem *slider, ZT_FUNCTION_POINTER_VAR(callback
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+const ztGuid ZT_GUI_SCROLLBAR_EVENT_VALUE_CHANGED = zt_guid(0x18021460, 0x78994635, 0xbf3fcdc1, 0x0c0cf959); // same as ZT_GUI_SLIDER_EVENT_VALUE_CHANGED
+
 // ================================================================================================================================================================================================
 
 ztGuiItem *zt_guiMakeScrollbar(ztGuiItem *parent, ztGuiItemOrient_Enum orient, r32 *live_value)
@@ -6109,7 +6263,7 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiScrollContainerUpdate)
 	}
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiScrollContainerInputMouse)
 {
@@ -6127,7 +6281,7 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiScrollContainerInputMouse)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiScrollContainerInputKey)
 {
@@ -6153,7 +6307,7 @@ ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiScrollContainerInputKey)
 	return false;
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiScrollContainerBestSize)
 {
@@ -6168,7 +6322,7 @@ ZT_FUNC_GUI_ITEM_BEST_SIZE(_zt_guiScrollContainerBestSize)
 	*size = *min_size;
 }
 
-// ------------------------------------------------------------------------------------
+// ================================================================================================================================================================================================
 
 ztGuiItem *zt_guiMakeScrollContainer(ztGuiItem *parent, i32 behavior_flags)
 {
@@ -6281,6 +6435,10 @@ r32 zt_guiScrollContainerGetScroll(ztGuiItem *scroll, ztGuiItemOrient_Enum orien
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_TEXTEDIT_EVENT_KEY = zt_guid(0xb4bfffc4, 0x5db740c2, 0xa9b880f8, 0x2768d7a7);
+
+// ================================================================================================================================================================================================
+
 ztInternal ztVec2 _zt_guiTextEditGetTextStartPos(ztGuiItem *item, ztGuiTheme *theme)
 {
 	ZT_PROFILE_GUI("_zt_guiTextEditGetTextStartPos");
@@ -6303,7 +6461,7 @@ ztInternal ztVec2 _zt_guiTextEditGetTextStartPos(ztGuiItem *item, ztGuiTheme *th
 	}
 
 	return zt_vec2(pos.x - item->size.x / 2.f + padding_x - (diff_x * textedit_state->scroll_amt_horz),
-	              pos.y + item->size.y / 2.f - padding_y + (diff_y * textedit_state->scroll_amt_vert));
+	               pos.y + item->size.y / 2.f - padding_y + (diff_y * textedit_state->scroll_amt_vert));
 }
 
 // ================================================================================================================================================================================================
@@ -6694,6 +6852,17 @@ ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiTextEditInputKey)
 		if (!should_process) {
 			return false;
 		}
+	}
+
+	zt_fiz(ZT_MAX_INPUT_KEYSTROKES) {
+		if (input_key_strokes[i] != ztInputKeys_Invalid) {
+			ztGuiEvent *gui_event = _zt_guiMakeEvent(item, ZT_GUI_TEXTEDIT_EVENT_KEY);
+			gui_event->values[0] = zt_variantMake_i32((i32)input_key_strokes[i]);
+			gui_event->values[1] = zt_variantMake_bool(input_keys[ztInputKeys_Shift].pressed());
+			gui_event->values[2] = zt_variantMake_bool(input_keys[ztInputKeys_Control].pressed());
+			gui_event->values[3] = zt_variantMake_bool(input_keys[ztInputKeys_Menu].pressed());
+		}
+		else break;
 	}
 
 	bool can_edit = !zt_bitIsSet(item->behavior_flags, ztGuiTextEditBehaviorFlags_ReadOnly);
@@ -7230,6 +7399,10 @@ ztVec2 zt_guiTextEditGetCharacterPos(ztGuiItem *item, int ch, bool bottom_right)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_MENU_EVENT_SELECTED = zt_guid(0x03846519, 0x7480494b, 0x87284f6f, 0x98b9d946);
+
+// ================================================================================================================================================================================================
+
 #define ztGuiMenuMaxMenuItems	512
 
 // ================================================================================================================================================================================================
@@ -7455,6 +7628,8 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiMenuInputMouse)
 			if (ZT_FUNCTION_POINTER_IS_VALID(menu_state->on_selected) && !need_open) {
 				ZT_FUNCTION_POINTER_ACCESS(menu_state->on_selected, zt_guiMenuSelected_Func)(item, menu_state->ids[menu_state->selected], menu_state->user_datas[menu_state->selected]);
 			}
+
+			_zt_guiMakeEvent(item, ZT_GUI_MENU_EVENT_SELECTED)->values[0] = zt_variantMake_i32(menu_state->ids[menu_state->selected]);
 
 			if (zt_bitIsSet(item->behavior_flags, ztGuiMenuBehaviorFlags_FreeOnClose)) {
 				zt_guiItemQueueFree(item);
@@ -7729,6 +7904,10 @@ void zt_guiMenuClear(ztGuiItem *menu)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_TREE_EVENT_ITEM_SELECTED = zt_guid(0x5c24502e, 0x142a483c, 0x96f66828, 0x4e27353d);
+
+// ================================================================================================================================================================================================
+
 enum ztTreeEntryFlags_Enum
 {
 	ztTreeEntryFlags_NeedsSized = (1<<0),
@@ -7968,6 +8147,8 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiTreeInputMouse)
 				if (ZT_FUNCTION_POINTER_IS_VALID(tree_state->on_item_sel)) {
 					ZT_FUNCTION_POINTER_ACCESS(tree_state->on_item_sel, zt_guiTreeItemSelected_Func)(item, intersecting->node_id, tree_state->on_item_sel_user_data);
 				}
+
+				_zt_guiMakeEvent(item, ZT_GUI_TREE_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(intersecting->node_id);
 			}
 		}
 	}
@@ -8400,6 +8581,10 @@ ztGuiTreeNodeID  zt_guiTreeFindNodeWithUserDataOf(ztGuiItem *tree, void *user_da
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_COMBOBOX_EVENT_ITEM_SELECTED = zt_guid(0xf39575ac, 0xe31241e6, 0x922415f9, 0xe79cc3cb);
+
+// ================================================================================================================================================================================================
+
 ZT_FUNC_GUI_ITEM_RENDER(_zt_guiComboBoxRender)
 {
 	ZT_PROFILE_GUI("_zt_guiComboBoxRender");
@@ -8470,6 +8655,7 @@ ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiComboBoxInputKey)
 			if (ZT_FUNCTION_POINTER_IS_VALID(combo_state->on_selected)) {
 				ZT_FUNCTION_POINTER_ACCESS(combo_state->on_selected, zt_guiComboBoxItemSelected_Func)(item, combo_state->selected, combo_state->on_selected_user_data);
 			}
+			_zt_guiMakeEvent(item, ZT_GUI_COMBOBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(combo_state->selected);
 		}
 	}
 	if (input_keys[ztInputKeys_Down].justPressedOrRepeated()) {
@@ -8478,6 +8664,7 @@ ZT_FUNC_GUI_ITEM_INPUT_KEY(_zt_guiComboBoxInputKey)
 			if (ZT_FUNCTION_POINTER_IS_VALID(combo_state->on_selected)) {
 				ZT_FUNCTION_POINTER_ACCESS(combo_state->on_selected, zt_guiComboBoxItemSelected_Func)(item, combo_state->selected, combo_state->on_selected_user_data);
 			}
+			_zt_guiMakeEvent(item, ZT_GUI_COMBOBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(combo_state->selected);
 		}
 	}
 
@@ -8550,6 +8737,7 @@ ZT_FUNC_GUI_MENU_SELECTED(_zt_guiComboBoxMenuSelected)
 	if (ZT_FUNCTION_POINTER_IS_VALID(combo_state->on_selected)) {
 		ZT_FUNCTION_POINTER_ACCESS(combo_state->on_selected, zt_guiComboBoxItemSelected_Func)(combo, combo_state->selected, combo_state->on_selected_user_data);
 	}
+	_zt_guiMakeEvent(combo, ZT_GUI_COMBOBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(combo_state->selected);
 }
 
 // ================================================================================================================================================================================================
@@ -8723,6 +8911,8 @@ void zt_guiComboBoxSetCallback(ztGuiItem *combobox, ZT_FUNCTION_POINTER_VAR(on_i
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_CYCLEBOX_EVENT_ITEM_SELECTED = zt_guid(0xb2918c9e, 0x05a24d85, 0xba8ba500, 0xa28fccb1);
+
 ztInternal void _zt_guiCycleBoxChanged(ztGuiItem *cyclebox)
 {
 	ZT_PROFILE_GUI("_zt_guiCycleBoxChanged");
@@ -8770,6 +8960,7 @@ ztInternal void _zt_guiCycleBoxCycleLeft(ztGuiItem *item)
 		if (cyclebox_state->live_value) {
 			*cyclebox_state->live_value = cyclebox_state->selected;
 		}
+		_zt_guiMakeEvent(item, ZT_GUI_CYCLEBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(cyclebox_state->selected);
 		_zt_guiCycleBoxChanged(item);
 	}
 }
@@ -8800,6 +8991,7 @@ ztInternal void _zt_guiCycleBoxCycleRight(ztGuiItem *item)
 		if (cyclebox_state->live_value) {
 			*cyclebox_state->live_value = cyclebox_state->selected;
 		}
+		_zt_guiMakeEvent(item, ZT_GUI_CYCLEBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(cyclebox_state->selected);
 		_zt_guiCycleBoxChanged(item);
 	}
 }
@@ -9177,6 +9369,10 @@ void zt_guiSpriteDisplaySetSprite(ztGuiItem *item, ztGuiThemeSprite *sprite, con
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_SPINNER_EVENT_VALUE_CHANGED = zt_guid(0x3213e8f5, 0x7766454f, 0x8fb2744d, 0x0c1125f8);
+
+// ================================================================================================================================================================================================
+
 ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiSpinnerUpdate)
 {
 	ZT_PROFILE_GUI("_zt_guiSpinnerUpdate");
@@ -9249,9 +9445,11 @@ ZT_FUNC_GUI_ITEM_INPUT_MOUSE(_zt_guiSpinnerInputMouse)
 			if (ZT_FUNCTION_POINTER_IS_VALID(spinner_state->on_value_changed)) {
 				ZT_FUNCTION_POINTER_ACCESS(spinner_state->on_value_changed, zt_guiSpinnerValueChanged_Func)(item, dir, spinner_state->on_value_changed_user_data);
 			}
+
+			_zt_guiMakeEvent(item, ZT_GUI_SPINNER_EVENT_VALUE_CHANGED)->values[0] = zt_variantMake_i32(dir);
 		}
 		else {
-			spinner_state->value = false;
+			spinner_state->value = false; // this doesn't seem right...
 		}
 
 		if (spinner_state->live_value) {
@@ -9330,6 +9528,8 @@ void zt_guiSpinnerTickUp(ztGuiItem *spinner)
 		ZT_FUNCTION_POINTER_ACCESS(spinner_state->on_value_changed, zt_guiSpinnerValueChanged_Func)(spinner, spinner_state->last_dir, spinner_state->on_value_changed_user_data);
 	}
 
+	_zt_guiMakeEvent(spinner, ZT_GUI_SPINNER_EVENT_VALUE_CHANGED)->values[0] = zt_variantMake_i32(spinner_state->last_dir);
+
 	if (spinner_state->live_value) {
 		*spinner_state->live_value = spinner_state->value;
 	}
@@ -9352,6 +9552,8 @@ void zt_guiSpinnerTickDown(ztGuiItem *spinner)
 		ZT_FUNCTION_POINTER_ACCESS(spinner_state->on_value_changed, zt_guiSpinnerValueChanged_Func)(spinner, spinner_state->last_dir, spinner_state->on_value_changed_user_data);
 	}
 
+	_zt_guiMakeEvent(spinner, ZT_GUI_SPINNER_EVENT_VALUE_CHANGED)->values[0] = zt_variantMake_i32(spinner_state->last_dir);
+
 	if (spinner_state->live_value) {
 		*spinner_state->live_value = spinner_state->value;
 	}
@@ -9359,6 +9561,10 @@ void zt_guiSpinnerTickDown(ztGuiItem *spinner)
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+const ztGuid ZT_GUI_LISTBOX_EVENT_ITEM_SELECTED = zt_guid(0x8a717bbe, 0x510245ba, 0xa618bd6e, 0xf761af71);
+
 // ================================================================================================================================================================================================
 
 enum ztGuiListBoxInternalBehaviorFlags_Enum
@@ -9647,6 +9853,7 @@ ztInternal int _zt_guiListBoxSetSelected(ztGuiItem *listbox, int item_idx, bool 
 		if (ZT_FUNCTION_POINTER_IS_VALID(listbox_state->on_selected) && (from_user_input || zt_bitIsSet(listbox->behavior_flags, ztGuiListBoxBehaviorFlags_AlwaysCallCallback))) {
 			ZT_FUNCTION_POINTER_ACCESS(listbox_state->on_selected, zt_guiListBoxItemSelected_Func)(listbox, item_idx, listbox_state->on_selected_user_data);// listbox_state->user_datas[item_idx]);
 		}
+		_zt_guiMakeEvent(listbox, ZT_GUI_LISTBOX_EVENT_ITEM_SELECTED)->values[0] = zt_variantMake_i32(item_idx);
 	}
 
 	return selected_count;
@@ -11916,6 +12123,8 @@ void zt_guiAnimCurveSetLiveValue(ztGuiItem *anim_curve, ztAnimCurve *live_value)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_EDITOR_EVENT_VALUE_CHANGED = zt_guid(0xd51c421b, 0x62254089, 0x849b6e51, 0xe53648ba);
+
 enum ztGuiEditorType_Enum
 {
 	ztGuiEditorType_r32,
@@ -11993,6 +12202,8 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 		}
 	}
 
+	bool value_changed = false;
+
 	if (vptr->needs_update_from_editor) {
 		vptr->needs_update_from_editor = false;
 		vptr->needs_update_from_spinner = true;
@@ -12011,9 +12222,7 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 			vptr->val_r32.value_last = *vptr->val_r32.value;
 		}
 
-		if (ZT_FUNCTION_POINTER_IS_VALID(vptr->func_val_changed)) {
-			ZT_FUNCTION_POINTER_ACCESS(vptr->func_val_changed, zt_guiEditorValueChanged_Func)(item, vptr->func_val_changed_user_data);
-		}
+		value_changed = true;
 	}
 	if (vptr->needs_update_from_spinner) {
 		vptr->needs_update_from_spinner = false;
@@ -12044,8 +12253,21 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 
 		zt_guiTextEditSetValue(vptr->text_edit, buffer);
 
+		value_changed = true;
+	}
+
+	if (value_changed) {
 		if (ZT_FUNCTION_POINTER_IS_VALID(vptr->func_val_changed)) {
 			ZT_FUNCTION_POINTER_ACCESS(vptr->func_val_changed, zt_guiEditorValueChanged_Func)(item, vptr->func_val_changed_user_data);
+		}
+
+		ztGuiEvent *gui_event = _zt_guiMakeEvent(item, ZT_GUI_EDITOR_EVENT_VALUE_CHANGED);
+
+		if (vptr->type == ztGuiEditorType_r32) {
+			gui_event->values[0] = zt_variantMake_r32(*vptr->val_r32.value);
+		}
+		else if(vptr->type == ztGuiEditorType_i32) {
+			gui_event->values[1] = zt_variantMake_i32(*vptr->val_i32.value);
 		}
 	}
 }
@@ -14570,6 +14792,10 @@ ztGuiItem *zt_guiMakeFlagEditor(ztGuiItem *parent, const char **flag_labels, i32
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+const ztGuid ZT_GUI_DIALOG_MESSAGE_EVENT_CLOSED = zt_guid(0x5c13de55, 0x99ff46a3, 0x933a836f, 0x72d66c29);
+
+// ================================================================================================================================================================================================
+
 struct ztGuiDialogMessage
 {
 	ztGuiDialogMessageOption options[8];
@@ -14589,7 +14815,10 @@ ZT_FUNC_GUI_BUTTON_PRESSED(_zt_guiDialogMessageBoxButton)
 	if (ZT_FUNCTION_POINTER_IS_VALID(dialog_data->callback)) {
 		zt_fiz(dialog_data->options_count) {
 			if (dialog_data->options_buttons[i] == button) {
-				ZT_FUNCTION_POINTER_ACCESS(dialog_data->callback, zt_guiDialogMessageClosed_Func)(&dialog_data->options[i], dialog_data->user_data);
+				ZT_FUNCTION_POINTER_ACCESS_SAFE(dialog_data->callback, zt_guiDialogMessageClosed_Func)(&dialog_data->options[i], dialog_data->user_data);
+
+				_zt_guiMakeEvent(zt_guiItemGetTopLevelParent(button), ZT_GUI_DIALOG_MESSAGE_EVENT_CLOSED)->values[0] = zt_variantMake_voidp(&dialog_data->options[i]);
+
 				break;
 			}
 		}
@@ -14653,13 +14882,6 @@ void zt_guiDialogMessageBox(const char *title, const char *message, ztGuiDialogM
 
 // ================================================================================================================================================================================================
 
-void zt_guiDialogMessageBoxOk(const char *title, const char *message)
-{
-	zt_guiDialogMessageBoxOk(title, message, ZT_FUNCTION_POINTER_TO_VAR_NULL, nullptr);
-}
-
-// ================================================================================================================================================================================================
-
 void zt_guiDialogMessageBoxOk(const char *title, const char *message, ZT_FUNCTION_POINTER_VAR(callback, zt_guiDialogMessageClosed_Func), void *user_data)
 {
 	ztGuiDialogMessageOption options[1];
@@ -14718,7 +14940,6 @@ void zt_guiDialogMessageBoxYesNoCancel(const char *title, const char *message, Z
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
-
 
 struct ztGuiDialogGetUserText
 {
