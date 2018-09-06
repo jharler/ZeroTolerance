@@ -5600,6 +5600,338 @@ r32  zt_audioSystemGetVolume(i32 audio_system);
 
 
 // ================================================================================================================================================================================================
+// game scene
+// ================================================================================================================================================================================================
+
+#if 0
+// COPY THE CODE BELOW TO CREATE A NEW GAMESTATE
+
+#define GS_MAIN_GUID	zt_guid(0, 0, 0, 0)
+
+// ================================================================================================================================================================================================
+
+struct GameSceneMain
+{
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_LOAD_GET_DETAILS(gs_mainLoadGetDetails)
+{
+	*load_steps_needed = ;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_LOAD_ITERATE(gs_mainLoadIterate)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_UNLOAD(gs_mainUnload)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_BEGIN(gs_mainBegin)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_END(gs_mainEnd)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_SCREEN_CHANGE(gs_mainScreenChange)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_UPDATE_FRAME(gs_mainUpdateFrame)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_UPDATE_TICK(gs_mainUpdateTick)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_RENDER(gs_mainRender)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_MAKE(gs_mainMake)
+{
+	ztGame *game = (ztGame*)user_data;
+
+	GameSceneMain *gs = zt_mallocStruct(GameSceneMain);
+	game_scene->user_data = gs;
+
+	gs->game = game;
+
+	game_scene->ticks_per_second = 20;
+
+	game_scene->callback_load_get_details = ZT_FUNCTION_POINTER_TO_VAR(gs_mainLoadGetDetails);
+	game_scene->callback_load_iterate     = ZT_FUNCTION_POINTER_TO_VAR(gs_mainLoadIterate);
+	game_scene->callback_unload           = ZT_FUNCTION_POINTER_TO_VAR(gs_mainUnload);
+	game_scene->callback_begin            = ZT_FUNCTION_POINTER_TO_VAR(gs_mainBegin);
+	game_scene->callback_end              = ZT_FUNCTION_POINTER_TO_VAR(gs_mainEnd);
+	game_scene->callback_screen_change    = ZT_FUNCTION_POINTER_TO_VAR(gs_mainScreenChange);
+	game_scene->callback_update_frame     = ZT_FUNCTION_POINTER_TO_VAR(gs_mainUpdateFrame);
+	game_scene->callback_update_tick      = ZT_FUNCTION_POINTER_TO_VAR(gs_mainUpdateTick);
+	game_scene->callback_render           = ZT_FUNCTION_POINTER_TO_VAR(gs_mainRender);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GAME_SCENE_FREE(gs_mainFree)
+{
+	GameSceneMain *gs = (GameSceneMain*)game_scene->user_data;
+	zt_free(gs);
+	game_scene->user_data = nullptr;
+}
+
+#endif
+
+struct ztGameScene;
+
+// ================================================================================================================================================================================================
+
+#define ZT_FUNC_GAME_SCENE_LOAD_GET_DETAILS_DECL(name) void name(ztGameScene *game_scene, i32 *load_steps_needed)
+typedef ZT_FUNC_GAME_SCENE_LOAD_GET_DETAILS_DECL(zt_gameSceneLoadGetDetails_Func);
+#define ZT_FUNC_GAME_SCENE_LOAD_GET_DETAILS(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_LOAD_GET_DETAILS_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_LOAD_ITERATE_DECL(name) bool name(ztGameScene *game_scene, i32 load_step, bool *is_complete)
+typedef ZT_FUNC_GAME_SCENE_LOAD_ITERATE_DECL(zt_gameSceneLoadIterate_Func);
+#define ZT_FUNC_GAME_SCENE_LOAD_ITERATE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_LOAD_ITERATE_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_UNLOAD_DECL(name) bool name(ztGameScene *game_scene)
+typedef ZT_FUNC_GAME_SCENE_UNLOAD_DECL(zt_gameSceneUnload_Func);
+#define ZT_FUNC_GAME_SCENE_UNLOAD(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_UNLOAD_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_BEGIN_DECL(name) bool name(ztGameScene *game_scene, ztGuid transitioning_from)
+typedef ZT_FUNC_GAME_SCENE_BEGIN_DECL(zt_gameSceneBegin_Func);
+#define ZT_FUNC_GAME_SCENE_BEGIN(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_BEGIN_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_END_DECL(name) bool name(ztGameScene *game_scene, ztGuid transitioning_to, bool app_exiting)
+typedef ZT_FUNC_GAME_SCENE_END_DECL(zt_gameSceneEnd_Func);
+#define ZT_FUNC_GAME_SCENE_END(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_END_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_SCREEN_CHANGE_DECL(name) bool name(ztGameScene *game_scene, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h)
+typedef ZT_FUNC_GAME_SCENE_SCREEN_CHANGE_DECL(zt_gameSceneScreenChange_Func);
+#define ZT_FUNC_GAME_SCENE_SCREEN_CHANGE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_SCREEN_CHANGE_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_UPDATE_FRAME_DECL(name) bool name(ztGameScene *game_scene, r32 dt, bool gui_input, i32 input_this_frame, ztInputRegistry *input_registry, ztInputKeys *input_keys, ztInputController *input_controller, ztInputMouse *input_mouse)
+typedef ZT_FUNC_GAME_SCENE_UPDATE_FRAME_DECL(zt_gameSceneUpdateFrame_Func);
+#define ZT_FUNC_GAME_SCENE_UPDATE_FRAME(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_UPDATE_FRAME_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_UPDATE_TICK_DECL(name) bool name(ztGameScene *game_scene, r32 dt, bool gui_input, i32 input_this_frame, ztInputKeys *input_keys, ztInputController *input_controller, ztInputMouse *input_mouse)
+typedef ZT_FUNC_GAME_SCENE_UPDATE_TICK_DECL(zt_gameSceneUpdateTick_Func);
+#define ZT_FUNC_GAME_SCENE_UPDATE_TICK(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_UPDATE_TICK_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_RENDER_DECL(name) void name(ztGameScene *game_scene, ztTextureID final_render_target, ztDrawList *draw_list)
+typedef ZT_FUNC_GAME_SCENE_RENDER_DECL(zt_gameSceneRender_Func);
+#define ZT_FUNC_GAME_SCENE_RENDER(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_RENDER_DECL(name))
+
+// ================================================================================================================================================================================================
+
+struct ztGameSceneManager;
+
+// ================================================================================================================================================================================================
+// Game Scenes
+//
+// Game scenes should be able to reset without reloading all assets.  The load functions are meant to load any resources that
+// the scene will need.  The begin function should be used to reset the state of the scene.  The end function notifies the scene
+// that it is being transitioned out.  The unload function is called when the scene should release all resources.
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+
+struct ztGameScene
+{
+	ztGameSceneManager     *game_scene_manager;
+	void                   *user_data;
+	i32                     ticks_per_second;
+	ztCamera               *active_camera;
+
+	ZT_FUNCTION_POINTER_VAR(callback_load_get_details, zt_gameSceneLoadGetDetails_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_load_iterate,     zt_gameSceneLoadIterate_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_unload,           zt_gameSceneUnload_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_begin,            zt_gameSceneBegin_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_end,              zt_gameSceneEnd_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_screen_change,    zt_gameSceneScreenChange_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_update_frame,     zt_gameSceneUpdateFrame_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_update_tick,      zt_gameSceneUpdateTick_Func);
+	ZT_FUNCTION_POINTER_VAR(callback_render,           zt_gameSceneRender_Func);
+};
+
+// ================================================================================================================================================================================================
+
+#define ZT_FUNC_GAME_SCENE_MAKE_DECL(name) bool name(ztGameScene *game_scene, ztInputRegistry *input_registry, void *user_data)
+typedef ZT_FUNC_GAME_SCENE_MAKE_DECL(zt_gameSceneMake_Func);
+#define ZT_FUNC_GAME_SCENE_MAKE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_MAKE_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_FREE_DECL(name) void name(ztGameScene *game_scene, void *user_data)
+typedef ZT_FUNC_GAME_SCENE_FREE_DECL(zt_gameSceneFree_Func);
+#define ZT_FUNC_GAME_SCENE_FREE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_FREE_DECL(name))
+
+#define ZT_FUNC_GAME_SCENE_RENDER_LOAD_DECL(name) void name(ztGameSceneManager *game_scene_manager, ztGameScene *game_scene, ztGuid game_scene_guid, ztGuid game_scene_guid_prev, r32 percent_complete, void *user_data)
+typedef ZT_FUNC_GAME_SCENE_RENDER_LOAD_DECL(zt_gameSceneRenderLoad_Func);
+#define ZT_FUNC_GAME_SCENE_RENDER_LOAD(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_GAME_SCENE_RENDER_LOAD_DECL(name))
+
+// ================================================================================================================================================================================================
+
+enum ztGameSceneFlags_Enum
+{
+	ztGameSceneFlags_LoadOnStartup = (1 << 0),
+	ztGameSceneFlags_UnloadOnEnd   = (1 << 1),
+
+	ztGameSceneFlags_HdrScene      = (1 << 2),
+};
+
+// ================================================================================================================================================================================================
+
+enum ztGameSceneState_Enum
+{
+	ztGameSceneState_Waiting,
+	ztGameSceneState_QueuedForLoad,
+	ztGameSceneState_Loading,
+	ztGameSceneState_LoadTransition,
+	ztGameSceneState_Loaded,
+	ztGameSceneState_QueuedForUnload,
+	ztGameSceneState_ReleaseTextures,
+
+	ztGameSceneState_MAX,
+};
+
+// ================================================================================================================================================================================================
+
+enum ztGameSceneTransition_Enum
+{
+	ztGameSceneTransition_None,
+
+	ztGameSceneTransition_Fade,
+	ztGameSceneTransition_SpinOut,
+	ztGameSceneTransition_SpinIn,
+	ztGameSceneTransition_SlideLeft,
+	ztGameSceneTransition_SlideRight,
+	ztGameSceneTransition
+};
+
+// ================================================================================================================================================================================================
+
+#if defined(ZT_INPUT_REPLAY)
+enum ReplayState_Enum
+{
+	ReplayState_None,
+	ReplayState_Recording,
+	ReplayState_Replaying,
+	ReplayState_Stepping,
+	ReplayState_Paused,
+
+	ReplayState_MAX,
+};
+#endif
+
+// ================================================================================================================================================================================================
+
+struct ztGuiManager;
+
+// ================================================================================================================================================================================================
+
+struct ztGameSceneManager
+{
+	struct Scene
+	{
+		ztGuid                  guid;
+		i32                     flags;
+		ztGameSceneState_Enum   state;
+		ztGameScene             scene;
+		ztTextureID             render_texture;
+		ztTextureID             render_texture_attach_position;
+		ztTextureID             render_texture_attach_normal;
+		ZT_FUNCTION_POINTER_VAR(callback_make, zt_gameSceneMake_Func);
+		void                   *callback_make_user_data;
+		ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func);
+		void                   *callback_free_user_data;
+		r32                     tick_time;
+		i32                     load_iterations;
+		i32                     load_iteration;
+	};
+
+	ztGameDetails              *details;
+	ztGameSettings             *settings;
+	ztAssetManager             *asset_manager;
+	ztInputRegistry            *input_registry;
+	ztDrawList                 *draw_list;
+
+	ztCamera                    screen_camera;
+
+#	if defined(ZT_INPUT_REPLAY)
+	ztInputReplayData           replay_data;
+	bool                        replaying;
+	ReplayState_Enum            replay_state;
+#	endif
+
+	Scene                      *scenes;
+	i32                         scenes_size;
+	i32                         scenes_count;
+
+	i32                         active_scene;
+	i32                         active_scene_load_steps_count;
+	i32                         active_scene_load_step;
+
+	r32                         transition_time;
+	r32                         transition_time_max;
+	i32                         transition_to;
+	i32                         transition_prev;
+	ztGameSceneTransition_Enum  transition_type;
+	bool                        transition_same;
+
+	ZT_FUNCTION_POINTER_VAR(    callback_render_load, zt_ameSceneRenderLoad_Func);
+	void                       *callback_render_load_user_data;
+};
+
+bool zt_gameSceneManagerMake         (ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list);
+void zt_gameSceneManagerFree         (ztGameSceneManager *game_scene_manager);
+void zt_gameSceneManagerAddScene     (ztGameSceneManager *game_scene_manager, ztGuid guid, i32 flags, ZT_FUNCTION_POINTER_VAR(callback_make, zt_gameSceneMake_Func), void *callback_make_user_data, ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func), void *callback_free_user_data);
+bool zt_gameSceneManagerUpdate       (ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, r32 dt);
+void zt_gameSceneManagerScreenUpdate (ztGameSceneManager *game_scene_manager, ztGameSettings *settings);
+
+bool zt_gameSceneManagerReplayPaused (ztGameSceneManager *game_scene_manager);
+
+void zt_gameSceneManagerTransitionTo(ztGameSceneManager *game_scene_manager, ztGuid transition_to_guid, ztGameSceneTransition_Enum transition_type, r32 transition_time = .5f);
+
+
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
@@ -45648,6 +45980,723 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 			}
 		}
 		zt_game->audio_has_delay = delays > 0;
+	}
+}
+
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+#ifndef ZT_GAME_DRAWLIST_SIZE
+#define ZT_GAME_DRAWLIST_SIZE 1024 * 128
+#endif
+
+#ifndef ZT_GAME_INPUT_REGISTRY_MAX_ENTRIES
+#define ZT_GAME_INPUT_REGISTRY_MAX_ENTRIES 128
+#endif
+
+#ifndef ZT_GAME_INPUT_REGISTRY_MAX_MAPPINGS
+#define ZT_GAME_INPUT_REGISTRY_MAX_MAPPINGS 128
+#endif
+
+// ================================================================================================================================================================================================
+
+bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list)
+{
+	zt_returnValOnNull(game_scene_manager, false);
+	zt_returnValOnNull(details, false);
+	zt_returnValOnNull(settings, false);
+	zt_assertReturnValOnFail(max_scenes > 0, false);
+
+	zt_memSet(game_scene_manager, zt_sizeof(ztGameSceneManager), 0);
+
+	game_scene_manager->details = details;
+	game_scene_manager->settings = settings;
+	game_scene_manager->asset_manager = asset_manager;
+	game_scene_manager->input_registry = input_registry;
+	game_scene_manager->draw_list = draw_list;
+
+	game_scene_manager->scenes = zt_mallocStructArray(ztGameSceneManager::Scene, max_scenes);
+	game_scene_manager->scenes_size = max_scenes;
+
+	game_scene_manager->active_scene = -1;
+	game_scene_manager->transition_to = -1;
+	game_scene_manager->transition_prev = -1;
+
+	zt_gameSceneManagerScreenUpdate(game_scene_manager, settings);
+
+	{
+		// app path and assets
+		char data_path[ztFileMaxPath];
+		zt_strCpy(data_path, ztFileMaxPath, details->data_path);
+		if (!zt_directoryExists(data_path)) {
+			zt_fileConcatFileToPath(data_path, ztFileMaxPath, details->data_path, "data");
+			if (!zt_directoryExists(data_path)) {
+				zt_fileConcatFileToPath(data_path, ztFileMaxPath, details->data_path, "run" ztFilePathSeparatorStr "data");
+			}
+		}
+
+		if (!zt_assetManagerLoadDirectory(asset_manager, data_path, zt_memGetGlobalArena())) {
+			zt_logCritical("Unable to load game assets");
+			return false;
+		}
+	}
+
+	if (game_scene_manager->input_registry->entries_size <= 0) {
+		zt_inputRegistryMake(game_scene_manager->input_registry, ZT_GAME_INPUT_REGISTRY_MAX_ENTRIES, ZT_GAME_INPUT_REGISTRY_MAX_MAPPINGS);
+	}
+
+	if (game_scene_manager->draw_list->commands_size <= 0) {
+		if (!zt_drawListMake(game_scene_manager->draw_list, ZT_GAME_DRAWLIST_SIZE)) {
+			zt_logCritical("Una7ble to initialize draw list");
+			return false;
+		}
+	}
+
+#	if defined(ZT_INPUT_REPLAY)
+	game_scene_manager->replay_state = ReplayState_None;
+	{
+		// setup input recording/playback
+
+		if (zt_cmdHasArg(details->argv, details->argc, "i", "input")) {
+			char replay_file_name[ztFileMaxPath];
+			if (zt_cmdGetArg(details->argv, details->argc, "i", "input", replay_file_name, ztFileMaxPath)) {
+				char replay_file[ztFileMaxPath];
+				if (zt_fileExists(replay_file_name)) {
+					zt_strCpy(replay_file, zt_elementsOf(replay_file), replay_file_name, zt_strLen(replay_file_name));
+				}
+				else {
+					zt_fileConcatFileToPath(replay_file, ztFileMaxPath, details->user_path, replay_file_name);
+					if (!zt_fileExists(replay_file)) {
+						zt_fileConcatFileToPath(replay_file, ztFileMaxPath, details->app_path, replay_file_name);
+					}
+				}
+
+				if (!zt_fileExists(replay_file)) {
+					zt_logCritical("Could not locate input replay file: %s", replay_file_name);
+				}
+				else {
+					zt_inputReplayMakeReader(&game_scene_manager->replay_data, replay_file);
+					game_scene_manager->replaying = true;
+					game_scene_manager->replay_state = ReplayState_Replaying;
+
+					zt_guiDebugShowDetails();
+				}
+			}
+		}
+		else if (!zt_cmdHasArg(details->argv, details->argc, "no-vsync", "no-vsync")) {
+			char replay_file[ztFileMaxPath];
+
+			// we will keep the last 3 replays, so that we don't accidentally lose a replay
+			for (int i = 3; i > 1; --i) {
+				zt_strMakePrintf(file_name, 64, "input_replay.%d.dat", i);
+				zt_fileConcatFileToPath(replay_file, ztFileMaxPath, details->user_path, file_name);
+
+				zt_strPrintf(file_name, 64, "input_replay.%d.dat", i - 1);
+				char next_replay_file[ztFileMaxPath];
+				zt_fileConcatFileToPath(next_replay_file, ztFileMaxPath, details->user_path, file_name);
+
+				if (zt_fileExists(replay_file)) {
+					zt_fileDelete(replay_file);
+				}
+				if (zt_fileExists(next_replay_file)) {
+					zt_fileCopy(next_replay_file, replay_file);
+				}
+			}
+
+			zt_fileConcatFileToPath(replay_file, ztFileMaxPath, details->user_path, "input_replay.1.dat");
+			zt_fileDelete(replay_file);
+
+			zt_inputReplayMakeWriter(&game_scene_manager->replay_data, replay_file);
+			game_scene_manager->replaying = false;
+			game_scene_manager->replay_state = ReplayState_Recording;
+		}
+	}
+#	endif
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager)
+{
+	if (game_scene_manager == nullptr) {
+		return;
+	}
+
+#	if defined(ZT_INPUT_REPLAY)
+	zt_inputReplayFree(&game_scene_manager->replay_data);
+#	endif
+
+	zt_fiz(game_scene_manager->scenes_count) {
+		if (game_scene_manager->scenes[i].state == ztGameSceneState_Loaded) {
+			if (i == game_scene_manager->active_scene) {
+				ZT_FUNCTION_POINTER_ACCESS_SAFE(game_scene_manager->scenes[i].scene.callback_end, zt_gameSceneEnd_Func)(&game_scene_manager->scenes[i].scene, zt_guidMake(0, 0, 0, 0), true);
+			}
+			ZT_FUNCTION_POINTER_ACCESS_SAFE(game_scene_manager->scenes[i].scene.callback_unload, zt_gameSceneUnload_Func)(&game_scene_manager->scenes[i].scene);
+		}
+		if (game_scene_manager->scenes[i].state != ztGameSceneState_Waiting) {
+			game_scene_manager->scenes[i].state = ztGameSceneState_Waiting;
+			ZT_FUNCTION_POINTER_ACCESS_SAFE(game_scene_manager->scenes[i].callback_free, zt_gameSceneFree_Func)(&game_scene_manager->scenes[i].scene, game_scene_manager->scenes[i].callback_free_user_data);
+		}
+
+		if (game_scene_manager->scenes[i].render_texture != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture);
+		if (game_scene_manager->scenes[i].render_texture_attach_normal != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_normal);
+		if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
+	}
+
+	zt_drawListFree(game_scene_manager->draw_list);
+	zt_inputRegistryFree(game_scene_manager->input_registry);
+	zt_assetManagerFree(game_scene_manager->asset_manager);
+
+	zt_free(game_scene_manager->scenes);
+	zt_memSet(game_scene_manager, zt_sizeof(ztGameSceneManager), 0);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerAddScene(ztGameSceneManager *game_scene_manager, ztGuid guid, i32 flags, ZT_FUNCTION_POINTER_VAR(callback_make, ztGameSceneMake_Func), void *callback_make_user_data, ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func), void *callback_free_user_data)
+{
+	zt_returnOnNull(game_scene_manager);
+	zt_assertReturnOnFail(guid != ztGuid::invalid);
+
+	zt_assertReturnOnFail(game_scene_manager->scenes_count < game_scene_manager->scenes_size);
+	zt_assertReturnOnFail(ZT_FUNCTION_POINTER_IS_VALID(callback_make));
+
+	int idx = game_scene_manager->scenes_count++;
+
+	game_scene_manager->scenes[idx].guid = guid;
+	game_scene_manager->scenes[idx].flags = flags;
+	game_scene_manager->scenes[idx].callback_make = callback_make;
+	game_scene_manager->scenes[idx].callback_make_user_data = callback_make_user_data;
+	game_scene_manager->scenes[idx].callback_free = callback_free;
+	game_scene_manager->scenes[idx].callback_free_user_data = callback_free_user_data;
+
+	game_scene_manager->scenes[idx].render_texture = ztInvalidID;
+	game_scene_manager->scenes[idx].render_texture_attach_normal = ztInvalidID;
+	game_scene_manager->scenes[idx].render_texture_attach_position = ztInvalidID;
+
+	if (zt_bitIsSet(flags, ztGameSceneFlags_LoadOnStartup)) {
+		game_scene_manager->scenes[idx].state = ztGameSceneState_QueuedForLoad;
+	}
+	else {
+		game_scene_manager->scenes[idx].state = ztGameSceneState_Waiting;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_gameSceneManagerCreateTextures(ztGameSceneManager *game_scene_manager, ztGameSceneManager::Scene *scene)
+{
+	if (zt_bitIsSet(scene->flags, ztGameSceneFlags_HdrScene)) {
+		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->settings->native_w, game_scene_manager->settings->native_h, ztTextureFlags_HDR | ztTextureFlags_Multisample);
+		scene->render_texture_attach_position = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
+		scene->render_texture_attach_normal = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
+	}
+	else {
+		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->settings->native_w, game_scene_manager->settings->native_h, ztTextureFlags_Multisample);
+		scene->render_texture_attach_position = ztInvalidID;
+		scene->render_texture_attach_normal = ztInvalidID;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, r32 dt)
+{
+	ZT_PROFILE_GAME("zt_gameSceneManagerUpdate");
+
+	// ==============================================================
+	// read input / input replay
+
+	ztInputKeys       input_keys[ztInputKeys_MAX];
+	ztInputMouse      input_mouse;
+	ztInputController input_controller;
+	ztInputKeys_Enum  input_keystrokes[16];
+	bool              input_this_frame;
+	zt_inputGetKeyStrokes(input_keystrokes);
+
+	bool gui_input;
+	{
+		ZT_PROFILE_GAME("zt_gameSceneManagerUpdate:input");
+		zt_inputKeysCopyState(input_keys);
+		zt_inputMouseCopyState(&input_mouse);
+		zt_inputControllerCopyState(&input_controller, 0);
+		zt_inputGetKeyStrokes(input_keystrokes);
+		input_this_frame = zt_inputThisFrame();
+
+		if (input_keys[ztInputKeys_Control].pressed() && input_keys[ztInputKeys_Shift].pressed() && input_keys[ztInputKeys_Menu].pressed()) {
+			if (input_keys[ztInputKeys_P].justPressed()) {
+				if (zt_profilerIsPaused()) {
+					zt_profilerResume();
+				}
+				else {
+					zt_profilerPause();
+				}
+			}
+
+			if (input_keys[ztInputKeys_D].justPressed()) {
+				zt_guiDebugToggle();
+			}
+		}
+#		if defined(ZT_INPUT_REPLAY)
+		if (game_scene_manager->replay_state == ReplayState_Replaying) {
+			dt = 1.f / 60.f;
+			if (input_keys[ztInputKeys_Space].justPressed()) {
+				game_scene_manager->replay_state = ReplayState_Paused;
+			}
+		}
+		else if (game_scene_manager->replay_state == ReplayState_Paused) {
+			dt = 1.f / 60.f;
+			if (input_keys[ztInputKeys_Right].justPressedOrRepeated()) {
+				game_scene_manager->replay_state = ReplayState_Stepping;
+			}
+			if (input_keys[ztInputKeys_Space].justPressed()) {
+				game_scene_manager->replay_state = ReplayState_Replaying;
+			}
+		}
+		else if (game_scene_manager->replay_state == ReplayState_Recording) {
+			dt = 1.f / 60.f;
+		}
+
+		if (game_scene_manager->replay_state != ReplayState_Paused) {
+			if (!zt_inputReplayProcessFrame(&game_scene_manager->replay_data, game_scene_manager->details->current_frame, &input_this_frame, input_keys, &input_mouse, &input_controller, input_keystrokes)) {
+				game_scene_manager->replaying = false;
+				game_scene_manager->replay_state = ReplayState_None;
+			}
+#		else
+		{
+#		endif
+			gui_input = zt_guiManagerHandleInput(gui_manager, input_keys, input_keystrokes, &input_mouse);
+			if (!gui_input) {
+				if (input_keys[ztInputKeys_Tilda].justPressed()) {
+					bool console_shown = false;
+					zt_debugConsoleToggle(&console_shown);
+					if (console_shown) {
+						zt_guiManagerSetKeyboardFocus(gui_manager);
+					}
+				}
+
+				zt_inputRegistryUpdate(game_scene_manager->input_registry, input_keys, &input_mouse, &input_controller, dt);
+			}
+		}
+	}
+
+	// ==============================================================
+	// iterate thru scenes to update/render/load/unload
+
+	bool has_active_scene = false;
+	bool has_loading_scene = false;
+
+	zt_fvz(sidx, game_scene_manager->scenes_count) {
+		ztGameSceneManager::Scene *scene = &game_scene_manager->scenes[sidx];
+
+		switch (scene->state)
+		{
+			case ztGameSceneState_Loaded: {
+				if (game_scene_manager->active_scene == sidx) {
+					has_active_scene = true;
+
+					if (scene->scene.ticks_per_second > 0) {
+						scene->tick_time += dt;
+
+						r32 tick_dt = 1.f / scene->scene.ticks_per_second;
+						i32 tick_count = 0;
+
+						while (scene->tick_time >= tick_dt) {
+							tick_count += 1;
+							scene->tick_time -= tick_dt;
+						}
+
+						zt_fiz(tick_count) {
+							ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_tick, zt_gameSceneUpdateTick_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, input_keys, &input_controller, &input_mouse);
+						}
+					}
+
+					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_frame, zt_gameSceneUpdateFrame_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, game_scene_manager->input_registry, input_keys, &input_controller, &input_mouse);
+
+					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_render, zt_gameSceneRender_Func)(&scene->scene, scene->render_texture, game_scene_manager->draw_list);
+
+					zt_drawListAddScreenRenderTexture(game_scene_manager->draw_list, scene->render_texture, &game_scene_manager->screen_camera, 1, zt_shaderGetDefault(ztShaderDefault_Unlit));
+				}
+			} break;
+
+			case ztGameSceneState_Waiting: {
+				// nothing to do
+			} break;
+
+			case ztGameSceneState_QueuedForLoad: {
+				has_loading_scene = true;
+
+				scene->scene.game_scene_manager = game_scene_manager;
+
+				if (!ZT_FUNCTION_POINTER_ACCESS(scene->callback_make, zt_gameSceneMake_Func)(&scene->scene, game_scene_manager->input_registry, scene->callback_make_user_data)) {
+					return false;
+				}
+
+				_zt_gameSceneManagerCreateTextures(game_scene_manager, scene);
+
+				scene->load_iteration = 0;
+				scene->load_iterations = 0;
+				ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_load_get_details, zt_gameSceneLoadGetDetails_Func)(&scene->scene, &scene->load_iterations);
+				scene->state = ztGameSceneState_Loading;
+			} break;
+
+			case ztGameSceneState_Loading: {
+				has_loading_scene = true;
+
+				bool is_complete = !ZT_FUNCTION_POINTER_IS_VALID(scene->scene.callback_load_iterate);
+				if (!is_complete) {
+					ZT_FUNCTION_POINTER_ACCESS(scene->scene.callback_load_iterate, zt_gameSceneLoadIterate_Func)(&scene->scene, scene->load_iteration++, &is_complete);
+
+					if (scene->load_iteration >= scene->load_iterations) {
+						is_complete = true;
+					}
+				}
+
+				if (is_complete) {
+					scene->state = ztGameSceneState_Loaded;
+
+					if (scene->load_iterations > 0) {
+						scene->state = ztGameSceneState_LoadTransition;
+						game_scene_manager->transition_to = sidx;
+						game_scene_manager->transition_time_max = zt_abs(game_scene_manager->transition_time_max);
+						game_scene_manager->transition_time = 0;
+					}
+				}
+			} break;
+
+			case ztGameSceneState_LoadTransition: {
+				has_loading_scene = true;
+			} break;
+
+			case ztGameSceneState_QueuedForUnload: {
+				ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_unload, zt_gameSceneUnload_Func)(&scene->scene);
+
+				scene->state = ztGameSceneState_ReleaseTextures;
+			} break;
+
+			case ztGameSceneState_ReleaseTextures: {
+				if (game_scene_manager->transition_to < 0 || game_scene_manager->transition_same) {
+					if (scene->render_texture != ztInvalidID) zt_textureFree(scene->render_texture);
+					if (scene->render_texture_attach_normal != ztInvalidID) zt_textureFree(scene->render_texture_attach_normal);
+					if (scene->render_texture_attach_position != ztInvalidID) zt_textureFree(scene->render_texture_attach_position);
+
+					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->callback_free, zt_gameSceneFree_Func)(&scene->scene, scene->callback_free_user_data);
+
+					scene->state = ztGameSceneState_Waiting;
+				}
+			} break;
+		}
+	}
+
+	// ==============================================================
+	// handle rendering loading screen
+
+	if (!has_active_scene && has_loading_scene) {
+		i32 total = 0, current = 0, loading_scenes_count = 0;
+		ztGameScene *loading_scene = nullptr;
+		ztGuid loading_scene_guid;
+
+		zt_fiz(game_scene_manager->scenes_count) {
+			if (game_scene_manager->scenes[i].state == ztGameSceneState_Loading) {
+				total += game_scene_manager->scenes[i].load_iterations;
+				current += game_scene_manager->scenes[i].load_iteration;
+				loading_scenes_count += 1;
+				if (loading_scene == nullptr) {
+					loading_scene = &game_scene_manager->scenes[i].scene;
+					loading_scene_guid = game_scene_manager->scenes[i].guid;
+				}
+			}
+		}
+
+		r32 pct = total == 0 ? 1.f : (r32)current / (total - 1);
+
+		if (ZT_FUNCTION_POINTER_IS_VALID(game_scene_manager->callback_render_load)) {
+			ztGuid guid_prev = game_scene_manager->transition_prev >= 0 ? game_scene_manager->scenes[game_scene_manager->transition_prev].guid : ztGuid::invalid;
+			ZT_FUNCTION_POINTER_ACCESS(game_scene_manager->callback_render_load, zt_gameSceneRenderLoad_Func)(game_scene_manager, loading_scene, loading_scene_guid, guid_prev, pct, game_scene_manager->callback_render_load_user_data);
+		}
+		else {
+			zt_drawListPushShader(game_scene_manager->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+			zt_drawListAddSolidRect2D(game_scene_manager->draw_list, ztVec3::zero, zt_vec2(128, 128), ztColor_Gray);
+
+			zt_drawListAddFancyText2D(game_scene_manager->draw_list, ztFontDefault, "Loading", ztVec2::zero, ztAlign_Center, ztAnchor_Center, nullptr, ztColor_White);
+
+			r32 pix = 1 / zt_pixelsPerUnit();
+
+			ztVec2 load_ttl = zt_vec2(6, .25f);
+			ztVec2 load_pct = zt_vec2(6 * pct, .25f);
+
+			r32 diff = load_ttl.x - load_pct.x;
+			load_ttl.x += pix * 8;
+			load_ttl.y += pix * 8;
+
+			zt_drawListPushTexture(game_scene_manager->draw_list, 0);
+			{
+				zt_drawListAddSolidRect2D(game_scene_manager->draw_list, zt_vec3(0, -.5f, 0), load_ttl, ztColor_White);
+				zt_drawListAddSolidRect2D(game_scene_manager->draw_list, zt_vec3(-diff / 2, -.5f, 0), load_pct, ztColor_Black);
+			}
+			zt_drawListPopTexture(game_scene_manager->draw_list);
+		}
+	}
+
+	// ==============================================================
+	// handle transitioning between scenes
+
+	if (game_scene_manager->transition_to >= 0) {
+		ztGameSceneTransition_Enum transition = game_scene_manager->transition_type;
+		r32 percent = 0;
+		bool finished = false;
+
+		if (game_scene_manager->transition_time_max > 0) {
+			percent = zt_clamp(game_scene_manager->transition_time / zt_abs(game_scene_manager->transition_time_max), 0.f, 1.f);
+			if (percent >= 1 || game_scene_manager->active_scene < 0) {
+				percent = 1.f;
+
+				game_scene_manager->transition_time_max *= -1;
+				game_scene_manager->transition_time = 0;
+
+				// halfway through transition, so change active scene
+				if (game_scene_manager->scenes[game_scene_manager->active_scene].state != ztGameSceneState_LoadTransition) {
+					ztGameScene *scene_old = game_scene_manager->active_scene >= 0 ? &game_scene_manager->scenes[game_scene_manager->active_scene].scene : nullptr;
+					if (scene_old) {
+						if (game_scene_manager->scenes[game_scene_manager->active_scene].state == ztGameSceneState_Loaded) {
+							ZT_FUNCTION_POINTER_ACCESS_SAFE(scene_old->callback_end, zt_gameSceneEnd_Func)(scene_old, game_scene_manager->scenes[game_scene_manager->transition_to].guid, false);
+
+							if (zt_bitIsSet(game_scene_manager->scenes[game_scene_manager->active_scene].flags, ztGameSceneFlags_UnloadOnEnd)) {
+								game_scene_manager->scenes[game_scene_manager->active_scene].state = ztGameSceneState_QueuedForUnload;
+							}
+						}
+					}
+
+					if (game_scene_manager->active_scene != game_scene_manager->transition_to || game_scene_manager->scenes[game_scene_manager->active_scene].state == ztGameSceneState_Waiting || game_scene_manager->scenes[game_scene_manager->active_scene].state == ztGameSceneState_Loaded) {
+						game_scene_manager->transition_prev = game_scene_manager->active_scene;
+						game_scene_manager->active_scene = game_scene_manager->transition_to;
+
+						if (game_scene_manager->scenes[game_scene_manager->active_scene].state == ztGameSceneState_Waiting) {
+							game_scene_manager->scenes[game_scene_manager->active_scene].state = ztGameSceneState_QueuedForLoad;
+						}
+						else {
+							ZT_FUNCTION_POINTER_ACCESS_SAFE(game_scene_manager->scenes[game_scene_manager->active_scene].scene.callback_begin, zt_gameSceneBegin_Func)(&game_scene_manager->scenes[game_scene_manager->active_scene].scene, game_scene_manager->transition_prev < 0 ? ztGuid::invalid : game_scene_manager->scenes[game_scene_manager->transition_prev].guid);
+						}
+					}
+					else {
+						game_scene_manager->transition_time_max *= -1;
+						game_scene_manager->transition_time = game_scene_manager->transition_time_max - dt;
+						game_scene_manager->transition_same = true; // we are transitioning into the same scene we just had loaded
+					}
+				}
+				else {
+					game_scene_manager->scenes[game_scene_manager->active_scene].state = ztGameSceneState_Loaded;
+					ZT_FUNCTION_POINTER_ACCESS_SAFE(game_scene_manager->scenes[game_scene_manager->active_scene].scene.callback_begin, zt_gameSceneBegin_Func)(&game_scene_manager->scenes[game_scene_manager->active_scene].scene, game_scene_manager->transition_prev < 0 ? ztGuid::invalid : game_scene_manager->scenes[game_scene_manager->transition_prev].guid);
+				}
+			}
+		}
+		else {
+			percent = 1.f - zt_clamp(game_scene_manager->transition_time / zt_abs(game_scene_manager->transition_time_max), 0.f, 1.f);
+			finished = percent <= 0.f;
+		}
+
+		ztGameSceneManager::Scene *scene_old = game_scene_manager->transition_prev >= 0 ? &game_scene_manager->scenes[game_scene_manager->transition_prev] : nullptr;
+		ztGameSceneManager::Scene *scene_new = game_scene_manager->active_scene >= 0 ? &game_scene_manager->scenes[game_scene_manager->active_scene] : nullptr;
+
+		ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(&game_scene_manager->screen_camera);
+
+		switch (transition)
+ 		{
+			case ztGameSceneTransition_Fade: {
+				zt_drawListPushShader(game_scene_manager->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+				zt_drawListAddSolidRect2D(game_scene_manager->draw_list, ztVec3::zero, zt_vec2(128, 128), zt_color(0, 0, 0, percent));
+				zt_drawListPopShader(game_scene_manager->draw_list);
+			} break;
+
+			case ztGameSceneTransition_SpinIn:
+			case ztGameSceneTransition_SpinOut: {
+				if (game_scene_manager->transition_time_max > 0) {
+					game_scene_manager->transition_time = game_scene_manager->transition_time_max;
+					percent = 1;
+				}
+
+				if (transition == ztGameSceneTransition_SpinIn) {
+					percent = 1 - percent;
+				}
+
+				// the new scene is being drawn in the draw list, we need to take the old scene and render it on top
+				if (scene_old) {
+					ztTextureID render_texture = scene_old->render_texture;
+
+					if (transition == ztGameSceneTransition_SpinIn) {
+						// here we have to draw over the existing frame with the old frame so that the image can spin in
+						zt_drawListAddScreenRenderTexture(game_scene_manager->draw_list, scene_old->render_texture, &game_scene_manager->screen_camera);
+						render_texture = game_scene_manager->active_scene >= 0 ? game_scene_manager->scenes[game_scene_manager->active_scene].render_texture : render_texture;
+						if (render_texture == ztInvalidID) {
+							render_texture = scene_old->render_texture;
+						}
+					}
+
+					ztAnimCurve curve;
+					curve.val_max = 1.0000f;
+					curve.val_beg = 0.0000f;
+					curve.val_end = 1.0000f;
+					curve.type = ztAnimCurveType_Spline;
+					curve.segments_count = 1;
+					curve.segments[0].pos_beg = zt_vec2(0.0000f, 0.0000f);
+					curve.segments[0].pos_end = zt_vec2(1.0000f, 1.0000f);
+					curve.segments[0].control_point_beg = zt_vec2(2.7229f, 0.0218f);
+					curve.segments[0].control_point_end = zt_vec2(-0.4588f, -2.1333f);
+					// ztAnimCurveData:BAAAAAAAgD8AAAAAAACAPwAAAAAAAAAAAACAPwAAgD8RRC5AaauyPP/s6r6IiAjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAA==
+
+					ztTransform transform;
+					transform.position = ztVec3::zero;
+					//transform.rotation = ztQuat::makeFromEuler(0, 0, zt_lerp(0, 360 * 2, 1 - percent));
+					transform.rotation = ztQuat::makeFromEuler(0, 0, zt_lerp(0, 360 * 2, zt_animCurveGetValue(&curve, 1 - percent)));
+					transform.scale = ztVec3::lerp(ztVec3::one, ztVec3::zero, 1 - percent);
+
+					ztMat4 mat = zt_transformToMat4(&transform);
+
+					zt_drawListPushTransform(game_scene_manager->draw_list, mat);
+					zt_drawListAddScreenRenderTexture(game_scene_manager->draw_list, render_texture, &game_scene_manager->screen_camera);
+					zt_drawListPopTransform(game_scene_manager->draw_list);
+				}
+			} break;
+
+			case ztGameSceneTransition_SlideRight:
+			case ztGameSceneTransition_SlideLeft: {
+				if (game_scene_manager->transition_time_max > 0) {
+					game_scene_manager->transition_time = game_scene_manager->transition_time_max;
+					percent = 1;
+				}
+
+				percent = 1 - percent;
+			
+				// the new scene is being drawn in the draw list, we need to take the old scene and render it on top
+				if (scene_old && scene_new) {
+					zt_drawListPushShader(game_scene_manager->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+					zt_drawListAddSolidRect2D(game_scene_manager->draw_list, ztVec3::zero, zt_vec2(128, 128), zt_color(0, 0, 0, 1));
+					zt_drawListPopShader(game_scene_manager->draw_list);
+
+					ztTextureID texture_in = scene_new->render_texture;
+					ztTextureID texture_out = scene_old->render_texture;
+
+					ztVec3 offset = zt_vec3(zt_lerp(0, cam_ext.x * (transition == ztGameSceneTransition_SlideRight ? 1.f : -1.f), percent), 0, 0);
+
+					{
+						ztTransform transform = zt_transformMake(offset);
+						ztMat4 mat = zt_transformToMat4(&transform);
+
+						zt_drawListPushTransform(game_scene_manager->draw_list, mat);
+						zt_drawListAddScreenRenderTexture(game_scene_manager->draw_list, texture_out, &game_scene_manager->screen_camera);
+						zt_drawListPopTransform(game_scene_manager->draw_list);
+					}
+					{
+						ztTransform transform = zt_transformMake(offset + zt_vec3(cam_ext.x * (transition == ztGameSceneTransition_SlideRight ? -1.f : 1.f), 0, 0));
+						ztMat4 mat = zt_transformToMat4(&transform);
+
+						zt_drawListPushTransform(game_scene_manager->draw_list, mat);
+						zt_drawListAddScreenRenderTexture(game_scene_manager->draw_list, texture_in, &game_scene_manager->screen_camera);
+						zt_drawListPopTransform(game_scene_manager->draw_list);
+					}
+				}
+
+			} break;
+		}
+
+		if (finished) {
+			game_scene_manager->transition_time = 0;
+			game_scene_manager->transition_to = -1;
+		}
+		else {
+			game_scene_manager->transition_time += dt;
+		}
+	}
+
+	// ==============================================================
+	// render the gui and final image to the screen
+
+	{
+		ZT_PROFILE_GAME("gameLoop:render gui");
+
+		zt_drawListPushShader(game_scene_manager->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+		zt_guiManagerRender(gui_manager, game_scene_manager->draw_list, dt);
+		zt_drawListPopShader(game_scene_manager->draw_list);
+
+#		if defined(ZT_INPUT_REPLAY)
+		if (game_scene_manager->replaying) {
+			ztVec2 mpos = zt_cameraOrthoScreenToWorld(&game_scene_manager->screen_camera, input_mouse.screen_x, input_mouse.screen_y);
+			r32 ppu = zt_pixelsPerUnit();
+
+			zt_drawListPushShader(&game->draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
+			zt_drawListAddSolidCircle2D(game_scene_manager->draw_list, mpos, 7 / ppu, 10, ztColor_DarkRed);
+			zt_drawListAddSolidCircle2D(game_scene_manager->draw_list, mpos, 2 / ppu, 10, ztColor_Red);
+
+			ztVec2 ext = zt_cameraOrthoGetViewportSize(&game->screen_camera);
+
+			char *text = "[Replaying]\nPress Space to Pause";
+			if (game_scene_manager->replay_state == ReplayState_Paused || game_scene_manager->replay_state == ReplayState_Stepping) {
+				text = "[Replay Paused]\nPress Space to Resume, Press -> to Step Forward One Frame";
+			}
+
+			zt_drawListAddText2D(game_scene_manager->draw_list, ztFontDefault, text, zt_vec2(0, ext.y / -2 + .2f), ztAlign_Center | ztAlign_Bottom, ztAnchor_Center | ztAnchor_Bottom);
+			zt_drawListPopShader(game_scene_manager->draw_list);
+		}
+#		endif
+
+		zt_renderDrawList(&game_scene_manager->screen_camera, game_scene_manager->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest | ztRenderDrawListFlags_NoClear);
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerScreenUpdate(ztGameSceneManager *game_scene_manager, ztGameSettings *settings)
+{
+	zt_cameraMakeOrtho(&game_scene_manager->screen_camera, settings->screen_w, settings->screen_h, settings->native_w, settings->native_h, 0.1f, 100.f, game_scene_manager->screen_camera.position);
+	zt_cameraRecalcMatrices(&game_scene_manager->screen_camera);
+
+	zt_fiz(game_scene_manager->scenes_count) {
+		if (game_scene_manager->scenes[i].render_texture != ztInvalidID) {
+			zt_textureFree(game_scene_manager->scenes[i].render_texture);
+			if (game_scene_manager->scenes[i].render_texture_attach_normal != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_normal);
+			if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
+			_zt_gameSceneManagerCreateTextures(game_scene_manager, &game_scene_manager->scenes[i]);
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_gameSceneManagerReplayPaused(ztGameSceneManager *game_scene_manager)
+{
+#	if defined(ZT_INPUT_REPLAY)
+	return game_scene_manager->replay_state == ReplayState_Paused;
+#	else
+	return false;
+#	endif
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerTransitionTo(ztGameSceneManager *game_scene_manager, ztGuid transition_to_guid, ztGameSceneTransition_Enum transition_type, r32 transition_time)
+{
+	zt_returnOnNull(game_scene_manager);
+
+	i32 idx = -1;
+	zt_fiz(game_scene_manager->scenes_count) {
+		if (game_scene_manager->scenes[i].guid == transition_to_guid) {
+			idx = i;
+			break;
+		}
+	}
+
+	if (idx >= 0) {
+		game_scene_manager->transition_to       = idx;
+		game_scene_manager->transition_time_max = transition_time / 2.f;
+		game_scene_manager->transition_time     = 0.f;
+		game_scene_manager->transition_type     = transition_type;
+		game_scene_manager->transition_same     = false;
 	}
 }
 
