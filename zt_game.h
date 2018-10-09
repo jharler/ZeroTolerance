@@ -5916,7 +5916,7 @@ struct ztGameSceneManager
 	ztGameSceneTransition_Enum  transition_type;
 	bool                        transition_same;
 
-	ZT_FUNCTION_POINTER_VAR(    callback_render_load, zt_ameSceneRenderLoad_Func);
+	ZT_FUNCTION_POINTER_VAR(    callback_render_load, zt_gameSceneRenderLoad_Func);
 	void                       *callback_render_load_user_data;
 };
 
@@ -7112,6 +7112,9 @@ ztGameGlobals *zt_game = nullptr;
 
 #	if !defined(ZT_DLL)
 		// check for valid setup
+#		if !defined(ZT_GAME_NAME)
+#			error You must define ZT_GAME_NAME
+#		endif
 #		if !defined(ZT_GAME_FUNC_SETTINGS)
 #			error You must define ZT_GAME_FUNC_SETTINGS
 #		endif
@@ -24730,10 +24733,10 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 	}
 	else if (shader->renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
-			shader->variables.variables_count = dx_shader->variables_count;
+			shader->variables.variables_count = shader->dx_shader->variables_count;
 			zt_fiz(shader->variables.variables_count) {
 				ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
-				switch (dx_shader->variables[i].type)
+				switch (shader->dx_shader->variables[i].type)
 				{
 					case ztShaderDXVariableType_Float:   var_type = ztShaderVariable_Float; break;
 					case ztShaderDXVariableType_Vec2:    var_type = ztShaderVariable_Vec2; break;
@@ -24747,11 +24750,11 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 				}
 
 				if (var_type == ztShaderVariable_Invalid) {
-					zt_logCritical("Unsupported shader variable type in variable %s", dx_shader->variables[i].name);
+					zt_logCritical("Unsupported shader variable type in variable %s", shader->dx_shader->variables[i].name);
 				}
 				else {
 					shader->variables.variables[i].type = var_type;
-					zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), dx_shader->variables[i].name);
+					zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), shader->dx_shader->variables[i].name);
 					shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
 					shader->variables.variables[i].changed = true;
 				}
@@ -27436,11 +27439,12 @@ ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h)
 
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
-			texture->dx_texture = ztdx_textureMapFromPixelData(zt_game->win_details[0].dx_context, (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR);
-			if (texture->dx_texture == nullptr) {
-				zt_free(pixels);
-				return ztInvalidID;
-			}
+			// TODO: Implement:
+			//texture->dx_texture = ztdx_textureMapFromPixelData(zt_game->win_details[0].dx_context, (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR);
+			//if (texture->dx_texture == nullptr) {
+			//	zt_free(pixels);
+			//	return ztInvalidID;
+			//}
 #			endif
 		} break;
 	}
@@ -46165,7 +46169,7 @@ void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager)
 
 // ================================================================================================================================================================================================
 
-void zt_gameSceneManagerAddScene(ztGameSceneManager *game_scene_manager, ztGuid guid, i32 flags, ZT_FUNCTION_POINTER_VAR(callback_make, ztGameSceneMake_Func), void *callback_make_user_data, ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func), void *callback_free_user_data)
+void zt_gameSceneManagerAddScene(ztGameSceneManager *game_scene_manager, ztGuid guid, i32 flags, ZT_FUNCTION_POINTER_VAR(callback_make, zt_gameSceneMake_Func), void *callback_make_user_data, ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func), void *callback_free_user_data)
 {
 	zt_returnOnNull(game_scene_manager);
 	zt_assertReturnOnFail(guid != ztGuid::invalid);
