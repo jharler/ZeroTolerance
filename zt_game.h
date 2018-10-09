@@ -6647,6 +6647,7 @@ struct ztTexture
 	i32 width_actual, height_actual;
 	i32 flags;
 	r32 render_texture_scale;
+	i32 access_count;
 
 	ztRenderer_Enum renderer;
 	ztTextureLoadType_Enum load_type;
@@ -15626,10 +15627,10 @@ void zt_drawListAddSpriteNineSlice(ztDrawList *draw_list, ztSpriteNineSlice *sns
 	// these alignments seem necessary to eliminate the occasional tile offset problem
 	// not sure why two filled quads with a shared corner (exact same variable) would be off one pixel from each other on screen though
 	zt_fiz(4) {
-		zt_alignToPixel(&pos_nw[i], ppu);
-		zt_alignToPixel(&pos_ne[i], ppu);
-		zt_alignToPixel(&pos_sw[i], ppu);
-		zt_alignToPixel(&pos_se[i], ppu);
+		zt_alignToPixel(&pos_nw[i].xy, ppu);
+		zt_alignToPixel(&pos_ne[i].xy, ppu);
+		zt_alignToPixel(&pos_sw[i].xy, ppu);
+		zt_alignToPixel(&pos_se[i].xy, ppu);
 	}
 
 	zt_drawListPushTexture(draw_list, sns->tex);
@@ -26776,6 +26777,7 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 	texture->height = height;
 	texture->flags = flags;
 	texture->name[0] = 0;
+	texture->access_count = 1;
 
 	switch (texture->renderer)
 	{
@@ -26836,6 +26838,7 @@ ztInternal ztTextureID _zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asse
 		zt_fize(zt_game->textures) {
 			if (zt_game->textures[i].load_type == ztTextureLoadType_Asset && zt_game->textures[i].asset_id == asset_id) {
 				zt_logDebug("returning preloaded texture asset: %s (asset id: %d; texture id: %d)", asset_mgr->asset_name[asset_id], asset_id, i);
+				zt_game->textures[i].access_count += 1;
 				return i;
 			}
 		}
@@ -27605,6 +27608,11 @@ void zt_textureFree(ztTextureID texture_id)
 	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
 
 	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
+		return;
+	}
+
+	if (--zt_game->textures[texture_id].access_count > 0) {
+		zt_logDebug("texture access count above zero, not releasing resources");
 		return;
 	}
 
