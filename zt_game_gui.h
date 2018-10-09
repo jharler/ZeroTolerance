@@ -1090,7 +1090,6 @@ enum ztGuiAnimCurveBehaviorFlags_Enum
 
 ztGuiItem  *zt_guiMakeAnimCurve         (ztGuiItem *parent, ztAnimCurve *curve, i32 behavior_flags = 0, ztAnimCurve *live_value = nullptr);
 
-void        zt_guiAnimCurveSetCallback  (ztGuiItem *anim_curve, ZT_FUNCTION_POINTER_VAR(callback, zt_guiEditorValueChanged_Func), void *user_data);
 void        zt_guiAnimCurveSetLiveValue (ztGuiItem *anim_curve, ztAnimCurve *live_value);
 
 
@@ -1950,8 +1949,6 @@ struct ztGuiGradientPickerState
 
 struct ztGuiAnimCurveState
 {
-	ZT_FUNCTION_POINTER_VAR(callback, zt_guiEditorValueChanged_Func);
-	void                   *user_data;
 	ztAnimCurve            *curve;
 	ztAnimCurve            *live_value;
 };
@@ -13825,8 +13822,6 @@ ztGuiItem *zt_guiMakeAnimCurve(ztGuiItem *parent, ztAnimCurve *curve, i32 behavi
 		zt_memCpy(anim_curve_state->curve, zt_sizeof(ztAnimCurve), &lcl_curve, zt_sizeof(ztAnimCurve));
 	}
 
-	anim_curve_state->callback = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-	anim_curve_state->user_data = nullptr;
 	anim_curve_state->live_value = live_value;
 
 	item->functions.input_mouse = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiAnimCurveInputMouse);
@@ -13834,18 +13829,6 @@ ztGuiItem *zt_guiMakeAnimCurve(ztGuiItem *parent, ztAnimCurve *curve, i32 behavi
 	item->functions.cleanup     = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiAnimCurveCleanup);
 
 	return item;
-}
-
-// ================================================================================================================================================================================================
-
-void zt_guiAnimCurveSetCallback(ztGuiItem *anim_curve, ZT_FUNCTION_POINTER_VAR(callback, zt_guiEditorValueChanged_Func), void *user_data)
-{
-	zt_returnOnNull(anim_curve);
-	zt_assertReturnOnFail(anim_curve->guid == ZT_GUI_ANIM_CURVE_GUID);
-
-	ztGuiAnimCurveState *anim_curve_state = (ztGuiAnimCurveState*)anim_curve->state;
-	anim_curve_state->callback = callback;
-	anim_curve_state->user_data = user_data;
 }
 
 // ================================================================================================================================================================================================
