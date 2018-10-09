@@ -526,7 +526,9 @@ struct ztVec2
 	ztVec2& operator+=(const ztVec2& v) { x += v.x; y += v.y; return *this;}
 	ztVec2& operator-=(const ztVec2& v) { x -= v.x; y -= v.y; return *this;}
 	ztVec2& operator*=(r32 v) { x *= v; y *= v; return *this; }
+	ztVec2& operator*=(const ztVec2& v) { x *= v.x; y *= v.y; return *this; }
 	ztVec2& operator/=(r32 v) { if (v) { x /= v; y /= v; } else { x = y = 0; }; return *this; }
+	ztVec2& operator/=(const ztVec2& v) { x = v.x ? x / v.x : 0; y = v.y ? y / v.y : 0; return *this; }
 
 	bool operator==(const ztVec2& v) const { return zt_real32Eq(x, v.x) && zt_real32Eq(y, v.y); }
 	bool operator!=(const ztVec2& v) const { return !zt_real32Eq(x, v.x) || !zt_real32Eq(y, v.y); }
