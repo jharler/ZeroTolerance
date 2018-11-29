@@ -4300,7 +4300,7 @@ ztInternal bool _zt_platformerLevelEditorIsSelected(ztPlatformerLevelEditor *edi
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorTileSelect, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorTileSelect))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorTileSelect)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 	ztPlatformerLevelEditorTile *tile = (ztPlatformerLevelEditorTile*)zt_guiItemGetUserData(button);
@@ -4316,7 +4316,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorTileSelect, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoadFileSelected, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_platformerLevelEditorButtonLoadFileSelected))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_platformerLevelEditorButtonLoadFileSelected)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4335,7 +4335,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoadFileSelected, ZT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoad, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonLoad))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonLoad)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 	zt_guiDialogFileSelect("Select Level File To Load", ztGuiDialogFileSelectFlags_Open, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorButtonLoadFileSelected), editor, editor->levels_path);
@@ -4344,7 +4344,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonLoad, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonNew, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNew))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNew)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4373,7 +4373,7 @@ ztInternal void _zt_platformerLevelEditorSave(ztPlatformerLevelEditor *editor)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAsFileSelectedConfirmOverwrite, ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_platformerLevelEditorButtonSaveAsFileSelectedConfirmOverwrite))
+ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_platformerLevelEditorButtonSaveAsFileSelectedConfirmOverwrite)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4391,7 +4391,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAsFileSelectedCo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAsFileSelected, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_platformerLevelEditorButtonSaveAsFileSelected))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_platformerLevelEditorButtonSaveAsFileSelected)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4407,7 +4407,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAsFileSelected, 
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAs, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonSaveAs))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonSaveAs)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 	zt_guiDialogFileSelect("Select Level File To Save", ztGuiDialogFileSelectFlags_Save, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorButtonSaveAsFileSelected), editor, editor->levels_path);
@@ -4415,7 +4415,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSaveAs, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSave, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonSave))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonSave)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4429,7 +4429,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonSave, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonNewItem, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNewItem))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNewItem)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4445,7 +4445,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonNewItem, ZT_FUNC_GUI
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorBlueprintSelect, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorBlueprintSelect))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorBlueprintSelect)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 	ztPlatformerLevelEditorBlueprint *blueprint = (ztPlatformerLevelEditorBlueprint*)zt_guiItemGetUserData(button);
@@ -4479,7 +4479,7 @@ ztInternal void _zt_platformerLevelEditorBlueprintUpdate(ztPlatformerLevelEditor
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorBlueprintName, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_platformerLevelEditorBlueprintName))
+ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_platformerLevelEditorBlueprintName)
 {
 	if (cancelled || zt_strLen(value) <= 0) {
 		return;
@@ -4528,7 +4528,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorBlueprintName, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorButtonNewBlueprint, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNewBlueprint))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_platformerLevelEditorButtonNewBlueprint)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 	zt_guiDialogGetUserText("Blueprint Name", "Name this blueprint:", "", true, ZT_FUNCTION_POINTER_TO_VAR(_zt_platformerLevelEditorBlueprintName), editor);
@@ -4698,8 +4698,11 @@ ztInternal void _zt_platformerLeveleditorMakeToolsWindow(ztPlatformerLevelEditor
 			ztGuiItem *button = zt_guiMakeButton(tile_sizer, editor->tiles[i].name);
 
 			zt_guiButtonSetIcon(button, &editor->tiles[i].sprite);
-			button->button.icon->half_size.x = .5f;
-			button->button.icon->half_size.y = .5f;
+
+			ztGuiButtonState *button_state = (ztGuiButtonState*)button->state;
+
+			button_state->icon->half_size.x = .5f;
+			button_state->icon->half_size.y = .5f;
 			zt_guiItemAutoSize(button);
 
 			zt_guiSizerAddItem(tile_sizer, button, 0, padding);
@@ -4769,7 +4772,7 @@ enum ztPlatformerLevelEditorMenuItem_Enum
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddSprite, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_platformerLevelEditorMenuRightClickAddSprite))
+ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_platformerLevelEditorMenuRightClickAddSprite)
 {
 	if (cancelled) {
 		return;
@@ -4803,7 +4806,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddSprite, Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddMarker, ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_platformerLevelEditorMenuRightClickAddMarker))
+ZT_FUNC_GUI_DIALOG_SPRITE_SELECTED(_zt_platformerLevelEditorMenuRightClickAddMarker)
 {
 	if (cancelled) {
 		return;
@@ -4827,7 +4830,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClickAddMarker, Z
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClick, ZT_FUNC_GUI_MENU_SELECTED(_zt_platformerLevelEditorMenuRightClick))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_platformerLevelEditorMenuRightClick)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4920,7 +4923,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorMenuRightClick, ZT_FUNC_GU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionLayerChange, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorSelectionLayerChange))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorSelectionLayerChange)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4948,7 +4951,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionLayerChange, ZT_F
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementPathChanged, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorSelectionMovementPathChanged))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorSelectionMovementPathChanged)
 {
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4971,7 +4974,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementPathChang
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementOffsetChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementOffsetChanged))
+ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementOffsetChanged)
 {
 	ztPlatformerLevelEditor *level_editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -4994,7 +4997,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementOffsetCha
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorSelectionMovementSpeedChanged, ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementSpeedChanged))
+ZT_FUNC_GUI_EDITOR_VALUE_CHANGED(_zt_platformerLevelEditorSelectionMovementSpeedChanged)
 {
 	ztPlatformerLevelEditor *level_editor = (ztPlatformerLevelEditor*)user_data;
 
@@ -5189,7 +5192,7 @@ ztInternal void _zt_platformerLevelEditorCreateGuiForSelection(ztPlatformerLevel
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderNameTextChange, ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_platformerLevelEditorColliderNameTextChange))
+ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_platformerLevelEditorColliderNameTextChange)
 {
 	if (!input_keys[ztInputKeys_Return].justPressed()) {
 		return;
@@ -5206,7 +5209,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderNameTextChange, ZT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMarkerTypeSelected, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorColliderMarkerTypeSelected))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorColliderMarkerTypeSelected)
 {
 	ztPlatformerCollider *collider = (ztPlatformerCollider*)user_data;
 	ztPlatformerLevelEditor *editor = (ztPlatformerLevelEditor*)zt_guiItemGetUserData(combobox);
@@ -5223,7 +5226,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMarkerTypeSelected
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_platformerLevelEditorColliderMovementPathSelected, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorColliderMovementPathSelected))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_platformerLevelEditorColliderMovementPathSelected)
 {
 	ztPlatformerCollider *collider = (ztPlatformerCollider*)user_data;
 
