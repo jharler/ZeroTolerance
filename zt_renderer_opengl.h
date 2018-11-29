@@ -246,7 +246,7 @@ int     ztgl_clearErrors();
 #	define ztgl_callAndReturnValOnErrorFast(function, retval) zt_logDebug("Calling " #function " (%s line %d)", __FILE__, __LINE__); function; if (ztgl_checkAndReportError(#function)) return retval;
 #else
 #	define ztgl_callAndReportOnErrorFast(function) function; ztgl_checkAndReportError(#function, __LINE__);
-#	define ztgl_callAndReturnValOnErrorFast(function, retval) if (ztgl_checkAndReportError(#function)) return retval;
+#	define ztgl_callAndReturnValOnErrorFast(function, retval) function; if (ztgl_checkAndReportError(#function)) return retval;
 #endif
 #else
 #	define ztgl_callAndReportOnErrorFast(function) function;
@@ -2786,6 +2786,11 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 {
 	ZT_PROFILE_OPENGL("_ztgl_textureMakeBase");
 
+	ztTextureGL *active_render_target = context->active_render_target;
+	if (active_render_target) {
+		ztgl_textureRenderTargetCommit(active_render_target, context);
+	}
+
 	if (pixel_data && zt_bitIsSet(flags, ztTextureGLFlags_FlipOnLoad)) {
 		int half_height = height / 2;
 		u32* pix_u32 = ((u32*)pixel_data);
@@ -3063,17 +3068,32 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 	i32 actual_width = width;
 	i32 actual_height = height;
 
+
 	if (!render_target) {
 		if (!OpenGL::loadTexture(&tex_id, pixel_data, width, height, depth, flags)) {
 			zt_logCritical("Unable to load image into texture");
+
+			if (active_render_target) {
+				ztgl_textureRenderTargetPrepare(active_render_target, false);
+			}
+
 			return nullptr;
 		}
 	}
 	else {
 		if (!OpenGL::makeRenderTarget(&tex_id, &fb_id, &db_id, &rb_id, &rt_id, width, height, depth, flags, &actual_width, &actual_height)) {
 			zt_logCritical("Unable to create render target");
+
+			if (active_render_target) {
+				ztgl_textureRenderTargetPrepare(active_render_target, false);
+			}
+
 			return nullptr;
 		}
+	}
+
+	if (active_render_target) {
+		ztgl_textureRenderTargetPrepare(active_render_target, false);
 	}
 
 	ztTextureGL *texture = zt_mallocStructArena(ztTextureGL, arena);
