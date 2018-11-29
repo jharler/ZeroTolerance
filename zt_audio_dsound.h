@@ -117,6 +117,8 @@ void ztds_bufferSetFrequency(ztDirectSoundBuffer *buffer, r32 frequency);
 
 #include <windows.h>
 #include <dsound.h>
+#include <mmreg.h>
+
 
 // ================================================================================================================================================================================================
 
