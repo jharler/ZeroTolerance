@@ -55,50 +55,64 @@ struct ztEntityEditor;
 struct ztComponent;
 struct ztComponentEntry;
 
-#define ZT_FUNC_COMPONENT_MAKE(name) void name(ztEntityPool *pool, ztEntityID entity_id, ztComponent *component)
-typedef ZT_FUNC_COMPONENT_MAKE(ztComponentMake_Func);
+#define ZT_FUNC_COMPONENT_MAKE_DECL(name) void name(ztEntityPool *pool, ztEntityID entity_id, ztComponent *component)
+typedef ZT_FUNC_COMPONENT_MAKE_DECL(ztComponentMake_Func);
+#define ZT_FUNC_COMPONENT_MAKE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_MAKE_DECL(name))
 
-#define ZT_FUNC_COMPONENT_FREE(name) void name(ztEntityPool *pool, ztEntityID entity_id, ztComponent *component, ztComponentID component_id)
-typedef ZT_FUNC_COMPONENT_FREE(ztComponentFree_Func);
+#define ZT_FUNC_COMPONENT_FREE_DECL(name) void name(ztEntityPool *pool, ztEntityID entity_id, ztComponent *component, ztComponentID component_id)
+typedef ZT_FUNC_COMPONENT_FREE_DECL(ztComponentFree_Func);
+#define ZT_FUNC_COMPONENT_FREE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_FREE_DECL(name))
 
-#define ZT_FUNC_COMPONENT_FIND(name) ztComponentID name(ztComponent *component, ztEntity *entity, ztEntityID entity_id, ztComponentID after_component_id)
-typedef ZT_FUNC_COMPONENT_FIND(ztComponentFind_Func);
+#define ZT_FUNC_COMPONENT_FIND_DECL(name) ztComponentID name(ztComponent *component, ztEntity *entity, ztEntityID entity_id, ztComponentID after_component_id)
+typedef ZT_FUNC_COMPONENT_FIND_DECL(ztComponentFind_Func);
+#define ZT_FUNC_COMPONENT_FIND(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_FIND_DECL(name))
 
-#define ZT_FUNC_COMPONENT_GUI(name) ztGuiItem *name(ztComponent *component, ztComponentID component_id, ztGuiItem *parent)
-typedef ZT_FUNC_COMPONENT_GUI(ztComponentGui_Func);
+#define ZT_FUNC_COMPONENT_GUI_DECL(name) ztGuiItem *name(ztComponent *component, ztComponentID component_id, ztGuiItem *parent)
+typedef ZT_FUNC_COMPONENT_GUI_DECL(ztComponentGui_Func);
+#define ZT_FUNC_COMPONENT_GUI(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_GUI_DECL(name))
 
-#define ZT_FUNC_COMPONENT_SAVE(name) bool name(ztEntityPool *pool, ztComponent *component, ztSerial *serial)
-typedef ZT_FUNC_COMPONENT_SAVE(ztComponentSave_Func);
+#define ZT_FUNC_COMPONENT_SAVE_DECL(name) bool name(ztEntityPool *pool, ztComponent *component, ztSerial *serial)
+typedef ZT_FUNC_COMPONENT_SAVE_DECL(ztComponentSave_Func);
+#define ZT_FUNC_COMPONENT_SAVE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_SAVE_DECL(name))
 
-#define ZT_FUNC_COMPONENT_LOAD(name) bool name(ztEntityPool *pool, ztComponent *component, ztSerial *serial)
-typedef ZT_FUNC_COMPONENT_LOAD(ztComponentLoad_Func);
+#define ZT_FUNC_COMPONENT_LOAD_DECL(name) bool name(ztEntityPool *pool, ztComponent *component, ztSerial *serial)
+typedef ZT_FUNC_COMPONENT_LOAD_DECL(ztComponentLoad_Func);
+#define ZT_FUNC_COMPONENT_LOAD(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_LOAD_DECL(name))
 
-#define ZT_FUNC_COMPONENT_UPDATE(name) bool name(ztEntityPool *pool, ztComponent *component, r32 dt, ztCamera *camera, bool gui_input, bool input_this_frame, ztInputKeys *input_keys, ztInputController *input_controller, ztInputMouse *input_mouse)
-typedef ZT_FUNC_COMPONENT_UPDATE(ztComponentUpdate_Func);
+#define ZT_FUNC_COMPONENT_UPDATE_DECL(name) bool name(ztEntityPool *pool, ztComponent *component, r32 dt, ztCamera *camera, bool gui_input, bool input_this_frame, ztInputKeys *input_keys, ztInputController *input_controller, ztInputMouse *input_mouse)
+typedef ZT_FUNC_COMPONENT_UPDATE_DECL(ztComponentUpdate_Func);
+#define ZT_FUNC_COMPONENT_UPDATE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_UPDATE_DECL(name))
 
 // the following are optional functions that can be used to enhance component functionality
-#define ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(name) bool name(ztEntityPool *pool, ztCamera *camera, ztComponent *component, ztVec3 ray_pos, ztVec3 ray_dir, i32 *closest_id, r32 *closest_dist, ztInputMouse *input_mouse, ztInputKeys *input_keys)
-typedef ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(ztComponentEditQueryClick_Func);
+#define ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK_DECL(name) bool name(ztEntityPool *pool, ztCamera *camera, ztComponent *component, ztVec3 ray_pos, ztVec3 ray_dir, i32 *closest_id, r32 *closest_dist, ztInputMouse *input_mouse, ztInputKeys *input_keys)
+typedef ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK_DECL(ztComponentEditQueryClick_Func);
+#define ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK_DECL(name))
 
-#define ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(name) bool name(ztEntityPool *pool, ztCamera *camera, ztComponent *component, ztVec3 ray_pos, ztVec3 ray_dir, i32 closest_id, ztInputMouse *input_mouse, ztInputKeys *input_keys)
-typedef ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(ztComponentEditProcessClick_Func);
+#define ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK_DECL(name) bool name(ztEntityPool *pool, ztCamera *camera, ztComponent *component, ztVec3 ray_pos, ztVec3 ray_dir, i32 closest_id, ztInputMouse *input_mouse, ztInputKeys *input_keys)
+typedef ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK_DECL(ztComponentEditProcessClick_Func);
+#define ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK_DECL(name))
 
-#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(name) void name(ztComponent *component, ztCamera *camera, ztDrawList *draw_list, ztEntityID active_entity_id, ztComponentID active_component_id)
-typedef ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(ztComponentEditDrawDebug_Func);
+#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_DECL(name) void name(ztComponent *component, ztCamera *camera, ztDrawList *draw_list, ztEntityID active_entity_id, ztComponentID active_component_id)
+typedef ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_DECL(ztComponentEditDrawDebug_Func);
+#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_DECL(name))
 
-#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(name) void name(ztComponent *component, ztCamera *camera, ztDrawList *draw_list, ztEntityID active_entity_id, ztComponentID active_component_id)
-typedef ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(ztComponentEditDrawDebugAll_Func);
+#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL_DECL(name) void name(ztComponent *component, ztCamera *camera, ztDrawList *draw_list, ztEntityID active_entity_id, ztComponentID active_component_id)
+typedef ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL_DECL(ztComponentEditDrawDebugAll_Func);
+#define ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL_DECL(name))
 
-#define ZT_FUNC_COMPONENT_NOTIFY_CHANGE(name) void name(ztEntityPool *pool, ztComponent *component, ztEntity *entity, ztEntityID entity_id, ztComponentID component_id)
-typedef ZT_FUNC_COMPONENT_NOTIFY_CHANGE(ztComponentNotifyChange_Func);
+#define ZT_FUNC_COMPONENT_NOTIFY_CHANGE_DECL(name) void name(ztEntityPool *pool, ztComponent *component, ztEntity *entity, ztEntityID entity_id, ztComponentID component_id)
+typedef ZT_FUNC_COMPONENT_NOTIFY_CHANGE_DECL(ztComponentNotifyChange_Func);
+#define ZT_FUNC_COMPONENT_NOTIFY_CHANGE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_COMPONENT_NOTIFY_CHANGE_DECL(name))
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE(name) bool name(ztEntityPool *pool, ztSerial *serial, void *user_data)
-typedef ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE(ztEntitySerialExtraSave_Func);
+#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE_DECL(name) bool name(ztEntityPool *pool, ztSerial *serial, void *user_data)
+typedef ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE_DECL(ztEntitySerialExtraSave_Func);
+#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_ENTITY_SERIALIZE_EXTRA_SAVE_DECL(name))
 
-#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD(name) bool name(ztEntityPool *pool, ztSerial *serial, void *user_data)
-typedef ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD(ztEntitySerialExtraLoad_Func);
+#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD_DECL(name) bool name(ztEntityPool *pool, ztSerial *serial, void *user_data)
+typedef ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD_DECL(ztEntitySerialExtraLoad_Func);
+#define ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_ENTITY_SERIALIZE_EXTRA_LOAD_DECL(name))
 
 
 
@@ -371,6 +385,39 @@ ztModel      *zt_modelComponentGet(ztModelComponent *model_component, ztComponen
 void          zt_modelComponentCreateAndAssignEntities(ztModelComponent *model_component, ztEntityPool *pool, bool overwrite_existing);
 
 bool          zt_modelComponentFindModelAndIntersectPoint(ztModelComponent *model_component, const ztVec3 &ray_pos, const ztVec3 &ray_dir, ztEntityID *entity_id, ztModel **model, ztVec3 *intersect_point);
+
+
+// ================================================================================================================================================================================================
+
+struct ztModelComponentMaterialLoaderState
+{
+	i32 textures_total;
+	i32 textures_current;
+	i32 materials_total;
+	i32 materials_current;
+	i32 *asset_manager_file_indexes;
+};
+
+i32 zt_modelComponentMaterialLoaderQuery(ztModelComponentMaterialLoaderState *state, ztAssetManager *asset_manager, const char **directories, i32 directories_count, ztModelComponentMaterial **materials);
+void zt_modelComponentMaterialLoaderFree(ztModelComponentMaterialLoaderState *state);
+bool zt_modelComponentMaterialLoaderUpdate(ztModelComponentMaterialLoaderState *state, ztAssetManager *asset_manager, ztModelComponentMaterial *materials, bool *is_complete, char *error_buffer, i32 error_buffer_len);
+
+
+// ================================================================================================================================================================================================
+
+struct ztModelComponentShaderLoaderState
+{
+	i32 shaders_total;
+	i32 shaders_current;
+	i32 *asset_manager_file_indexes;
+};
+
+i32 zt_modelComponentShaderLoaderQuery(ztModelComponentShaderLoaderState *state, ztAssetManager *asset_manager, const char **directories, i32 directories_count, const char **ignore, i32 ignore_count, ztModelComponentShader **shaders);
+void zt_modelComponentShaderLoaderFree(ztModelComponentShaderLoaderState *state);
+bool zt_modelComponentShaderLoaderUpdate(ztModelComponentShaderLoaderState *state, ztAssetManager *asset_manager, ztModelComponentShader *shaders, bool *is_complete, char *error_buffer, i32 error_buffer_len);
+
+// ================================================================================================================================================================================================
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -1470,7 +1517,7 @@ ztInternal void _zt_entityEditorClearComponents(ztEntityEditor *editor)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonMenuComponent, ZT_FUNC_GUI_MENU_SELECTED(_zt_entityEditorButtonMenuComponent))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_entityEditorButtonMenuComponent)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonMenuComponent");
 
@@ -1484,7 +1531,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonMenuComponent, ZT_FUNC_GUI_ME
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewComponent, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewComponent))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewComponent)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonNewComponent");
 
@@ -1504,7 +1551,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewComponent, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonHideComponent, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonHideComponent))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonHideComponent)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonHideComponent");
 
@@ -1516,7 +1563,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonHideComponent, ZT_FUNC_GUI_BU
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonRemoveComponentDialog, ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_entityEditorButtonRemoveComponentDialog))
+ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_entityEditorButtonRemoveComponentDialog)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonRemoveComponentDialog");
 
@@ -1529,7 +1576,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonRemoveComponentDialog, ZT_FUN
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonRemoveComponent, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonRemoveComponent))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonRemoveComponent)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonRemoveComponent");
 
@@ -1707,7 +1754,7 @@ bool zt_entityEditorHasUnsavedChanges(ztEntityEditor *editor)
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewSceneUnsavedChangedDialog, ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_entityEditorButtonNewSceneUnsavedChangedDialog))
+ZT_FUNC_GUI_DIALOG_MESSAGE_CLOSED(_zt_entityEditorButtonNewSceneUnsavedChangedDialog)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonNewSceneUnsavedChangedDialog");
 
@@ -1720,7 +1767,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewSceneUnsavedChangedDialog,
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewScene, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewScene))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewScene)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonNewScene");
 
@@ -1736,7 +1783,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewScene, ZT_FUNC_GUI_BUTTON_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorLoadSceneFileSelected, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_entityEditorLoadSceneFileSelected))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_entityEditorLoadSceneFileSelected)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorLoadSceneFileSelected");
 
@@ -1750,7 +1797,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorLoadSceneFileSelected, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonLoadScene, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonLoadScene))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonLoadScene)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonLoadScene");
 
@@ -1760,7 +1807,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonLoadScene, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorSaveSceneFileSelected, ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_entityEditorSaveSceneFileSelected))
+ZT_FUNC_GUI_DIALOG_FILE_SELECTED(_zt_entityEditorSaveSceneFileSelected)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorSaveSceneFileSelected");
 
@@ -1771,7 +1818,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorSaveSceneFileSelected, ZT_FUNC_GUI_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonSaveScene, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonSaveScene))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonSaveScene)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonSaveScene");
 
@@ -1787,7 +1834,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonSaveScene, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewEntityGetName, ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_entityEditorButtonNewEntityGetName))
+ZT_FUNC_GUI_DIALOG_GET_USER_TEXT(_zt_entityEditorButtonNewEntityGetName)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonNewEntityGetName");
 
@@ -1815,7 +1862,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewEntityGetName, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewEntity, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewEntity))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonNewEntity)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonNewEntity");
 
@@ -1825,7 +1872,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonNewEntity, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonDelEntity, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonDelEntity))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_entityEditorButtonDelEntity)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorButtonDelEntity");
 
@@ -1850,7 +1897,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorButtonDelEntity, ZT_FUNC_GUI_BUTTON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_entityEditorTreeItemSelected, ZT_FUNC_GUI_TREE_ITEM_SELECTED(_zt_entityEditorTreeItemSelected))
+ZT_FUNC_GUI_TREE_ITEM_SELECTED(_zt_entityEditorTreeItemSelected)
 {
 	ZT_PROFILE_GUI("_zt_entityEditorTreeItemSelected");
 
@@ -2282,7 +2329,7 @@ struct ztModelComponentMakeParams
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMakeAdd, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentMakeAdd))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentMakeAdd)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentMakeAdd");
 
@@ -2304,7 +2351,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMakeAdd, ZT_FUNC_GUI_BUTTON_PRESS
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMakeCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentMakeCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentMakeCancel)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentMakeCancel");
 
@@ -2313,7 +2360,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMakeCancel, ZT_FUNC_GUI_BUTTON_PR
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_modelComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_modelComponentMake)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentMake");
 
@@ -2362,7 +2409,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_modelComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_modelComponentFree)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentFree");
 
@@ -2373,7 +2420,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_modelComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_modelComponentFind)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentFind");
 
@@ -2404,7 +2451,7 @@ struct ztModelComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboAnimation, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboAnimation))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboAnimation)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentGuiComboMaterial");
 
@@ -2419,7 +2466,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboAnimation, ZT_FUNC_GUI_CO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboMaterial, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboMaterial))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboMaterial)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentGuiComboMaterial");
 
@@ -2435,7 +2482,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboMaterial, ZT_FUNC_GUI_COM
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboShader, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboShader))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_modelComponentGuiComboShader)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentGuiComboShader");
 
@@ -2451,7 +2498,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiComboShader, ZT_FUNC_GUI_COMBO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiLayersMenu, ZT_FUNC_GUI_MENU_SELECTED(_zt_modelComponentGuiLayersMenu))
+ZT_FUNC_GUI_MENU_SELECTED(_zt_modelComponentGuiLayersMenu)
 {
 	ZT_PROFILE_GUI("_zt_modelComponentGuiLayersMenu");
 
@@ -2472,7 +2519,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiLayersMenu, ZT_FUNC_GUI_MENU_S
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiLayersButton, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentGuiLayersButton))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_modelComponentGuiLayersButton)
 {
 	ZT_PROFILE_GUI("_zt_modelComponentGuiLayersButton");
 
@@ -2497,7 +2544,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGuiLayersButton, ZT_FUNC_GUI_BUTT
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_modelComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_modelComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_modelComponentGui");
 
@@ -2653,7 +2700,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_mo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_modelComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_modelComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentSave");
 
@@ -2718,7 +2765,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_modelComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_modelComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentLoad");
 
@@ -2826,7 +2873,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_modelComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_modelComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentUpdate");
 
@@ -2933,7 +2980,7 @@ bool zt_modelComponentFindModelAndIntersectPoint(ztModelComponent *model_compone
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditQueryClick, ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_modelComponentEditQueryClick))
+ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_modelComponentEditQueryClick)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentEditQueryClick");
 
@@ -3017,7 +3064,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditQueryClick, ZT_FUNC_COMPONENT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditProcessClick, ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_modelComponentEditProcessClick))
+ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_modelComponentEditProcessClick)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentEditProcessClick");
 
@@ -3040,7 +3087,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditProcessClick, ZT_FUNC_COMPONE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditDrawDebug, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_modelComponentEditDrawDebug))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_modelComponentEditDrawDebug)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentEditDrawDebug");
 
@@ -3089,7 +3136,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditDrawDebug, ZT_FUNC_COMPONENT_
 // ================================================================================================================================================================================================
 //#define ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(name) void name(ztScene *scene, i32 scene_model_info_index, ztModel *model, ztShaderID *shader_to_use, i32 *model_info_flags_to_use, i32 *model_flags_to_use, ztSceneRenderStage_Enum render_stage, void *user_data)
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_modelComponentEditRenderOverride, ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(_zt_modelComponentEditRenderOverride))
+ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(_zt_modelComponentEditRenderOverride)
 {
 	ZT_PROFILE_GAME("_zt_modelComponentEditRenderOverride");
 
@@ -3593,6 +3640,301 @@ void zt_modelComponentCreateAndAssignEntities(ztModelComponent *model_component,
 	}
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztInternal char *_zt_modelMaterial_types[] = {
+	".albedo.png",
+	".normal.png",
+	".rough_metal_height.png",
+	".emissive.png",
+};
+
+// ================================================================================================================================================================================================
+
+i32 zt_modelComponentMaterialLoaderQuery(ztModelComponentMaterialLoaderState *state, ztAssetManager *asset_manager, const char **directories, i32 directories_count, ztModelComponentMaterial **materials)
+{
+	zt_returnValOnNull(state, 0);
+	zt_returnValOnNull(asset_manager, 0);
+	zt_returnValOnNull(materials, 0);
+
+	zt_memSet(state, zt_sizeof(ztModelComponentMaterialLoaderState), 0);
+
+	int textures_to_load = 0;
+
+	zt_fiz(asset_manager->asset_count) {
+		zt_fjz(directories_count) {
+			if (zt_strStartsWith(asset_manager->asset_name[i], directories[j])) {
+				zt_fxze(_zt_modelMaterial_types) {
+					if (zt_striEndsWith(asset_manager->asset_name[i], _zt_modelMaterial_types[x])) {
+						textures_to_load += 1;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	state->textures_total = textures_to_load;
+	state->textures_current = 0;
+
+	state->asset_manager_file_indexes = zt_mallocStructArray(i32, textures_to_load);
+
+	i32 *unique_materials = zt_mallocStructArrayArena(i32, textures_to_load, zt_memGetTempArena());
+	i32 unique_materials_idx = 0;
+
+	textures_to_load = 0;
+	zt_fiz(asset_manager->asset_count) {
+		zt_fjz(directories_count) {
+			if (zt_strStartsWith(asset_manager->asset_name[i], directories[j])) {
+				zt_fxze(_zt_modelMaterial_types) {
+					if (zt_striEndsWith(asset_manager->asset_name[i], _zt_modelMaterial_types[x])) {
+						const char *name_ptr = zt_strFindLast(asset_manager->asset_name[i], "/");
+						int name_pos_type = zt_striFindPos(name_ptr, _zt_modelMaterial_types[x], 0);
+
+						if (name_ptr != nullptr && name_pos_type != ztStrPosNotFound) {
+							char name[256];
+							zt_strCpy(name, zt_elementsOf(name), name_ptr + 1, name_pos_type - 1);
+
+							i32 hash = zt_strHash(name);
+							bool found_hash = false;
+							zt_fyz(unique_materials_idx) {
+								if (unique_materials[y] == hash) {
+									found_hash = true;
+									break;
+								}
+							}
+
+							if (!found_hash) {
+								unique_materials[unique_materials_idx++] = hash;
+							}
+
+							state->asset_manager_file_indexes[textures_to_load++] = i;
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	state->materials_total = unique_materials_idx;
+	state->materials_current = 0;
+
+	*materials = zt_mallocStructArray(ztModelComponentMaterial, unique_materials_idx);
+
+	zt_freeArena(unique_materials, zt_memGetTempArena());
+
+	return unique_materials_idx;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelComponentMaterialLoaderFree(ztModelComponentMaterialLoaderState *state)
+{
+	if (state == nullptr) {
+		return;
+	}
+
+	if (state->asset_manager_file_indexes) {
+		zt_free(state->asset_manager_file_indexes);
+		state->asset_manager_file_indexes = nullptr;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelComponentMaterialLoaderUpdate(ztModelComponentMaterialLoaderState *state, ztAssetManager *asset_manager, ztModelComponentMaterial *materials, bool *is_complete, char *error_buffer, i32 error_buffer_len)
+{
+	zt_returnValOnNull(state, false);
+	zt_returnValOnNull(asset_manager, false);
+	zt_returnValOnNull(materials, false);
+	zt_returnValOnNull(is_complete, false);
+
+	int tex_idx = state->asset_manager_file_indexes[state->textures_current++];
+	const char *tex_name = asset_manager->asset_name[tex_idx];
+
+	int type_idx = -1;
+	zt_fize(_zt_modelMaterial_types) {
+		if (zt_striEndsWith(tex_name, _zt_modelMaterial_types[i])) {
+			type_idx = i;
+			break;
+		}
+	}
+
+	if (type_idx != -1) {
+		const char *name_ptr = zt_strFindLast(tex_name, "/");
+		int name_pos_type = zt_striFindPos(name_ptr, _zt_modelMaterial_types[type_idx], 0);
+
+		if (name_ptr != nullptr && name_pos_type != ztStrPosNotFound) {
+			char name[64];
+			zt_strCpy(name, zt_elementsOf(name), name_ptr + 1, name_pos_type - 1);
+
+			ztModelComponentMaterial *mcm = nullptr;
+
+			zt_fiz(state->materials_current) {
+				if (zt_striEquals(materials[i].name, name)) {
+					mcm = &materials[i];
+					break;
+				}
+			}
+
+			if (mcm == nullptr) {
+				zt_assert(state->materials_current < state->materials_total);
+
+				mcm = &materials[state->materials_current++];
+				zt_strCpy(mcm->name, zt_elementsOf(mcm->name), name);
+				mcm->guid = zt_guidMake(0x681f6037, 0xc8b14034, 0xab755bcb, zt_strHash(mcm->name));
+				mcm->material = zt_materialMake();
+			}
+
+			if (mcm != nullptr) {
+				ztTextureID tex_id = zt_textureMake(asset_manager, zt_assetLoad(asset_manager, tex_name), ztTextureFlags_MipMaps | ztTextureFlags_Repeat);
+				if (tex_id != ztInvalidID) {
+					switch (type_idx)
+					{
+						case 0: {
+							mcm->material.diffuse_tex = tex_id;
+							mcm->material.diffuse_flags = ztMaterialFlags_OwnsTexture;
+						} break;
+
+						case 1: {
+							mcm->material.normal_tex = tex_id;
+							mcm->material.normal_flags = ztMaterialFlags_OwnsTexture;
+						} break;
+
+						case 2: {
+							mcm->material.specular_tex = tex_id;
+							mcm->material.specular_flags = ztMaterialFlags_OwnsTexture;
+						} break;
+
+						case 3: {
+							mcm->material.emissive_tex = tex_id;
+							mcm->material.emissive_flags = ztMaterialFlags_OwnsTexture;
+							mcm->material.emissive_strength = 1;
+						}
+					}
+				}
+				else {
+					zt_logCritical("Unable to load texture: %s", tex_name);
+					zt_strPrintf(error_buffer, error_buffer_len, "Unable to load texture: %s", tex_name);
+					return false;
+				}
+			}
+		}
+		else {
+			zt_assert(false); // this shouldn't happen
+			zt_strPrintf(error_buffer, error_buffer_len, "Could not parse file name: %s", tex_name);
+			return false;
+		}
+	}
+
+	if (state->textures_current == state->textures_total) {
+		*is_complete = true;
+	}
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+i32 zt_modelComponentShaderLoaderQuery(ztModelComponentShaderLoaderState *state, ztAssetManager *asset_manager, const char **directories, i32 directories_count, const char **ignore, i32 ignore_count, ztModelComponentShader **shaders)
+{
+	zt_returnValOnNull(state, 0);
+	zt_returnValOnNull(asset_manager, 0);
+	zt_returnValOnNull(shaders, 0);
+
+	zt_memSet(state, zt_sizeof(ztModelComponentMaterialLoaderState), 0);
+
+	int shaders_to_load = 0;
+
+	struct local
+	{
+		static bool shouldIgnore(const char *asset_name, const char **ignore, i32 ignore_count)
+		{
+			zt_fiz(ignore_count) {
+				if (zt_strEquals(ignore[i], asset_name)) {
+					return true;
+				}
+			}
+			return false;
+		}
+	};
+
+	zt_fiz(asset_manager->asset_count) {
+		zt_fjze(directories) {
+			if (zt_strStartsWith(asset_manager->asset_name[i], directories[j]) && !local::shouldIgnore(asset_manager->asset_name[i], ignore, ignore_count)) {
+				shaders_to_load += 1;
+			}
+		}
+	}
+
+	state->shaders_total = shaders_to_load;
+	state->shaders_current = 0;
+
+	state->asset_manager_file_indexes = zt_mallocStructArray(i32, shaders_to_load);
+
+	shaders_to_load = 0;
+
+	zt_fiz(asset_manager->asset_count) {
+		zt_fjze(directories) {
+			if (zt_strStartsWith(asset_manager->asset_name[i], directories[j]) && !local::shouldIgnore(asset_manager->asset_name[i], ignore, ignore_count)) {
+				state->asset_manager_file_indexes[shaders_to_load++] = i;
+			}
+		}
+	}
+
+	*shaders = zt_mallocStructArray(ztModelComponentShader, shaders_to_load);
+
+	return shaders_to_load;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_modelComponentShaderLoaderFree(ztModelComponentShaderLoaderState *state)
+{
+	if (state == nullptr) {
+		return;
+	}
+
+	if (state->asset_manager_file_indexes) {
+		zt_free(state->asset_manager_file_indexes);
+		state->asset_manager_file_indexes = nullptr;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_modelComponentShaderLoaderUpdate(ztModelComponentShaderLoaderState *state, ztAssetManager *asset_manager, ztModelComponentShader *shaders, bool *is_complete, char *error_buffer, i32 error_buffer_len)
+{
+	int shader_idx = state->shaders_current++;
+	zt_assert(shader_idx < state->shaders_total);
+
+	int shader_asset_idx = state->asset_manager_file_indexes[shader_idx];
+
+	const char *shader_name = asset_manager->asset_name[shader_asset_idx];
+
+	ztShaderID shader_id = zt_shaderMake(asset_manager, zt_assetLoad(asset_manager, shader_name));
+	if (shader_id != ztInvalidID) {
+		char name[64];
+		zt_fileGetFileName(shader_name, name, zt_elementsOf(name));
+
+		ztModelComponentShader *mcs = &shaders[shader_idx];
+		zt_strCpy(mcs->name, zt_elementsOf(mcs->name), name);
+		mcs->guid = zt_guidMake(0x36ace88f, 0x602e4893, 0xa5daaf8b, zt_strHash(shader_name));
+		mcs->shader = shader_id;
+	}
+	else {
+		return false;
+	}
+
+	if (state->shaders_current == state->shaders_total) {
+		*is_complete = true;
+	}
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -3603,7 +3945,7 @@ void zt_modelComponentCreateAndAssignEntities(ztModelComponent *model_component,
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_lightComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_lightComponentMake)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentMake");
 
@@ -3614,7 +3956,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_lightComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_lightComponentFree)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentFree");
 
@@ -3624,7 +3966,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_lightComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_lightComponentFind)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentFind");
 
@@ -3655,7 +3997,7 @@ struct ztLightComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentGuiComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_lightComponentGuiComboType))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_lightComponentGuiComboType)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentGuiComboType");
 
@@ -3666,7 +4008,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentGuiComboType, ZT_FUNC_GUI_COMBOBO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_lightComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_lightComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_lightComponentGui");
 
@@ -3706,6 +4048,19 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_li
 	zt_componentGuiMakeEditor(sizer, "Position:", &light->position);
 	zt_componentGuiMakeEditor(sizer, "Direction:", &light->direction);
 	zt_componentGuiMakeEditor(sizer, "Casts Shadows:", &light->casts_shadows);
+
+	//{
+	//	const char *flags_names[] = {
+	//		"Exclude From Culling",
+	//	};
+	//
+	//	i32 flags[] = {
+	//		ztSceneLightFlags_ExcludeFromCull,
+	//	};
+	//
+	//	zt_componentGuiMakeFlagsEditor(sizer, "Flags:", flags_names, flags, zt_elementsOf(flags_names), &model->flags, 2);
+	//}
+
 	zt_componentGuiMakeEditor(sizer, "Color:", &light->color);
 	zt_componentGuiMakeEditor(sizer, "Intensity:", &light->intensity);
 	zt_componentGuiMakeEditor(sizer, "Ambient:", &light->ambient);
@@ -3733,7 +4088,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_li
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_lightComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_lightComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentSave");
 
@@ -3775,7 +4130,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_lightComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_lightComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentLoad");
 
@@ -3849,7 +4204,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_lightComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_lightComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentUpdate");
 
@@ -3869,7 +4224,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(
 			else {
 				if (light_component->edit_copy_active_light.casts_shadows != light_component->edit_last_active_light->casts_shadows) {
 					zt_sceneRemoveLight(light_component->scene, light_component->edit_last_active_light);
-					zt_sceneAddLight(light_component->scene, light_component->edit_last_active_light);
+					zt_sceneAddLight(light_component->scene, light_component->edit_last_active_light, 1024, ztSceneLightFlags_ExcludeFromCull);
 					zt_memCpy(&light_component->edit_copy_active_light, zt_sizeof(ztLight), light_component->edit_last_active_light, zt_sizeof(ztLight));
 				}
 			}
@@ -3930,7 +4285,7 @@ ztInternal bool _zt_lightComponentFindLightAndIntersectPoint(ztLightComponent *l
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentEditQueryClick, ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_lightComponentEditQueryClick))
+ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_lightComponentEditQueryClick)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentEditQueryClick");
 
@@ -3964,7 +4319,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentEditQueryClick, ZT_FUNC_COMPONENT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentEditProcessClick, ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_lightComponentEditProcessClick))
+ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_lightComponentEditProcessClick)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentEditProcessClick");
 
@@ -3989,7 +4344,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentEditProcessClick, ZT_FUNC_COMPONE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_lightComponentEditDrawDebugAll, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(_zt_lightComponentEditDrawDebugAll))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(_zt_lightComponentEditDrawDebugAll)
 {
 	ZT_PROFILE_GAME("_zt_lightComponentEditDrawDebugAll");
 
@@ -4140,7 +4495,7 @@ ztComponentID zt_lightComponentAdd(ztLightComponent *light_component, ztEntityPo
 			light_component->lights_count = zt_max(light_component->lights_count, i + 1);
 
 			zt_memCpy(&light_component->lights[i], zt_sizeof(ztLight), light, zt_sizeof(ztLight));
-			zt_sceneAddLight(light_component->scene, &light_component->lights[i]);
+			zt_sceneAddLight(light_component->scene, &light_component->lights[i], 1024, ztSceneLightFlags_ExcludeFromCull);
 			zt_entityAddedComponent(pool, entity_id, ZT_LIGHT_COMPONENT_GUID, i);
 
 			return i;
@@ -4349,7 +4704,7 @@ ztInternal void _zt_guiCollisionGeometryEditorCreateEditors(ztGuiCollisionGeomet
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_guiCollisionGeometryEditorCombo, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiCollisionGeometryEditorCombo))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiCollisionGeometryEditorCombo)
 {
 	ZT_PROFILE_GUI("_zt_guiCollisionGeometryEditorCombo");
 
@@ -4426,7 +4781,7 @@ struct ztCollisionGeoGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_collisionGeoGuiListBox, ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_collisionGeoGuiListBox))
+ZT_FUNC_GUI_LISTBOX_ITEM_SELECTED(_zt_collisionGeoGuiListBox)
 {
 	ZT_PROFILE_GUI("_zt_collisionGeoGuiListBox");
 
@@ -4467,7 +4822,7 @@ ztInternal void _zt_collisionGeoUpdateBoundsList(ztCollisionGeoGuiInfo *gui_info
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_collisionGeoGuiButtonAddBounds, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_collisionGeoGuiButtonAddBounds))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_collisionGeoGuiButtonAddBounds)
 {
 	ZT_PROFILE_GUI("_zt_collisionGeoGuiButtonAddBounds");
 
@@ -4491,7 +4846,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_collisionGeoGuiButtonAddBounds, ZT_FUNC_GUI_BUT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_collisionGeoGuiButtonRemBounds, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_collisionGeoGuiButtonRemBounds))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_collisionGeoGuiButtonRemBounds)
 {
 	ZT_PROFILE_GUI("_zt_collisionGeoGuiButtonRemBounds");
 
@@ -4569,7 +4924,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, ztModel *model, ztModelComponent 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_rigidBodyComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_rigidBodyComponentMake)
 {
 	ZT_PROFILE_GUI("_zt_rigidBodyComponentMake");
 
@@ -4579,7 +4934,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentMake, ZT_FUNC_COMPONENT_MAKE(
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_rigidBodyComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_rigidBodyComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_rigidBodyComponentFree");
 
@@ -4589,7 +4944,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentFree, ZT_FUNC_COMPONENT_FREE(
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_rigidBodyComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_rigidBodyComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_rigidBodyComponentFind");
 
@@ -4621,7 +4976,7 @@ struct ztRigidBodyComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyGuiComboCollisionLayer, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_rigidBodyGuiComboCollisionLayer))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_rigidBodyGuiComboCollisionLayer)
 {
 	ZT_PROFILE_GUI("_zt_rigidBodyGuiComboCollisionLayer");
 
@@ -4632,7 +4987,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyGuiComboCollisionLayer, ZT_FUNC_GUI_CO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_rigidBodyComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_rigidBodyComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_rigidBodyComponentGui");
 
@@ -4744,7 +5099,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_z
 #define _serialCheck(code) if(!(code)) { zt_logCritical("RigidBodyComponent serialization failed."); return false; }
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_rigidBodyComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_rigidBodyComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_rigidBodyComponentSave");
 
@@ -4777,7 +5132,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentSave, ZT_FUNC_COMPONENT_SAVE(
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_rigidBodyComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_rigidBodyComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_rigidBodyComponentLoad");
 	ztRigidBodyComponent *rigid_body_component = (ztRigidBodyComponent*)component->user_data;
@@ -4824,7 +5179,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD(
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_rigidBodyComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_rigidBodyComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_rigidBodyComponentUpdate");
 
@@ -4833,7 +5188,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentUpdate, ZT_FUNC_COMPONENT_UPD
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentEditDrawDebug, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_rigidBodyComponentEditDrawDebug))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_rigidBodyComponentEditDrawDebug)
 {
 	ZT_PROFILE_GAME("_zt_rigidBodyComponentEditDrawDebug");
 
@@ -4863,7 +5218,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentEditDrawDebug, ZT_FUNC_COMPON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_rigidBodyComponentNotifyChange, ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_rigidBodyComponentNotifyChange))
+ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_rigidBodyComponentNotifyChange)
 {
 	ZT_PROFILE_GAME("_zt_rigidBodyComponentNotifyChange");
 
@@ -5122,7 +5477,7 @@ ztInternal void _zt_staticBodyComponentRecalcOcTree(ztStaticBodyComponent *stati
 // ================================================================================================================================================================================================
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_staticBodyComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_staticBodyComponentMake)
 {
 	ZT_PROFILE_GUI("_zt_staticBodyComponentMake");
 
@@ -5132,7 +5487,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentMake, ZT_FUNC_COMPONENT_MAKE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_staticBodyComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_staticBodyComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_staticBodyComponentFree");
 
@@ -5142,7 +5497,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentFree, ZT_FUNC_COMPONENT_FREE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_staticBodyComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_staticBodyComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_staticBodyComponentFind");
 
@@ -5164,7 +5519,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentFind, ZT_FUNC_COMPONENT_FIND
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentGuiButtonRecalc, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_staticBodyComponentGuiButtonRecalc))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_staticBodyComponentGuiButtonRecalc)
 {
 	ztStaticBodyComponent *static_body_component = (ztStaticBodyComponent*)user_data;
 	_zt_staticBodyComponentRecalcOcTree(static_body_component);
@@ -5172,7 +5527,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentGuiButtonRecalc, ZT_FUNC_GUI
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_staticBodyComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_staticBodyComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_staticBodyComponentGui");
 
@@ -5211,7 +5566,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_
 #define _serialCheck(code) if(!(code)) { zt_logCritical("StaticModelComponent serialization failed."); return false; }
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_staticBodyComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_staticBodyComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_staticBodyComponentSave");
 
@@ -5254,7 +5609,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentSave, ZT_FUNC_COMPONENT_SAVE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_staticBodyComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_staticBodyComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_staticBodyComponentLoad");
 	ztStaticBodyComponent *static_body_component = (ztStaticBodyComponent*)component->user_data;
@@ -5311,7 +5666,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_staticBodyComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_staticBodyComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_staticBodyComponentUpdate");
 
@@ -5320,7 +5675,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentUpdate, ZT_FUNC_COMPONENT_UP
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentEditDrawDebugAll, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(_zt_staticBodyComponentEditDrawDebugAll))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG_ALL(_zt_staticBodyComponentEditDrawDebugAll)
 {
 	ZT_PROFILE_GAME("_zt_staticBodyComponentEditDrawDebugAll");
 
@@ -5359,7 +5714,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentEditDrawDebugAll, ZT_FUNC_CO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_staticBodyComponentNotifyChange, ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_staticBodyComponentNotifyChange))
+ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_staticBodyComponentNotifyChange)
 {
 	ZT_PROFILE_GAME("_zt_staticBodyComponentNotifyChange");
 }
@@ -5519,7 +5874,7 @@ void zt_staticBodyComponentPhysicsCleanup(ztStaticBodyComponent *static_body_com
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_movingBodyComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_movingBodyComponentMake)
 {
 	ZT_PROFILE_GUI("_zt_movingBodyComponentMake");
 
@@ -5529,7 +5884,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentMake, ZT_FUNC_COMPONENT_MAKE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_movingBodyComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_movingBodyComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_movingBodyComponentFree");
 
@@ -5540,7 +5895,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentFree, ZT_FUNC_COMPONENT_FREE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_movingBodyComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_movingBodyComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_movingBodyComponentFind");
 
@@ -5573,7 +5928,7 @@ struct ztMovingBodyComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyGuiComboCollisionLayer, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_movingBodyGuiComboCollisionLayer))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_movingBodyGuiComboCollisionLayer)
 {
 	ZT_PROFILE_GUI("_zt_movingBodyGuiComboCollisionLayer");
 
@@ -5584,7 +5939,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyGuiComboCollisionLayer, ZT_FUNC_GUI_C
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_movingBodyComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_movingBodyComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_movingBodyComponentGui");
 
@@ -5667,7 +6022,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentGui, ZT_FUNC_COMPONENT_GUI(_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_movingBodyComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_movingBodyComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_movingBodyComponentSave");
 
@@ -5700,7 +6055,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentSave, ZT_FUNC_COMPONENT_SAVE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_movingBodyComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_movingBodyComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_movingBodyComponentLoad");
 	ztMovingBodyComponent *moving_body_component = (ztMovingBodyComponent*)component->user_data;
@@ -5748,7 +6103,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentLoad, ZT_FUNC_COMPONENT_LOAD
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_movingBodyComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_movingBodyComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_movingBodyComponentUpdate");
 
@@ -5757,7 +6112,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentUpdate, ZT_FUNC_COMPONENT_UP
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentEditDrawDebug, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_movingBodyComponentEditDrawDebug))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_movingBodyComponentEditDrawDebug)
 {
 	ZT_PROFILE_GAME("_zt_movingBodyComponentEditDrawDebug");
 
@@ -5787,7 +6142,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentEditDrawDebug, ZT_FUNC_COMPO
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_movingBodyComponentNotifyChange, ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_movingBodyComponentNotifyChange))
+ZT_FUNC_COMPONENT_NOTIFY_CHANGE(_zt_movingBodyComponentNotifyChange)
 {
 	ZT_PROFILE_GAME("_zt_movingBodyComponentNotifyChange");
 
@@ -5994,7 +6349,7 @@ void zt_movingBodyComponentPhysicsCleanup(ztMovingBodyComponent *moving_body_com
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_markerComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_markerComponentMake)
 {
 	ZT_PROFILE_GUI("_zt_markerComponentMake");
 
@@ -6004,7 +6359,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_markerComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_markerComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_markerComponentFree");
 
@@ -6015,7 +6370,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentFree, ZT_FUNC_COMPONENT_FREE(_zt
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_markerComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_markerComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_markerComponentFind");
 
@@ -6045,7 +6400,7 @@ struct ztMarkerComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentGuiComboType, ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_markerComponentGuiComboType))
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_markerComponentGuiComboType)
 {
 	ztMarkerComponentGuiInfo *gui_info = (ztMarkerComponentGuiInfo*)user_data;
 
@@ -6054,7 +6409,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentGuiComboType, ZT_FUNC_GUI_COMBOB
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_markerComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_markerComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_markerComponentGui");
 
@@ -6105,7 +6460,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_m
 #define _serialCheck(code) if(!(code)) { zt_logCritical("MarkerComponent serialization failed."); return false; }
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_markerComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_markerComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentSave");
 
@@ -6141,7 +6496,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_markerComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_markerComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentLoad");
 	ztMarkerComponent *marker_component = (ztMarkerComponent*)component->user_data;
@@ -6191,7 +6546,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_markerComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_markerComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentUpdate");
 
@@ -6222,7 +6577,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentUpdate, ZT_FUNC_COMPONENT_UPDATE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditQueryClick, ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_markerComponentEditQueryClick))
+ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_markerComponentEditQueryClick)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentEditQueryClick");
 
@@ -6270,7 +6625,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditQueryClick, ZT_FUNC_COMPONEN
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditProcessClick, ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_markerComponentEditProcessClick))
+ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_markerComponentEditProcessClick)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentEditProcessClick");
 
@@ -6287,7 +6642,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditProcessClick, ZT_FUNC_COMPON
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditDrawDebug, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_markerComponentEditDrawDebug))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_markerComponentEditDrawDebug)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentEditDrawDebug");
 
@@ -6303,7 +6658,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditDrawDebug, ZT_FUNC_COMPONENT
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_markerComponentEditDrawDebugAll, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_markerComponentEditDrawDebugAll))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_markerComponentEditDrawDebugAll)
 {
 	ZT_PROFILE_GAME("_zt_markerComponentEditDrawDebugAll");
 
@@ -6530,7 +6885,7 @@ ztMarkerComponent::Marker *zt_markerComponentGet(ztMarkerComponent *marker_compo
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_tagComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_tagComponentMake)
 {
 	ZT_PROFILE_GUI("_zt_tagComponentMake");
 
@@ -6540,7 +6895,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_ta
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_tagComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_tagComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_tagComponentFree");
 
@@ -6551,7 +6906,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_ta
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_tagComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_tagComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_tagComponentFind");
 
@@ -6582,7 +6937,7 @@ struct ztTagComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentListSelect, ZT_FUNC_GUI_DIALOG_LIST_SELECTED(_zt_tagComponentListSelect))
+ZT_FUNC_GUI_DIALOG_LIST_SELECTED(_zt_tagComponentListSelect)
 {
 	ztTagComponentGuiInfo *gui_info = (ztTagComponentGuiInfo*)user_data;
 
@@ -6594,7 +6949,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentListSelect, ZT_FUNC_GUI_DIALOG_LIST
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentButtonDefaults, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_tagComponentButtonDefaults))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_tagComponentButtonDefaults)
 {
 	ztTagComponentGuiInfo *gui_info = (ztTagComponentGuiInfo*)user_data;
 
@@ -6603,7 +6958,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentButtonDefaults, ZT_FUNC_GUI_BUTTON_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_tagComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_tagComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_tagComponentGui");
 
@@ -6646,7 +7001,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_tagC
 #define _serialCheck(code) if(!(code)) { zt_logCritical("TagComponent serialization failed."); return false; }
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_tagComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_tagComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_tagComponentSave");
 
@@ -6678,7 +7033,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_ta
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_tagComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_tagComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_tagComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_tagComponentLoad");
 	ztTagComponent *tag_component = (ztTagComponent*)component->user_data;
@@ -6894,7 +7249,7 @@ struct ztPathComponentMakeParams
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMakeAdd, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_pathComponentMakeAdd))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_pathComponentMakeAdd)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentMakeAdd");
 
@@ -6911,7 +7266,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMakeAdd, ZT_FUNC_GUI_BUTTON_PRESSE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMakeCancel, ZT_FUNC_GUI_BUTTON_PRESSED(_zt_pathComponentMakeCancel))
+ZT_FUNC_GUI_BUTTON_PRESSED(_zt_pathComponentMakeCancel)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentMakeCancel");
 
@@ -6920,7 +7275,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMakeCancel, ZT_FUNC_GUI_BUTTON_PRE
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_pathComponentMake))
+ZT_FUNC_COMPONENT_MAKE(_zt_pathComponentMake)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentMake");
 
@@ -6986,7 +7341,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentMake, ZT_FUNC_COMPONENT_MAKE(_zt_p
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_pathComponentFree))
+ZT_FUNC_COMPONENT_FREE(_zt_pathComponentFree)
 {
 	ZT_PROFILE_GUI("_zt_pathComponentFree");
 
@@ -6997,7 +7352,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentFree, ZT_FUNC_COMPONENT_FREE(_zt_p
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentFind, ZT_FUNC_COMPONENT_FIND(_zt_pathComponentFind))
+ZT_FUNC_COMPONENT_FIND(_zt_pathComponentFind)
 {
 	ZT_PROFILE_GUI("_zt_pathComponentFind");
 
@@ -7026,7 +7381,7 @@ struct ztPathComponentGuiInfo
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_pathComponentGui))
+ZT_FUNC_COMPONENT_GUI(_zt_pathComponentGui)
 {
 	ZT_PROFILE_GUI("_zt_pathComponentGui");
 
@@ -7072,7 +7427,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentGui, ZT_FUNC_COMPONENT_GUI(_zt_pat
 #define _serialCheck(code) if(!(code)) { zt_logCritical("PathComponent serialization failed."); return false; }
 
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_pathComponentSave))
+ZT_FUNC_COMPONENT_SAVE(_zt_pathComponentSave)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentSave");
 
@@ -7119,7 +7474,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentSave, ZT_FUNC_COMPONENT_SAVE(_zt_p
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_pathComponentLoad))
+ZT_FUNC_COMPONENT_LOAD(_zt_pathComponentLoad)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentLoad");
 	ztPathComponent *path_component = (ztPathComponent*)component->user_data;
@@ -7202,7 +7557,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentLoad, ZT_FUNC_COMPONENT_LOAD(_zt_p
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_zt_pathComponentUpdate))
+ZT_FUNC_COMPONENT_UPDATE(_zt_pathComponentUpdate)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentUpdate");
 
@@ -7255,7 +7610,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentUpdate, ZT_FUNC_COMPONENT_UPDATE(_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditQueryClick, ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_pathComponentEditQueryClick))
+ZT_FUNC_COMPONENT_EDIT_QUERY_CLICK(_zt_pathComponentEditQueryClick)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentEditQueryClick");
 
@@ -7323,7 +7678,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditQueryClick, ZT_FUNC_COMPONENT_
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditProcessClick, ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_pathComponentEditProcessClick))
+ZT_FUNC_COMPONENT_EDIT_PROCESS_CLICK(_zt_pathComponentEditProcessClick)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentEditProcessClick");
 
@@ -7486,7 +7841,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditProcessClick, ZT_FUNC_COMPONEN
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditDrawDebug, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_pathComponentEditDrawDebug))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_pathComponentEditDrawDebug)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentEditDrawDebug");
 
@@ -7502,7 +7857,7 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditDrawDebug, ZT_FUNC_COMPONENT_E
 
 // ================================================================================================================================================================================================
 
-ZT_FUNCTION_POINTER_REGISTER(_zt_pathComponentEditDrawDebugAll, ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_pathComponentEditDrawDebugAll))
+ZT_FUNC_COMPONENT_EDIT_DRAW_DEBUG(_zt_pathComponentEditDrawDebugAll)
 {
 	ZT_PROFILE_GAME("_zt_pathComponentEditDrawDebugAll");
 
