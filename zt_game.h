@@ -1995,6 +1995,7 @@ struct ztCamera
 		struct { // orthographic only
 			i32 native_w, native_h;
 			r32 zoom;
+			r32 offset_x, offset_y; // used to determine mouse position when camera isn't full screen
 		};
 
 		struct { // perspective only
@@ -2008,7 +2009,7 @@ struct ztCamera
 
 // ================================================================================================================================================================================================
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position = ztVec3::zero);
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position = ztVec3::zero, const ztVec2 &offset = ztVec2::zero);
 void zt_cameraMakePersp(ztCamera *camera, i32 width, i32 height, r32 fov, r32 near_z, r32 far_z, const ztVec3 &position = ztVec3::zero, const ztQuat& rotation = ztQuat::identity);
 
 void zt_cameraRecalcMatrices(ztCamera *camera); // should be called anytime position or rotation changes
@@ -3240,8 +3241,9 @@ struct ztScene;
 
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(name) void name(ztScene *scene, i32 scene_model_info_index, ztModel *model, ztShaderID *shader_to_use, i32 *model_info_flags_to_use, i32 *model_flags_to_use, ztSceneRenderStage_Enum render_stage, void *user_data)
-typedef ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(ztSceneRenderModelOverride_Func);
+#define ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE_DECL(name) void name(ztScene *scene, i32 scene_model_info_index, ztModel *model, ztShaderID *shader_to_use, i32 *model_info_flags_to_use, i32 *model_flags_to_use, ztSceneRenderStage_Enum render_stage, void *user_data)
+typedef ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE_DECL(ztSceneRenderModelOverride_Func);
+#define ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE(name) ZT_FUNCTION_POINTER_REGISTER(name, ZT_FUNC_SCENE_RENDER_MODEL_OVERRIDE_DECL(name))
 
 // ================================================================================================================================================================================================
 
@@ -5867,6 +5869,13 @@ struct ztGuiManager;
 
 // ================================================================================================================================================================================================
 
+enum ztGameSceneManagerFlags_Enum
+{
+	ztGameSceneManagerFlags_UseTargetTexture = (1<<0),
+};
+
+// ================================================================================================================================================================================================
+
 struct ztGameSceneManager
 {
 	struct Scene
@@ -5887,13 +5896,19 @@ struct ztGameSceneManager
 		i32                     load_iteration;
 	};
 
-	ztGameDetails              *details;
-	ztGameSettings             *settings;
+	//ztGameDetails              *details;
+	//ztGameSettings             *settings;
+	i32                         flags;
+	ztVec2i                     screen;
+	ztVec2i                     native;
 	ztAssetManager             *asset_manager;
 	ztInputRegistry            *input_registry;
 	ztDrawList                 *draw_list;
 
+	ztTextureID                 screen_texture;
 	ztCamera                    screen_camera;
+
+	bool                        trigger_screen_resized;
 
 #	if defined(ZT_INPUT_REPLAY)
 	ztInputReplayData           replay_data;
@@ -5920,13 +5935,17 @@ struct ztGameSceneManager
 	void                       *callback_render_load_user_data;
 };
 
-bool zt_gameSceneManagerMake         (ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list);
-void zt_gameSceneManagerFree         (ztGameSceneManager *game_scene_manager);
+bool zt_gameSceneManagerMake         (ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list, i32 flags = 0);
+void zt_gameSceneManagerFree         (ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, bool free_asset_manager);
 void zt_gameSceneManagerAddScene     (ztGameSceneManager *game_scene_manager, ztGuid guid, i32 flags, ZT_FUNCTION_POINTER_VAR(callback_make, zt_gameSceneMake_Func), void *callback_make_user_data, ZT_FUNCTION_POINTER_VAR(callback_free, zt_gameSceneFree_Func), void *callback_free_user_data);
 bool zt_gameSceneManagerUpdate       (ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, r32 dt);
+bool zt_gameSceneManagerUpdate       (ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum *input_keystrokes, bool input_this_frame, r32 dt);
 void zt_gameSceneManagerScreenUpdate (ztGameSceneManager *game_scene_manager, ztGameSettings *settings);
+void zt_gameSceneManagerScreenUpdate (ztGameSceneManager *game_scene_manager, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h);
 
 bool zt_gameSceneManagerReplayPaused (ztGameSceneManager *game_scene_manager);
+
+void zt_gameSceneManagerReset        (ztGameSceneManager *game_scene_manager);
 
 void zt_gameSceneManagerTransitionTo(ztGameSceneManager *game_scene_manager, ztGuid transition_to_guid, ztGameSceneTransition_Enum transition_type, r32 transition_time = .5f);
 
@@ -6304,6 +6323,7 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #include <windowsx.h>
 #include <xinput.h>
 #include <winbase.h>
+#include <shellapi.h>
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
 #include <emscripten.h>
@@ -7545,7 +7565,7 @@ int zt_threadGetIndex()
 		}
 	}
 
-	zt_assert(false);
+	//zt_assert(false);
 	return -1;
 }
 
@@ -7950,7 +7970,7 @@ void zt_profilerRender(ztDrawList *draw_list, const ztVec2 &pos, const ztVec2 &s
 ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash, const char *system, i32 system_hash, int thread_idx)
 {
 #	if !defined(ZT_NO_PROFILE)
-	if (zt_game == nullptr || zt_game->profiler == nullptr || zt_game->profiler->paused) {
+	if (zt_game == nullptr || zt_game->profiler == nullptr || zt_game->profiler->paused || thread_idx < 0) {
 		return nullptr;
 	}
 
@@ -7998,7 +8018,7 @@ ztProfiledSection *zt_profiledSectionEnter(const char *section, i32 section_hash
 		}
 		if (ps == nullptr) {
 			if (pt->allocations_current_section >= ZT_PROFILER_MAX_SECTIONS_PER_FRAME) {
-				zt_debugOnly(zt_assert(false));
+				//zt_debugOnly(zt_assert(false));
 				return nullptr;
 			}
 
@@ -8518,7 +8538,7 @@ bool zt_assetManagerLoadPackedFile(ztAssetManager *asset_mgr, const char *packed
 		return false;
 	}
 
-	asset_mgr->packed_file_names = zt_mallocStructArrayArena(char, header.name_buffer_size, arena);
+	asset_mgr->packed_file_names = zt_mallocStructArrayArena(char, header.name_buffer_size + 1, arena);
 	if (zt_fileRead(&asset_mgr->packed_file, asset_mgr->packed_file_names, header.name_buffer_size) != header.name_buffer_size) {
 		zt_logCritical("Invalid pack file (names): %s", packed_file_name);
 		zt_fileClose(&asset_mgr->packed_file);
@@ -27904,7 +27924,7 @@ ztInline void zt_alignToPixel(ztVec3 *val, r32 ppu)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position)
+void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i32 native_h, r32 near_z, r32 far_z, const ztVec3 &position, const ztVec2 &offset)
 {
 	ZT_PROFILE_RENDERING("zt_cameraMakeOrtho");
 	zt_returnOnNull(camera);
@@ -27914,6 +27934,8 @@ void zt_cameraMakeOrtho(ztCamera *camera, i32 width, i32 height, i32 native_w, i
 	camera->height = height;
 	camera->native_w = native_w;
 	camera->native_h = native_h;
+	camera->offset_x = offset.x;
+	camera->offset_y = offset.y;
 	camera->zoom = 1;
 	camera->near_z = near_z;
 	camera->far_z = far_z;
@@ -28038,7 +28060,7 @@ ztVec2 zt_cameraOrthoGetMaxExtent(ztCamera *camera)
 	ztVec2 ext = zt_cameraOrthoGetViewportSize(camera);
 	ext.x /= 2;
 	ext.y /= 2;
-	return ext;
+	return ext + zt_vec2(camera->offset_x, camera->offset_y);
 }
 
 // ================================================================================================================================================================================================
@@ -28049,7 +28071,7 @@ ztVec2 zt_cameraOrthoGetMinExtent(ztCamera *camera)
 	ztVec2 ext = zt_cameraOrthoGetViewportSize(camera);
 	ext.x /= -2;
 	ext.y /= -2;
-	return ext;
+	return ext + zt_vec2(camera->offset_x, camera->offset_y);
 }
 
 // ================================================================================================================================================================================================
@@ -28083,7 +28105,7 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 	int n_w = camera->native_w;
 	int n_h = camera->native_h;
 
-	if (zt_game->win_game_settings[0].native_w != camera->native_w || zt_game->win_game_settings[0].native_h != camera->native_h) {
+	if (camera->offset_x == 0 && camera->offset_y == 0 && (zt_game->win_game_settings[0].native_w != camera->native_w || zt_game->win_game_settings[0].native_h != camera->native_h)) {
 		r32 aspect_ratio_cam = camera->native_w / (r32)camera->native_h;
 		r32 aspect_ratio_scr = zt_game->win_game_settings[0].native_w / (r32)zt_game->win_game_settings[0].native_h;
 
@@ -28108,6 +28130,27 @@ ztVec2 zt_cameraOrthoScreenToWorld(ztCamera *camera, int sx, int sy)
 			}
 		}
 	}
+	else if (camera->offset_x != 0 || camera->offset_y != 0) {
+		// offsets are from the center of the window, we need to adjust based off the top left corner of the window
+
+		i32 offset_x = zt_convertToi32Floor(camera->offset_x * zt_game->win_game_settings[0].pixels_per_unit);
+		i32 offset_y = zt_convertToi32Floor(camera->offset_y * zt_game->win_game_settings[0].pixels_per_unit);
+
+		i32 screen_w = zt_game->win_game_settings[0].screen_w;
+		i32 screen_h = zt_game->win_game_settings[0].screen_h;
+
+		i32 screen_center_x = screen_w / 2;
+		i32 screen_center_y = screen_h / 2;
+
+		i32 cam_center_x = screen_center_x + offset_x;
+		i32 cam_center_y = screen_center_y - offset_y;
+
+		i32 cam_pos_x = cam_center_x - c_w / 2;
+		i32 cam_pos_y = cam_center_y - c_h / 2;
+
+		sx -= cam_pos_x;
+		sy -= cam_pos_y;
+	}
 
 	r32 spct_x = c_w / (r32)n_w;
 	r32 spct_y = c_h / (r32)n_h;
@@ -28131,8 +28174,8 @@ ztVec2i zt_cameraOrthoWorldToScreen(ztCamera *camera, ztVec2 pos)
 	r32 ppu = (r32)zt_game->win_game_settings[0].pixels_per_unit;
 	ztVec2 diff = pos - camera->position.xy;
 
-	r32 x = (diff.x + ((camera->native_w / ppu) / 2.f)) * ppu;
-	r32 y = (((camera->native_h / ppu) / 2) + diff.y) * ppu;
+	r32 x = ((diff.x + ((camera->native_w / ppu) / 2.f)) - camera->offset_x) * ppu;
+	r32 y = ((((camera->native_h / ppu) / 2) + diff.y) - camera->offset_y) * ppu;
 
 	return zt_vec2i(x < 0 ? zt_convertToi32Floor(x) : zt_convertToi32Ceil(x),
 					y < 0 ? zt_convertToi32Floor(y) : zt_convertToi32Ceil(y));
@@ -46012,9 +46055,7 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 #define ZT_GAME_INPUT_REGISTRY_MAX_MAPPINGS 128
 #endif
 
-// ================================================================================================================================================================================================
-
-bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list)
+bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_scenes, ztGameDetails *details, ztGameSettings *settings, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h, ztAssetManager *asset_manager, ztInputRegistry *input_registry, ztDrawList *draw_list, i32 flags)
 {
 	zt_returnValOnNull(game_scene_manager, false);
 	zt_returnValOnNull(details, false);
@@ -46023,11 +46064,18 @@ bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_sce
 
 	zt_memSet(game_scene_manager, zt_sizeof(ztGameSceneManager), 0);
 
-	game_scene_manager->details = details;
-	game_scene_manager->settings = settings;
+	//game_scene_manager->details = details;
+	//game_scene_manager->settings = settings;
+	game_scene_manager->screen = zt_vec2i(screen_w <= 0 ? settings->screen_w : screen_w, screen_h <= 0 ? settings->screen_h : screen_h);
+	game_scene_manager->native = zt_vec2i(native_w <= 0 ? settings->native_w : native_w, native_h <= 0 ? settings->native_h : native_h);
 	game_scene_manager->asset_manager = asset_manager;
 	game_scene_manager->input_registry = input_registry;
 	game_scene_manager->draw_list = draw_list;
+
+	game_scene_manager->flags = flags;
+	game_scene_manager->screen_texture = ztInvalidID;
+
+	game_scene_manager->trigger_screen_resized = false;
 
 	game_scene_manager->scenes = zt_mallocStructArray(ztGameSceneManager::Scene, max_scenes);
 	game_scene_manager->scenes_size = max_scenes;
@@ -46036,9 +46084,9 @@ bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_sce
 	game_scene_manager->transition_to = -1;
 	game_scene_manager->transition_prev = -1;
 
-	zt_gameSceneManagerScreenUpdate(game_scene_manager, settings);
+	zt_gameSceneManagerScreenUpdate(game_scene_manager, game_scene_manager->screen.x, game_scene_manager->screen.y, game_scene_manager->native.x, game_scene_manager->native.y);
 
-	{
+	if (asset_manager->asset_count <= 0) {
 		// app path and assets
 		char data_path[ztFileMaxPath];
 		zt_strCpy(data_path, ztFileMaxPath, details->data_path);
@@ -46132,7 +46180,7 @@ bool zt_gameSceneManagerMake(ztGameSceneManager *game_scene_manager, i32 max_sce
 
 // ================================================================================================================================================================================================
 
-void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager)
+void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, bool free_asset_manager)
 {
 	if (game_scene_manager == nullptr) {
 		return;
@@ -46141,6 +46189,9 @@ void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager)
 #	if defined(ZT_INPUT_REPLAY)
 	zt_inputReplayFree(&game_scene_manager->replay_data);
 #	endif
+
+	ztGuiManager *prev_active_gm = zt_guiGetActiveManager();
+	zt_guiSetActiveManager(gui_manager);
 
 	zt_fiz(game_scene_manager->scenes_count) {
 		if (game_scene_manager->scenes[i].state == ztGameSceneState_Loaded) {
@@ -46159,9 +46210,18 @@ void zt_gameSceneManagerFree(ztGameSceneManager *game_scene_manager)
 		if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
 	}
 
+	zt_guiSetActiveManager(prev_active_gm);
+
+	if (game_scene_manager->screen_texture != ztInvalidID) {
+		zt_textureFree(game_scene_manager->screen_texture);
+	}
+
 	zt_drawListFree(game_scene_manager->draw_list);
 	zt_inputRegistryFree(game_scene_manager->input_registry);
-	zt_assetManagerFree(game_scene_manager->asset_manager);
+
+	if (free_asset_manager) {
+		zt_assetManagerFree(game_scene_manager->asset_manager);
+	}
 
 	zt_free(game_scene_manager->scenes);
 	zt_memSet(game_scene_manager, zt_sizeof(ztGameSceneManager), 0);
@@ -46203,12 +46263,12 @@ void zt_gameSceneManagerAddScene(ztGameSceneManager *game_scene_manager, ztGuid 
 ztInternal void _zt_gameSceneManagerCreateTextures(ztGameSceneManager *game_scene_manager, ztGameSceneManager::Scene *scene)
 {
 	if (zt_bitIsSet(scene->flags, ztGameSceneFlags_HdrScene)) {
-		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->settings->native_w, game_scene_manager->settings->native_h, ztTextureFlags_HDR | ztTextureFlags_Multisample);
+		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_HDR | ztTextureFlags_Multisample);
 		scene->render_texture_attach_position = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
 		scene->render_texture_attach_normal = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
 	}
 	else {
-		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->settings->native_w, game_scene_manager->settings->native_h, ztTextureFlags_Multisample);
+		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_Multisample);
 		scene->render_texture_attach_position = ztInvalidID;
 		scene->render_texture_attach_normal = ztInvalidID;
 	}
@@ -46220,9 +46280,6 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 {
 	ZT_PROFILE_GAME("zt_gameSceneManagerUpdate");
 
-	// ==============================================================
-	// read input / input replay
-
 	ztInputKeys       input_keys[ztInputKeys_MAX];
 	ztInputMouse      input_mouse;
 	ztInputController input_controller;
@@ -46230,14 +46287,53 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 	bool              input_this_frame;
 	zt_inputGetKeyStrokes(input_keystrokes);
 
-	bool gui_input;
+	zt_inputKeysCopyState(input_keys);
+	zt_inputMouseCopyState(&input_mouse);
+	zt_inputControllerCopyState(&input_controller, 0);
+	zt_inputGetKeyStrokes(input_keystrokes);
+	input_this_frame = zt_inputThisFrame();
+
+	return zt_gameSceneManagerUpdate(game_scene_manager, gui_manager, input_keys, &input_mouse, &input_controller, input_keystrokes, input_this_frame, dt);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiManager *gui_manager, ztInputKeys *input_keys, ztInputMouse *input_mouse, ztInputController *input_controller, ztInputKeys_Enum *input_keystrokes, bool input_this_frame, r32 dt)
+{
+	ZT_PROFILE_GAME("zt_gameSceneManagerUpdate");
+
+	if (game_scene_manager->trigger_screen_resized) {
+		game_scene_manager->trigger_screen_resized = false;
+
+		if (zt_bitIsSet(game_scene_manager->flags, ztGameSceneManagerFlags_UseTargetTexture)) {
+			if (game_scene_manager->screen_texture != ztInvalidID) {
+				zt_textureFree(game_scene_manager->screen_texture);
+			}
+
+			game_scene_manager->screen_texture = zt_textureMakeRenderTarget(game_scene_manager->screen.x, game_scene_manager->screen.y, ztTextureFlags_PixelPerfect);
+			zt_textureSetName(game_scene_manager->screen_texture, "Game Scene Manager Screen Texture");
+		}
+
+		zt_fiz(game_scene_manager->scenes_count) {
+			if (game_scene_manager->scenes[i].render_texture != ztInvalidID) {
+				zt_textureFree(game_scene_manager->scenes[i].render_texture);
+				if (game_scene_manager->scenes[i].render_texture_attach_normal != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_normal);
+				if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
+				_zt_gameSceneManagerCreateTextures(game_scene_manager, &game_scene_manager->scenes[i]);
+			}
+		}
+	}
+
+	// ==============================================================
+	// read input / input replay
+
+	bool gui_input = false;
+
+	ztGuiManager *prev_active_gm = zt_guiGetActiveManager();
+	zt_guiSetActiveManager(gui_manager);
+
 	{
 		ZT_PROFILE_GAME("zt_gameSceneManagerUpdate:input");
-		zt_inputKeysCopyState(input_keys);
-		zt_inputMouseCopyState(&input_mouse);
-		zt_inputControllerCopyState(&input_controller, 0);
-		zt_inputGetKeyStrokes(input_keystrokes);
-		input_this_frame = zt_inputThisFrame();
 
 		if (input_keys[ztInputKeys_Control].pressed() && input_keys[ztInputKeys_Shift].pressed() && input_keys[ztInputKeys_Menu].pressed()) {
 			if (input_keys[ztInputKeys_P].justPressed()) {
@@ -46281,17 +46377,9 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 #		else
 		{
 #		endif
-			gui_input = zt_guiManagerHandleInput(gui_manager, input_keys, input_keystrokes, &input_mouse);
+			bool gui_input = zt_guiManagerHandleInput(gui_manager, input_keys, input_keystrokes, input_mouse);
 			if (!gui_input) {
-				if (input_keys[ztInputKeys_Tilda].justPressed()) {
-					bool console_shown = false;
-					zt_debugConsoleToggle(&console_shown);
-					if (console_shown) {
-						zt_guiManagerSetKeyboardFocus(gui_manager);
-					}
-				}
-
-				zt_inputRegistryUpdate(game_scene_manager->input_registry, input_keys, &input_mouse, &input_controller, dt);
+				zt_inputRegistryUpdate(game_scene_manager->input_registry, input_keys, input_mouse, input_controller, dt);
 			}
 		}
 	}
@@ -46323,11 +46411,11 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 						}
 
 						zt_fiz(tick_count) {
-							ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_tick, zt_gameSceneUpdateTick_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, input_keys, &input_controller, &input_mouse);
+							ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_tick, zt_gameSceneUpdateTick_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, input_keys, input_controller, input_mouse);
 						}
 					}
 
-					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_frame, zt_gameSceneUpdateFrame_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, game_scene_manager->input_registry, input_keys, &input_controller, &input_mouse);
+					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_update_frame, zt_gameSceneUpdateFrame_Func)(&scene->scene, dt, gui_input, input_this_frame ? 0xffffffff : 0, game_scene_manager->input_registry, input_keys, input_controller, input_mouse);
 
 					ZT_FUNCTION_POINTER_ACCESS_SAFE(scene->scene.callback_render, zt_gameSceneRender_Func)(&scene->scene, scene->render_texture, game_scene_manager->draw_list);
 
@@ -46410,7 +46498,7 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 	if (!has_active_scene && has_loading_scene) {
 		i32 total = 0, current = 0, loading_scenes_count = 0;
 		ztGameScene *loading_scene = nullptr;
-		ztGuid loading_scene_guid;
+		ztGuid loading_scene_guid = ztGuid::invalid;
 
 		zt_fiz(game_scene_manager->scenes_count) {
 			if (game_scene_manager->scenes[i].state == ztGameSceneState_Loading) {
@@ -46655,8 +46743,10 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 		}
 #		endif
 
-		zt_renderDrawList(&game_scene_manager->screen_camera, game_scene_manager->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest | ztRenderDrawListFlags_NoClear);
+		zt_renderDrawList(&game_scene_manager->screen_camera, game_scene_manager->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest | ztRenderDrawListFlags_NoClear, game_scene_manager->screen_texture);
 	}
+
+	zt_guiSetActiveManager(prev_active_gm);
 
 	return true;
 }
@@ -46665,17 +46755,20 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 
 void zt_gameSceneManagerScreenUpdate(ztGameSceneManager *game_scene_manager, ztGameSettings *settings)
 {
-	zt_cameraMakeOrtho(&game_scene_manager->screen_camera, settings->screen_w, settings->screen_h, settings->native_w, settings->native_h, 0.1f, 100.f, game_scene_manager->screen_camera.position);
+	zt_gameSceneManagerScreenUpdate(game_scene_manager, settings->screen_w, settings->screen_h, settings->native_w, settings->native_h);
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerScreenUpdate(ztGameSceneManager *game_scene_manager, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h)
+{
+	game_scene_manager->screen = zt_vec2i(screen_w, screen_h);
+	game_scene_manager->native = zt_vec2i(native_w, native_h);
+
+	zt_cameraMakeOrtho(&game_scene_manager->screen_camera, screen_w, screen_h, native_w, native_h, 0.1f, 100.f, game_scene_manager->screen_camera.position);
 	zt_cameraRecalcMatrices(&game_scene_manager->screen_camera);
 
-	zt_fiz(game_scene_manager->scenes_count) {
-		if (game_scene_manager->scenes[i].render_texture != ztInvalidID) {
-			zt_textureFree(game_scene_manager->scenes[i].render_texture);
-			if (game_scene_manager->scenes[i].render_texture_attach_normal != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_normal);
-			if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
-			_zt_gameSceneManagerCreateTextures(game_scene_manager, &game_scene_manager->scenes[i]);
-		}
-	}
+	game_scene_manager->trigger_screen_resized = true;
 }
 
 // ================================================================================================================================================================================================
@@ -46687,6 +46780,16 @@ bool zt_gameSceneManagerReplayPaused(ztGameSceneManager *game_scene_manager)
 #	else
 	return false;
 #	endif
+}
+
+// ================================================================================================================================================================================================
+
+void zt_gameSceneManagerReset(ztGameSceneManager *game_scene_manager)
+{
+	zt_returnOnNull(game_scene_manager);
+	game_scene_manager->active_scene = -1;
+	game_scene_manager->transition_to = -1;
+	game_scene_manager->transition_prev = -1;
 }
 
 // ================================================================================================================================================================================================
