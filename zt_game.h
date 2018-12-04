@@ -3482,6 +3482,7 @@ i32  zt_ocTreeFindNodesThatIntersect(ztOcTree *octree, ztOcTree::Node **nodes, i
 i32  zt_ocTreeFindNodesThatIntersectLine(ztOcTree *octree, ztOcTree::Node **nodes, i32 nodes_size, ztVec3 line_beg, ztVec3 line_end);
 
 bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file);
+bool zt_ocTreeLoadFromFile(ztOcTree *octree, const char *file);
 bool zt_ocTreeSave(ztOcTree *octree, ztSerial *serial);
 bool zt_ocTreeLoad(ztOcTree *octree, ztSerial *serial);
 
@@ -14525,7 +14526,7 @@ ztPostProcessBloom *zt_postProcessingEffectMakeBloom(ztPostProcessingEffect *eff
 		percentages_count = zt_elementsOf(local_percentages);
 	}
 
-	zt_strMakePrintf(bloom_out_shader, 4096, "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d bloom_tex[%d];\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	int bloom_tex_count;\n}\n\n\nprogram Bloom\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		\n		for(int i = 0; i < uniforms.bloom_tex_count; ++i) {\n			vec3 bloom_color = (textureSample(textures.bloom_tex[i], _input.uv) * _input.color).rgb;\n\n			bloom_color.r = max(0, min(1, bloom_color.r)); // somehow bloom_color is going negative...\n			bloom_color.g = max(0, min(1, bloom_color.g));\n			bloom_color.b = max(0, min(1, bloom_color.b));\n\n			color += bloom_color;\n		}\n		\n		_output.color = vec4(color, 1);\n	}\n}\n", percentages_count);
+	zt_strMakePrintf(bloom_out_shader, 4096, "struct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d bloom_tex[%d];\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	int bloom_tex_count;\n}\n\n\nprogram Bloom\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color).rgb;\n		vec3 bloom_color_ttl = vec3(0);\n		for(int i = 0; i < uniforms.bloom_tex_count; ++i) {\n			vec3 bloom_color = (textureSample(textures.bloom_tex[i], _input.uv) * _input.color).rgb;\n\n			bloom_color.r = max(0, min(1, bloom_color.r)); // somehow bloom_color is going negative...\n			bloom_color.g = max(0, min(1, bloom_color.g));\n			bloom_color.b = max(0, min(1, bloom_color.b));\n\n			bloom_color_ttl += bloom_color;\n		}\n		\n		bloom_color_ttl /= uniforms.bloom_tex_count;\n		color += bloom_color_ttl;\n		\n		_output.color = vec4(color, 1);\n	}\n}\n", percentages_count);
 
 	ztShaderID shaders[ztPostProcessBloomDetails::Shader_MAX] = {
 		zt_shaderGetDefault(ztShaderDefault_Bright),
@@ -17507,6 +17508,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 				if (layers_count > 0) {
 					ztAnimSequence *sequence = zt_animSequenceMake(ztAnimSequenceType_Synchronous, layers, layers_count, true);
 					zt_animControllerAddSequence(input->root_model->anim_controller, anim_name, sequence);
+					zt_logDebug("Model has animation: %s", anim_name);
 				}
 			}
 			serialCheck(zt_serialGroupPop(&serial));
@@ -19020,9 +19022,9 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 
 			// remove any sub models
 			if (model->parent == nullptr) {
-				zt_fizr(scene->models_count) {
-					if (scene->models[i].root_parent == model) {
-						zt_sceneRemoveModel(scene, scene->models[i].model);
+				zt_fjzr(scene->models_count) {
+					if (scene->models[j].root_parent == model) {
+						zt_sceneRemoveModel(scene, scene->models[j].model);
 					}
 				}
 			}
@@ -19031,7 +19033,7 @@ void zt_sceneRemoveModel(ztScene *scene, ztModel *model)
 		}
 	}
 
-	zt_assert(false); // should not be removing a model that doesn't exist in the scene
+//	zt_assert(false); // should not be removing a model that doesn't exist in the scene
 }
 
 // ================================================================================================================================================================================================
@@ -19484,7 +19486,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				if ((pass == 0 && model->type == ztModelType_Mesh) || (pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
 
 					if (model->type == ztModelType_ParticleSystem) {
-						model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
+						model->particle_emitter->position = ztVec3::zero;//model->calculated_mat.getMultiply(ztVec3::zero);
 						zt_shaderSetModelMatrices(shader, ztMat4::identity);
 					}
 					else {
@@ -19744,7 +19746,7 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 				if ((pass == 0 && model->type == ztModelType_Mesh) || (pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
 
 					if (model->type == ztModelType_ParticleSystem) {
-						model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
+						model->particle_emitter->position = ztVec3::zero;//model->calculated_mat.getMultiply(ztVec3::zero);
 						zt_shaderSetModelMatrices(shader, ztMat4::identity);
 					}
 					else {
@@ -20090,7 +20092,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 			}
 
 			if (model->type == ztModelType_ParticleSystem) {
-				model->particle_emitter->position = model->calculated_mat.getMultiply(ztVec3::zero);
+				model->particle_emitter->position = ztVec3::zero;//model->calculated_mat.getMultiply(ztVec3::zero);
 				zt_shaderSetModelMatrices(*active_shader, ztMat4::identity);
 			}
 			else {
@@ -21196,6 +21198,29 @@ bool zt_ocTreeSaveToFile(ztOcTree *octree, const char *file)
 	}
 
 	bool result = zt_ocTreeSave(octree, &serial);
+
+	zt_serialClose(&serial);
+
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_ocTreeLoadFromFile(ztOcTree *octree, const char *file)
+{
+	ZT_PROFILE_GAME("zt_ocTreeLoadFromFile");
+	zt_returnValOnNull(octree, false);
+
+	if (!zt_fileExists(file)) {
+		return false;
+	}
+
+	ztSerial serial;
+	if (!zt_serialMakeReader(&serial, file, ZT_OCTREE_SERIAL_FILE_ID)) {
+		return false;
+	}
+
+	bool result = zt_ocTreeLoad(octree, &serial);
 
 	zt_serialClose(&serial);
 
@@ -46264,11 +46289,15 @@ ztInternal void _zt_gameSceneManagerCreateTextures(ztGameSceneManager *game_scen
 {
 	if (zt_bitIsSet(scene->flags, ztGameSceneFlags_HdrScene)) {
 		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_HDR | ztTextureFlags_Multisample);
+		zt_textureSetName(scene->render_texture, "Game Scene Render Texture (HDR)");
 		scene->render_texture_attach_position = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
+		zt_textureSetName(scene->render_texture_attach_position, "Game Scene Render Texture Position (HDR)");
 		scene->render_texture_attach_normal = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
+		zt_textureSetName(scene->render_texture_attach_normal, "Game Scene Render Texture Normals (HDR)");
 	}
 	else {
 		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_Multisample);
+		zt_textureSetName(scene->render_texture, "Game Scene Render Texture");
 		scene->render_texture_attach_position = ztInvalidID;
 		scene->render_texture_attach_normal = ztInvalidID;
 	}
@@ -46310,7 +46339,7 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 				zt_textureFree(game_scene_manager->screen_texture);
 			}
 
-			game_scene_manager->screen_texture = zt_textureMakeRenderTarget(game_scene_manager->screen.x, game_scene_manager->screen.y, ztTextureFlags_PixelPerfect);
+			game_scene_manager->screen_texture = zt_textureMakeRenderTarget(game_scene_manager->screen.x, game_scene_manager->screen.y, ztTextureFlags_PixelPerfect|ztTextureFlags_HDR);
 			zt_textureSetName(game_scene_manager->screen_texture, "Game Scene Manager Screen Texture");
 		}
 
@@ -46320,6 +46349,10 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 				if (game_scene_manager->scenes[i].render_texture_attach_normal != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_normal);
 				if (game_scene_manager->scenes[i].render_texture_attach_position != ztInvalidID) zt_textureFree(game_scene_manager->scenes[i].render_texture_attach_position);
 				_zt_gameSceneManagerCreateTextures(game_scene_manager, &game_scene_manager->scenes[i]);
+			}
+
+			if (ZT_FUNCTION_POINTER_IS_VALID(game_scene_manager->scenes[i].scene.callback_screen_change) && game_scene_manager->scenes[i].state == ztGameSceneState_Loaded) {
+				ZT_FUNCTION_POINTER_ACCESS(game_scene_manager->scenes[i].scene.callback_screen_change, zt_gameSceneScreenChange_Func)(&game_scene_manager->scenes[i].scene, game_scene_manager->screen.x, game_scene_manager->screen.y, game_scene_manager->native.x, game_scene_manager->native.y);
 			}
 		}
 	}
@@ -46459,6 +46492,10 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 				if (is_complete) {
 					scene->state = ztGameSceneState_Loaded;
 
+					if (ZT_FUNCTION_POINTER_IS_VALID(scene->scene.callback_screen_change)) {
+						ZT_FUNCTION_POINTER_ACCESS(scene->scene.callback_screen_change, zt_gameSceneScreenChange_Func)(&scene->scene, game_scene_manager->screen.x, game_scene_manager->screen.y, game_scene_manager->native.x, game_scene_manager->native.y);
+					}
+
 					if (scene->load_iterations > 0) {
 						scene->state = ztGameSceneState_LoadTransition;
 						game_scene_manager->transition_to = sidx;
@@ -46559,7 +46596,7 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 				game_scene_manager->transition_time = 0;
 
 				// halfway through transition, so change active scene
-				if (game_scene_manager->scenes[game_scene_manager->active_scene].state != ztGameSceneState_LoadTransition) {
+				if (game_scene_manager->scenes[game_scene_manager->transition_to].state != ztGameSceneState_LoadTransition) {
 					ztGameScene *scene_old = game_scene_manager->active_scene >= 0 ? &game_scene_manager->scenes[game_scene_manager->active_scene].scene : nullptr;
 					if (scene_old) {
 						if (game_scene_manager->scenes[game_scene_manager->active_scene].state == ztGameSceneState_Loaded) {
@@ -46743,7 +46780,7 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 		}
 #		endif
 
-		zt_renderDrawList(&game_scene_manager->screen_camera, game_scene_manager->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest | ztRenderDrawListFlags_NoClear, game_scene_manager->screen_texture);
+		zt_renderDrawList(&game_scene_manager->screen_camera, game_scene_manager->draw_list, ztVec4::zero, ztRenderDrawListFlags_NoDepthTest, game_scene_manager->screen_texture);
 	}
 
 	zt_guiSetActiveManager(prev_active_gm);
@@ -46807,6 +46844,10 @@ void zt_gameSceneManagerTransitionTo(ztGameSceneManager *game_scene_manager, ztG
 	}
 
 	if (idx >= 0) {
+		if (game_scene_manager->transition_to >= 0) {
+			zt_logDebug("Warning: transitioning game scene while already in transition");
+		}
+
 		game_scene_manager->transition_to       = idx;
 		game_scene_manager->transition_time_max = transition_time / 2.f;
 		game_scene_manager->transition_time     = 0.f;
