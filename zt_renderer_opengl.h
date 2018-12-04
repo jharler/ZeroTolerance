@@ -2788,6 +2788,7 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 
 	ztTextureGL *active_render_target = context->active_render_target;
 	if (active_render_target) {
+		zt_logDebug("Disabling active render target to create texture");
 		ztgl_textureRenderTargetCommit(active_render_target, context);
 	}
 
@@ -3062,6 +3063,8 @@ ztInternal ztTextureGL *_ztgl_textureMakeBase(ztContextGL *context, ztMemoryAren
 			return true;
 		}
 	};
+
+	ztgl_checkAndReportError("pre-texture make");
 
 	GLuint tex_id = 0, fb_id = 0, db_id = 0, rb_id = 0, rt_id = 0;
 
