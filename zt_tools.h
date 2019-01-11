@@ -1581,7 +1581,7 @@ struct ztMemoryArena
 	allocation *latest;
 	ztMemoryArena *owner;
 
-	char  file_name_buffer[1024];
+	char  file_name_buffer[4096];
 	int   file_name_buffer_pos;
 	char *file_names[256];
 	i32   file_names_hashes[256];
@@ -1746,11 +1746,17 @@ bool                  zt_striEndsWith      (const char *s, const char *ends_with
 bool                  zt_striEndsWith      (const char *s, int s_len, const char *ends_with);
 bool                  zt_striEndsWith      (const char *s, int s_len, const char *ends_with, int ew_len);
 
-const char           *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens
+const char           *zt_strJumpToNextToken(const char *s); // any non-alphanumeric character breaks up tokens, skips all whitespace but new lines
 const char           *zt_strJumpToNextToken(const char *s, int s_len);
 
 int                   zt_strGetNextTokenPos(const char *s);
 int                   zt_strGetNextTokenPos(const char *s, int s_len);
+
+const char           *zt_strJumpToNextWhitespace(const char *s);
+const char           *zt_strJumpToNextWhitespace(const char *s, int s_len);
+
+int                   zt_strGetNextWhitespacePos(const char *s);
+int                   zt_strGetNextWhitespacePos(const char *s, int s_len);
 
 const char           *zt_strJumpToNextLine (const char *s);
 const char           *zt_strJumpToNextLine (const char *s, int s_len);
@@ -1760,7 +1766,20 @@ int                   zt_strGetNextLinePos (const char *s, int s_len);
 
 int                   zt_strGetBetween     (char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
 int                   zt_strGetBetween     (char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetBetweenTrim (char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
+int                   zt_strGetBetweenTrim (char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset = 0, int end_offset = 0);
 
+
+int                   zt_strRemove(char *s, int start, int chars_to_remove);
+int                   zt_strRemove(char *s, int s_len, int start, int chars_to_remove);
+
+int                   zt_strReplace(char *s, int s_size, int start, int chars_to_remove, const char *replace_with, bool *success = nullptr);
+int                   zt_strReplace(char *s, int s_len, int s_size, int start, int chars_to_remove, const char *replace_with, int replace_with_len, bool *success = nullptr);
+
+int                   zt_strTrimLeadingWhitespace(char *s);
+int                   zt_strTrimLeadingWhitespace(char *s, int s_len);
+int                   zt_strTrimTrailingWhitespace(char *s);
+int                   zt_strTrimTrailingWhitespace(char *s, int s_len);
 
 // ================================================================================================================================================================================================
 
@@ -1985,6 +2004,8 @@ bool          zt_directoryDelete                 (const char *dir, bool force);
 
 i32           zt_getDirectorySubs                (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
 i32           zt_getDirectoryFiles               (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
+i32           zt_getDirectoryFilesCount          (const char *directory, bool recursive);
+i32           zt_getDirectoryFilesBufferSize     (const char *directory, bool recursive);
 
 
 // ================================================================================================================================================================================================
@@ -2316,6 +2337,9 @@ bool zt_serialMakeReader (ztSerial *serial, ztFile *file, const char *identifier
 
 void zt_serialClose      (ztSerial *serial);
 
+bool zt_serialIsReader   (ztSerial *serial);
+bool zt_serialIsWriter   (ztSerial *serial);
+
 bool zt_serialGroupPush  (ztSerial *serial);
 bool zt_serialGroupPop   (ztSerial *serial);
 
@@ -2593,6 +2617,12 @@ public:
 	{ \
 		zt_freeArena(arr, arena); \
 		arr = zt_mallocStructArrayArena(type, new_size, arena); \
+	}
+
+#define zt_arrayRemoveEndSwap(arr, rem_idx, cnt_var) \
+	if (cnt_var > 1) { \
+		zt_memCpy(&arr[rem_idx], zt_sizeof(arr[0]), &arr[cnt_var-1], zt_sizeof(arr[0])); \
+		cnt_var -= 1; \
 	}
 
 
@@ -5188,7 +5218,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 					ztMemoryArena::allocation *original = allocation;
 					original->length = remaining - (zt_sizeof(ztMemoryArena::allocation));
 
-					_zt_memAllocSetFileName(arena, original, "original");
+					_zt_memAllocSetFileName(arena, original, ztFilePathSeparatorStr"original");
 					original->file_line = 0;
 
 					byte *end_of_mem = ((byte*)original->start + original->length) - 1;
@@ -5203,7 +5233,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 					inserted->length = bytes;
 
 
-					_zt_memAllocSetFileName(arena, inserted, "inserted");
+					_zt_memAllocSetFileName(arena, inserted, ztFilePathSeparatorStr"inserted");
 					inserted->file_line = 0;
 
 					inserted->next = original;
@@ -5536,7 +5566,7 @@ void zt_memSetTempArena(ztMemoryArena *arena, bool free_current)
 	zt->mem_arena_temp = arena;
 }
 
-// ================================================================================================================================================================================================
+// =====================================================================================================================================================================z===========================
 
 #ifndef ZT_MEMORY_TEMP_ARENA_SIZE
 #define ZT_MEMORY_TEMP_ARENA_SIZE zt_megabytes(8)
@@ -7484,9 +7514,11 @@ int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, in
 		const char *maybe_match = haystack;
 		const char *n = (const char *)needle;
 
+		int matched = 0;
 		while (*haystack && *n && *haystack == *n) {
 			n++;
 			haystack++;
+			matched += 1;
 		}
 
 		if (!*n) {
@@ -7494,11 +7526,17 @@ int zt_strFindPos(const char *haystack, int haystack_len, const char *needle, in
 			return (int)(maybe_match - haystack_orig);
 		}
 		else {
+			if (matched > 0) {
+				// first pack peddle the number of matched characters
+				haystack -= matched;
+			}
+
 			// h could be in the middle of an unmatching utf8 codepoint, so we need to march it on to the next character beginning,
 			if (*haystack) {
 				do {
 					haystack++;
-				} while (0x80 == (0xc0 & *haystack));
+				}
+				while (0x80 == (0xc0 & *haystack));
 			}
 		}
 	}
@@ -8006,10 +8044,20 @@ const char *zt_strJumpToNextToken(const char *s, int s_len)
 
 	if (!s || s_len <= 0) return nullptr;
 
-	for (int i = 1; i < s_len; ++i) {
+	bool started_on_whitespace = (*s == ' ' || *s == '\t' || *s == '\r');
+	bool started_on_non_alpha_non_whitespace = !(*s >= 48 && *s <= 57) && !(*s >= 65 && *s <= 90) && !(*s >= 97 && *s <= 122) && *s != 95 && !started_on_whitespace;
+
+	for (int i = (started_on_whitespace ? 0 : 1); i < s_len; ++i) {
 		char ch = s[i];
-		if (!(ch >= 48 && ch <= 57) && !(ch >= 65 && ch <= 90) && !(ch >= 97 && ch <= 122)) {
-			return s + i;
+		if (started_on_non_alpha_non_whitespace || !(ch >= 48 && ch <= 57) && !(ch >= 65 && ch <= 90) && !(ch >= 97 && ch <= 122) && ch != 95) {
+
+			const char *result = s + i;
+
+			while (result && (*result == ' ' || *result == '\t' || *result == '\r')) {
+				result += 1;
+			}
+
+			return result;
 		}
 	}
 
@@ -8033,9 +8081,73 @@ int zt_strGetNextTokenPos(const char *s, int s_len)
 
 	if (!s || s_len <= 0) return ztStrPosNotFound;
 
+	bool started_on_whitespace = (*s == ' ' || *s == '\t' || *s == '\r');
+	bool started_on_non_alpha_non_whitespace = !(*s >= 48 && *s <= 57) && !(*s >= 65 && *s <= 90) && !(*s >= 97 && *s <= 122) && *s != 95 && !started_on_whitespace;
+
+	for (int i = (started_on_whitespace ? 0 : 1); i < s_len; ++i) {
+		char ch = s[i];
+		if (started_on_non_alpha_non_whitespace || !(ch >= 48 && ch <= 57) && !(ch >= 65 && ch <= 90) && !(ch >= 97 && ch <= 122) && ch != 95) {
+
+			const char *result = s + 1;
+
+			while (s[i] && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r')) {
+				i += 1;
+			}
+
+			return i;
+		}
+	}
+
+	return ztStrPosNotFound;
+}
+
+// ================================================================================================================================================================================================
+
+const char *zt_strJumpToNextWhitespace(const char *s)
+{
+	ZT_PROFILE_TOOLS("zt_strJumpToNextWhitespace");
+
+	return zt_strJumpToNextWhitespace(s, zt_strLen(s));
+}
+
+// ================================================================================================================================================================================================
+
+const char *zt_strJumpToNextWhitespace(const char *s, int s_len)
+{
+	ZT_PROFILE_TOOLS("zt_strJumpToNextWhitespace");
+
+	if (!s || s_len <= 0) return nullptr;
+
 	for (int i = 1; i < s_len; ++i) {
 		char ch = s[i];
-		if (!(ch >= 48 && ch <= 57) && !(ch >= 65 && ch <= 90) && !(ch >= 97 && ch <= 122)) {
+		if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
+			return s + i;
+		}
+	}
+
+	return nullptr;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strGetNextWhitespacePos(const char *s)
+{
+	ZT_PROFILE_TOOLS("zt_strGetNextWhitespacePos");
+
+	return zt_strGetNextWhitespacePos(s, zt_strLen(s));
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strGetNextWhitespacePos(const char *s, int s_len)
+{
+	ZT_PROFILE_TOOLS("zt_strGetNextWhitespacePos");
+
+	if (!s || s_len <= 0) return ztStrPosNotFound;
+
+	for (int i = 1; i < s_len; ++i) {
+		char ch = s[i];
+		if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
 			return i;
 		}
 	}
@@ -8137,6 +8249,168 @@ int zt_strGetBetween(char *buffer, int buffer_len, const char *s, int s_len, con
 
 	const char *str_beg = zt_strMoveForward(s, beg_pos);
 	return zt_strCpy(buffer, buffer_len, str_beg, end_pos - beg_pos);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strGetBetweenTrim(char *buffer, int buffer_len, const char *s, const char *beg, const char *end, int beg_offset, int end_offset)
+{
+	ZT_PROFILE_TOOLS("zt_strGetBetweenTrim");
+
+	return zt_strGetBetweenTrim(buffer, buffer_len, s, zt_strLen(s), beg, end, beg_offset, end_offset);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strGetBetweenTrim(char *buffer, int buffer_len, const char *s, int s_len, const char *beg, const char *end, int beg_offset, int end_offset)
+{
+	ZT_PROFILE_TOOLS("zt_strGetBetweenTrim");
+
+	if (buffer_len == 0 || !s || s_len <= 0) {
+		return 0;
+	}
+
+	int beg_len = zt_strLen(beg);
+	int end_len = zt_strLen(end);
+
+	int beg_pos = beg_len == 0 ? 0 : zt_strFindPos(s, s_len, beg, 0);
+	if (beg_pos == ztStrPosNotFound) {
+		return 0;
+	}
+	beg_pos += beg_len + beg_offset;
+
+	int end_pos = end_len == 0 ? s_len : zt_strFindPos(s, s_len, end, beg_pos);
+	if (end_pos == ztStrPosNotFound) {
+		return 0;
+	}
+	end_pos += end_offset;
+
+	if (beg_pos >= end_pos || beg_pos >= s_len) {
+		return 0;
+	}
+
+	const char *str_beg = zt_strMoveForward(s, beg_pos);
+
+	while(*str_beg == ' ' || *str_beg == '\t' || *str_beg == '\r' || *str_beg == '\n') {
+		str_beg++;
+	}
+
+	while(s[end_pos - 1] == ' ' || s[end_pos - 1] == '\t' || s[end_pos - 1] == '\r' || s[end_pos - 1] == ' ') {
+		end_pos--;
+	}
+
+	return zt_strCpy(buffer, buffer_len, str_beg, end_pos - beg_pos);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strRemove(char *s, int start, int chars_to_remove)
+{
+	return zt_strRemove(s, zt_strLen(s), start, chars_to_remove);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strRemove(char *s, int s_len, int start, int chars_to_remove)
+{
+	int remaining = s_len - start;
+	for (int i = start; i < start + remaining; ++i) {
+		s[i] = s[i + chars_to_remove];
+	}
+	s_len -= chars_to_remove;
+	s[s_len] = 0;
+
+	return s_len;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strReplace(char *s, int s_size, int start, int chars_to_remove, const char *replace_with, bool *success)
+{
+	int s_len = zt_strLen(s);
+	int r_len = zt_strLen(replace_with);
+	return zt_strReplace(s, s_len, s_size, start, chars_to_remove, replace_with, r_len, success);
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strReplace(char *s, int s_len, int s_size, int start, int chars_to_remove, const char *replace_with, int replace_with_len, bool *success)
+{
+	int diff_in_len = replace_with_len - chars_to_remove;
+	if (s_len + diff_in_len > s_size) {
+		if (success) *success = false;
+		return false;
+	}
+
+	// three possible situations:
+	//    1. we're replacing less characters than we're removing
+	//    2. we're replacing more characters than we're removing
+	//    3. we're replacing the exact same number of characters
+	// if case 1 and 2, we need to resize the existing data in s to account for the proper amount of space for the replace text
+
+	if (replace_with_len < chars_to_remove) {
+		// close the gap in the buffer
+		for (int i = start + replace_with_len; i <= s_len + diff_in_len; ++i) {
+			s[i] = s[i - diff_in_len];
+		}
+	}
+	else if(replace_with_len > chars_to_remove) {
+		// expand the gap
+		int remaining = (s_len - start) - chars_to_remove;
+		zt_fiz(remaining) {
+			s[(s_len - i - 1) + diff_in_len] = s[s_len - i - 1];
+		}
+	}
+
+	zt_fiz(replace_with_len) {
+		s[start + i] = replace_with[i];
+	}
+
+	if (success) *success = true;
+	return s_len + diff_in_len;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strTrimLeadingWhitespace(char *s)
+{
+	return zt_strTrimLeadingWhitespace(s, zt_strLen(s));
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strTrimLeadingWhitespace(char *s, int s_len)
+{
+	while(s && *s && (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n')) {
+		zt_fiz(s_len) {
+			s[i] = s[i + 1];
+		}
+		s_len -= 1;
+	}
+
+	return s_len;
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strTrimTrailingWhitespace(char *s)
+{
+	return zt_strTrimTrailingWhitespace(s, zt_strLen(s));
+}
+
+// ================================================================================================================================================================================================
+
+int zt_strTrimTrailingWhitespace(char *s, int s_len)
+{
+	zt_fizr(s_len - 1) {
+		if(s && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')) {
+			s[i] = 0;
+			s_len -= 1;
+		}
+		else break;
+	}
+
+	return s_len;
 }
 
 // ================================================================================================================================================================================================
@@ -8321,6 +8595,10 @@ int zt_strTokenize(const char *s, int s_len, const char *tokens, ztToken* result
 				}
 			}
 		}
+	}
+
+	if (ctok && trim_whitespace && whitespace_run != 0) {
+		ctok->len -= whitespace_run;
 	}
 
 	if (ctok && ctok->len == 0)
@@ -8777,8 +9055,22 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 
 	HANDLE hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
-		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
-		return false;
+		i32 error = (i32)GetLastError();
+
+		if (error == 32) { // file in use, sleep and try again
+			zt_fiz(20) {
+				zt_sleep(25.f / 1000.f);
+				hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+				if (hfile != INVALID_HANDLE_VALUE || GetLastError() != 32) {
+					break;
+				}
+			}
+		}
+			
+		if (hfile == INVALID_HANDLE_VALUE) {
+			zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, error);
+			return false;
+		}
 	}
 
 	char file_name_full[MAX_PATH] = {0};
@@ -10216,8 +10508,295 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 
 	buffer[buffer_used] = 0;
 	return buffer_used;
-
 }
+
+// ================================================================================================================================================================================================
+
+i32 zt_getDirectoryFilesCount(const char *directory, bool recursive)
+{
+	ZT_PROFILE_TOOLS("zt_getDirectoryFilesCount");
+
+	i32 buffer_used = 0;
+
+	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
+	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
+	int dir_len = zt_strLen(directory);
+
+	if (!end_sep) {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c", directory, ztFilePathSeparator);
+		dir_len += 1;
+	}
+	else {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s", directory);
+	}
+
+	i32 files = 0;
+
+#	if defined(ZT_WINDOWS)
+	zt_strCat(dir_full, ztFileMaxPath, "*");
+	dir_len += 1;
+	WIN32_FIND_DATAA file_data;
+	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
+	while (hfile != INVALID_HANDLE_VALUE) {
+		if (recursive && zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			i32 len = zt_strLen(file_data.cFileName);
+			if (!(len == 1 && file_data.cFileName[0] == '.' || len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.')) {
+				char* dir_buffer = (char *)zt_memAllocGlobal(ztFileMaxPath);
+				if (!end_sep) {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+				else {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+
+				files += zt_getDirectoryFilesCount(dir_buffer, recursive);
+
+				zt_free(dir_buffer);
+			}
+		}
+		else if (!zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			files += 1;
+		}
+		if (!FindNextFileA(hfile, &file_data)) break;
+	}
+
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if(directory && directory[0] == '@') { 
+		// this is a big dumb hack that works with ztAssetManager because the Android NDK does not 
+		// offer a way to query directories from the Android AAssetManager.
+
+		const char *asset_list_file_name = "@data/asset_list";
+		i32 asset_list_file_size = 0;
+		char *asset_list_file_data = (char*)zt_readEntireFile(asset_list_file_name, &asset_list_file_size);
+		if (asset_list_file_data) {
+
+			//directory += 1;
+			char directory_search[ztFileMaxPath];
+			zt_strCpy(directory_search, ztFileMaxPath, directory);
+			if(directory_search[0] != 0) {
+				zt_strCat(directory_search, ztFileMaxPath, "/");
+			}
+			int directory_len = zt_strLen(directory_search);
+
+			int pos_beg = 0;
+			while(true) {
+				int pos_end = zt_strFindPos(asset_list_file_data, asset_list_file_size, "\n", pos_beg);
+				if (pos_end == ztStrPosNotFound) {
+					break;
+				}
+
+				files += 1;
+
+				pos_beg = pos_end + 1;
+			}
+
+			zt_free(asset_list_file_data);
+		}
+		else {
+			zt_logCritical("asset_list file not found.  unable to read files list");
+		}
+
+		return buffer_used;
+	}
+#	endif
+
+	DIR *dir = opendir(dir_full);
+	if (dir != nullptr) {
+		struct dirent * entry = readdir(dir);
+		while(entry) {
+			i32 len = zt_strLen(entry->d_name);
+			if (!((len == 1 && entry->d_name[0] == '.') || (len == 2 && entry->d_name[0] == '.' && entry->d_name[1] == '.'))) {
+				char entry_name[ztFileMaxPath];
+				zt_strPrintf(entry_name, ztFileMaxPath, "%s%s", dir_full, entry->d_name);
+
+				DIR *subdir = opendir(entry_name);
+				if (subdir) {
+					closedir(subdir);
+
+					if (recursive) {
+						files += zt_getDirectoryFilesCount(entry_name, true);
+						if (used != 0) {
+							buffer_used += used;
+							buffer[buffer_used++] = '\n';
+						}
+					}
+				}
+				else {
+					files += 1;
+				}
+			}
+			entry = readdir(dir);
+		}
+		closedir(dir);
+	}
+	else {
+		zt_logCritical("unable to open directory: %s (errno: %d)", dir_full, errno);
+		return 0;
+	}
+
+#	else
+#	error zt_getDirectoryFilesCount needs an implementation for this platform
+#	endif
+
+	zt_free(dir_full);
+
+	return files;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_getDirectoryFilesBufferSize(const char *directory, bool recursive)
+{
+	ZT_PROFILE_TOOLS("zt_getDirectoryFilesBufferSize");
+
+	i32 buffer_used = 0;
+
+	bool end_sep = zt_strEndsWith(directory, ztFilePathSeparatorStr);
+	char *dir_full = (char *)zt_memAllocGlobal(ztFileMaxPath);
+	int dir_len = zt_strLen(directory);
+
+	if (!end_sep) {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s%c", directory, ztFilePathSeparator);
+		dir_len += 1;
+	}
+	else {
+		zt_strPrintf(dir_full, ztFileMaxPath, "%s", directory);
+	}
+
+	i32 dir_size = zt_strLen(directory) + (end_sep ? 0 : 1);
+
+#	if defined(ZT_WINDOWS)
+	zt_strCat(dir_full, ztFileMaxPath, "*");
+	dir_len += 1;
+	WIN32_FIND_DATAA file_data;
+	HANDLE hfile = FindFirstFileA(dir_full, &file_data);
+	while (hfile != INVALID_HANDLE_VALUE) {
+		if (recursive && zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			i32 len = zt_strLen(file_data.cFileName);
+			if (!(len == 1 && file_data.cFileName[0] == '.' || len == 2 && file_data.cFileName[0] == '.' && file_data.cFileName[1] == '.')) {
+				char* dir_buffer = (char *)zt_memAllocGlobal(ztFileMaxPath);
+				if (!end_sep) {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%c%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+				else {
+					zt_strPrintf(dir_buffer, ztFileMaxPath, "%s%s", directory, ztFilePathSeparator, file_data.cFileName);
+				}
+
+				int used = zt_getDirectoryFilesBufferSize(dir_buffer, true);
+				if (used != 0) {
+					buffer_used += used;
+				}
+
+				zt_free(dir_buffer);
+			}
+		}
+		else if (!zt_bitIsSet(file_data.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY)) {
+			buffer_used += dir_size + zt_strLen(file_data.cFileName) + 1;
+		}
+		if (!FindNextFileA(hfile, &file_data)) break;
+	}
+
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+
+#	if defined(ZT_ANDROID)
+	if(directory && directory[0] == '@') { 
+		// this is a big dumb hack that works with ztAssetManager because the Android NDK does not 
+		// offer a way to query directories from the Android AAssetManager.
+
+		const char *asset_list_file_name = "@data/asset_list";
+		i32 asset_list_file_size = 0;
+		char *asset_list_file_data = (char*)zt_readEntireFile(asset_list_file_name, &asset_list_file_size);
+		if (asset_list_file_data) {
+
+			//directory += 1;
+			char directory_search[ztFileMaxPath];
+			zt_strCpy(directory_search, ztFileMaxPath, directory);
+			if(directory_search[0] != 0) {
+				zt_strCat(directory_search, ztFileMaxPath, "/");
+			}
+			int directory_len = zt_strLen(directory_search);
+
+			int pos_beg = 0;
+			while(true) {
+				int pos_end = zt_strFindPos(asset_list_file_data, asset_list_file_size, "\n", pos_beg);
+				if (pos_end == ztStrPosNotFound) {
+					break;
+				}
+
+				char file_name[ztFileMaxPath];
+				zt_strCpy(file_name, ztFileMaxPath, "@data/");
+				zt_strCat(file_name, ztFileMaxPath, asset_list_file_data + pos_beg, pos_end - pos_beg);
+
+				if (directory_len == 0 || zt_strStartsWith(file_name, directory_search)) {
+					int file_name_len = zt_strLen(file_name);
+					char *file_name_str = file_name + directory_len;
+					if (recursive || zt_strFindPos(file_name_str, "/", 0) == ztStrPosNotFound) {
+						bool add_to_buffer = true;
+						if (zt_strEquals(file_name, asset_list_file_name)) {
+							add_to_buffer = false;
+						}
+
+						if (add_to_buffer) {
+							buffer_used += zt_strLen(file_name) + 1;
+						}
+					}
+				}
+
+				pos_beg = pos_end + 1;
+			}
+
+			zt_free(asset_list_file_data);
+		}
+		else {
+			zt_logCritical("asset_list file not found.  unable to read files list");
+		}
+
+		return buffer_used;
+	}
+#	endif
+
+	DIR *dir = opendir(dir_full);
+	if (dir != nullptr) {
+		struct dirent * entry = readdir(dir);
+		while(entry) {
+			i32 len = zt_strLen(entry->d_name);
+			if (!((len == 1 && entry->d_name[0] == '.') || (len == 2 && entry->d_name[0] == '.' && entry->d_name[1] == '.'))) {
+				char entry_name[ztFileMaxPath];
+				zt_strPrintf(entry_name, ztFileMaxPath, "%s%s", dir_full, entry->d_name);
+
+				DIR *subdir = opendir(entry_name);
+				if (subdir) {
+					closedir(subdir);
+
+					if (recursive) {
+						int used = zt_getDirectoryFilesBufferSize(entry_name, true);
+						if (used != 0) {
+							buffer_used += used;
+						}
+					}
+				}
+				else {
+					buffer_used += zt_strLen(entry_name) + 1;
+				}
+			}
+			entry = readdir(dir);
+		}
+		closedir(dir);
+	}
+	else {
+		zt_logCritical("unable to open directory: %s (errno: %d)", dir_full, errno);
+		return 0;
+	}
+
+#	else
+#	error zt_getDirectoryFilesBufferSize needs an implementation for this platform
+#	endif
+
+	zt_free(dir_full);
+
+	return buffer_used;}
 
 // ================================================================================================================================================================================================
 
@@ -12072,6 +12651,26 @@ void zt_serialClose(ztSerial *serial)
 	}
 
 	zt_memSet(&serial, zt_sizeof(serial), 0);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialIsReader(ztSerial *serial)
+{
+	ZT_PROFILE_TOOLS("zt_serialIsReader");
+	zt_returnValOnNull(serial, false);
+
+	return serial->mode == ztSerialMode_Reading;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_serialIsWriter(ztSerial *serial)
+{
+	ZT_PROFILE_TOOLS("zt_serialIsWriter");
+	zt_returnValOnNull(serial, false);
+
+	return serial->mode == ztSerialMode_Writing;
 }
 
 // ================================================================================================================================================================================================
