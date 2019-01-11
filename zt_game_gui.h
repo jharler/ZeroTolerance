@@ -20952,6 +20952,8 @@ ztInternal void _zt_guiDebugTextureViewer()
 	ztGuiItem *window = zt_guiMakeWindow("Texture Viewer", ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowCollapse | ztGuiWindowBehaviorFlags_CloseHides);
 	zt_guiItemSetName(window, ZT_GUI_DEBUG_TEXVIEW_NAME);
 
+	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(window->gm->gui_camera);
+	zt_guiItemSetSize(window, zt_vec2(zt_min(20, cam_ext.x - 2), cam_ext.y - 2));
 
 	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
 
@@ -21887,6 +21889,9 @@ ztInternal void _zt_guiDebugProfiler()
 
 	ztGuiItem *window = zt_guiMakeWindow("Profiler", ztGuiWindowBehaviorFlags_AllowDrag | ztGuiWindowBehaviorFlags_AllowResize | ztGuiWindowBehaviorFlags_ShowTitle | ztGuiWindowBehaviorFlags_AllowClose | ztGuiWindowBehaviorFlags_AllowCollapse | ztGuiWindowBehaviorFlags_CloseHides);
 	ztGuiItem *sizer = zt_guiMakeSizer(zt_guiWindowGetContentParent(window), ztGuiItemOrient_Vert);
+
+	ztVec2 cam_ext = zt_cameraOrthoGetViewportSize(window->gm->gui_camera);
+	zt_guiItemSetSize(window, zt_vec2(cam_ext.x - 1, cam_ext.y - 1));
 
 	ztGuiItem *profiler_panel = zt_guiToolsProfiler(sizer);
 	zt_guiSizerAddItem(sizer, profiler_panel, 1, 0);
