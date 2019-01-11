@@ -95,12 +95,14 @@
 #	include "zt_renderer_directx.h"
 #endif
 
-#if !defined(ZT_NO_DSOUND)
-#	include "zt_audio_dsound.h"
-#elif !defined(ZT_NO_OPENAL)
-#	include "zt_audio_openal.h"
-#elif !defined(ZT_NO_OPENSL)
-#	include "zt_audio_opensl.h"
+#if !defined(ZT_NO_AUDIO)
+#	if !defined(ZT_NO_DSOUND)
+#		include "zt_audio_dsound.h"
+#	elif !defined(ZT_NO_OPENAL)
+#		include "zt_audio_openal.h"
+#	elif !defined(ZT_NO_OPENSL)
+#		include "zt_audio_opensl.h"
+#	endif
 #endif
 
 
@@ -163,8 +165,15 @@ enum ztDirection_Enum
 	ztDirection_NorthEast = ztDirection_UpRight,
 	ztDirection_SouthWest = ztDirection_DownLeft,
 	ztDirection_SouthEast = ztDirection_DownRight,
+
+	ztDirection_Invalid = 0xffff,
 };
 
+// ================================================================================================================================================================================================
+
+i32  zt_indexInGridInDirection(i32 cols, i32 rows, i32 c, i32 r, ztDirection_Enum direction);
+i32  zt_indexInGridInDirectionWrap(i32 cols, i32 rows, i32 c, i32 r, ztDirection_Enum direction);
+void zt_colRowInGridFromIndex(i32 cols, i32 rows, i32 index, i32 *c, i32 *r);
 
 // ================================================================================================================================================================================================
 // renderer enumerations
@@ -981,7 +990,9 @@ typedef i32 ztAssetID; // this is an index into the asset arrays
 #define ZT_FUNC_ASSET_UPDATED(name) void name(ztAssetManager *asset_manager, ztAssetID asset_id, void *user_data)
 typedef ZT_FUNC_ASSET_UPDATED(zt_assetManagerAssetUpdated_Func);
 
-#define ztAssetManagerMaxAssets	1024
+#ifndef ztAssetManagerMaxAssets
+#define ztAssetManagerMaxAssets	1024 * 32
+#endif
 
 // ================================================================================================================================================================================================
 
@@ -1001,6 +1012,7 @@ struct ztAssetManager
 			ZT_FUNCTION_POINTER_VAR(asset_callbacks          [ztAssetManagerMaxAssets], zt_assetManagerAssetUpdated_Func);
 			void                   *asset_callback_user_data [ztAssetManagerMaxAssets];
 			ztAssetID               asset_callback_ids       [ztAssetManagerMaxAssets];
+			ztGuid                  asset_callback_guids     [ztAssetManagerMaxAssets];
 			i32                     asset_callbacks_count;
 			i32                     asset_modified_check_last_idx; // used internally
 		};
@@ -1051,7 +1063,7 @@ bool      zt_assetLoadData               (ztAssetManager *asset_mgr, ztAssetID a
 bool      zt_assetClearCache             (ztAssetManager *asset_mgr, ztAssetID asset_id);
 
 //        if reading from a directory, the passed function will be called whenever the file changes
-void      zt_assetAddReloadCallback      (ztAssetManager *asset_mgr, ztAssetID asset_id, ZT_FUNCTION_POINTER_VAR(function, zt_assetManagerAssetUpdated_Func), void *user_data);
+void      zt_assetAddReloadCallback      (ztAssetManager *asset_mgr, ztAssetID asset_id, ZT_FUNCTION_POINTER_VAR(function, zt_assetManagerAssetUpdated_Func), void *user_data, ztGuid guid = ztGuid::invalid);
 void      zt_assetRemoveReloadCallback   (ztAssetManager *asset_mgr, ztAssetID asset_id, void *user_data);
 
 void      zt_assetManagerCheckForChanges (ztAssetManager *asset_mgr);
@@ -1066,6 +1078,8 @@ typedef i32 ztShaderID;
 ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id);
 ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len);
 void       zt_shaderFree(ztShaderID shader_id);
+
+void       zt_shaderAddDefine(const char *define, const char *replace_with);
 
 // --------------------------------------------------------
 // sets shader variables "model", "projection" and "view"
@@ -1776,6 +1790,7 @@ void zt_postProcessingStackUpdateScreen(ztPostProcessingStack *stack, i32 screen
 enum ztMaterialFlags_Enum
 {
 	ztMaterialFlags_OwnsTexture = (1 << 0),
+	ztMaterialFlags_IgnoreTexture = (1 << 1),
 };
 
 // ================================================================================================================================================================================================
@@ -1820,11 +1835,11 @@ struct ztMaterial
 
 
 ztMaterial zt_materialMake(ztTextureID diffuse_tex = ztInvalidID, const ztVec4 &diffuse_color = ztVec4::one, i32 diffuse_flags = 0, 
-						   ztTextureID specular_tex = ztInvalidID, const ztVec4 &specular_color = ztVec4::one, i32 specular_flags = 0,
-						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = 0,
-						   ztTextureID height_tex = ztInvalidID, i32 height_flags = 0,
-						   ztTextureID roughness_tex = ztInvalidID, i32 roughness_flags = 0,
-						   ztTextureID emissive_tex = ztInvalidID, i32 emissive_flags = 0, r32 emissive_strength = 1.f,
+						   ztTextureID specular_tex = ztInvalidID, const ztVec4 &specular_color = ztVec4::one, i32 specular_flags = ztMaterialFlags_IgnoreTexture,
+						   ztTextureID normal_tex = ztInvalidID, i32 normal_flags = ztMaterialFlags_IgnoreTexture,
+						   ztTextureID height_tex = ztInvalidID, i32 height_flags = ztMaterialFlags_IgnoreTexture,
+						   ztTextureID roughness_tex = ztInvalidID, i32 roughness_flags = ztMaterialFlags_IgnoreTexture,
+						   ztTextureID emissive_tex = ztInvalidID, i32 emissive_flags = ztMaterialFlags_IgnoreTexture, r32 emissive_strength = 1.f,
 						   r32 shininess = 0.5f);
 
 int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *materials_arr, int materials_arr_size);
@@ -2885,6 +2900,11 @@ struct ztLight
 	r32                intensity;
 	r32                ambient;
 
+	// point/area lights
+	r32                linear;
+	r32                quadratic;
+
+	// spot lights
 	r32                cutoff_in;
 	r32                cutoff_out;
 };
@@ -2893,7 +2913,9 @@ struct ztLight
 
 ztLight zt_lightMakeDirectional  (const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, r32 ambient = .25f, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 ztLight zt_lightMakeSpot         (const ztVec3 &pos, const ztVec3 &dir, r32 intensity = 1, r32 cutoff_in = zt_degreesToRadians(45), r32 cutoff_out = zt_degreesToRadians(65), bool casts_shadows = true, const ztColor& color = ztVec4::one);
+
 ztLight zt_lightMakeArea         (const ztVec3 &pos, r32 intensity = 1, bool casts_shadows = true, const ztColor& color = ztVec4::one);
+ztLight zt_lightMakeAreaByRadius (const ztVec3 &pos, r32 radius, bool casts_shadows = true, const ztColor& color = ztVec4::one);
 
 
 // ================================================================================================================================================================================================
@@ -3092,7 +3114,7 @@ bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, ztAssetManager *asse
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, const char *file_name, ztShaderID shader, int flags);
 bool     zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_size, ztShaderID shader, int flags);
 
-bool     zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone);
+bool     zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone, bool take_ownership = false);
 
 
 // ================================================================================================================================================================================================
@@ -3204,6 +3226,7 @@ enum ztSceneModelFlags_Enum
 	ztSceneModelFlags_ShaderBones     = (1<<2),
 	ztSceneModelFlags_HasTranslucent  = (1<<3),
 	ztSceneModelFlags_ExcludeFromCull = (1<<4),
+	ztSceneModelFlags_NoCalcMatrix    = (1<<5),
 
 	ztSceneModelFlags_Culled          = (1<<31),
 };
@@ -3521,6 +3544,10 @@ struct ztTriangle
 	ztVec3 points[3];
 	ztVec3 normal;
 };
+
+// ================================================================================================================================================================================================
+
+ztInline void zt_triangleCalculateNormal(ztTriangle *tri) { zt_triangleCalculateNormal(tri->points[0], tri->points[1], tri->points[2], &tri->normal); }
 
 // ================================================================================================================================================================================================
 
@@ -4584,6 +4611,8 @@ ztAnimController *zt_animControllerMake(int max_sequences, int max_async = 4);
 void              zt_animControllerFree(ztAnimController *controller);
 i32               zt_animControllerAddSequence(ztAnimController *controller, const char *sequence_name, ztAnimSequence *sequence);
 int               zt_animControllerStartSequence(ztAnimController *controller, i32 anim_sequence_hash, r32 transition_time);
+ztAnimSequence   *zt_animControllerGetActiveSequence(ztAnimController *controller);
+ztAnimSequence   *zt_animControllerGetSequence(ztAnimController *controller, i32 anim_sequence_hash);
 void              zt_animControllerUpdate(ztAnimController **controllers, int controllers_count, r32 dt);
 
 
@@ -6146,6 +6175,7 @@ enum ztShLangSyntaxNodeType_Enum
 	ztShLangSyntaxNodeType_ValueString,
 	ztShLangSyntaxNodeType_ValueBool,
 	ztShLangSyntaxNodeType_ValueEmpty,
+	ztShLangSyntaxNodeType_Ignore,
 };
 
 // ================================================================================================================================================================================================
@@ -6327,41 +6357,43 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 #include <shellapi.h>
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
-#include <emscripten.h>
-#include <emscripten/html5.h>
+#	include <emscripten.h>
+#	include <emscripten/html5.h>
 
 #elif defined(ZT_ANDROID) // end ZT_EMSCRIPTEN
-#include <android/log.h>
-#include <android_native_app_glue.h>
+#	include <android/log.h>
+#	include <android_native_app_glue.h>
 
 #endif // ZT_ANDROID
 
 #if !defined(ZT_NO_OPENGL)
-#define ZT_OPENGL_IMPLEMENTATION
-#include "zt_renderer_opengl.h"
+#	define ZT_OPENGL_IMPLEMENTATION
+#	include "zt_renderer_opengl.h"
 #endif
 
 #if !defined(ZT_NO_DIRECTX)
-#define ZT_DIRECTX_IMPLEMENTATION
-#include "zt_renderer_directx.h"
+#	define ZT_DIRECTX_IMPLEMENTATION
+#	include "zt_renderer_directx.h"
 #endif
 
-#if !defined(ZT_NO_DSOUND)
-#define ZT_DSOUND_IMPLEMENTATION
-#include "zt_audio_dsound.h"
+#if !defined(ZT_NO_AUDIO)
+
+#	if !defined(ZT_NO_DSOUND)
+#		define ZT_DSOUND_IMPLEMENTATION
+#		include "zt_audio_dsound.h"
+#	endif
+
+#	if defined(ZT_OPENAL)
+#		define ZT_OPENAL_IMPLEMENTATION
+#		include "zt_audio_openal.h"
+#	endif
+
+#	if defined(ZT_OPENSL)
+#		define ZT_OPENSL_IMPLEMENTATION
+#		include "zt_audio_opensl.h"
+#	endif
+
 #endif
-
-#if defined(ZT_OPENAL)
-#define ZT_OPENAL_IMPLEMENTATION
-#include "zt_audio_openal.h"
-#endif
-
-#if defined(ZT_OPENSL)
-#define ZT_OPENSL_IMPLEMENTATION
-#include "zt_audio_opensl.h"
-#endif
-
-
 
 // ================================================================================================================================================================================================
 #if defined(ZT_WINDOWS)
@@ -6530,6 +6562,8 @@ struct ztThreadJobQueue
 	ztThreadJob             job_queue[ZT_THREAD_JOB_QUEUE_SIZE];
 
 	i32                     total_job_count;
+
+	r64                     startup_time;
 };
 
 // ================================================================================================================================================================================================
@@ -6599,6 +6633,10 @@ enum ztShaderLoadType_Enum
 
 #ifndef ZT_MAX_SHADERS
 #define ZT_MAX_SHADERS		64
+#endif
+
+#ifndef ZT_MAX_SHADER_DEFINES
+#define ZT_MAX_SHADER_DEFINES 128
 #endif
 
 // ================================================================================================================================================================================================
@@ -7053,6 +7091,9 @@ struct ztGameGlobals
 	i32                       shaders_count = 0;
 	ztShaderID                shader_defaults[ztShaderDefault_MAX];
 	bool                      shader_loading_default = false;
+	ztString                  shader_defines[ZT_MAX_SHADER_DEFINES];
+	ztString                  shader_defines_vals[ZT_MAX_SHADER_DEFINES];
+	i32                       shader_defines_count = 0;
 
 	ztShaderID                default_shader_solid = 0;
 
@@ -7276,6 +7317,7 @@ ztInternal void _zt_threadJobQueueInit(int max_frame_threads, int max_background
 	queue->threads            = zt_mallocStructArray(ztThreadJobThreadData, queue->threads_count);
 	queue->frame_threads      = max_frame_threads;
 	queue->background_threads = max_background_threads;
+	queue->startup_time       = zt_getTime();
 
 	zt_fiz(queue->threads_count) {
 		queue->threads[i].start = zt_threadMonitorMake();
@@ -7302,9 +7344,13 @@ ztInternal void _zt_threadJobQueueInit(int max_frame_threads, int max_background
 
 ztInternal void _zt_threadJobQueueFree()
 {
-	zt_threadJobQueueDllUnload();
-
 	ztThreadJobQueue *queue = zt_game->thread_job_queue;
+
+	if (zt_getTime() - queue->startup_time < 1.f) {
+		zt_sleep(1); // will sometimes encounter instances where the threads weren't fully initialized before getting here, so give them some time, otherwise it deadlocks
+	}
+
+	zt_threadJobQueueDllUnload();
 
 	zt_fiz(queue->threads_count) {
 		zt_threadMonitorFree(queue->threads[i].start);
@@ -8297,7 +8343,7 @@ ztInternal ztAssetManagerType_Enum _zt_assetGetFileType(const char *file_name)
 	else if (zt_striEndsWith(file_name, ".ztm")) result = ztAssetManagerType_ModelZTM;
 	else if (zt_striEndsWith(file_name, ".xml")) result = ztAssetManagerType_Xml;
 
-	zt_logDebug("asset type: %d - file: %s", (int)result, file_name);
+	zt_logVerbose("asset type: %d - file: %s", (int)result, file_name);
 	return result;
 }
 
@@ -8429,7 +8475,7 @@ bool zt_assetManagerLoadDirectory(ztAssetManager *asset_mgr, const char *directo
 
 	zt_memPushGlobalArena(arena);
 
-	int buffer_size = 1024 * 128;
+	int buffer_size = zt_getDirectoryFilesBufferSize(directory, true);
 	char *buffer = zt_mallocStructArrayArena(char, buffer_size, arena);
 
 	i32 len = zt_getDirectoryFiles(directory, buffer, buffer_size, true);
@@ -8816,7 +8862,7 @@ bool zt_assetClearCache(ztAssetManager *asset_mgr, ztAssetID asset_id)
 
 // ================================================================================================================================================================================================
 
-void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ZT_FUNCTION_POINTER_VAR(function, zt_assetManagerAssetUpdated_Func), void *user_data)
+void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ZT_FUNCTION_POINTER_VAR(function, zt_assetManagerAssetUpdated_Func), void *user_data, ztGuid guid)
 {
 #	if defined(ZT_WINDOWS)
 	ZT_PROFILE_ASSETS("zt_assetAddReloadCallback");
@@ -8836,6 +8882,7 @@ void zt_assetAddReloadCallback(ztAssetManager *asset_mgr, ztAssetID asset_id, ZT
 	asset_mgr->asset_callbacks         [idx] = function;
 	asset_mgr->asset_callback_ids      [idx] = asset_id;
 	asset_mgr->asset_callback_user_data[idx] = user_data;
+	asset_mgr->asset_callback_guids    [idx] = guid;
 	
 	zt_fileModified(asset_mgr->asset_name[asset_id] - asset_mgr->directory_len, &asset_mgr->asset_modified[asset_id]);
 #	endif
@@ -9019,7 +9066,7 @@ ztInternal const char *_zt_default_shaders_names[] = {
 };
 
 ztInternal const char *_zt_default_shaders[] = {
-	"// shader-solid\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 projection;\n	mat4 view;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.color.rgb, min(_input.color.a, 1.0));\n	}\n}",
+	"// shader-solid\n\n#import \"zt_defaults\"\n\nstruct VertexInput\n{\n	ZT_VERTEX_INPUT;\n}\n\nstruct PixelInput\n{\n	ZT_PIXEL_INPUT;\n}\n\nstruct PixelOutput\n{\n	ZT_PIXEL_OUPUT_COLOR;\n}\n\nstruct Uniforms\n{\n	ZT_UNIFORM_MPV;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		ZT_VERTEX_SHADER_COPY_PUNC;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.color.rgb, min(_input.color.a, 1.0));\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
@@ -9039,6 +9086,67 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
 };
 
+// ================================================================================================================================================================================================
+
+i32 zt_indexInGridInDirection(i32 cols, i32 rows, i32 c, i32 r, ztDirection_Enum direction)
+{
+	i32 nc = c;
+	i32 nr = r;
+
+	switch (direction)
+	{
+		case ztDirection_Up: nr -= 1; break;
+		case ztDirection_Down: nr += 1; break;
+		case ztDirection_Left: nc -= 1; break;
+		case ztDirection_Right: nc += 1; break;
+		case ztDirection_UpLeft: nc -= 1; nr -= 1; break;
+		case ztDirection_UpRight: nc += 1; nr -= 1; break;
+		case ztDirection_DownLeft: nc -= 1; nr += 1; break;
+		case ztDirection_DownRight: nc += 1; nr += 1; break;
+	}
+
+	if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) return -1;
+
+	return (nr * cols) + nc;
+}
+
+// ================================================================================================================================================================================================
+
+i32 zt_indexInGridInDirectionWrap(i32 cols, i32 rows, i32 c, i32 r, ztDirection_Enum direction)
+{
+	i32 nc = c;
+	i32 nr = r;
+
+	switch (direction)
+	{
+		case ztDirection_Up: nr -= 1; break;
+		case ztDirection_Down: nr += 1; break;
+		case ztDirection_Left: nc -= 1; break;
+		case ztDirection_Right: nc += 1; break;
+		case ztDirection_UpLeft: nc -= 1; nr -= 1; break;
+		case ztDirection_UpRight: nc += 1; nr -= 1; break;
+		case ztDirection_DownLeft: nc -= 1; nr += 1; break;
+		case ztDirection_DownRight: nc += 1; nr += 1; break;
+	}
+
+	if (nc < 0) nc += cols;
+	if (nc >= cols) nc -= cols;
+	if (nr < 0) nr += rows;
+	if (nr >= rows) nr -= rows;
+
+	return (nr * cols) + nc;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_colRowInGridFromIndex(i32 cols, i32 rows, i32 index, i32 *c, i32 *r)
+{
+	*r = index / cols;
+	*c = index % cols;
+}
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
 ztRenderer_Enum zt_currentRenderer()
@@ -16302,16 +16410,54 @@ ztLight zt_lightMakeSpot(const ztVec3 &pos, const ztVec3 &dir, r32 intensity, r3
 ztLight zt_lightMakeArea(const ztVec3 &pos, r32 intensity, bool casts_shadows, const ztColor& color)
 {
 	ZT_PROFILE_RENDERING("zt_lightMakeArea");
+
+	return zt_lightMakeAreaByRadius(pos, 16 * intensity, casts_shadows, color);
+}
+
+// ================================================================================================================================================================================================
+
+ztLight zt_lightMakeAreaByRadius(const ztVec3 &pos, r32 radius, bool casts_shadows, const ztColor& color)
+{
+	ZT_PROFILE_RENDERING("zt_lightMakeAreaByRadius");
+
 	ztLight result;
 	result.type          = ztLightType_Point;
 	result.position      = pos;
 	result.direction     = ztVec3::zero;
-	result.intensity     = intensity;
+	result.intensity     = 1;
 	result.ambient       = 0;
 	result.casts_shadows = casts_shadows;
 	result.color         = color;
 	result.cutoff_in     = 0;
 	result.cutoff_out    = 0;
+
+	r32 distances[] = {
+		0, 7, 13, 20, 32, 50, 65, 100, 160, 200, 325, 600, 1250,
+	};
+
+	r32 linears[] = {
+		0, .7f, .35f, .22f, .14f, .09f, .07f, .045f, .027f, .022f, .014f, .007f, .0014f,
+	};
+
+	r32 quadratics[] = {
+		3, 1.8f, .44f, .20f, .07f, .032f, .017f, .0075f, .0028f, .0019f, .0007f, .0002f, .000007f,
+	};
+
+	radius = zt_clamp(radius, distances[0], distances[zt_elementsOf(distances) - 1]);
+
+	for (int i = 1; i < zt_elementsOf(distances); ++i) {
+		if (radius <= distances[i]) {
+			r32 min_dist = distances[i - 1];
+			r32 max_dist = distances[i];
+			r32 pct = (radius - min_dist) / (max_dist - min_dist);
+
+			result.linear = linears[i - 1] + (linears[i] - linears[i - 1]) * pct;
+			result.quadratic = quadratics[i - 1] + (quadratics[i] - quadratics[i - 1]) * pct;
+
+			break;
+		}
+	}
+
 	return result;
 }
 
@@ -17100,7 +17246,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 				input->models[i].bones           = &input->bones[0];
 				input->models[i].bones_count     = input->bones_used;
 				input->models[i].bones_root_idx  = root_bone_idx;
-				input->models[i].flags           = input->root_model == &input->models[i] ? 0 : ztModelFlags_NoCalcBones;
+				input->models[i].flags          |= input->root_model == &input->models[i] ? 0 : ztModelFlags_NoCalcBones;
 			}
 		}
 	}
@@ -17499,7 +17645,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							}
 						}
 						else {
-							zt_logCritical("model animation missing channel object: %s", channel_name);
+							zt_logVerbose("model animation missing channel object: %s", channel_name);
 						}
 					}
 					serialCheck(zt_serialGroupPop(&serial));
@@ -17598,7 +17744,7 @@ ztInternal void _zt_modelCountModelsAndBones(ztModel *model, i32 *models, i32 *b
 
 // ================================================================================================================================================================================================
 
-bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
+bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone, bool take_ownership)
 {
 	i32 models_needed = 0, bones_needed = 0;
 	_zt_modelCountModelsAndBones(model_to_clone, &models_needed, &bones_needed);
@@ -17610,14 +17756,20 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
 
 	struct local
 	{
-		static void clone(ztModel *model_to_clone, ztModel *model, ztModelLoaderInput *input)
+		static void clone(ztModel *model_to_clone, ztModel *model, ztModelLoaderInput *input, bool take_ownership)
 		{
 			zt_memCpy(model, zt_sizeof(ztModel), model_to_clone, zt_sizeof(ztModel));
 
 			// memcpy gets most things, there are some things that need modified
 
-			zt_bitRemove(model->flags, ztModelFlags_OwnsMaterials);
-			zt_bitRemove(model->flags, ztModelFlags_OwnsMesh);
+			if (take_ownership) {
+				zt_bitRemove(model_to_clone->flags, ztModelFlags_OwnsMaterials);
+				zt_bitRemove(model_to_clone->flags, ztModelFlags_OwnsMesh);
+			}
+			else {
+				zt_bitRemove(model->flags, ztModelFlags_OwnsMaterials);
+				zt_bitRemove(model->flags, ztModelFlags_OwnsMesh);
+			}
 
 			if (model->name) {
 				model->name = zt_stringMakeFrom(model_to_clone->name);
@@ -17714,7 +17866,7 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
 			// process children
 			zt_flink(child_to_clone, model_to_clone->first_child) {
 				ztModel *child = &input->models[input->models_used++];
-				clone(child_to_clone, child, input);
+				clone(child_to_clone, child, input, take_ownership);
 
 				child->parent = model;
 				zt_singleLinkAddToEnd(model->first_child, child);
@@ -17724,7 +17876,7 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone)
 
 	input->root_model = &input->models[input->models_used++];
 
-	local::clone(model_to_clone, input->root_model, input);
+	local::clone(model_to_clone, input->root_model, input, take_ownership);
 
 	return true;
 }
@@ -18830,6 +18982,7 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res, i32 fl
 
 		if (light->casts_shadows) {
 			light_info->shadowmap_tex = zt_textureMakeCubeMapForDepth(shadow_map_res);
+			zt_textureSetName(light_info->shadowmap_tex, "Light Shadowmap");
 
 			if((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
 				scene->shader_point_light_shadows = zt_shaderMakePointLightShadows();
@@ -19127,11 +19280,22 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 
 	scene->models_culled = 0;
 
-	zt_fiz(scene->models_count) {
-		if (scene->models[i].root_parent == nullptr) {
-			zt_modelCalcMatrix(scene->models[i].model, world_offset);
+	{
+		ZT_PROFILE_RENDERING("zt_scenePrepare::calculating matrices");
+
+		zt_fiz(scene->models_count) {
+			if (!zt_bitIsSet(scene->models[i].model->flags, ztModelFlags_Hidden)) {
+				if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_NoCalcMatrix)) {
+					if (scene->models[i].root_parent == nullptr) {
+						zt_modelCalcMatrix(scene->models[i].model, world_offset);
+					}
+				}
+				scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->calculated_transform.position.distance(camera->position));
+			}
+			else {
+				scene->models[i].dist_from_cam = ztReal32Max;
+			}
 		}
-		scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->calculated_transform.position.distance(camera->position));
 	}
 
 	zt_fiz(scene->lights_count) {
@@ -19141,6 +19305,7 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 	ztFrustum camera_frustum = zt_cameraCalcViewFrustum(camera);
 
 	if (scene->culling_distance != ztReal32Max) {
+		ZT_PROFILE_RENDERING("zt_scenePrepare::culling");
 		zt_fiz(scene->models_count) {
 			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_ExcludeFromCull)) {
 				continue;
@@ -19234,10 +19399,13 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 		}
 	};
 
-	qsort(scene->list_std, scene->list_std_count, zt_sizeof(ztScene::ModelInfo*), sort::compareNearToFar);
-	qsort(scene->list_trn, scene->list_trn_count, zt_sizeof(ztScene::ModelInfo*), sort::compareFarToNear);
+	{
+		ZT_PROFILE_RENDERING("zt_scenePrepare::sorting");
+		qsort(scene->list_std, scene->list_std_count, zt_sizeof(ztScene::ModelInfo*), sort::compareNearToFar);
+		qsort(scene->list_trn, scene->list_trn_count, zt_sizeof(ztScene::ModelInfo*), sort::compareFarToNear);
 
-	qsort(scene->list_light, scene->list_light_count, zt_sizeof(ztScene::LightInfo*), sort::compareNearToFarLight);
+		qsort(scene->list_light, scene->list_light_count, zt_sizeof(ztScene::LightInfo*), sort::compareNearToFarLight);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -19259,6 +19427,71 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztScene *scene, ztLight *light, 
 	r32 shadow_near = .1f - lighting_rules->shadow_distance_behind_camera;
 	r32 shadow_far = lighting_rules->shadow_max_distance;
 
+#if 1
+	ztFrustum frustum = zt_cameraCalcViewFrustum(camera);
+
+	ztVec3 scene_center = (scene->extents_min + scene->extents_max) * .5f;
+	ztVec3 scene_extents = scene->extents_max - scene->extents_min;
+
+	// far points are typically going to be outside of AABB, so truncate them
+	//ztVec3 intersect_points[2];
+	//if (zt_collisionLineSegmentInAABB(frustum.far_ne, frustum.near_ne, scene_center, scene_extents, nullptr, intersect_points, nullptr)) {
+	//	frustum.far_ne = intersect_points[0];
+	//}
+	//if (zt_collisionLineSegmentInAABB(frustum.far_nw, frustum.near_nw, scene_center, scene_extents, nullptr, intersect_points, nullptr)) {
+	//	frustum.far_nw = intersect_points[0];
+	//}
+	////if (zt_collisionLineSegmentInAABB(frustum.far_se, frustum.near_se, scene_center, scene_extents, nullptr, intersect_points, nullptr)) {
+	////	frustum.far_se = intersect_points[0];
+	////}
+	////if (zt_collisionLineSegmentInAABB(frustum.far_sw, frustum.near_sw, scene_center, scene_extents, nullptr, intersect_points, nullptr)) {
+	////	frustum.far_sw = intersect_points[0];
+	////}
+
+	frustum.far_se = frustum.near_se + (frustum.far_se - frustum.near_se).getNormal() * lighting_rules->shadow_max_distance;
+	frustum.far_sw = frustum.near_sw + (frustum.far_sw - frustum.near_sw).getNormal() * lighting_rules->shadow_max_distance;
+	frustum.far_ne = frustum.near_ne + (frustum.far_ne - frustum.near_ne).getNormal() * lighting_rules->shadow_max_distance;
+	frustum.far_nw = frustum.near_nw + (frustum.far_nw - frustum.near_nw).getNormal() * lighting_rules->shadow_max_distance;
+
+	zt_fize(frustum.points) frustum.points[i] = zt_closestPointAABBPoint(scene_center, scene_extents, frustum.points[i]);
+
+
+	ztVec3 light_pos_nml = light->position.getNormal();
+	ztVec3 light_pos = camera->position + light_pos_nml;
+	ztMat4 light_mat = ztMat4::identity.getLookAt(light_pos, light_pos + light_pos_nml * -1);
+
+	ztVec3 points_in_lightspace[8];
+	zt_fize(points_in_lightspace) points_in_lightspace[i] = light_mat.getMultiply(frustum.points[i]);
+
+	r32 min_x = ztReal32Max;
+	r32 max_x = ztReal32Min;
+	r32 min_y = ztReal32Max;
+	r32 max_y = ztReal32Min;
+	r32 min_z = ztReal32Max;
+	r32 max_z = ztReal32Min;
+
+	zt_fize(points_in_lightspace) {
+		ztVec3 point = points_in_lightspace[i];
+		min_x = zt_min(min_x, point.x);
+		max_x = zt_max(max_x, point.x);
+		min_y = zt_min(min_y, point.y);
+		max_y = zt_max(max_y, point.y);
+		min_z = zt_min(min_z, point.z);
+		max_z = zt_max(max_z, point.z);
+	}
+
+	ztVec3 cube_center = zt_vec3((min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2);
+	ztVec3 cube_size = zt_vec3(max_x - min_x, max_y - min_y, max_z - min_z);
+
+	r32 max = zt_max(cube_size.x, zt_max(cube_size.y, cube_size.z));
+
+	light_pos = light_mat.getInverse().getMultiply(cube_center);
+	light_mat = ztMat4::identity.getLookAt(light_pos + light_pos_nml * 10, light_pos + light_pos_nml * -1);
+
+	ztMat4 result = ztMat4::makeOrthoProjection(0, max, 0, max, 0, 100);
+
+	return result * light_mat;
+#else
 	ztVec3 scene_center = (scene->extents_min + scene->extents_max) * .5f;
 	ztVec3 scene_extents = scene->extents_max - scene->extents_min;
 
@@ -19327,6 +19560,7 @@ ztInternal ztMat4 _zt_sceneLightingMakeLightMat(ztScene *scene, ztLight *light, 
 
 	//return ortho_proj * light_mat;
 	return light_mat;
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -19918,6 +20152,8 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 					static u32 point_lights_ambient_color_hash [ZT_SCENE_MAX_LIGHTS] = { 0 };
 					static u32 point_lights_intensity_hash     [ZT_SCENE_MAX_LIGHTS];
 					static u32 point_lights_pos_hash           [ZT_SCENE_MAX_LIGHTS];
+					static u32 point_lights_linear_hash        [ZT_SCENE_MAX_LIGHTS];
+					static u32 point_lights_quadratic_hash     [ZT_SCENE_MAX_LIGHTS];
 					static u32 point_lights_far_plane_hash     [ZT_SCENE_MAX_LIGHTS];
 					static u32 point_lights_shadowmap_use_hash [ZT_SCENE_MAX_LIGHTS];
 					static u32 point_lights_shadowmap_hash     [ZT_SCENE_MAX_LIGHTS];
@@ -19947,6 +20183,8 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].ambient_color", point_lights); point_lights_ambient_color_hash[point_lights] = zt_strHash(varname);
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].intensity",     point_lights); point_lights_intensity_hash    [point_lights] = zt_strHash(varname);
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].pos",           point_lights); point_lights_pos_hash          [point_lights] = zt_strHash(varname);
+										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].linear",        point_lights); point_lights_linear_hash       [point_lights] = zt_strHash(varname);
+										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].quadratic",     point_lights); point_lights_quadratic_hash    [point_lights] = zt_strHash(varname);
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].far_plane",     point_lights); point_lights_far_plane_hash    [point_lights] = zt_strHash(varname);
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights[%d].shadowmap_use", point_lights); point_lights_shadowmap_use_hash[point_lights] = zt_strHash(varname);
 										zt_strPrintf(varname, zt_elementsOf(varname), "point_lights_shadowmap[%d]",     point_lights); point_lights_shadowmap_hash    [point_lights] = zt_strHash(varname);
@@ -19956,6 +20194,8 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 									zt_shaderSetVariableFloat(*active_shader, point_lights_intensity_hash     [point_lights], light_info->light->intensity);
 									zt_shaderSetVariableVec3 (*active_shader, point_lights_pos_hash           [point_lights], light_info->light->position);
 									zt_shaderSetVariableFloat(*active_shader, point_lights_far_plane_hash     [point_lights], light_info->far_plane);
+									zt_shaderSetVariableFloat(*active_shader, point_lights_linear_hash        [point_lights], light_info->light->linear);
+									zt_shaderSetVariableFloat(*active_shader, point_lights_quadratic_hash     [point_lights], light_info->light->quadratic);
 									zt_shaderSetVariableInt  (*active_shader, point_lights_shadowmap_use_hash [point_lights], light_info->light->casts_shadows ? 1 : 0);
 									zt_shaderSetVariableTex  (*active_shader, point_lights_shadowmap_hash     [point_lights], light_info->light->casts_shadows ? light_info->shadowmap_tex : 0);
 									point_lights += 1;
@@ -20903,6 +21143,8 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 			}
 
 			if (objects_in_this_node <= max_objects_per_node || current_node_level == max_node_levels) { // final node
+
+
 				*object_count += objects_in_this_node;
 				return;
 			}
@@ -20926,8 +21168,8 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 
 					if (sub_object_count > 0) {
 						*object_count += sub_object_count;
-						*node_count += 1;
 					}
+						*node_count += 1;
 				}
 			}
 		}
@@ -20938,10 +21180,12 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 
 			i32 objects_in_this_node = 0;
 			i32 object_idx = 0;
+			i32 temp_objects_count[2048];
+			i32 temp_objects_saved[2048];
 			while (true) {
-				bool object_is_valid = false;
 				ztOcTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
 				if (result == ztOcTreeItemContainedResult_Inside) {
+					temp_objects_count[objects_in_this_node] = object_idx;
 					objects_in_this_node += 1;
 
 					if (objects_in_this_node > max_objects_per_node && current_node_level != max_node_levels) {
@@ -20958,16 +21202,14 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 					return;
 				}
 
-				node->objects = tree->objects_cache + tree->objects_cache_used;
+				node->objects = zt_mallocStructArray(i32, objects_in_this_node);
 				node->objects_count = 0;
-				tree->objects_cache_used += objects_in_this_node;
-				zt_assert(tree->objects_cache_used <= tree->objects_cache_size);
 
 				object_idx = 0;
 				while (true) {
-					bool object_is_valid = false;
 					ztOcTreeItemContainedResult_Enum result = (callback)(object_idx++, node->center, node->size, user_data);
 					if (result == ztOcTreeItemContainedResult_Inside) {
+						temp_objects_saved[node->objects_count] = object_idx;
 						node->objects[node->objects_count++] = object_idx - 1;
 					}
 					else if (result == ztOcTreeItemContainedResult_InvalidIndex) {
@@ -20992,8 +21234,8 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 				};
 
 				zt_fize(centers) {
-					zt_assert(tree->nodes_cache_used < tree->nodes_cache_size);
-					ztOcTree::Node *cnode = &tree->nodes_cache[tree->nodes_cache_used++];
+
+					ztOcTree::Node *cnode = zt_mallocStruct(ztOcTree::Node);
 					cnode->center = centers[i];
 					cnode->size = nsize;
 
@@ -21009,6 +21251,7 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 						}
 						if (!has_child_nodes) {
 							tree->nodes_cache_used -= 1;
+							zt_free(cnode);
 							cnode = nullptr;
 						}
 					}
@@ -21021,22 +21264,7 @@ void zt_ocTreeMake(ztOcTree *octree, i32 max_objects_per_node, i32 max_node_leve
 
 	zt_memSet(octree, zt_sizeof(ztOcTree), 0);
 
-	i32 node_count = 1, object_count = 0;
-	{
-		ztBlockProfiler profile("OcTree count");
-		local::count(center, size, max_objects_per_node, max_node_levels, 0, &node_count, &object_count, callback, user_data);
-		node_count += zt_convertToi32Floor(node_count * .1f);
-		object_count += zt_convertToi32Floor(object_count * .1f);
-	}
-
-	octree->nodes_cache = zt_mallocStructArray(ztOcTree::Node, node_count);
-	octree->nodes_cache_size = node_count;
-	octree->nodes_cache_used = 0;
-	octree->objects_cache = zt_mallocStructArray(i32, object_count);
-	octree->objects_cache_size = object_count;
-	octree->objects_cache_used = 0;
-
-	ztOcTree::Node *root_node = &octree->nodes_cache[octree->nodes_cache_used++];
+	ztOcTree::Node *root_node = zt_mallocStruct(ztOcTree::Node);
 	root_node->center = center;
 	root_node->size = size;
 
@@ -21090,19 +21318,28 @@ void zt_ocTreeFree(ztOcTree *octree)
 		return;
 	}
 
-	if (octree->nodes_cache) {
-		zt_free(octree->nodes_cache);
-		octree->nodes_cache = nullptr;
-		octree->nodes_cache_size = octree->nodes_cache_used = 0;
-	}
+	struct local
+	{
+		static void free(ztOcTree::Node *node)
+		{
+			zt_fize(node->nodes) {
+				if (node->nodes[i]) {
+					free(node->nodes[i]);
+				}
+			}
 
-	if (octree->objects_cache) {
-		zt_free(octree->objects_cache);
-		octree->objects_cache = nullptr;
-		octree->objects_cache_size = octree->objects_cache_used = 0;
-	}
+			if (node->objects) {
+				zt_free(node->objects);
+			}
 
-	octree->root_node = nullptr;
+			zt_free(node);
+		}
+	};
+
+	if (octree->root_node) {
+		local::free(octree->root_node);
+		octree->root_node = nullptr;
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -21863,6 +22100,619 @@ int zt_resolutionGetAvailable(ztResolution *resolutions, int resolutions_count, 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#define ZT_SHADER_LANG_PREPROCESS_GET_FILE_DATA(name) bool (name)(const char *file_name, char **file_data, i32 *file_data_size, bool *should_free_mem, void *user_data)
+typedef ZT_SHADER_LANG_PREPROCESS_GET_FILE_DATA(_zt_shaderLangPreprocessGetFileData_Func);
+
+#ifndef ZT_SHADER_LANG_PREPROCESS_WORKING_MEM_SIZE
+#define ZT_SHADER_LANG_PREPROCESS_WORKING_MEM_SIZE zt_megabytes(2)
+#endif
+
+// ================================================================================================================================================================================================
+
+struct ztShaderLangDefines
+{
+	ztStringPool string_pool;
+	ztString    *defines;
+	ztString    *values;
+	i32          count;
+	i32          size;
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_shaderLangDefinesMake(ztShaderLangDefines *defines)
+{
+	zt_memSet(defines, zt_sizeof(ztShaderLangDefines), 0);
+
+	i32 max_defines_count = ZT_MAX_SHADER_DEFINES + 1024;
+
+	int string_pool_sizes[] = {8, 16, 32, 64, 128, 256, 512};
+	int string_pool_props[] = {32, 32, 16, 8, 4, 2, 1};
+	defines->string_pool = zt_stringPoolMake(max_defines_count * 2, string_pool_sizes, string_pool_props, zt_elementsOf(string_pool_sizes), zt_memGetTempArena());
+
+	defines->defines = zt_mallocStructArrayArena(ztString, max_defines_count, zt_memGetTempArena());
+	defines->values = zt_mallocStructArrayArena(ztString, max_defines_count, zt_memGetTempArena());
+	defines->size = max_defines_count;
+
+	zt_fiz(zt_game->shader_defines_count) {
+		defines->defines[i] = zt_stringMakeFrom(&defines->string_pool, zt_game->shader_defines[i]);
+		defines->values[i] = zt_stringMakeFrom(&defines->string_pool, zt_game->shader_defines_vals[i]);
+		defines->count += 1;
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal void _zt_shaderLangDefinesFree(ztShaderLangDefines *defines)
+{
+	zt_fiz(defines->count) {
+		zt_stringFree(&defines->string_pool, defines->defines[i]);
+		zt_stringFree(&defines->string_pool, defines->values[i]);
+	}
+
+	zt_freeArena(defines->defines, zt_memGetTempArena());
+	zt_freeArena(defines->values, zt_memGetTempArena());
+
+	zt_stringPoolFree(&defines->string_pool);
+	zt_memSet(defines, zt_sizeof(ztShaderLangDefines), 0);
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal bool _zt_shaderLangDefinesAddDefine(ztShaderLangDefines *defines, const char *define, const char *value)
+{
+	if (defines->count >= defines->size) {
+		return false;
+	}
+
+	int idx = defines->count++;
+	defines->defines[idx] = zt_stringMakeFrom(&defines->string_pool, define);
+	defines->values[idx] = zt_stringMakeFrom(&defines->string_pool, value);
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal i32 _zt_shaderLangPreprocessImport(const char *import, char *buffer, i32 buffer_size, bool *errored)
+{
+	char *to_copy = nullptr;
+	if (zt_strEquals(import, "zt_defaults")) {
+		to_copy = "#ifndef ZT_DEFAULTS_IMPORT\n#define ZT_DEFAULTS_IMPORT\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#define ZT_VERTEX_INPUT vec3 position; vec2 uv : 1; vec3 normal : 2; vec4 color : 3;\n#define ZT_VERTEX_INPUT_LIT ZT_VERTEX_INPUT_PUNC; vec4 tangent : 4; vec4 bitangent : 5;\n#define ZT_PIXEL_INPUT vec4 position : position; vec2 uv; vec3 normal; vec4 color;\n#define ZT_PIXEL_INPUT_LIT ZT_PIXEL_INPUT; vec3 frag_pos; vec4 frag_pos_light_space; mat3 tbn;\n#define ZT_PIXEL_OUPUT_COLOR vec4 color: color;\n#define ZT_UNIFORM_MPV   mat4 model; mat4 projection; mat4 view;\n#define ZT_VERTEX_SHADER_COPY_PUNC _output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0); _output.uv = _input.uv; _output.normal = _input.normal; _output.color = _input.color;\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PARALLAX_MAPPING_HEIGHT_ADJUST\n#define ZT_PARALLAX_MAPPING_HEIGHT_ADJUST .0025\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec2 zt_parallaxMapping(vec2 uv, vec3 view_dir, float height)\n{\n	vec2 p = view_dir.xy * ((1.0 - height) * ZT_PARALLAX_MAPPING_HEIGHT_ADJUST);\n	return uv - p;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_normalCalculation(PixelInput _input, Textures textures)\n{\n	if (__exists(textures.normal_tex, _input.uv)) {\n		vec3 tangent_normal = textureSample(textures.normal_tex, _input.uv).xyz;\n		if (tangent_normal == vec3(1)) {\n			tangent_normal = _input.normal;\n			return tangent_normal;\n		}\n		else {\n			tangent_normal = tangent_normal * 2.0 - 1.0;\n		}\n\n		vec3 Q1 = dFdx(_input.position.xyz);\n		vec3 Q2 = dFdy(_input.position.xyz);\n		vec2 st1 = dFdx(_input.uv);\n		vec2 st2 = dFdy(_input.uv);\n\n		vec3 normal = normalize(_input.normal);\n		vec3 T = normalize(Q1*st2.y - Q2*st1.y);\n		vec3 B = -normalize(cross(normal, T));\n		mat3 TBN = mat3(T, B, normal);\n\n		return normalize(TBN * tangent_normal);\n	}\n	\n	if (__exists(_input.normal)) {\n		return _input.normal;\n	}\n	\n	return vec3(0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_vertexShaderStandard(VertexInput _input, Uniforms uniforms, PixelInput _output)\n{\n	mat4 model_mat = uniforms.model;\n	\n	if (__exists(uniforms.bones_count, _input.bones, _input.weights)) {\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n\n			model_mat = uniforms.model * bone_mat;\n		}\n	}\n\n	_output.position = uniforms.projection * uniforms.view * model_mat * vec4(_input.position, 1.0);\n	\n	if (__exists(_output.normal, _input.normal)) {\n		_output.normal = mat3(model_mat) * _input.normal;\n	}\n	if (__exists(_output.uv, _input.uv)) {\n		_output.uv = _input.uv;\n	}\n	if (__exists(_output.color, _input.color)) {\n		_output.color = _input.color;\n	}\n\n	if (__exists(_output.frag_pos)) {\n		_output.frag_pos = vec3(model_mat * vec4(_input.position, 1.0));\n\n		if (__exists(_output.frag_pos_light_space, uniforms.light_matrix)) {\n			_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		}\n	}\n	\n	if (__exists(_output.frag_pos_view, _output.normal_view, _input.normal)) {\n		_output.frag_pos_view = uniforms.view * model_mat * vec4(_input.position, 1);\n		_output.normal_view = mat3(uniforms.view) * mat3(model_mat) * _input.normal;\n	}\n}\n\n#endif";
+	}
+	else if (zt_strEquals(import, "zt_default_lighting")) {
+		to_copy = "#ifndef ZT_LIGHTING_SHARED_IMPORT\n#define ZT_LIGHTING_SHARED_IMPORT\n\n#import \"zt_defaults\"\n\nstruct PointLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n	float linear;\n	float quadratic;\n}\n\nstruct SpotLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  direction;\n	float cutoff_in;\n	float cutoff_out;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS 0.0025\n#endif\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES 3\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_calculateDirectionalLightingShadow(vec3 light_dir, vec3 normal, vec4 frag_pos_light_space, texture2d shadow_map_tex)\n{\n	vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n\n	float current_depth = proj_coords.z;\n	if (current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n\n	float bias = max(ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS * (1.0 - dot(normal, light_dir)), ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS);\n\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(shadow_map_tex);// * .5;\n\n	const int samples = ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES;\n	for (int x = -samples; x <= samples; ++x) {\n		for (int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(shadow_map_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_POINT_SHADOW_BIAS\n#define ZT_LIGHTING_POINT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculatePointLightingShadow(PointLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_POINT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_SPOT_SHADOW_BIAS\n#define ZT_LIGHTING_SPOT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculateSpotLightingShadow(SpotLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_SPOT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n\n\n\n#endif";
+	}
+	else if (zt_strEquals(import, "zt_blinn_phong")) {
+		to_copy = "#ifndef ZT_BLINN_PHONG_IMPORT\n#define ZT_BLINN_PHONG_IMPORT\n\n#import \"zt_default_lighting\"\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_blinnPhongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_angle = max(dot(halfway_dir, normal), 0.0);\n	return pow(spec_angle, shininess);\n}\n\nfloat zt_phongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 reflect_dir = reflect(-light_dir, normal);\n	float spec_angle = max(dot(view_dir, reflect_dir), 0.0);\n	return pow(spec_angle, shininess);\n }\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateDirectionalLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 light_clr, float light_intensity, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 ambient = ambient_color * diffuse_clr;\n\n	float diff = max(dot(normal, normalize(-light_dir)), 0.0);\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(-light_dir, normal, view_dir, specular);\n	vec3 specular_clr = vec3(.3) * specular_factor;\n	\n	return ambient + ((diffuse + specular_clr) * (1 - shadow) * light_intensity);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_POINT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_POINT_LIGHT_CONSTANT 1.0\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculatePointLighting(PointLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 light_clr = light.ambient_color;\n	vec3 ambient = light_clr * diffuse_clr;\n	\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float diff = max(dot(normal, light_dir), 0.0);\n	\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular);\n	vec3 specular_clr = vec3(0) * specular_factor;\n	\n	float distance = length(light.pos - frag_pos) / (light.intensity * .5);\n	float attenuation = 1.0 / (ZT_BLINNPHONG_POINT_LIGHT_CONSTANT + light.linear * distance + light.quadratic * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	//return ambient + ((diffuse + specular_clr) * (1 - shadow));\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT 0.0\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_LINEAR\n#define ZT_BLINNPHONG_SPOT_LIGHT_LINEAR 0.35\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC\n#define ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC 0.44\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateSpotLighting(SpotLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_clr, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float theta = dot(light_dir, normalize(-light.direction));\n\n	float epsilon = light.cutoff_in - light.cutoff_out;\n	float intensity = (1 - clamp((theta - light.cutoff_out) / epsilon, 0.0, 1.0)) * (light.intensity * .5f);\n	\n	vec3 ambient = light.ambient_color * diffuse_clr * intensity;\n	\n	float diff = max(dot(normal, light_dir), 0.0);\n	vec3 diffuse = (ambient * diff * diffuse_clr) * intensity;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular);\n	vec3 specular_clr = vec3(.3) * specular_factor * intensity;\n	\n	float distance = length(light.pos - frag_pos) * .2;\n	float attenuation = 1.0 / (ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT + ZT_BLINNPHONG_SPOT_LIGHT_LINEAR * distance + ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));	\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_blinnPhongPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n{\n	if (__exists(_input.frag_pos, uniforms.view_pos, _input.uv)) {\n		vec3 world_pos = _input.frag_pos;\n		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n		\n		vec2 uv;\n		\n		if(__exists(textures.height_tex)) {\n			uv = zt_parallaxMapping(_input.uv, view_dir, textureSample(textures.height_tex, _input.uv).r);\n		}\n		if(__missing(textures.height_tex)) {\n			uv = _input.uv;\n		}\n		\n		vec4 input_color = vec4(1);\n		if (__exists(_input.color)) {\n			input_color = _input.color;\n		}\n\n		vec4 diffuse_color = vec4(1);\n		if (__exists(_input.diffuse_color)) {\n			diffuse_color = _input.diffuse_color;\n		}\n		if (__exists(textures.diffuse_tex)) {\n			diffuse_color *= textureSample(textures.diffuse_tex, uv);\n		}\n		\n		vec3 albedo = diffuse_color.rgb;\n		vec3 normal = zt_normalCalculation(_input, textures);\n		vec3 reflection = reflect(-view_dir, normal);\n		\n		float specular = 0;\n		if (__exists(textures.specular_tex, uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r * uniforms.shininess;\n		}\n		if(__exists(textures.specular_tex) && __missing(uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r;\n		}\n		if(__missing(textures.specular_tex) && __exists(uniforms.shininess)) {\n			specular = uniforms.shininess;\n		}\n		\n		vec3 ambient_color = vec3(.01);\n		if (__exists(uniforms.ambient_color)) {\n			ambient_color = uniforms.ambient_color;\n		}\n		\n		vec3 lit_color = vec3(0);\n		\n		if (__exists(uniforms.light_pos, uniforms.light_ambient, uniforms.light_color, uniforms.light_intensity)) {\n			vec3 light_dir = normalize(-uniforms.light_pos);\n			vec4 light_color = uniforms.light_color;\n\n			float shadow = 0;\n			if (__exists(_input.frag_pos_light_space, textures.directional_light_shadowmap)) {\n				shadow = zt_calculateDirectionalLightingShadow(light_dir, normal, _input.frag_pos_light_space, textures.directional_light_shadowmap);\n			}\n			\n			lit_color = zt_blinnPhongCalculateDirectionalLighting(light_dir, view_dir, normal, ambient_color, light_color.rgb, uniforms.light_intensity, albedo, specular, shadow);\n		}\n\n		if (__exists(uniforms.point_lights, uniforms.point_lights_count)) {\n			for (int i = 0; i < uniforms.point_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.point_lights_shadowmap)) {\n					shadow = zt_calculatePointLightingShadow(uniforms.point_lights[i], textures.point_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_blinnPhongCalculatePointLighting(uniforms.point_lights[i], world_pos, view_dir, normal, albedo, specular, shadow);\n			}\n		}\n\n		if (__exists(uniforms.spot_lights, uniforms.spot_lights_count)) {\n			for (int i = 0; i < uniforms.spot_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.spot_lights_shadowmap)) {\n					shadow = zt_calculateSpotLightingShadow(uniforms.spot_lights[i], textures.spot_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_blinnPhongCalculateSpotLighting(uniforms.spot_lights[i], world_pos, view_dir, normal, ambient_color, albedo, specular, shadow);\n			}\n		}\n		\n	\n		_output.color = vec4(lit_color, 1.0);\n		\n		if (__exists(_output.position, _input.frag_pos_view)) {\n			_output.position = _input.frag_pos_view;\n		}\n		\n		if (__exists(_output.normal, _input.normal_view)) {\n			_output.normal = vec4(normalize(_input.normal_view), 1);\n		}\n	}\n}\n\n#endif";
+	}
+
+	if (to_copy) {
+		int len_to_copy = zt_strLen(to_copy);
+		if (buffer_size <= len_to_copy + 1) {
+			return len_to_copy + 1;
+		}
+
+		zt_strCpy(buffer, buffer_size, to_copy);
+		return len_to_copy;
+	}
+
+	zt_logCritical("Invalid #import: %s", import);
+	*errored = true;
+	return 0;
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal bool _zt_shaderLangPreprocess(const char *data, int data_len, char **data_out, int *data_out_size, ztShaderLangDefines *defines, _zt_shaderLangPreprocessGetFileData_Func get_file_data, void *user_data)
+{
+	/*
+	This is not the ideal preprocessor.  Because it changes the source data, the error messages and line numbers may not reflect what the actual
+	shader source file says.  However, this way is simple and it works.
+	*/
+
+	int working_size = ZT_SHADER_LANG_PREPROCESS_WORKING_MEM_SIZE;
+	char *working = zt_mallocStructArrayArena(char, working_size, zt_memGetTempArena());
+	zt_memSet(working, working_size, 0);
+
+	working[0] = '\n'; // so searching for "\n#include" works if there's one on the first line
+	working[1] = '\n'; // so searching for "\n#import" works if there's one on the first line
+	working[2] = '\n'; // so searching for "\n#if" works if there's one on the first line
+	zt_strCpy(working + 3, working_size - 3, data, data_len);
+	int working_len = zt_strLen(working);
+
+	// do #includes first
+	int pos_include = zt_strFindPos(working, "\n#include ", 0);
+	while(pos_include != ztStrPosNotFound) {
+		pos_include += 1;
+		int pos_next_line = zt_strFindPos(working + pos_include, "\n", 0);
+		if (pos_next_line == ztStrPosNotFound) {
+			pos_next_line = zt_strLen(working + pos_include);
+		}
+
+		char line[1024];
+		zt_strCpy(line, zt_elementsOf(line), working + pos_include, pos_next_line);
+
+		char include_file[256] = {0};
+		zt_strGetBetween(include_file, zt_elementsOf(include_file), line, "\"", "\"", 0, 0);
+
+		bool should_free_mem = true;
+		char *include_file_data = nullptr;
+		int include_file_data_size = 0;
+		if (!get_file_data(include_file, &include_file_data, &include_file_data_size, &should_free_mem, user_data)) {
+			zt_logCritical("Unable to load #include file: %s", include_file);
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		if (working_len + include_file_data_size > working_size) {
+			zt_logCritical("Out of memory preprocessing shader");
+			zt_freeArena(include_file_data, zt_memGetTempArena());
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		working_len = zt_strReplace(working, working_len, working_size, pos_include, pos_next_line, include_file_data, include_file_data_size);
+
+		if (should_free_mem) {
+			zt_freeArena(include_file_data, zt_memGetTempArena());
+		}
+
+		pos_include = zt_strFindPos(working, "\n#include ", 0);
+	}
+
+	working[working_len + 1] = 0;
+
+	// do #imports now
+	int pos_import = zt_strFindPos(working, "\n#import ", 0);
+	while(pos_import != ztStrPosNotFound) {
+		pos_import += 1;
+		int pos_next_line = zt_strFindPos(working + pos_import, "\n", 0);
+		if (pos_next_line == ztStrPosNotFound) {
+			pos_next_line = zt_strLen(working + pos_import);
+		}
+
+		char line[1024];
+		zt_strCpy(line, zt_elementsOf(line), working + pos_import, pos_next_line);
+
+		char import_file[256] = {0};
+		zt_strGetBetween(import_file, zt_elementsOf(import_file), line, "\"", "\"", 0, 0);
+
+		int import_buffer_size = zt_kilobytes(64);
+		char *import_buffer = zt_mallocStructArrayArena(char, import_buffer_size, zt_memGetTempArena());
+
+		bool errored = false;
+		int import_size = _zt_shaderLangPreprocessImport(import_file, import_buffer, import_buffer_size, &errored);
+
+		if (errored) {
+			zt_logCritical("Unable to load #import: %s", import_file);
+			zt_freeArena(import_buffer, zt_memGetTempArena());
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		if (working_len + import_size > working_size) {
+			zt_logCritical("Out of memory preprocessing shader");
+			zt_freeArena(import_buffer, zt_memGetTempArena());
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		working_len = zt_strReplace(working, working_len, working_size, pos_import, pos_next_line, import_buffer, import_size);
+
+		zt_freeArena(import_buffer, zt_memGetTempArena());
+
+		pos_import = zt_strFindPos(working, "\n#import ", 0);
+	}
+
+	working[working_len + 1] = 0;
+
+	// process #ifdef and #defines
+
+	struct local
+	{
+		static ztVariant processVariant(const char *source, ztShaderLangDefines *defines, ztToken *token, bool *bool_val)
+		{
+			char value[128] = { 0 };
+			zt_strCpy(value, zt_elementsOf(value), source + token->beg, token->len);
+
+			zt_fiz(defines->count) {
+				if (zt_strEquals(defines->defines[i], value)) {
+					zt_strCpy(value, zt_elementsOf(value), defines->values[i]);
+					break;
+				}
+			}
+
+			if (zt_striEquals(value, "true")) {
+				*bool_val = true;
+				return zt_variantMake_bool(true);
+			}
+			else if (zt_striEquals(value, "false")) {
+				*bool_val = false;
+				return zt_variantMake_bool(false);
+			}
+
+			bool success = false;
+			i32 int_val = zt_strToInt(value, 0, &success);
+			if (success) {
+				ztVariant result = zt_variantMake_i32(int_val);
+				*bool_val = int_val != 0;
+				return result;
+			}
+
+			r32 float_val = zt_strToReal32(value, 0, &success);
+			if (success) {
+				ztVariant result = zt_variantMake_r32(float_val);
+				*bool_val = float_val != 0.f;
+				return result;
+			}
+
+			*bool_val = false;
+			return zt_variantMake_voidp(nullptr);
+		}
+
+		static r32 variantRealVal(ztVariant *variant)
+		{
+			if (variant->type == ztVariant_r32) {
+				return variant->v_r32;
+			}
+			if (variant->type == ztVariant_i32) {
+				return (r32)variant->v_i32;
+			}
+			if (variant->type == ztVariant_bool) {
+				return variant->v_bool ? 1.f : 0.f;
+			}
+
+			return ztReal32Min;
+		}
+
+		static bool conditionIsMet(char *line, bool *errored, bool *skip, ztShaderLangDefines *defines)
+		{
+			int pos_comments = zt_strFindPos(line, "//", 0);
+			if (pos_comments != ztStrPosNotFound) {
+				line[pos_comments] = 0;
+			}
+
+			if (zt_strStartsWith(line, "#if ") || zt_strStartsWith(line, "#if\t")) {
+				// we only support simple conditions right now: value operator value
+
+				char condition[1024];
+				zt_strCpy(condition, zt_elementsOf(condition), line + 4);
+
+				if (zt_strEquals(condition, "__skip")) {
+					*skip = true;
+					return false;
+				}
+
+				ztToken tokens[3];
+				int tokens_count = zt_strTokenize(condition, " ", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace);
+				if (tokens_count != 3 && tokens_count != 1) {
+					zt_logCritical("Invalid #if condition: %s", condition);
+					*errored = true;
+					return false;
+				}
+
+				bool l_val_bool, r_val_bool;
+				ztVariant l_val = local::processVariant(condition, defines, &tokens[0], &l_val_bool);
+
+				if (tokens_count == 1) {
+					return l_val_bool;
+				}
+
+				ztVariant r_val = local::processVariant(condition, defines, &tokens[2], &r_val_bool);
+
+				char op[8] = { 0 };
+				zt_strCpy(op, zt_elementsOf(op), condition + tokens[1].beg, tokens[1].len);
+
+				if (zt_strEquals(op, "==") || zt_strEquals(op, "!=")) {
+
+					bool equals = true;
+					if (!zt_memCmp(&l_val, &r_val, zt_sizeof(ztVariant))) {
+						equals = false;
+						if (l_val.type == ztVariant_bool || r_val.type == ztVariant_bool) {
+							equals = l_val_bool == r_val_bool;
+						}
+					}
+
+					return op[0] == '!' ? !equals : equals;
+				}
+				else if (zt_strEquals(op, "<")) {
+					r32 l_val_32 = local::variantRealVal(&l_val);
+					r32 r_val_32 = local::variantRealVal(&r_val);
+					return l_val_32 < r_val_32;
+				}
+				else if (zt_strEquals(op, "<=")) {
+					r32 l_val_32 = local::variantRealVal(&l_val);
+					r32 r_val_32 = local::variantRealVal(&r_val);
+					return l_val_32 <= r_val_32;
+				}
+				else if (zt_strEquals(op, ">")) {
+					r32 l_val_32 = local::variantRealVal(&l_val);
+					r32 r_val_32 = local::variantRealVal(&r_val);
+					return l_val_32 > r_val_32;
+				}
+				else if (zt_strEquals(op, ">=")) {
+					r32 l_val_32 = local::variantRealVal(&l_val);
+					r32 r_val_32 = local::variantRealVal(&r_val);
+					return l_val_32 >= r_val_32;
+				}
+
+				return false;
+			}
+			else if (zt_strStartsWith(line, "#ifdef ") || zt_strStartsWith(line, "#ifdef\t")) {
+				ztToken tokens[1];
+				int tokens_count = zt_strTokenize(line + 7, " ", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace);
+				if (tokens_count != 1) {
+					zt_logCritical("Invalid #ifdef condition: %s", line);
+					*errored = true;
+					return false;
+				}
+
+				zt_fiz(defines->count) {
+					if (zt_strEquals(defines->defines[i], zt_strLen(defines->defines[i]), line + 7 + tokens[0].beg, tokens[0].len)) {
+						return true;
+					}
+				}
+
+				return false;
+			}
+			else if (zt_strStartsWith(line, "#ifndef ") || zt_strStartsWith(line, "#ifndef\t")) {
+				ztToken tokens[1];
+				int tokens_count = zt_strTokenize(line + 8, " ", tokens, zt_elementsOf(tokens), ztStrTokenizeFlags_TrimWhitespace);
+				if (tokens_count != 1) {
+					zt_logCritical("Invalid #ifndef condition: %s", line);
+					*errored = true;
+					return false;
+				}
+
+				zt_fiz(defines->count) {
+					if (zt_strEquals(defines->defines[i], zt_strLen(defines->defines[i]), line + 8 + tokens[0].beg, tokens[0].len)) {
+						return false;
+					}
+				}
+
+				return true;
+			}
+			else {
+				zt_logCritical("Unrecognized #if command: %s", line);
+				*errored = true;
+				return false;
+			}
+		}
+
+		static int findEndOfSection(char *working, int section_beg, bool end_only)
+		{
+			while (true) {
+				int next_preprocessor = zt_strFindPos(working, "\n#", section_beg);
+				if (next_preprocessor == ztStrPosNotFound) {
+					return ztStrPosNotFound;
+				}
+				next_preprocessor += 1;
+
+				if (zt_strStartsWith(working + next_preprocessor, "#if")) {
+					section_beg = findEndOfSection(working, next_preprocessor + 1, true);
+					if (section_beg == ztStrPosNotFound) {
+						return ztStrPosNotFound;
+					}
+				}
+				else if(zt_strStartsWith(working + next_preprocessor, "#define")) {
+					section_beg = next_preprocessor + 1;
+				}
+				else {
+					if (!end_only || zt_strStartsWith(working + next_preprocessor, "#endif")) {
+						return next_preprocessor;
+					}
+
+					section_beg = next_preprocessor + 1;
+				}
+			}
+
+			return ztStrPosNotFound;
+		}
+
+		static int findAndProcessDefines(char *working, int working_len, int up_to, ztShaderLangDefines *defines)
+		{
+			while(true) {
+				int pos_define = zt_strFindPos(working, working_len, "#define", 0);
+				if (pos_define == ztStrPosNotFound || pos_define >= up_to) {
+					return working_len;
+				}
+				pos_define += 7; // move past the #define text
+
+				int line_end = zt_strFindPos(working, working_len, "\n", pos_define);
+				if (line_end == ztStrPosNotFound) {
+					line_end = working_len;
+				}
+				//else line_end -= 1;
+
+				char line[1024] = {0};
+				int line_len = zt_strCpy(line, zt_elementsOf(line), working + pos_define, line_end - pos_define);
+
+				int pos_comments = zt_strFindPos(line, "//", 0);
+				if (pos_comments != ztStrPosNotFound) {
+					line[pos_comments] = 0;
+					line_len = pos_comments;
+				}
+				int line_len_orig = line_len;
+				line_len = zt_strTrimLeadingWhitespace(line, line_len);
+				line_len = zt_strTrimTrailingWhitespace(line, line_len);
+
+				const char *define_end = zt_strJumpToNextToken(line);
+				int define_len = define_end - line;
+
+				char define[256] = {0};
+				zt_strGetBetweenTrim(define, zt_elementsOf(define), line, "", define_end);
+
+				char value[768] = {0};
+				zt_strGetBetweenTrim(value, zt_elementsOf(value), line + define_len, "", "");
+
+				_zt_shaderLangDefinesAddDefine(defines, define, value);
+
+				int new_working_len = zt_strRemove(working, working_len, pos_define - 7, line_len_orig + 7);
+				int diff = working_len - new_working_len;
+				up_to -= diff;
+				working_len = new_working_len;
+			}
+
+			return working_len;
+		}
+	};
+
+
+	int pos_if = zt_strFindPos(working, "\n#if", 0);
+	while (pos_if != ztStrPosNotFound) {
+
+		int diff = working_len - local::findAndProcessDefines(working, working_len, pos_if, defines);
+
+		pos_if += 1 - diff;
+
+		int pos_next_line = zt_strFindPos(working + pos_if, "\n", 0);
+		if (pos_next_line == ztStrPosNotFound) {
+			pos_next_line = zt_strLen(working + pos_include);
+		}
+
+		char line[1024];
+		zt_strCpy(line, zt_elementsOf(line), working + pos_if, pos_next_line);
+
+		int pos_space = zt_strGetNextWhitespacePos(line);
+		if (pos_space == ztStrPosNotFound) {
+			zt_logCritical("Unexpected end of line after #if: %s", line);
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		bool errored = false;
+		bool skip = false;
+		bool include_this_section = local::conditionIsMet(line, &errored, &skip, defines);
+
+		if (errored) {
+			zt_freeArena(working, zt_memGetTempArena());
+			return false;
+		}
+
+		int end_of_section = local::findEndOfSection(working, pos_if + 1, false);
+		int pos_end_section_line = zt_strFindPos(working, "\n", end_of_section);
+		if (pos_end_section_line == ztStrPosNotFound) {
+			pos_end_section_line = working_len;
+		}
+		int end_section_line_len = pos_end_section_line - end_of_section;
+
+		const char *skip_text = "#if __skip";
+
+		if (!include_this_section) {
+
+			bool end = zt_strStartsWith(working + end_of_section, "#endif");
+			if (end) {
+				end_of_section += 6;
+			}
+
+			// remove this section of code
+			int section_size = end_of_section - pos_if;
+			end_of_section -= section_size;
+
+			working_len = zt_strRemove(working, working_len, pos_if, section_size);
+
+			if (end) {
+				// do nothing, it's already been handled
+			}
+			else if(skip) {
+				// we are ignoring all remaining aspects of this #if block
+				working_len = zt_strReplace(working, working_len, working_size, end_of_section, end_section_line_len, skip_text, zt_strLen(skip_text));
+			}
+			else {
+				// if we have an else or an elif, we need to change it to an if so it can be processed next time around
+				if (zt_strStartsWith(working + end_of_section, "#elif")) {
+					working_len = zt_strReplace(working, working_len, working_size, end_of_section, 5, "#if ", 4);
+				}
+				else if (zt_strStartsWith(working + end_of_section, "#else")) {
+					working_len = zt_strReplace(working, working_len, working_size, end_of_section, 5, "#if true", 8);
+				}
+			}
+		}
+		else {
+			// need to keep this section, but remove the #if line and determine if there is an #else or #elif
+
+			int if_line_end = zt_strFindPos(working, "\n", pos_if);
+			if (if_line_end == ztStrPosNotFound) {
+				if_line_end = working_len;
+			}
+			int if_line_len = if_line_end - pos_if;
+
+			working_len = zt_strRemove(working, working_len, pos_if, if_line_len);
+			end_of_section -= if_line_len;
+
+			// turn any elif or elses into skips that will remove the remaining sections of this #if block
+
+			if (zt_strStartsWith(working + end_of_section, "#elif")) {
+				working_len = zt_strReplace(working, working_len, working_size, end_of_section, end_section_line_len, skip_text, zt_strLen(skip_text));
+			}
+			else if (zt_strStartsWith(working + end_of_section, "#else")) {
+				working_len = zt_strReplace(working, working_len, working_size, end_of_section, end_section_line_len, skip_text, zt_strLen(skip_text));
+			}
+			else if (zt_strStartsWith(working + end_of_section, "#endif")) {
+				working_len = zt_strRemove(working, working_len, end_of_section, 6);
+			}
+		}
+
+		pos_if = zt_strFindPos(working, "\n#if", 0);
+	}
+
+	working_len = local::findAndProcessDefines(working, working_len, working_len, defines);
+
+	// expand defined values
+	while (true) {
+		bool found_define = false;
+
+		zt_fiz(defines->count) {
+			int pos = zt_strFindPos(working, defines->defines[i], 0);
+			if (pos != ztStrPosNotFound) {
+				pos = zt_max(0, pos - 1);
+
+				const char *token = working + pos;
+				const char *token_last = working + pos + zt_strLen(defines->defines[i]) + 128;
+				while (token && *token) {
+					const char *next_token = zt_strJumpToNextToken(token, token_last - token);
+					if (next_token == nullptr) {
+						int s_len = zt_strLen(token);
+						next_token = token + s_len;
+					}
+
+					if (zt_strStartsWith(token, defines->defines[i])) {
+						char token_val[256] = { 0 };
+						zt_strCpy(token_val, zt_elementsOf(token_val), token, next_token - token);
+
+						int t_len = next_token - token;
+						t_len = zt_strTrimLeadingWhitespace(token_val, t_len);
+						t_len = zt_strTrimTrailingWhitespace(token_val, t_len);
+
+						if (zt_strEquals(token_val, defines->defines[i])) {
+							int pos = token - working;
+							working_len = zt_strReplace(working, working_len, working_size, pos, zt_strLen(token_val), defines->values[i], zt_strLen(defines->values[i]));
+
+							// token now points to the #define value, so we need to adjust the next token pointer
+							token_last = working + working_len;
+							next_token = zt_strJumpToNextToken(token, token_last - token);
+							found_define = true;
+							break;
+						}
+					}
+
+					token = next_token;
+				}
+			}
+		}
+
+		if (!found_define) break;
+	}
+
+	*data_out = working;
+	*data_out_size = working_len;
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len, int *shader_tokens_size)
 {
 	//TODO: Numbers not recognized
@@ -22281,7 +23131,7 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 
 	zt_free(tokens);
 
-	*shader_tokens_size = shader_tokens_count;
+	*shader_tokens_size = shader_idx;// shader_tokens_count;
 	return shader_tokens;
 }
 
@@ -22576,6 +23426,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 #	define error_ueof() _zt_shaderLangErrorMessage(global_node, &tokens[tokens_count - 1], error, file_data, "Unexpected end of file")
 #	define error_ute(tok) _zt_shaderLangErrorMessage(global_node, tok, error, file_data, "Unexpected token encountered")
 #	define read_next_token(var)	if (tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment) { if (tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
+#	define read_next_token_ignore_empty(var)	if (tokens_left <= 0) return error_ueof(); ztShLangToken *var = &tokens[token_idx++]; while(var->type == ztShLangTokenType_Comment || var->type == ztShLangTokenType_EndCommand) { if (tokens_left <= 0) return error_ueof(); var = &tokens[token_idx++];}
 #	define push_back_token()	token_idx--
 #	define make_string(tok) local::makeString(global_node->cache->string_cache, &global_node->cache->string_cache_used, global_node->cache->string_cache_size, file_data + tok->token_beg, tok->token_len)
 #	define make_parent(node_c, node_p)	zt_singleLinkAddToEnd(node_p->first_child, node_c); node_c->parent = node_p;
@@ -22609,7 +23460,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 		{
 			bool is_const = false;
 
-			read_next_token(data_type);
+			read_next_token_ignore_empty(data_type);
 
 			if (data_type->type == ztShLangTokenType_Const) {
 				if (!allow_const) {
@@ -22697,6 +23548,10 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 		static ztShLangSyntaxNode *readExpression(ztShLangSyntaxNode *global_node, ztString *error, char *file_data, ztShLangToken *tokens, int tokens_count, int &token_idx, bool can_declare, bool is_condition, bool is_var_assignment)
 		{
 			read_next_token(expr_begin);
+
+			if(expr_begin->type == ztShLangTokenType_EndCommand) {
+				return nullptr;
+			}
 
 			char error_buff_1[256];
 
@@ -23385,6 +24240,10 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 					read_next_token(struct_tok);
 					if (struct_tok->type == ztShLangTokenType_BraceClose) {
 						break;
+					}
+					if (struct_tok->type == ztShLangTokenType_EndCommand) {
+						// empty command
+						continue;
 					}
 					push_back_token();
 
@@ -24348,6 +25207,63 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 				}
 			}
 
+			if (var_node->type == ztShLangSyntaxNodeType_FunctionCall) {
+				if (zt_strEquals(var_node->function_call.name, "__exists") || zt_strEquals(var_node->function_call.name, "__missing")) {
+					// we need to check the parameters of this function call and see if those variables exists.  if it does not, mark every node in that scope as Ignore
+					bool variables_exist = true;
+					zt_flink(child, var_node->first_child) {
+						if (child->type == ztShLangSyntaxNodeType_Variable) {
+							ztString temp_error;
+							if (!variableInScope(file_data, child, &temp_error)) {
+								zt_stringFree(temp_error);
+								variables_exist = false;
+								break;
+							}
+						}
+					}
+
+					struct local
+					{
+						static void ignoreAllInScope(ztShLangSyntaxNode *var_node)
+						{
+							var_node->type = ztShLangSyntaxNodeType_Ignore;
+							zt_flink(child, var_node->first_child) {
+								ignoreAllInScope(child);
+							}
+						}
+					};
+
+					if(zt_strEquals(var_node->function_call.name, "__missing")) {
+						variables_exist = !variables_exist;
+					}
+
+					if (!variables_exist) {
+						ztShLangSyntaxNode *parent = var_node->parent;
+						while (parent && parent->type != ztShLangSyntaxNodeType_ConditionTest) {
+							parent = parent->parent;
+						}
+
+						local::ignoreAllInScope(parent);
+					}
+					else {
+						local::ignoreAllInScope(var_node);
+
+						if (var_node->next && var_node->next->type == ztShLangSyntaxNodeType_FunctionCall) {
+							var_node->type = ztShLangSyntaxNodeType_ValueBool;
+							var_node->value.value = "true";
+						}
+						else {
+							var_node->parent->type = ztShLangSyntaxNodeType_Scope;
+							var_node->parent->scope.name = "__exists";
+						}
+
+						//if (var_node->next->type == ztShLangSyntaxNodeType_Scope) {
+						//	var_node->next->scope.name = "__exists";
+						//}
+					}
+				}
+			}
+
 			if (var_node->type == ztShLangSyntaxNodeType_Variable) {
 				if (!variableInScope(file_data, var_node, error)) {
 					return false;
@@ -24688,7 +25604,51 @@ bool _zt_shaderLangIsVariableReferenced(ztShLangSyntaxNode *node, ztShLangSyntax
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-static ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace);
+struct ztShaderReloadAssetData
+{
+	ztAssetManager *asset_mgr;
+	ztAssetID asset_id;
+
+	ztAssetID included_assets[256];
+	i32       included_assets_count = 0;
+
+	static ZT_SHADER_LANG_PREPROCESS_GET_FILE_DATA(getFileData)
+	{
+		ztShaderReloadAssetData *vars = (ztShaderReloadAssetData*)user_data;
+
+		ztAssetID asset_id = zt_assetLoad(vars->asset_mgr, file_name, vars->asset_id);
+		if (asset_id == ztInvalidID) {
+			zt_logCritical("unable to load asset: %s", file_name);
+			return false;
+		}
+
+		//ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetManagerType_Enum *type_verify, int type_verify_count, void **data, i32 *data_size)
+		//ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetManagerType_Enum valid_type, void **data, i32 *data_size)
+
+		void *vfile_data = nullptr;
+		if( !_zt_assetLoadData(vars->asset_mgr, asset_id, nullptr, 0, &vfile_data, file_data_size)) {
+			zt_logCritical("unable to load asset data: %s", file_name);
+			return false;
+		}
+
+		*file_data = (char*)vfile_data;
+		*should_free_mem = false;
+
+		zt_assert(vars->included_assets_count < zt_elementsOf(vars->included_assets)) {
+			vars->included_assets[vars->included_assets_count++] = asset_id;
+		}
+
+		return true;
+	}
+};
+
+// ================================================================================================================================================================================================
+
+ztInternal ztGuid _zt_shaderReloadCallbackGuid = zt_guid(0xafe4e406, 0xf57f4cbd, 0x877bd2e5, 0x5510ca68);
+
+// ---------
+
+static ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, _zt_shaderLangPreprocessGetFileData_Func get_file_data, void *user_data, ztShaderID replace);
 
 // ---------
 
@@ -24698,6 +25658,8 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 	zt_logInfo("shader reload: asset_id: %d (%s)", asset_id, asset_manager->asset_name[asset_id]);
 	ztShaderID shader_id = (ztShaderID)(pointer)user_data;
 	zt_assert(shader_id >= 0 && shader_id < zt_game->shaders_count);
+
+	asset_id = zt_game->shaders[shader_id].asset_id; // replace this with the shader stored asset_id, as this asset_id might reference an included file
 
 	i32 size = zt_assetSize(asset_manager, asset_id);
 	if (size <= 0) {
@@ -24714,12 +25676,17 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 	const char *error = nullptr;
 	ztShaderID result_shader_id = ztInvalidID;
 
+	ztShaderReloadAssetData vars = {};
+	vars.asset_mgr = asset_manager;
+	vars.asset_id = asset_id;
+	vars.included_assets_count = 0;
+
 	if (!zt_assetLoadData(asset_manager, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	result_shader_id = _zt_shaderMakeBase(asset_manager->asset_name[asset_id], data, size, shader_id);
+	result_shader_id = _zt_shaderMakeBase(asset_manager->asset_name[asset_id], data, size, ztShaderReloadAssetData::getFileData, &vars, shader_id);
 	if (result_shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -24728,7 +25695,18 @@ ZT_FUNCTION_POINTER_REGISTER(_zt_rendererShaderReload, ztInternal ZT_FUNC_ASSET_
 	zt_game->shaders[shader_id].asset_mgr = asset_manager;
 	zt_game->shaders[shader_id].asset_id  = asset_id;
 
-	zt_assetAddReloadCallback(asset_manager, asset_id, ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id); // since re-making the shader removed this, we need to add it back for future use
+	// remove any existing reload callbacks for this shader (in case #includes changed)
+	zt_fizr(asset_manager->asset_callbacks_count - 1) {
+		if (asset_manager->asset_callback_guids[i] == _zt_shaderReloadCallbackGuid && asset_manager->asset_callback_user_data[i] == (void*)shader_id) {
+			zt_assetRemoveReloadCallback(asset_manager, asset_manager->asset_callback_ids[i], (void*)shader_id);
+		}
+	}
+
+	// add new reload callbacks for next time
+	zt_assetAddReloadCallback(asset_manager, asset_id, ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id, _zt_shaderReloadCallbackGuid);
+	zt_fiz(vars.included_assets_count) {
+		zt_assetAddReloadCallback(asset_manager, vars.included_assets[i], ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id, _zt_shaderReloadCallbackGuid);
+	}
 
 	zt_freeArena(data, asset_manager->arena);
 	return;
@@ -24823,7 +25801,7 @@ ztInternal ztShaderID _zt_shaderGetNextID()
 
 // ================================================================================================================================================================================================
 
-ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, ztShaderID replace = ztInvalidID)
+ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, i32 data_len, _zt_shaderLangPreprocessGetFileData_Func get_file_data, void *user_data, ztShaderID replace = ztInvalidID)
 {
 	ZT_PROFILE_RENDERING("_zt_shaderMakeBase");
 	ztShaderID shader_id = ztInvalidID;
@@ -24833,21 +25811,45 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 		zt_shaderPopulateVariables(replace, &var_values);
 	}
 
+	ztShaderLangDefines defines;
+	_zt_shaderLangDefinesMake(&defines);
+
+	char *renderer_define = nullptr;
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: renderer_define = "ZT_OPENGL"; break;
+		case ztRenderer_DirectX: renderer_define = "ZT_DIRECTX"; break;
+	}
+
+	if (renderer_define) {
+		_zt_shaderLangDefinesAddDefine(&defines, renderer_define, "1");
+	}
+
+	char *data_out;
+	int data_out_size = 0;
+	if (!_zt_shaderLangPreprocess(data_in, data_len, &data_out, &data_out_size, &defines, get_file_data, user_data)) {
+		return ztInvalidID;
+	}
+
+	_zt_shaderLangDefinesFree(&defines);
+
 	int shader_tokens_size = 0;
-	ztShLangToken *shader_tokens = _zt_shaderLangTokenize(data_in, data_len, &shader_tokens_size);
+	ztShLangToken *shader_tokens = _zt_shaderLangTokenize(data_out, data_out_size, &shader_tokens_size);
 
 	ztString error = nullptr;
-	ztShLangSyntaxNode *syntax_root = _zt_shaderLangGenerateSyntaxTree((char*)data_in, shader_tokens, shader_tokens_size, &error);
+	ztShLangSyntaxNode *syntax_root = _zt_shaderLangGenerateSyntaxTree((char*)data_out, shader_tokens, shader_tokens_size, &error);
 
 	if (error) {
 		zt_logCritical(error);
 		zt_stringFree(error);
+		zt_freeArena(data_out, zt_memGetTempArena());
 		return ztInvalidID;
 	}
 
-	if (!_zt_shaderLangVerifySyntaxTree(syntax_root, (char*)data_in, &error)) {
+	if (!_zt_shaderLangVerifySyntaxTree(syntax_root, (char*)data_out, &error)) {
  		zt_logCritical(error);
 		zt_stringFree(error);
+		zt_freeArena(data_out, zt_memGetTempArena());
 		return ztInvalidID;
 	}
 
@@ -24957,6 +25959,8 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 	_zt_shaderLangFreeSyntaxTree(syntax_root);
 
 	zt_free(shader_tokens);
+
+	zt_freeArena(data_out, zt_memGetTempArena());
 
 	if (error) {
 		zt_logCritical("Unable to make shader '%s' (%s)", name, error);
@@ -25078,7 +26082,31 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 ztShaderID zt_shaderMake(const char *name, const char *data, i32 data_len)
 {
 	ZT_PROFILE_RENDERING("zt_shaderMake(char*)");
-	ztShaderID shader_id = _zt_shaderMakeBase(name, data, data_len);
+
+	struct local
+	{
+		static ZT_SHADER_LANG_PREPROCESS_GET_FILE_DATA(getFileData)
+		{
+			char file_path[ztFileMaxPath];
+			zt_fileConcatFileToPath(file_path, ztFileMaxPath, zt_game->game_details.data_path, "shaders");
+
+			char file_full[ztFileMaxPath];
+			zt_fileConcatFileToPath(file_full, ztFileMaxPath, file_path, file_name);
+
+			if (!zt_fileExists(file_full)) {
+				zt_logCritical("file does not exist: %s", file_full);
+				return false;
+			}
+			//void         *zt_readEntireFile                  (const char *file_name, i32 *file_size, bool discard_utf_bom = false, ztMemoryArena *arena = zt_memGetGlobalArena());
+			//i32           zt_readEntireFile                  (const char *file_name, void *buffer, i32 buffer_size, bool discard_utf_bom = false);
+
+			*file_data = (char*)zt_readEntireFile(file_full, file_data_size, false, zt_memGetTempArena());
+			*should_free_mem = true;
+			return true;
+		}
+	};
+	
+	ztShaderID shader_id = _zt_shaderMakeBase(name, data, data_len, local::getFileData, nullptr);
 	if (shader_id == ztInvalidID) {
 		return shader_id;
 	}
@@ -25118,12 +26146,16 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	const char *error = nullptr;
 	ztShaderID shader_id = ztInvalidID;
 
+	ztShaderReloadAssetData vars = {};
+	vars.asset_mgr = asset_mgr;
+	vars.asset_id = asset_id;
+
 	if (!zt_assetLoadData(asset_mgr, asset_id, data, size)) {
 		error = "Unable to load asset contents";
 		goto on_error;
 	}
 
-	shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size);
+	shader_id = _zt_shaderMakeBase(asset_mgr->asset_name[asset_id], data, size, ztShaderReloadAssetData::getFileData, &vars);
 	if (shader_id == ztInvalidID) {
 		goto on_error;
 	}
@@ -25132,9 +26164,11 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 	zt_game->shaders[shader_id].asset_mgr = asset_mgr;
 	zt_game->shaders[shader_id].asset_id = asset_id;
 
-	asset_mgr->asset_callback_ids[asset_id] = shader_id;
+	zt_assetAddReloadCallback(asset_mgr, asset_id, ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id, _zt_shaderReloadCallbackGuid);
 
-	zt_assetAddReloadCallback(asset_mgr, asset_id, ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id);
+	zt_fiz(vars.included_assets_count) {
+		zt_assetAddReloadCallback(asset_mgr, vars.included_assets[i], ZT_FUNCTION_POINTER_TO_VAR(_zt_rendererShaderReload), (void*)shader_id, _zt_shaderReloadCallbackGuid);
+	}
 
 	zt_freeArena(data, asset_mgr->arena);
 	return shader_id;
@@ -25179,6 +26213,18 @@ void zt_shaderFree(ztShaderID shader_id)
 	zt_memSet(shader, sizeof(ztShader), 0);
 
 	zt_memCpy(&shader->callbacks, zt_sizeof(shader->callbacks), &callbacks, zt_sizeof(callbacks));
+}
+
+// ================================================================================================================================================================================================
+
+void zt_shaderAddDefine(const char *define, const char *replace_with)
+{
+	ZT_PROFILE_RENDERING("zt_shaderAddDefine");
+	zt_assertReturnOnFail(zt_game->shader_defines_count < zt_elementsOf(zt_game->shader_defines));
+
+	int idx = zt_game->shader_defines_count++;
+	zt_game->shader_defines[idx] = zt_stringMakeFrom(define);
+	zt_game->shader_defines_vals[idx] = zt_stringMakeFrom(replace_with);
 }
 
 // ================================================================================================================================================================================================
@@ -29002,14 +30048,16 @@ void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, r
 		frustum->points[i] = cam_view_inv * frustum->points[i] + world_offset;
 	}
 
-//	frustum->plane_left   = zt_planeMake(frustum->near_sw, frustum->far_sw , frustum->far_nw );
-//	frustum->plane_top    = zt_planeMake(frustum->near_nw, frustum->far_nw , frustum->far_ne );
-//	frustum->plane_right  = zt_planeMake(frustum->near_se, frustum->near_ne, frustum->far_ne );
-//	frustum->plane_bottom = zt_planeMake(frustum->near_se, frustum->far_se , frustum->far_sw );
-//	frustum->plane_near   = zt_planeMake(frustum->near_se, frustum->near_sw, frustum->near_nw);
-//	frustum->plane_far    = zt_planeMake(frustum->far_se , frustum->far_sw , frustum->far_nw );
-
+#if 0
+	frustum->plane_left   = zt_planeMake(frustum->near_nw, frustum->near_sw , frustum->far_sw );
+	frustum->plane_top    = zt_planeMake(frustum->near_ne, frustum->near_nw , frustum->far_nw );
+	frustum->plane_right  = zt_planeMake(frustum->near_se, frustum->near_ne, frustum->far_ne );
+	frustum->plane_bottom = zt_planeMake(frustum->near_sw, frustum->near_se , frustum->far_se );
+	frustum->plane_near   = zt_planeMake(frustum->near_se, frustum->near_sw, frustum->near_nw);
+	frustum->plane_far    = zt_planeMake(frustum->far_se , frustum->far_sw , frustum->far_nw );
+#else
 	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
+
 	r32 *m =  mat_final.values;
 	frustum->plane_right.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]);
 	frustum->plane_right.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row0];
@@ -29033,6 +30081,7 @@ void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, r
 		zt_planeNormalize(&frustum->planes[i]);
 		//frustum->planes[i].normal.normalize();
 	}
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -31938,39 +32987,54 @@ void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *ad
 			ztgl_textureBindReset(zt_game->shaders[shader].gl_shader);
 
 			int tex_count = 0;
-			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, ztTextureDefaultWhite);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
 
-			ztTextureID specular_tex = zt_max(material->specular_tex, ztTextureDefaultBlack);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 specular_tex_hash = zt_strHash("specular_tex");
-			ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
-			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
+			if (!zt_bitIsSet(material->diffuse_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID diffuse_tex = zt_max(material->diffuse_tex, ztTextureDefaultWhite);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+				zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
+			}
 
-			ztTextureID normal_tex = zt_max(material->normal_tex, ztTextureDefaultWhite);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 normal_tex_hash = zt_strHash("normal_tex");
-			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
 
-			ztTextureID height_tex = zt_max(material->height_tex, ztTextureDefaultWhite);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 height_tex_hash = zt_strHash("height_tex");
-			zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
+			if (!zt_bitIsSet(material->specular_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID specular_tex = zt_max(material->specular_tex, ztTextureDefaultBlack);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 specular_tex_hash = zt_strHash("specular_tex");
+				ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
+				zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
+			}
 
-			ztTextureID roughness_tex = zt_max(material->roughness_tex, ztTextureDefaultWhite);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 roughness_tex_hash = zt_strHash("roughness_tex");
-			zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
+			if (!zt_bitIsSet(material->normal_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID normal_tex = zt_max(material->normal_tex, ztTextureDefaultWhite);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 normal_tex_hash = zt_strHash("normal_tex");
+				zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
+			}
 
-			ztTextureID emissive_tex = zt_max(material->emissive_tex, ztTextureDefaultBlack);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 emissive_tex_hash = zt_strHash("emissive_tex");
-			zt_shaderSetVariableTex(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, emissive_tex);
+			if (!zt_bitIsSet(material->height_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID height_tex = zt_max(material->height_tex, ztTextureDefaultWhite);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 height_tex_hash = zt_strHash("height_tex");
+				zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
+			}
 
-			static u32 emissive_strength_hash = zt_strHash("emissive_strength");
-			zt_shaderSetVariableFloat(shader, material->emissive_strength_override ? material->emissive_strength_override : emissive_strength_hash, material->emissive_strength);
+			if (!zt_bitIsSet(material->roughness_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID roughness_tex = zt_max(material->roughness_tex, ztTextureDefaultWhite);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 roughness_tex_hash = zt_strHash("roughness_tex");
+				zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
+			}
+
+			if (!zt_bitIsSet(material->emissive_flags, ztMaterialFlags_IgnoreTexture)) {
+				ztTextureID emissive_tex = zt_max(material->emissive_tex, ztTextureDefaultBlack);
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				static u32 emissive_tex_hash = zt_strHash("emissive_tex");
+				zt_shaderSetVariableTex(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, emissive_tex);
+
+				static u32 emissive_strength_hash = zt_strHash("emissive_strength");
+				zt_shaderSetVariableFloat(shader, material->emissive_strength_override ? material->emissive_strength_override : emissive_strength_hash, material->emissive_strength);
+			}
+
 
 			zt_fiz(additional_tex_count) {
 				if (additional_tex[i] != ztInvalidID) {
@@ -33296,7 +34360,7 @@ ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2)
 	result.normal = (p1 - p0).cross(p2 - p0).getNormal();
 	result.distance = result.normal.dot(p0);
 
-	zt_planeNormalize(&result);
+	//zt_planeNormalize(&result);
 
 	return result;
 }
@@ -38339,8 +39403,31 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 		zt_vec3(aabb_center.x + aabb_extents.x / 2, aabb_center.y + aabb_extents.y / 2, aabb_center.z + aabb_extents.z / 2),
 	};
 
+#if defined(ZT_DEBUG)
+	struct local
+	{
+		static inline bool test(const ztPlane &plane, ztVec3 aabb[2])
+		{
+//			if(zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
+//			return true;
+
+			if (zt_vec3(aabb[0].x, aabb[1].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[1].x, aabb[1].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[0].x, aabb[1].y, aabb[1].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[1].x, aabb[1].y, aabb[1].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[0].x, aabb[0].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[1].x, aabb[0].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[0].x, aabb[0].y, aabb[1].z).dot(plane.normal) + plane.distance > 0) return true;
+			if (zt_vec3(aabb[1].x, aabb[0].y, aabb[1].z).dot(plane.normal) + plane.distance > 0) return true;
+			return false;
+		}
+	};
+
+#	define test_plane(plane) if (!local::test(plane, aabb)) return false;
+#else
 #	define test_plane(plane) \
 		if(zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
+#endif
 
 	test_plane(frustum.plane_near);
 	test_plane(frustum.plane_left);
@@ -40514,6 +41601,30 @@ int zt_animControllerStartSequence(ztAnimController *controller, i32 sequence_na
 	_zt_animSequenceStart(sequence, transition_time > 0.0001f, transition_time);
 
 	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztAnimSequence *zt_animControllerGetActiveSequence(ztAnimController *controller)
+{
+	ZT_PROFILE_ANIMATION("zt_animControllerGetActiveSequence");
+
+	return controller->anim_sync;
+}
+
+// ================================================================================================================================================================================================
+
+ztAnimSequence *zt_animControllerGetSequence(ztAnimController *controller, i32 anim_sequence_hash)
+{
+	ZT_PROFILE_ANIMATION("zt_animControllerGetSequence");
+
+	zt_fiz(controller->sequences_count) {
+		if (controller->sequences_name_hash[i] == anim_sequence_hash) {
+			return controller->sequences[i];
+		}
+	}
+
+	return nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -46288,7 +47399,7 @@ void zt_gameSceneManagerAddScene(ztGameSceneManager *game_scene_manager, ztGuid 
 ztInternal void _zt_gameSceneManagerCreateTextures(ztGameSceneManager *game_scene_manager, ztGameSceneManager::Scene *scene)
 {
 	if (zt_bitIsSet(scene->flags, ztGameSceneFlags_HdrScene)) {
-		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_HDR | ztTextureFlags_Multisample);
+		scene->render_texture = zt_textureMakeRenderTarget(zt_max(16, game_scene_manager->native.x), zt_max(16, game_scene_manager->native.y), ztTextureFlags_HDR | ztTextureFlags_Multisample);
 		zt_textureSetName(scene->render_texture, "Game Scene Render Texture (HDR)");
 		scene->render_texture_attach_position = zt_textureRenderTargetAddAttachment(scene->render_texture, ztTextureColorFormat_RGBA16F);
 		zt_textureSetName(scene->render_texture_attach_position, "Game Scene Render Texture Position (HDR)");
@@ -46296,7 +47407,7 @@ ztInternal void _zt_gameSceneManagerCreateTextures(ztGameSceneManager *game_scen
 		zt_textureSetName(scene->render_texture_attach_normal, "Game Scene Render Texture Normals (HDR)");
 	}
 	else {
-		scene->render_texture = zt_textureMakeRenderTarget(game_scene_manager->native.x, game_scene_manager->native.y, ztTextureFlags_Multisample);
+		scene->render_texture = zt_textureMakeRenderTarget(zt_max(16, game_scene_manager->native.x), zt_max(16, game_scene_manager->native.y), ztTextureFlags_Multisample);
 		zt_textureSetName(scene->render_texture, "Game Scene Render Texture");
 		scene->render_texture_attach_position = ztInvalidID;
 		scene->render_texture_attach_normal = ztInvalidID;
@@ -46339,7 +47450,7 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 				zt_textureFree(game_scene_manager->screen_texture);
 			}
 
-			game_scene_manager->screen_texture = zt_textureMakeRenderTarget(game_scene_manager->screen.x, game_scene_manager->screen.y, ztTextureFlags_PixelPerfect|ztTextureFlags_HDR);
+			game_scene_manager->screen_texture = zt_textureMakeRenderTarget(zt_max(16, game_scene_manager->screen.x), zt_max(16, game_scene_manager->screen.y), ztTextureFlags_PixelPerfect|ztTextureFlags_HDR);
 			zt_textureSetName(game_scene_manager->screen_texture, "Game Scene Manager Screen Texture");
 		}
 
@@ -46482,7 +47593,11 @@ bool zt_gameSceneManagerUpdate(ztGameSceneManager *game_scene_manager, ztGuiMana
 
 				bool is_complete = !ZT_FUNCTION_POINTER_IS_VALID(scene->scene.callback_load_iterate);
 				if (!is_complete) {
-					ZT_FUNCTION_POINTER_ACCESS(scene->scene.callback_load_iterate, zt_gameSceneLoadIterate_Func)(&scene->scene, scene->load_iteration++, &is_complete);
+					bool success = ZT_FUNCTION_POINTER_ACCESS(scene->scene.callback_load_iterate, zt_gameSceneLoadIterate_Func)(&scene->scene, scene->load_iteration++, &is_complete);
+
+					if (!success) {
+						return false;
+					}
 
 					if (scene->load_iteration >= scene->load_iterations) {
 						is_complete = true;
@@ -48248,6 +49363,11 @@ int main(int argc, const char **argv)
 			zt_game->shaders[i].asset_mgr = nullptr;
 			zt_shaderFree((ztShaderID)i);
 		}
+		zt_fiz(zt_game->shader_defines_count) {
+			if (zt_game->shader_defines[i]) zt_stringFree(zt_game->shader_defines[i]);
+			if (zt_game->shader_defines_vals[i]) zt_stringFree(zt_game->shader_defines_vals[i]);
+		}
+
 		zt_fiz(zt_game->textures_count) {
 			//zt_textureFree((ztTextureID)i);
 		}
