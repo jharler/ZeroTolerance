@@ -2216,6 +2216,7 @@ void ztgl_blendMode(ztGLBlendMode_Enum source, ztGLBlendMode_Enum dest)
 
 bool ztgl_checkAndReportError(const char *function, int line)
 {
+#if !defined(ZT_OPENGL_IGNORE_ERRORS)
 	ZT_PROFILE_OPENGL("ztgl_checkAndReportError");
 
 #	if defined(ZT_OPENGL_DEBUGGING_LOGALL)
@@ -2236,12 +2237,16 @@ bool ztgl_checkAndReportError(const char *function, int line)
 	}
 
 	return errors > 0;
+#else
+	return false;
+#endif
 }
 
 // ================================================================================================================================================================================================
 
 int ztgl_clearErrors()
 {
+#if !defined(ZT_OPENGL_IGNORE_ERRORS)
 	ZT_PROFILE_OPENGL("ztgl_clearErrors");
 
 	int errors = 0;
@@ -2249,6 +2254,9 @@ int ztgl_clearErrors()
 		++errors;
 
 	return errors;
+#else
+	return 0;
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -2412,6 +2420,8 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 		zt_assert(len < zt_elementsOf(varname));
 		varname[len] = 0;
 
+		int name_offset = zt_strStartsWith(varname, "_ztuv_") ? 6 : 0;
+
 		if (size > 1) { // variable array is named like "variable[0]"
 			int pos_open = zt_strFindPos(varname, "[", 0);
 			char subname[256];
@@ -2420,7 +2430,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 			zt_fjz(size) {
 				zt_strMakePrintf(name, 512, "%s[%d]", subname, j);
 
-				shader->uniforms[act_idx].name = zt_stringMakeFrom(name, arena);
+				shader->uniforms[act_idx].name = zt_stringMakeFrom(name + name_offset, arena);
 				shader->uniforms[act_idx].type = type;
 				shader->uniforms[act_idx].location = glGetUniformLocation(program, name);
 				shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
@@ -2429,7 +2439,7 @@ ztShaderGL *ztgl_shaderMake(ztContextGL *context, ztMemoryArena *arena, const ch
 			}
 		}
 		else {
-			shader->uniforms[act_idx].name = zt_stringMakeFrom(varname, arena);
+			shader->uniforms[act_idx].name = zt_stringMakeFrom(varname + name_offset, arena);
 			shader->uniforms[act_idx].type = type;
 			shader->uniforms[act_idx].location = glGetUniformLocation(program, varname);
 			shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
@@ -3627,10 +3637,11 @@ void ztgl_textureRenderTargetPrepare(ztTextureGL *texture, bool clear)
 
 	if (zt_bitIsSet(texture->flags, ztTextureGLFlags_DepthMap)) {
 		ztgl_callAndReportOnErrorFast(glCullFace(GL_FRONT));
+		ztgl_callAndReportOnErrorFast(glClearColor(0, 0, 0, 0));
 		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 	}
-
-	if (clear) {
+	else if (clear) {
+		ztgl_callAndReportOnErrorFast(glClearColor(0, 0, 0, 0));
 		ztgl_callAndReportOnErrorFast(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 	}
 
@@ -4150,6 +4161,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 	*vs = *gs = *fs = *error = nullptr;
 
 #	define vv_prefix "_ztvv_"
+#   define uv_prefix "_ztuv_"
 
 	struct local
 	{
@@ -4364,7 +4376,8 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						if (param->type == ztShLangSyntaxNodeType_VariableDecl) {
 							if ((vars->struct_uniform && zt_strEquals(param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
 								(vars->struct_textures && zt_strEquals(param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
-								(vars->struct_input && zt_strEquals(param->variable_decl.type_name, vars->struct_input->structure.name))) {
+								(vars->struct_input && zt_strEquals(param->variable_decl.type_name, vars->struct_input->structure.name)) ||
+								(vars->struct_output && zt_strEquals(param->variable_decl.type_name, vars->struct_output->structure.name))) {
 								continue;
 							}
 
@@ -4443,9 +4456,11 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						}
 					}
 					else if (node->variable_val.decl->parent == vars->struct_uniform) {
+						zt_strCat(*s, s_len, uv_prefix);
 						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
 					}
 					else if (node->variable_val.decl->parent == vars->struct_textures) {
+						zt_strCat(*s, s_len, uv_prefix);
 						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
 					}
 					else if (node->variable_val.decl->parent == vars->struct_output && vars->which_shader == Shader_Frag) {
@@ -4594,7 +4609,8 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 						zt_flink(param, node->first_child) {
 							if ((vars->struct_uniform && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
 								(vars->struct_textures && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
-								(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name))) {
+								(vars->struct_input && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_input->structure.name)) ||
+								(vars->struct_output && zt_strEquals(decl_param->variable_decl.type_name, vars->struct_output->structure.name))) {
 								decl_param = decl_param->next;
 								continue;
 							}
@@ -4622,12 +4638,16 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 
 				case ztShLangSyntaxNodeType_Scope: {
-					zt_strCat(*s, s_len, "{\n");
+					bool needs_brace = !zt_strEquals(node->scope.name, "__exists");
+
+					if (needs_brace) zt_strCat(*s, s_len, "{\n");
 					zt_flink(child, node->first_child) {
-						write(child, indent + 1, s, s_len, vars);
+						write(child, indent + (needs_brace ? 1 : 0), s, s_len, vars);
 					}
-					zt_fiz(indent) zt_strCat(*s, s_len, "\t");
-					zt_strCat(*s, s_len, "}\n");
+					if (needs_brace) {
+						zt_fiz(indent) zt_strCat(*s, s_len, "\t");
+						zt_strCat(*s, s_len, "}\n");
+					}
 					indent = 0;
 				} break;
 
@@ -4699,6 +4719,10 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 				case ztShLangSyntaxNodeType_Break: {
 					zt_strCat(*s, s_len, "break");
+				} break;
+
+				case ztShLangSyntaxNodeType_Ignore: {
+					// ignore
 				} break;
 
 				default: {
@@ -4823,7 +4847,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					//					zt_strMakePrintf(st_uni, 256, "uniform %s %s;\n", local::dataType(child->variable_decl.type_name), child->variable_decl.name);
 					//					zt_strCat(*vs, vs_len, st_uni);
 					zt_strCat(*vs, vs_len, "uniform ");
-					local::writeVariableDecl(child, vs, vs_len, &vars);
+					local::writeVariableDecl(child, vs, vs_len, &vars, false, uv_prefix);
 					zt_strCat(*vs, vs_len, ";\n");
 				}
 			}
@@ -4945,7 +4969,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					//					zt_strMakePrintf(st_uni, 256, "uniform %s %s;\n", local::dataType(child->variable_decl.type_name), child->variable_decl.name);
 					//					zt_strCat(*fs, fs_len, st_uni);
 					zt_strCat(*fs, fs_len, "uniform ");
-					local::writeVariableDecl(child, fs, fs_len, &vars);
+					local::writeVariableDecl(child, fs, fs_len, &vars, false, uv_prefix);
 					zt_strCat(*fs, fs_len, ";\n");
 				}
 			}
@@ -4953,7 +4977,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 			if(struct_textures) {
 				zt_flink(child, struct_textures->first_child) {
 					if (_zt_shaderLangIsVariableReferenced(fragment_func_node, child)) {
-						zt_strMakePrintf(st_uni, 256, "uniform %s %s", local::dataType(child->variable_decl.type_name), child->variable_decl.name);
+						zt_strMakePrintf(st_uni, 256, "uniform %s "uv_prefix"%s", local::dataType(child->variable_decl.type_name), child->variable_decl.name);
 						zt_strCat(*fs, fs_len, st_uni);
 
 						if (child->variable_decl.array_size != -1) {
@@ -4994,6 +5018,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 	}
 
 #	undef vv_prefix
+#	undef uv_prefix
 
 	return true;
 }
