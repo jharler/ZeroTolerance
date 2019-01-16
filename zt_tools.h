@@ -10377,6 +10377,7 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 				if (used != 0) {
 					buffer_used += used;
 					buffer[buffer_used] = '\n';
+					zt_assert(buffer_used < buffer_size);
 				}
 
 				zt_free(dir_buffer);
@@ -10391,6 +10392,7 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 				buffer_used += zt_strPrintf(buffer + buffer_used, buffer_size - buffer_used, "%s%s", directory, file_data.cFileName);
 			}
 			buffer[buffer_used++] = '\n';
+			zt_assert(buffer_used < buffer_size);
 		}
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
@@ -10686,7 +10688,7 @@ i32 zt_getDirectoryFilesBufferSize(const char *directory, bool recursive)
 
 				int used = zt_getDirectoryFilesBufferSize(dir_buffer, true);
 				if (used != 0) {
-					buffer_used += used;
+					buffer_used += used + 1;
 				}
 
 				zt_free(dir_buffer);
@@ -10796,7 +10798,8 @@ i32 zt_getDirectoryFilesBufferSize(const char *directory, bool recursive)
 
 	zt_free(dir_full);
 
-	return buffer_used;}
+	return buffer_used;
+}
 
 // ================================================================================================================================================================================================
 
