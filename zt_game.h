@@ -1081,6 +1081,8 @@ void       zt_shaderFree(ztShaderID shader_id);
 
 void       zt_shaderAddDefine(const char *define, const char *replace_with);
 
+bool       zt_shaderHasInstancing(ztShaderID shader_id);
+
 // --------------------------------------------------------
 // sets shader variables "model", "projection" and "view"
 void       zt_shaderSetCameraMatrices(ztShaderID shader_id, const ztMat4& projection, const ztMat4& view);
@@ -1219,14 +1221,16 @@ int zt_shaderSetVariableTexCube(ztShaderVariableValues *shader_vars, u32 variabl
 
 enum ztShaderDefault_Enum
 {
-	ztShaderDefault_Solid,                       // no textures
-	ztShaderDefault_Unlit,                       // diffuse
+	ztShaderDefault_Solid,                              // no textures
+	ztShaderDefault_Unlit,                              // diffuse
 
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
-	ztShaderDefault_Lit,                         // diffuse
-	ztShaderDefault_LitShadow,                   // diffuse, shadow map, material values
-	ztShaderDefault_ShadowDirectional,           // shadow map
-	ztShaderDefault_ShadowDirectionalTextured,   // shadow map using textures with alpha
+	ztShaderDefault_Lit,                                // diffuse
+	ztShaderDefault_LitShadow,                          // diffuse, shadow map, material values
+	ztShaderDefault_ShadowDirectional,                  // shadow map
+	ztShaderDefault_ShadowDirectionalTextured,          // shadow map using textures with alpha
+	ztShaderDefault_ShadowDirectionalInstanced,         // shadow map
+	ztShaderDefault_ShadowDirectionalTexturedInstanced, // shadow map using textures with alpha
 #	endif
 
 	ztShaderDefault_Depth,
@@ -1235,9 +1239,9 @@ enum ztShaderDefault_Enum
 	ztShaderDefault_Skybox,
 	ztShaderDefault_SignedDistanceField,
 
-	ztShaderDefault_Bright,                      // Renders areas of HDR texture that are > 1
-	ztShaderDefault_BlurVert,                    // gaussian blur vertically
-	ztShaderDefault_BlurHorz,                    // gaussian blur horizontally
+	ztShaderDefault_Bright,                             // Renders areas of HDR texture that are > 1
+	ztShaderDefault_BlurVert,                           // gaussian blur vertically
+	ztShaderDefault_BlurHorz,                           // gaussian blur horizontally
 
 	ztShaderDefault_MAX,
 };
@@ -1262,7 +1266,7 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default);
 
 */
 
-ztShaderID zt_shaderMakePointLightShadows();
+ztShaderID zt_shaderMakePointLightShadows(bool instanced);
 
 
 // ================================================================================================================================================================================================
@@ -1927,6 +1931,7 @@ int      zt_meshLoadOBJ(char *data, i32 data_len, const char *mtl_search_dir, zt
 int      zt_meshLoadOBJ(char *file_name, ztMeshID *mesh_ids, ztMaterial *materials, int mesh_mat_size, const ztVec3 &scale = ztVec3::one, const ztVec3 &offset = ztVec3::zero);
 
 void     zt_meshRender(ztMeshID mesh_id);
+void     zt_meshRenderInstanced(ztMeshID mesh_id, ztVertexArrayEntry *entries, i32 entries_size, void *instance_data, i32 instance_count);
 
 i32      zt_meshGetVertices(ztMeshID mesh_id, ztVec3 *vertices, i32 vertices_size);
 
@@ -3057,6 +3062,7 @@ struct ztModel
 	};
 
 	ztTransform             transform;
+	ztTransform             prev_transform;
 	i32                     flags;
 
 	ztString                name;
@@ -3123,7 +3129,7 @@ bool     zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone, bool 
 
 bool     zt_modelMakeSkybox (ztModel *model, ztTextureID texture_id, bool owns_texture = false);
 
-void     zt_modelCalcMatrix (ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
+bool     zt_modelCalcMatrix (ztModel *model, const ztVec3 &world_offset = ztVec3::zero);
 
 void     zt_modelGetAABB    (ztModel *model, ztVec3 *center, ztVec3 *size);
 void     zt_modelGetOBB     (ztModel *model, ztVec3 *center, ztVec3 *size);
@@ -3288,7 +3294,10 @@ struct ztScene
 		ZT_FUNCTION_POINTER_VAR(        render_override, ztSceneRenderModelOverride_Func);
 		void                           *render_override_user_data;
 
-		i32                             index;
+		i32                             index; // the index into the scene model array
+
+		i32                             instance_id; // the instance id that groups this model (if multiple models share the same shader/material)
+		i32                             instance_cache_idx; // index into instancing_cache for easy updating
 	};
 
 	struct LightInfo
@@ -3298,6 +3307,20 @@ struct ztScene
 		r32                             far_plane;
 		i32                             flags;
 		r32                             dist_from_cam;
+	};
+
+	struct InstanceInfo
+	{
+		i32 count; // number of models using this
+
+		struct Data
+		{
+			ztMat4 matrix;
+		};
+
+		Data *data; // storage for the instance data.  since we render the scene multiple times (for lighting), it makes sense to store the data instead of copying each time
+
+		i32 last_drawn_id;
 	};
 
 
@@ -3331,6 +3354,7 @@ struct ztScene
 	ztTextureID                         tex_brdf_lut;
 
 	ztShaderID                          shader_point_light_shadows;
+	ztShaderID                          shader_point_light_shadows_instanced;
 
 	ztVertexArrayID                     vertex_array;
 	ztVertexDefaultLit                 *vertex_array_vertices;
@@ -3342,6 +3366,14 @@ struct ztScene
 
 	ztVec3                              extents_min;
 	ztVec3                              extents_max;
+
+	i32                                 instancing_last_id;
+	InstanceInfo                       *instancing_info;
+	i32                                 instancing_info_count;
+	i32                                 instancing_info_size;
+	InstanceInfo::Data                 *instancing_data_cache; // one entry for each model
+
+	bool                                locked;
 };
 
 // ================================================================================================================================================================================================
@@ -3362,6 +3394,9 @@ bool     zt_sceneMakeVertexArray(ztScene *scene, int max_vertices);
 void     zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res = 1024, i32 flags = 0);
 void     zt_sceneSetSkybox(ztScene *scene, ztModel *skybox);
 void     zt_sceneAddDepthPass(ztScene *scene, i32 w, i32 h);
+
+void     zt_sceneLock(ztScene *scene);
+void     zt_sceneUnlock(ztScene *scene);
 
 void     zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags = 0);
 void     zt_sceneRemoveModel(ztScene *scene, ztModel *model);
@@ -9058,6 +9093,8 @@ ztInternal const char *_zt_default_shaders_names[] = {
 	"shader-litshadow",
 	"shader-shadowdirectional",
 	"shader-shadowdirectionaltextured",
+	"shader-shadowdirectional-instanced",
+	"shader-shadowdirectionaltextured-instanced",
 #	endif
 	"shader-depth",
 	"shader-depthtextured",
@@ -9074,8 +9111,10 @@ ztInternal const char *_zt_default_shaders[] = {
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
 	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
 	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.directional_light_shadowmap);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.directional_light_shadowmap, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
-	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = uniforms.model * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
+	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = model_mat * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	vec2  uv : 1;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = uniforms.model * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
+	"// shader-shadowdirectional-instanced\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct InstanceInput\n{\n	mat4 model_mat;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output, InstanceInput _instance : instance)\n	{\n		mat4 model_mat = _instance.model_mat;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = model_mat * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
+	"// shader-shadowdirectionaltextured-instanced\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	vec2  uv : 1;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct InstanceInput\n{\n	mat4 model_mat;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output, InstanceInput _instance : instance)\n	{\n		mat4 model_mat = _instance.model_mat;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = model_mat * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
 #	endif
 	"// shader-depth\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nprogram DefaultDepth\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(vec3(_input.position.z), 1.0);\n	}\n}",
 	"// shader-depthtextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(1 - _input.position.z, 1 - _input.position.z, 1 - _input.position.z, 1);\n		}\n	}\n}",
@@ -17918,7 +17957,7 @@ bool zt_modelMakeSkybox(ztModel *model, ztTextureID texture_id, bool owns_textur
 
 // ================================================================================================================================================================================================
 
-void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
+bool zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 {
 	ZT_PROFILE_RENDERING("zt_modelCalcMatrix");
 
@@ -17939,13 +17978,24 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 
 		// ================================================================================================================================================================================================
 
-		static void calculateModel(ztModel *model, const ztMat4 &parent_mat)
+		static bool calculateModel(ztModel *model, const ztMat4 &parent_mat)
 		{
+			if (model->transform.position == model->prev_transform.position &&
+				model->transform.rotation == model->prev_transform.rotation &&
+				model->transform.scale == model->prev_transform.scale) {
+				return false;
+			}
+
 			zt_transformToMat4(&model->transform, &model->calculated_mat);
 			model->calculated_mat = parent_mat * model->calculated_mat;
+			model->prev_transform = model->transform;
+
+			bool calculated = false;
 
 			for (ztModel *child = model->first_child; child != nullptr; child = child->next) {
-				calculateModel(child, model->calculated_mat);
+				if (calculateModel(child, model->calculated_mat)) {
+					calculated = true;
+				}
 			}
 
 			if (model->calculated_mat != model->prev_mat){
@@ -17954,11 +18004,15 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 				// only recalculate this information when we've changed
 				zt_transformFromMat4(&model->calculated_transform, &model->calculated_mat);
 				model->aabb_center = model->obb_center = ztVec3::min;	// mark aabb and obb as needing recalculated
+				calculated = true;
 			}
 
 			if (model->bones_count && !zt_bitIsSet(model->flags, ztModelFlags_NoCalcBones)) {
 				calculateBone(&model->bones[model->bones_root_idx], &ztMat4::identity);
+				calculated = true;
 			}
+
+			return calculated;
 		}
 	
 		// ================================================================================================================================================================================================
@@ -17969,10 +18023,10 @@ void zt_modelCalcMatrix(ztModel *model, const ztVec3 &world_offset)
 	}
 
 	if (world_offset != ztVec3::zero) {
-		local::calculateModel(model, ztMat4::identity.getTranslate(world_offset));
+		return local::calculateModel(model, ztMat4::identity.getTranslate(world_offset));
 	}
 	else {
-		local::calculateModel(model, ztMat4::identity);
+		return local::calculateModel(model, ztMat4::identity);
 	}
 }
 
@@ -18869,6 +18923,8 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->vertex_array = ztInvalidID;
 	scene->render_override = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 	scene->render_override_user_data = nullptr;
+	scene->instancing_last_id = 0;
+	scene->instancing_data_cache = zt_mallocStructArray(ztScene::InstanceInfo::Data, max_models);
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
@@ -18892,9 +18948,12 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->skybox.model = nullptr;
 
 	scene->shader_point_light_shadows = ztInvalidID;
+	scene->shader_point_light_shadows_instanced = ztInvalidID;
 
 	scene->extents_min = ztVec3::max;
 	scene->extents_max = ztVec3::min;
+
+	scene->locked = false;
 
 	return scene;
 }
@@ -18932,6 +18991,7 @@ void zt_sceneFree(ztScene *scene)
 	zt_freeArena(scene->list_trn, scene->arena);
 
 	zt_shaderFree(scene->shader_point_light_shadows);
+	zt_shaderFree(scene->shader_point_light_shadows_instanced);
 
 	zt_freeArena(scene, scene->arena);
 }
@@ -18947,6 +19007,7 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 	scene->extents_max = ztVec3::min;
 
 	zt_fiz(scene->models_count) {
+		scene->models[i].instance_id = 0;
 		if (scene->models[i].model->type != ztModelType_Empty) {
 			if (zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_HasTranslucent)) {
 				scene->list_trn[scene->list_trn_count++] = &scene->models[i];
@@ -18965,6 +19026,73 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 		}
 	}
 
+	int last_instance_id = 0;
+
+	// assign instance ids to any models that will be rendered using instancing
+	zt_fiz(scene->models_count - 1) {
+		if (scene->models[i].instance_id != 0 || (scene->models[i].model->type != ztModelType_Mesh && scene->models[i].model->type != ztModelType_VertexArray) || !zt_shaderHasInstancing(scene->models[i].model->shader)) {
+			continue;
+		}
+
+		int instance_id = 0;
+		int instances = 1;
+		for (int j = i + 1; j < scene->models_count; ++j) {
+			// we're comparing mesh_id, but it could also be vertex_array_id, but since they share the same memory and number of bytes, it's fine to compare them
+
+			if (scene->models[i].model->type == scene->models[j].model->type && 
+				scene->models[i].model->mesh_id == scene->models[j].model->mesh_id && 
+				scene->models[i].model->shader == scene->models[j].model->shader && 
+				zt_materialIsEqual(&scene->models[i].model->material, &scene->models[j].model->material)) {
+
+				if (instance_id == 0) {
+					instance_id = ++last_instance_id;
+					scene->models[i].instance_id = instance_id;
+				}
+				scene->models[j].instance_id = instance_id;
+				instances += 1;
+			}
+		}
+	}
+
+	// now resize instancing info array if needed and assign the instancing data
+	ztScene::InstanceInfo::Data *current_data_cache = scene->instancing_data_cache;
+	i32 current_data_cache_idx = 0;
+
+	scene->instancing_info_count = last_instance_id;
+	if (scene->instancing_info_size < scene->instancing_info_count) {
+		if (scene->instancing_info) {
+			zt_free(scene->instancing_info);
+		}
+
+		scene->instancing_info_size = zt_max(scene->instancing_info_size * 2, 128);
+		scene->instancing_info = zt_mallocStructArray(ztScene::InstanceInfo, scene->instancing_info_size);
+	}
+
+	int current_instance = 1;
+	int current_cache_idx = 0;
+
+	zt_fiz(scene->models_count - 1) {
+		if (scene->models[i].instance_id != current_instance) {
+			continue;
+		}
+
+		scene->instancing_info[current_instance - 1].count = 0;
+		scene->instancing_info[current_instance - 1].data = &scene->instancing_data_cache[current_cache_idx];
+		scene->instancing_info[current_instance - 1].last_drawn_id = 0;
+
+		for(int j = i; j < scene->models_count; ++j) {
+			if(scene->models[j].instance_id == current_instance) {
+				zt_modelCalcMatrix(scene->models[j].model);
+				scene->instancing_info[current_instance-1].count += 1;
+				scene->models[j].instance_cache_idx = current_cache_idx++;
+				scene->instancing_data_cache[scene->models[j].instance_cache_idx].matrix = scene->models[j].model->calculated_mat;
+			}
+		}
+
+		current_instance += 1;
+	}
+
+	// generate light list
 	scene->list_light_count = 0;
 	zt_fiz(scene->lights_count) {
 		ztScene::LightInfo *light_info = &scene->lights[i];
@@ -18996,7 +19124,8 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res, i32 fl
 			zt_textureSetName(light_info->shadowmap_tex, "Light Shadowmap");
 
 			if((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
-				scene->shader_point_light_shadows = zt_shaderMakePointLightShadows();
+				scene->shader_point_light_shadows = zt_shaderMakePointLightShadows(false);
+				scene->shader_point_light_shadows_instanced = zt_shaderMakePointLightShadows(true);
 			}
 		}
 
@@ -19099,7 +19228,6 @@ ztInternal void _zt_sceneModelRefresh(ztScene *scene, int model_idx, bool proces
 			}
 
 			// add the sub models to the scene (so they can be culled)
-
 			zt_flink(child, model->first_child) {
 				int idx = -1;
 				if (child->type != ztModelType_Empty) {
@@ -19128,7 +19256,27 @@ ztInternal void _zt_sceneModelRefresh(ztScene *scene, int model_idx, bool proces
 		local::processModel(scene, model_idx, scene->models[model_idx].model, scene->models[model_idx].flags, scene->models[model_idx].model);
 	}
 
-	_zt_sceneRebuildLists(scene);
+	if (!scene->locked) {
+		_zt_sceneRebuildLists(scene);
+	}
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneLock(ztScene *scene)
+{
+	scene->locked = true;
+}
+
+// ================================================================================================================================================================================================
+
+void zt_sceneUnlock(ztScene *scene)
+{
+	if (scene->locked) {
+		scene->locked = false;
+
+		_zt_sceneRebuildLists(scene);
+	}
 }
 
 // ================================================================================================================================================================================================
@@ -19162,6 +19310,7 @@ void zt_sceneAddModel(ztScene *scene, ztModel *model, i32 flags)
 	scene->models[idx].root_parent     = nullptr;
 	scene->models[idx].index           = idx;
 	scene->models[idx].render_override = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+	scene->models[idx].instance_id     = 0;
 
 	_zt_sceneModelRefresh(scene, idx, true);
 }
@@ -19298,7 +19447,11 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 			if (!zt_bitIsSet(scene->models[i].model->flags, ztModelFlags_Hidden)) {
 				if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_NoCalcMatrix)) {
 					if (scene->models[i].root_parent == nullptr) {
-						zt_modelCalcMatrix(scene->models[i].model, world_offset);
+						if (zt_modelCalcMatrix(scene->models[i].model, world_offset)) {
+							if(scene->models[i].instance_id != 0) {
+								scene->instancing_data_cache[scene->models[i].instance_cache_idx].matrix = scene->models[i].model->calculated_mat;
+							}
+						}
 					}
 				}
 				scene->models[i].dist_from_cam = zt_abs(scene->models[i].model->calculated_transform.position.distance(camera->position));
@@ -19738,10 +19891,12 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 	struct local
 	{
-		static void renderModel(int pass, ztScene *scene, ztShaderID shader, ztModel *model, i32 model_flags, ztCamera *camera, i32 match_flags, bool *needs_multipass)
+		static void renderModel(i32 drawn_id, int pass, ztScene *scene, ztShaderID shader, ztScene::ModelInfo *model_info, ztModel *model, i32 model_flags, ztCamera *camera, i32 match_flags, bool *needs_multipass)
 		{
 			if ((match_flags == 0 || zt_bitIsSet(model_flags, match_flags)) && !zt_bitIsSet(model_flags, ztModelFlags_Hidden) && model->type != ztModelType_Invalid) {
-				if ((pass == 0 && model->type == ztModelType_Mesh) || (pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
+				if ((pass == 0 && model->type == ztModelType_Mesh && model_info->instance_id == 0) || 
+					(pass == 1 && model->type == ztModelType_Mesh && model_info->instance_id != 0 && scene->instancing_info[model_info->instance_id - 1].last_drawn_id != drawn_id) || 
+					(pass == 2 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
 
 					if (model->type == ztModelType_ParticleSystem) {
 						model->particle_emitter->position = ztVec3::zero;//model->calculated_mat.getMultiply(ztVec3::zero);
@@ -19778,7 +19933,19 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 					switch (model->type)
 					{
 						case ztModelType_Mesh: {
-							zt_meshRender(model->mesh_id);
+
+							if (model_info->instance_id > 0) {
+								// render instanced
+								static ztVertexArrayEntry entries[1] = {
+									{ztVertexArrayDataType_Float, 16},
+								};
+							
+								zt_meshRenderInstanced(model->mesh_id, entries, zt_elementsOf(entries), scene->instancing_info[model_info->instance_id - 1].data, scene->instancing_info[model_info->instance_id - 1].count);
+								scene->instancing_info[model_info->instance_id - 1].last_drawn_id = drawn_id;
+							}
+							else {
+								zt_meshRender(model->mesh_id);
+							}
 						} break;
 
 						case ztModelType_VertexArray: {
@@ -19801,21 +19968,17 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 
 
 					if (changed_cull) {
-						zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+						zt_rendererSetFaceCulling(ztRendererFaceCulling_CullFront);
 					}
 				}
 				else {
 					*needs_multipass = true;
 				}
 			}
-
-			//ztModel *child = model->first_child;
-			//while (child) {
-			//	renderModelAndChildren(pass, scene, shader, child, camera, match_flags, needs_multipass);
-			//	child = child->next;
-			//}
 		}
 	};
+
+	i32 drawn_id = zt_game->game_details.current_frame * 10 + 1;
 
 	if (scene->directional_light.light) {
 		ztMat4 light_mat = _zt_sceneLightingMakeLightMat(scene, scene->directional_light.light, camera, lighting_rules, true);
@@ -19825,12 +19988,12 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_textureRenderTargetPrepare(scene->tex_directional_shadow_map, true);
 		zt_rendererClear(zt_vec4(1, 1, 1, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
-		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullFront);
 
-		for (int pass = 0; pass < 2; ++pass) {
+		for (int pass = 0; pass < 3; ++pass) {
 			bool needs_multipass = false;
 
-			ztShaderID shader = zt_shaderGetDefault(pass == 0 ? ztShaderDefault_ShadowDirectional : ztShaderDefault_ShadowDirectionalTextured);
+			ztShaderID shader = zt_shaderGetDefault(pass == 0 ? ztShaderDefault_ShadowDirectional : (pass == 1 ? ztShaderDefault_ShadowDirectionalInstanced : ztShaderDefault_ShadowDirectionalTextured));
 			zt_shaderBegin(shader);
 
 			static u32 light_matrix_hash = zt_strHash("light_matrix");
@@ -19857,7 +20020,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				}
 
 				if (!zt_bitIsSet(model_info_flags, ztSceneModelFlags_Culled)) {
-					local::renderModel(pass, scene, shader, scene->models[i].model, model_flags, camera, ztModelFlags_CastsShadows, &needs_multipass);
+					local::renderModel(drawn_id, pass, scene, shader, &scene->models[i], scene->models[i].model, model_flags, camera, ztModelFlags_CastsShadows, &needs_multipass);
 				}
 
 				if (shader_to_use != shader) {
@@ -19897,9 +20060,9 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_textureRenderTargetPrepare(light_info->shadowmap_tex, true);
 		zt_rendererClear(zt_vec4(0, 0, 0, 1));
 		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_Less);
-		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+		zt_rendererSetFaceCulling(ztRendererFaceCulling_CullFront);
 
-		for (int pass = 0; pass < 2; ++pass) {
+		for (int pass = 0; pass < 3; ++pass) {
 			bool needs_multipass = false;
 
 			ztShaderID shader = ztInvalidID;
@@ -19909,7 +20072,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				{
 					case ztLightType_Point:
 					case ztLightType_Spot: {
-						shader = scene->shader_point_light_shadows;
+						shader = pass == 0 ? scene->shader_point_light_shadows : scene->shader_point_light_shadows_instanced;
 					} break;
 				}
 			}
@@ -19961,7 +20124,7 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 				}
 
 				if (!zt_bitIsSet(model_info_flags, ztSceneModelFlags_Culled)) {
-					local::renderModel(pass, scene, shader, scene->models[i].model, model_flags, camera, ztModelFlags_CastsShadows, &needs_multipass);
+					local::renderModel(drawn_id, pass, scene, shader, &scene->models[i], scene->models[i].model, model_flags, camera, ztModelFlags_CastsShadows, &needs_multipass);
 				}
 
 				if (shader_to_use != shader) {
@@ -19986,6 +20149,8 @@ void zt_sceneLighting(ztScene *scene, ztCamera *camera, ztSceneLightingRules *li
 		zt_textureRenderTargetCommit(light_info->shadowmap_tex);
 	}
 
+	zt_rendererSetFaceCulling(ztRendererFaceCulling_CullBack);
+
 #	endif
 }
 
@@ -19998,10 +20163,11 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 
 	struct local
 	{
-		static void renderModel(int pass, ztScene *scene, ztShaderID shader, ztModel *model, i32 model_flags, ztCamera *camera, i32 match_flags, bool *needs_multipass)
+		static void renderModel(i32 drawn_id, int pass, ztScene *scene, ztShaderID shader, ztScene::ModelInfo *model_info, ztModel *model, i32 model_flags, ztCamera *camera, i32 match_flags, bool *needs_multipass)
 		{
 			if ((match_flags == 0 || zt_bitIsSet(model_flags, match_flags)) && !zt_bitIsSet(model_flags, ztModelFlags_Hidden) && !zt_bitIsSet(model_flags, ztModelFlags_ShadowOnly) && model->type != ztModelType_Invalid) {
-				if ((pass == 0 && model->type == ztModelType_Mesh) || (pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
+				if ((pass == 0 && model->type == ztModelType_Mesh && (model_info->instance_id == 0 || scene->instancing_info[model_info->instance_id - 1].last_drawn_id != drawn_id)) || 
+					(pass == 1 && (model->type == ztModelType_Sprite || model->type == ztModelType_SpriteAnimation || model->type == ztModelType_ParticleSystem))) {
 
 					if (model->type == ztModelType_ParticleSystem) {
 						model->particle_emitter->position = ztVec3::zero;//model->calculated_mat.getMultiply(ztVec3::zero);
@@ -20019,7 +20185,18 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 					switch (model->type)
 					{
 						case ztModelType_Mesh: {
-							zt_meshRender(model->mesh_id);
+							if (model_info->instance_id > 0) {
+								// render instanced
+								static ztVertexArrayEntry entries[1] = {
+									{ztVertexArrayDataType_Float, 16},
+								};
+
+								zt_meshRenderInstanced(model->mesh_id, entries, zt_elementsOf(entries), scene->instancing_info[model_info->instance_id - 1].data, scene->instancing_info[model_info->instance_id - 1].count);
+								scene->instancing_info[model_info->instance_id - 1].last_drawn_id = drawn_id;
+							}
+							else {
+								zt_meshRender(model->mesh_id);
+							}
 						} break;
 
 						case ztModelType_VertexArray: {
@@ -20049,14 +20226,10 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 					*needs_multipass = true;
 				}
 			}
-
-			//ztModel *child = model->first_child;
-			//while (child) {
-			//	renderModelAndChildren(pass, scene, shader, child, camera, match_flags, needs_multipass);
-			//	child = child->next;
-			//}
 		}
 	};
+
+	i32 drawn_id = zt_game->game_details.current_frame * 10 + 2;
 
 	if (scene->tex_depth != ztInvalidID) {
 		_zt_rendererCheckToResetStats();
@@ -20093,7 +20266,7 @@ void zt_sceneDepth(ztScene *scene, ztCamera *camera)
 				}
 
 				if (!zt_bitIsSet(model_info_flags, ztSceneModelFlags_Culled)) {
-					local::renderModel(pass, scene, shader, scene->models[i].model, model_flags, camera, 0, &needs_multipass);
+					local::renderModel(drawn_id, pass, scene, shader, &scene->models[i], scene->models[i].model, model_flags, camera, 0, &needs_multipass);
 				}
 
 				if (shader_to_use != shader) {
@@ -20124,9 +20297,12 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	ZT_PROFILE_RENDERING("zt_sceneRender");
 	struct local
 	{
-		static void renderModel(ztScene *scene, ztScene::ModelInfo *scene_model_info, i32 scene_model_index, ztModel *model, ztCamera *camera, ztMat4 *light_mat, ztShaderID *active_shader, ztSceneLightingRules *lighting_rules)
+		static void renderModel(i32 drawn_id, ztScene *scene, ztScene::ModelInfo *scene_model_info, i32 scene_model_index, ztModel *model, ztCamera *camera, ztMat4 *light_mat, ztShaderID *active_shader, ztSceneLightingRules *lighting_rules)
 		{
 			if (model->type == ztModelType_Invalid) {
+				return;
+			}
+			if (scene_model_info->instance_id != 0 && scene->instancing_info[scene_model_info->instance_id - 1].last_drawn_id == drawn_id) {
 				return;
 			}
 
@@ -20371,7 +20547,18 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 			switch (model->type)
 			{
 				case ztModelType_Mesh: {
-					zt_meshRender(model->mesh_id);
+					if (scene_model_info->instance_id > 0) {
+						// render instanced
+						static ztVertexArrayEntry entries[1] = {
+							{ztVertexArrayDataType_Float, 16},
+						};
+
+						zt_meshRenderInstanced(model->mesh_id, entries, zt_elementsOf(entries), scene->instancing_info[scene_model_info->instance_id - 1].data, scene->instancing_info[scene_model_info->instance_id - 1].count);
+						scene->instancing_info[scene_model_info->instance_id - 1].last_drawn_id = drawn_id;
+					}
+					else {
+						zt_meshRender(model->mesh_id);
+					}
 				} break;
 
 				case ztModelType_VertexArray: {
@@ -20420,9 +20607,10 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 	}
 
 	//glDisable(GL_BLEND);
+	i32 drawn_id = zt_game->game_details.current_frame * 10 + 3;
 
 	zt_fiz(scene->list_std_count) {
-		local::renderModel(scene, scene->list_std[i], scene->list_std[i]->index, scene->list_std[i]->model, camera, &light_mat, &shader, lighting_rules);
+		local::renderModel(drawn_id, scene, scene->list_std[i], scene->list_std[i]->index, scene->list_std[i]->model, camera, &light_mat, &shader, lighting_rules);
 	}
 
 	if (shader != ztInvalidID) {
@@ -20449,7 +20637,7 @@ void zt_sceneRender(ztScene *scene, ztCamera *camera, ztSceneLightingRules *ligh
 
 	zt_rendererEnableDepthWriting(false);
 	zt_fiz(scene->list_trn_count) {
-		local::renderModel(scene, scene->list_trn[i], scene->list_trn[i]->index, scene->list_trn[i]->model, camera, &light_mat, &shader, lighting_rules);
+			local::renderModel(drawn_id, scene, scene->list_trn[i], scene->list_trn[i]->index, scene->list_trn[i]->model, camera, &light_mat, &shader, lighting_rules);
 	}
 	zt_rendererEnableDepthWriting(true);
 
@@ -22202,7 +22390,7 @@ ztInternal i32 _zt_shaderLangPreprocessImport(const char *import, char *buffer, 
 {
 	char *to_copy = nullptr;
 	if (zt_strEquals(import, "zt_defaults")) {
-		to_copy = "#ifndef ZT_DEFAULTS_IMPORT\n#define ZT_DEFAULTS_IMPORT\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#define ZT_VERTEX_INPUT vec3 position; vec2 uv : 1; vec3 normal : 2; vec4 color : 3;\n#define ZT_VERTEX_INPUT_LIT ZT_VERTEX_INPUT; vec4 tangent : 4; vec4 bitangent : 5;\n#define ZT_PIXEL_INPUT vec4 position : position; vec2 uv; vec3 normal; vec4 color;\n#define ZT_PIXEL_INPUT_LIT ZT_PIXEL_INPUT; vec3 frag_pos; vec4 frag_pos_light_space;\n#define ZT_PIXEL_INPUT_POSITION_NORMAL vec4 frag_pos_view; vec3 normal_view;\n#define ZT_PIXEL_OUPUT_COLOR vec4 color: color;\n#define ZT_PIXEL_OUPUT_COLOR_POSITION_NORMAL vec4 color: color; vec4 position; vec4 normal;\n#define ZT_UNIFORM_MPV   mat4 model; mat4 projection; mat4 view;\n#define ZT_VERTEX_SHADER_COPY_PUNC _output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0); _output.uv = _input.uv; _output.normal = _input.normal; _output.color = _input.color;\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PARALLAX_MAPPING_HEIGHT_ADJUST\n#define ZT_PARALLAX_MAPPING_HEIGHT_ADJUST .0025\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec2 zt_parallaxMapping(vec2 uv, vec3 view_dir, float height)\n{\n	vec2 p = view_dir.xy * ((1.0 - height) * ZT_PARALLAX_MAPPING_HEIGHT_ADJUST);\n	return uv - p;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_normalCalculation(PixelInput _input, Textures textures, vec2 uv)\n{\n	if (__exists(textures.normal_tex)) {\n		vec3 tangent_normal = textureSample(textures.normal_tex, uv).xyz;\n		if (tangent_normal == vec3(1)) {\n			return normalize(_input.normal);\n		}\n		else {\n			tangent_normal = tangent_normal * 2.0 - 1.0;\n		}\n\n		vec3 Q1 = dFdx(_input.position.xyz);\n		vec3 Q2 = dFdy(_input.position.xyz);\n		vec2 st1 = dFdx(uv);\n		vec2 st2 = dFdy(uv);\n\n		vec3 normal = normalize(_input.normal);\n		vec3 T = normalize(Q1*st2.y - Q2*st1.y);\n		vec3 B = -normalize(cross(normal, T));\n		mat3 TBN = mat3(T, B, normal);\n\n		return normalize(TBN * tangent_normal);\n	}\n	\n	if (__exists(_input.normal)) {\n		return normalize(_input.normal);\n	}\n	\n	return vec3(0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_vertexShaderStandard(VertexInput _input, Uniforms uniforms, PixelInput _output)\n{\n	mat4 model_mat = uniforms.model;\n	\n	if (__exists(uniforms.bones_count, _input.bones, _input.weights)) {\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n\n			model_mat = uniforms.model * bone_mat;\n		}\n	}\n\n	_output.position = uniforms.projection * uniforms.view * model_mat * vec4(_input.position, 1.0);\n	\n	if (__exists(_output.normal, _input.normal)) {\n		_output.normal = mat3(model_mat) * _input.normal;\n	}\n	if (__exists(_output.uv, _input.uv)) {\n		_output.uv = _input.uv;\n	}\n	if (__exists(_output.color, _input.color)) {\n		_output.color = _input.color;\n	}\n\n	if (__exists(_output.frag_pos)) {\n		_output.frag_pos = vec3(model_mat * vec4(_input.position, 1.0));\n\n		if (__exists(_output.frag_pos_light_space, uniforms.light_matrix)) {\n			_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		}\n	}\n	\n	if (__exists(_output.frag_pos_view, _output.normal_view, _input.normal)) {\n		_output.frag_pos_view = uniforms.view * model_mat * vec4(_input.position, 1);\n		_output.normal_view = mat3(uniforms.view) * mat3(model_mat) * _input.normal;\n	}\n}\n\n#endif";
+		to_copy = "#ifndef ZT_DEFAULTS_IMPORT\n#define ZT_DEFAULTS_IMPORT\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#define ZT_VERTEX_INPUT vec3 position; vec2 uv : 1; vec3 normal : 2; vec4 color : 3;\n#define ZT_VERTEX_INPUT_LIT ZT_VERTEX_INPUT; vec4 tangent : 4; vec4 bitangent : 5;\n#define ZT_PIXEL_INPUT vec4 position : position; vec2 uv; vec3 normal; vec4 color;\n#define ZT_PIXEL_INPUT_LIT ZT_PIXEL_INPUT; vec3 frag_pos; vec4 frag_pos_light_space;\n#define ZT_PIXEL_INPUT_POSITION_NORMAL vec4 frag_pos_view; vec3 normal_view;\n#define ZT_PIXEL_OUPUT_COLOR vec4 color: color;\n#define ZT_PIXEL_OUPUT_COLOR_POSITION_NORMAL vec4 color: color; vec4 position; vec4 normal;\n#define ZT_UNIFORM_MPV   mat4 model; mat4 projection; mat4 view;\n#define ZT_VERTEX_SHADER_COPY_PUNC _output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0); _output.uv = _input.uv; _output.normal = _input.normal; _output.color = _input.color;\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PARALLAX_MAPPING_HEIGHT_ADJUST\n#define ZT_PARALLAX_MAPPING_HEIGHT_ADJUST .0025\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec2 zt_parallaxMapping(vec2 uv, vec3 view_dir, float height)\n{\n	vec2 p = view_dir.xy * ((1.0 - height) * ZT_PARALLAX_MAPPING_HEIGHT_ADJUST);\n	return uv - p;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_normalCalculation(PixelInput _input, Textures textures, vec2 uv)\n{\n	if (__exists(textures.normal_tex)) {\n		vec3 tangent_normal = textureSample(textures.normal_tex, uv).xyz;\n		if (tangent_normal == vec3(1)) {\n			return normalize(_input.normal);\n		}\n		else {\n			tangent_normal = tangent_normal * 2.0 - 1.0;\n		}\n\n		vec3 Q1 = dFdx(_input.position.xyz);\n		vec3 Q2 = dFdy(_input.position.xyz);\n		vec2 st1 = dFdx(uv);\n		vec2 st2 = dFdy(uv);\n\n		vec3 normal = normalize(_input.normal);\n		vec3 T = normalize(Q1*st2.y - Q2*st1.y);\n		vec3 B = -normalize(cross(normal, T));\n		mat3 TBN = mat3(T, B, normal);\n\n		return normalize(TBN * tangent_normal);\n	}\n	\n	if (__exists(_input.normal)) {\n		return normalize(_input.normal);\n	}\n	\n	return vec3(0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n\nvoid _zt_vertexShaderStandardBase(VertexInput _input, Uniforms uniforms, PixelInput _output, mat4 model_mat)\n{\n	if (__exists(uniforms.bones_count, _input.bones, _input.weights)) {\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n\n			model_mat = model_mat * bone_mat;\n		}\n	}\n\n	_output.position = uniforms.projection * uniforms.view * model_mat * vec4(_input.position, 1.0);\n	\n	if (__exists(_output.normal, _input.normal)) {\n		_output.normal = mat3(model_mat) * _input.normal;\n	}\n	if (__exists(_output.uv, _input.uv)) {\n		_output.uv = _input.uv;\n	}\n	if (__exists(_output.color, _input.color)) {\n		_output.color = _input.color;\n	}\n\n	if (__exists(_output.frag_pos)) {\n		_output.frag_pos = vec3(model_mat * vec4(_input.position, 1.0));\n\n		if (__exists(_output.frag_pos_light_space, uniforms.light_matrix)) {\n			_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		}\n	}\n	\n	if (__exists(_output.frag_pos_view, _output.normal_view, _input.normal)) {\n		_output.frag_pos_view = uniforms.view * model_mat * vec4(_input.position, 1);\n		_output.normal_view = mat3(uniforms.view) * mat3(model_mat) * _input.normal;\n	}\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_vertexShaderStandard(VertexInput _input, Uniforms uniforms, PixelInput _output)\n{\n	mat4 model_mat = uniforms.model;\n	_zt_vertexShaderStandardBase(_input, uniforms, _output, model_mat);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_vertexShaderStandardModel(VertexInput _input, Uniforms uniforms, PixelInput _output, mat4 model_mat)\n{\n	_zt_vertexShaderStandardBase(_input, uniforms, _output, model_mat);\n}\n\n#endif";
 	}
 	else if (zt_strEquals(import, "zt_default_lighting")) {
 		to_copy = "#ifndef ZT_LIGHTING_SHARED_IMPORT\n#define ZT_LIGHTING_SHARED_IMPORT\n\n#import \"zt_defaults\"\n\nstruct PointLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n	float linear;\n	float quadratic;\n}\n\nstruct SpotLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  direction;\n	float cutoff_in;\n	float cutoff_out;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n}\n\n#ifndef ZT_MAX_POINT_LIGHTS\n#define ZT_MAX_POINT_LIGHTS 4\n#endif\n\n#ifndef ZT_MAX_SPOT_LIGHTS\n#define ZT_MAX_SPOT_LIGHTS 4\n#endif\n\n#define ZT_DIRECTIONAL_LIGHT_UNIFORMS  	vec3 view_pos; mat4 light_matrix; vec3 light_pos; float light_ambient; float light_intensity; vec4 light_color;\n#define ZT_DIRECTIONAL_POINT_SPOT_LIGHT_UNIFORMS ZT_DIRECTIONAL_LIGHT_UNIFORMS; PointLight point_lights[ZT_MAX_POINT_LIGHTS]; int point_lights_count; SpotLight spot_lights[ZT_MAX_SPOT_LIGHTS]; int spot_lights_count;\n\n\n#define ZT_DIRECTIONAL_POINT_SPOT_LIGHT_SHADOWMAPS 	texture2d directional_light_shadowmap; textureCube point_lights_shadowmap[ZT_MAX_POINT_LIGHTS]; textureCube spot_lights_shadowmap[ZT_MAX_SPOT_LIGHTS];\n\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS 0.0025\n#endif\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES 3\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_calculateDirectionalLightingShadow(vec3 light_dir, vec3 normal, vec4 frag_pos_light_space, texture2d shadow_map_tex)\n{\n	vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n\n	float current_depth = proj_coords.z;\n	if (current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n\n	float bias = max(ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS * (1.0 - dot(normal, light_dir)), ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS);\n\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(shadow_map_tex);// * .5;\n\n	const int samples = ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES;\n	for (int x = -samples; x <= samples; ++x) {\n		for (int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(shadow_map_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_POINT_SHADOW_BIAS\n#define ZT_LIGHTING_POINT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculatePointLightingShadow(PointLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_POINT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_SPOT_SHADOW_BIAS\n#define ZT_LIGHTING_SPOT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculateSpotLightingShadow(SpotLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_SPOT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n#endif";
@@ -25183,6 +25371,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 												return false;
 											}
 										}
+
 									}
 
 									if (!input_found) { *error = zt_stringMakeFrom("Shader vertex function must pass in an input structure"); return false; }
@@ -26266,6 +26455,30 @@ void zt_shaderAddDefine(const char *define, const char *replace_with)
 
 // ================================================================================================================================================================================================
 
+bool zt_shaderHasInstancing(ztShaderID shader_id)
+{
+	ZT_PROFILE_RENDERING("zt_shaderHasInstancing");
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+			zt_openGLSupport(return ztgl_shaderHasInstancing(zt_game->shaders[shader_id].gl_shader));
+		} break;
+
+		case ztRenderer_DirectX: {
+			return false;
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
 void zt_shaderBegin(ztShaderID shader_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderBegin");
@@ -26888,13 +27101,13 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 
 // ================================================================================================================================================================================================
 
-ztShaderID zt_shaderMakePointLightShadows()
+ztShaderID zt_shaderMakePointLightShadows(bool instanced)
 {
 	switch(zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
 #		if defined(ZT_OPENGL)
-			ztShaderGL *gl_shader = ztgl_shaderMakePointLightShadows(zt_game->win_details[0].gl_context);
+			ztShaderGL *gl_shader = ztgl_shaderMakePointLightShadows(zt_game->win_details[0].gl_context, instanced);
 			if (gl_shader != nullptr) {
 				ztShaderID shader_id = _zt_shaderGetNextID();
 				zt_game->shaders[shader_id].gl_shader = gl_shader;
@@ -33286,7 +33499,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		case ztRenderer_OpenGL: {
 #			if defined(ZT_OPENGL)
 			
-			ztVertexEntryGL *entries = zt_mallocStructArray(ztVertexEntryGL, 6 + entries_count);
+			ztVertexEntryGL *entries = zt_mallocStructArrayArena(ztVertexEntryGL, 6 + entries_count, zt_memGetTempArena());
 			entries[0] = { GL_FLOAT, 3 * sizeof(GLfloat) };
 			entries[1] = { GL_FLOAT, 2 * sizeof(GLfloat) };
 			entries[2] = { GL_FLOAT, 3 * sizeof(GLfloat) };
@@ -33314,7 +33527,7 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 
 			bool result = ztgl_vertexArrayMake(&mesh->gl_vertex_array, entries, 6 + entries_count, vertices, indices_count);
 
-			zt_free(entries);
+			zt_freeArena(entries, zt_memGetTempArena());
 
 			if (!result) {
 				return ztInvalidID;
@@ -34129,6 +34342,53 @@ void zt_meshRender(ztMeshID mesh_id)
 		}
 	}
 }
+
+// ================================================================================================================================================================================================
+
+void zt_meshRenderInstanced(ztMeshID mesh_id, ztVertexArrayEntry *entries, i32 entries_size, void *instance_data, i32 instance_count)
+{
+	ZT_PROFILE_RENDERING("zt_meshRenderInstanced");
+	zt_assertReturnOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count && entries_size > 0 && instance_count > 0);
+
+	ztMesh *mesh = &zt_game->meshes[mesh_id];
+	zt_game->game_details.curr_frame.triangles_drawn += mesh->triangles * instance_count;
+	zt_game->game_details.curr_frame.draw_calls += 1;
+
+	switch (zt_currentRenderer())
+	{
+		case ztRenderer_OpenGL: {
+#			if defined(ZT_OPENGL)
+			ztVertexEntryGL gl_entries[64];
+			zt_assert(zt_elementsOf(gl_entries) >= entries_size);
+			zt_fiz(entries_size) {
+				switch(entries[i].type)
+				{
+					case ztVertexArrayDataType_Float: {
+						gl_entries[i].type = GL_FLOAT;
+						gl_entries[i].size = entries[i].count * sizeof(float);
+					} break;
+
+					case ztVertexArrayDataType_Int: {
+						gl_entries[i].type = GL_INT;
+						gl_entries[i].size = entries[i].count * sizeof(int);
+					} break;
+
+					default: zt_assert(false);
+				}
+			}
+
+			ztgl_vertexArrayDrawInstanced(&mesh->gl_vertex_array, gl_entries, entries_size, instance_data, instance_count);
+#			endif
+		} break;
+
+		case ztRenderer_DirectX: {
+			zt_assert(false); // not yet supported
+		} break;
+
+		default: {
+			zt_assert(false);
+		}
+	}}
 
 // ================================================================================================================================================================================================
 

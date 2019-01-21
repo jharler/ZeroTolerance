@@ -316,6 +316,7 @@ void        ztgl_shaderBegin(ztShaderGL *shader);
 void        ztgl_shaderEnd(ztShaderGL *shader);
 
 bool        ztgl_shaderHasVariable(ztShaderGL *shader, u32 name_hash);
+bool        ztgl_shaderHasInstancing(ztShaderGL *shader);
 
 void        ztgl_shaderVariableFloat(ztShaderGL *shader, u32 name_hash, r32 value);
 void        ztgl_shaderVariableInt(ztShaderGL *shader, u32 name_hash, i32 value);
@@ -327,6 +328,7 @@ void        ztgl_shaderVariableMat3(ztShaderGL *shader, u32 name_hash, r32 value
 void        ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex);
 
 int         ztgl_shaderGetOutputs(ztShaderGL *shader, ztVariant_Enum *types, int types_size);
+
 
 ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context);
 
@@ -456,6 +458,12 @@ struct ztVertexArrayGL
 	int    vert_count;
 	int    vert_count_active;
 	int    entries_size;
+	int    entries_count;
+
+	GLuint instancing_vbo;
+	void  *instancing_data;
+	i32    instancing_data_count;
+	i32    instancing_entries_size;
 
 #	if !defined(ZT_OPENGL_HAS_VAOS)
 	ztVertexEntryGL entries[8];
@@ -465,11 +473,12 @@ struct ztVertexArrayGL
 
 // ================================================================================================================================================================================================
 
-bool ztgl_vertexArrayMake       (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void ztgl_vertexArrayFree       (ztVertexArrayGL *vertex_array);
-bool ztgl_vertexArrayUpdate     (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
-void ztgl_vertexArrayDraw       (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
-i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices, i32 vertices_size); // assumes entry 0 is a ztVec3 position
+bool ztgl_vertexArrayMake         (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayFree         (ztVertexArrayGL *vertex_array);
+bool ztgl_vertexArrayUpdate       (ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count);
+void ztgl_vertexArrayDraw         (ztVertexArrayGL *vertex_array, GLenum mode = GL_TRIANGLES);
+void ztgl_vertexArrayDrawInstanced(ztVertexArrayGL *vertex_array, ztVertexEntryGL *instance_entries, int instance_entries_count, void *instance_data, int instance_count, GLenum mode = GL_TRIANGLES);
+i32  ztgl_vertexArrayGetVertices  (ztVertexArrayGL *vertex_array, ztVec3 *vertices, i32 vertices_size); // assumes entry 0 is a ztVec3 position
 
 // ================================================================================================================================================================================================
 
@@ -499,8 +508,11 @@ typedef void      (ZTGL_API *ztgl_glUseProgram_Func) (GLuint program);
 typedef void      (ZTGL_API *ztgl_glBlendFuncSeparate_Func) (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha);
 typedef void      (ZTGL_API *ztgl_glVertexAttribPointer_Func) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
 typedef void      (ZTGL_API *ztgl_glVertexAttribIPointer_Func) (GLuint index, GLint size, GLenum type, GLsizei stride, const void* pointer);
+typedef void      (ZTGL_API *ztgl_glVertexAttribDivisor_Func) (GLuint index, GLuint divisor);
 typedef void      (ZTGL_API *ztgl_glEnableVertexAttribArray_Func) (GLuint index);
 typedef void      (ZTGL_API *ztgl_glDisableVertexAttribArray_Func) (GLuint index);
+typedef void      (ZTGL_API *ztgl_glDrawArraysInstanced_Func) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+typedef void      (ZTGL_API *ztgl_glDrawElementsInstanced_Func) (GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei primcount);
 typedef GLint     (ZTGL_API *ztgl_glGetUniformLocation_Func) (GLuint program, const GLchar* name);
 typedef GLint     (ZTGL_API *ztgl_glGetAttribLocation_Func) (GLuint program, const GLchar* name);
 typedef void      (ZTGL_API *ztgl_glUniformMatrix4fv_Func) (GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
@@ -544,6 +556,7 @@ typedef void      (ZTGL_API *ztgl_glBindAttribLocation_Func) (GLuint program, GL
 typedef void      (ZTGL_API *ztgl_glDrawBuffers_Func) (GLsizei n, const GLenum* bufs);
 typedef void      (ZTGL_API *ztgl_glDebugMessageCallback_Func) (GLDEBUGPROC callback, const void *userParam);
 typedef void      (ZTGL_API *ztgl_glDebugMessageControl_Func) (GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint* ids, GLboolean enabled);
+
 // ================================================================================================================================================================================================
 
 #define ZTGL_FUNCTIONS	\
@@ -568,8 +581,11 @@ typedef void      (ZTGL_API *ztgl_glDebugMessageControl_Func) (GLenum source, GL
 	ZTGL_FUNC_OP(glBlendFuncSeparate) \
 	ZTGL_FUNC_OP(glVertexAttribPointer) \
 	ZTGL_FUNC_OP(glVertexAttribIPointer) \
+	ZTGL_FUNC_OP(glVertexAttribDivisor) \
 	ZTGL_FUNC_OP(glEnableVertexAttribArray) \
 	ZTGL_FUNC_OP(glDisableVertexAttribArray) \
+	ZTGL_FUNC_OP(glDrawArraysInstanced) \
+	ZTGL_FUNC_OP(glDrawElementsInstanced) \
 	ZTGL_FUNC_OP(glGetUniformLocation) \
 	ZTGL_FUNC_OP(glGetAttribLocation) \
 	ZTGL_FUNC_OP(glUniformMatrix4fv) \
@@ -2610,6 +2626,22 @@ bool ztgl_shaderHasVariable(ztShaderGL *shader, u32 name_hash)
 
 // ================================================================================================================================================================================================
 
+bool ztgl_shaderHasInstancing(ztShaderGL *shader)
+{
+	ZT_PROFILE_OPENGL("ztgl_shaderHasInstancing");
+
+	zt_returnValOnNull(shader, false);
+	zt_fiz(shader->inputs_count) {
+		if (zt_strStartsWith(shader->inputs[i].name, "_ztiv_")) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// ================================================================================================================================================================================================
+
 ztInternal ztInline GLint _ztgl_shaderGetUniformLocation(ztShaderGL *shader, u32 name_hash)
 {
 	ZT_PROFILE_OPENGL("_ztgl_shaderGetUniformLocation");
@@ -2719,30 +2751,59 @@ void ztgl_shaderVariableTex(ztShaderGL *shader, u32 name_hash, ztTextureGL *tex)
 
 // ================================================================================================================================================================================================
 
-ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context)
+ztShaderGL *ztgl_shaderMakePointLightShadows(ztContextGL *context, bool instanced)
 {
-	const char *vert =
-		"#version 330 core\n"
-		"layout (location = 0) in vec3 position;\n"
-		"layout (location = 6) in ivec4 _bones;\n"
-		"layout (location = 7) in vec4  _weights;\n"
-		"\n"
-		"uniform mat4 model;\n"
-		"uniform mat4 bones[200];\n"
-		"uniform int bones_count;\n"
-		"\n"
-		"void main()\n"
-		"{\n"
-		"	mat4 model_mat = model;\n"
-		"	if (bones_count > 0) {\n"
-		"		mat4 bone_mat = bones[_bones.x] * _weights.x;\n"
-		"		bone_mat += bones[_bones.y] * _weights.y;\n"
-		"		bone_mat += bones[_bones.z] * _weights.z;\n"
-		"		bone_mat += bones[_bones.w] * _weights.w;\n"
-		"		model_mat = model * bone_mat;\n"
-		"	}\n"
-		"	gl_Position = model_mat * vec4(position, 1.0);\n"
-		"}\n";
+	const char *vert;
+
+
+	if (!instanced) {
+		vert =
+			"#version 330 core\n"
+			"layout (location = 0) in vec3 position;\n"
+			"layout (location = 6) in ivec4 _bones;\n"
+			"layout (location = 7) in vec4  _weights;\n"
+			"\n"
+			"uniform mat4 model;\n"
+			"uniform mat4 bones[200];\n"
+			"uniform int bones_count;\n"
+			"\n"
+			"void main()\n"
+			"{\n"
+			"	mat4 model_mat = model;\n"
+			"	if (bones_count > 0) {\n"
+			"		mat4 bone_mat = bones[_bones.x] * _weights.x;\n"
+			"		bone_mat += bones[_bones.y] * _weights.y;\n"
+			"		bone_mat += bones[_bones.z] * _weights.z;\n"
+			"		bone_mat += bones[_bones.w] * _weights.w;\n"
+			"		model_mat = model * bone_mat;\n"
+			"	}\n"
+			"	gl_Position = model_mat * vec4(position, 1.0);\n"
+			"}\n";
+	}
+	else {
+		vert =
+			"#version 330 core\n"
+			"layout (location = 0) in vec3 position;\n"
+			"layout (location = 6) in ivec4 _bones;\n"
+			"layout (location = 7) in vec4  _weights;\n"
+			"layout (location = 10) in mat4 _model_mat;\n"
+			"\n"
+			"uniform mat4 bones[200];\n"
+			"uniform int bones_count;\n"
+			"\n"
+			"void main()\n"
+			"{\n"
+			"	mat4 model_mat = _model_mat;\n"
+			"	if (bones_count > 0) {\n"
+			"		mat4 bone_mat = bones[_bones.x] * _weights.x;\n"
+			"		bone_mat += bones[_bones.y] * _weights.y;\n"
+			"		bone_mat += bones[_bones.z] * _weights.z;\n"
+			"		bone_mat += bones[_bones.w] * _weights.w;\n"
+			"		model_mat = model * bone_mat;\n"
+			"	}\n"
+			"	gl_Position = model_mat * vec4(position, 1.0);\n"
+			"}\n";
+	}
 
 	const char *geom =
 		"#version 330 core\n"
@@ -4044,6 +4105,8 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 #	endif
 
 	vertex_array->vert_count_active = vert_count;
+	vertex_array->entries_count = entries_count;
+
 	return true;
 }
 
@@ -4052,6 +4115,8 @@ ztInternal bool _ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEnt
 bool ztgl_vertexArrayMake(ztVertexArrayGL *vertex_array, ztVertexEntryGL *entries, int entries_count, void *vert_data, int vert_count)
 {
 	ZT_PROFILE_OPENGL("ztgl_vertexArrayMake");
+
+	zt_memSet(vertex_array, zt_sizeof(ztVertexArrayGL), 0);
 
 	return _ztgl_vertexArrayMake(vertex_array, entries, entries_count, vert_data, vert_count, true);
 }
@@ -4064,6 +4129,12 @@ void ztgl_vertexArrayFree(ztVertexArrayGL *vertex_array)
 
 	if (vertex_array == nullptr || vertex_array->vbo == 0) {
 		return;
+	}
+
+	if (vertex_array->instancing_vbo > 0) {
+		ztgl_callAndReturnOnError(glDeleteBuffers(1, &vertex_array->instancing_vbo));
+		zt_free(vertex_array->instancing_data);
+		vertex_array->instancing_vbo = 0;
 	}
 
 #	if defined(ZT_OPENGL_HAS_VAOS)
@@ -4109,6 +4180,95 @@ void ztgl_vertexArrayDraw(ztVertexArrayGL *vertex_array, GLenum mode)
 
 // ================================================================================================================================================================================================
 
+#define ZTGL_INSTANCED_START_INDEX	10
+
+void ztgl_vertexArrayDrawInstanced(ztVertexArrayGL *vertex_array, ztVertexEntryGL *instance_entries, int instance_entries_count, void *instance_data, int instance_count, GLenum mode)
+{
+	ZT_PROFILE_OPENGL("ztgl_vertexArrayDrawInstanced");
+
+	int entries_size = 0;
+	zt_fiz(instance_entries_count) {
+		entries_size += instance_entries[i].size;
+	}
+
+	ztgl_callAndReportOnErrorFast(glBindVertexArray(vertex_array->vao));
+
+	if (vertex_array->instancing_data == nullptr || 0 != zt_memCmp(instance_data, vertex_array->instancing_data, instance_count * entries_size)) {
+		ZT_PROFILE_OPENGL("ztgl_vertexArrayDrawInstanced::populating");
+
+		if (instance_count > vertex_array->instancing_data_count || vertex_array->instancing_entries_size != instance_entries_count) {
+			if (vertex_array->instancing_vbo > 0) {
+				ztgl_callAndReturnOnError(glDeleteBuffers(1, &vertex_array->instancing_vbo));
+				zt_free(vertex_array->instancing_data);
+			}
+			ztgl_callAndReturnOnError(glGenBuffers(1, &vertex_array->instancing_vbo));
+			vertex_array->instancing_data       = zt_mallocStructArray(byte, instance_count * entries_size);
+			zt_memCpy(vertex_array->instancing_data, instance_count * entries_size, instance_data, instance_count * entries_size);
+			vertex_array->instancing_data_count = instance_count;
+			vertex_array->instancing_entries_size = entries_size;
+		}
+
+		{
+			ztgl_callAndReturnOnError(glBindBuffer(GL_ARRAY_BUFFER, vertex_array->instancing_vbo));
+			ztgl_callAndReturnOnError(glBufferData(GL_ARRAY_BUFFER, instance_count * entries_size, instance_data, GL_DYNAMIC_DRAW));
+
+			int size = 0;
+			int index = ZTGL_INSTANCED_START_INDEX;//vertex_array->entries_count;
+			zt_fiz(instance_entries_count) {
+				int attrib_size = 0;
+				switch (instance_entries[i].type)
+				{
+					case GL_FLOAT: {
+						attrib_size = 4;
+
+						if (instance_entries[i].size > 4 * attrib_size) {
+							int sections = instance_entries[i].size / (4 * attrib_size);
+							zt_fjz(sections) {
+								ztgl_callAndReturnOnError(glEnableVertexAttribArray(index));
+								ztgl_callAndReturnOnError(glVertexAttribPointer(index, 4, instance_entries[i].type, GL_FALSE, entries_size, (GLvoid*)(j * 4 * attrib_size)));
+								ztgl_callAndReturnOnError(glVertexAttribDivisor(index, 1));
+								index += 1;
+							}
+						}
+						else {
+							ztgl_callAndReturnOnError(glEnableVertexAttribArray(index));
+							ztgl_callAndReturnOnError(glVertexAttribPointer(index, instance_entries[i].size / attrib_size, instance_entries[i].type, GL_FALSE, entries_size, (GLvoid*)size));
+							ztgl_callAndReturnOnError(glVertexAttribDivisor(index, 1));
+							index += 1;
+						}
+					} break;
+
+					case GL_INT: {
+#					if defined(ZT_GLES2)
+						zt_assert(false); // not supported in ES2
+#					else
+						attrib_size = 4;
+						ztgl_callAndReturnOnError(glVertexAttribIPointer(index, instance_entries[i].size / attrib_size, instance_entries[i].type, entries_size, (GLvoid*)size));
+						ztgl_callAndReturnOnError(glEnableVertexAttribArray(index));
+						ztgl_callAndReturnOnError(glVertexAttribDivisor(index, 1));
+						index += 1;
+#					endif
+					} break;
+
+					default: {
+						zt_assert(false);
+					} break;
+				}
+
+				size += instance_entries[i].size;
+			}
+			ztgl_callAndReturnOnError(glBindBuffer(GL_ARRAY_BUFFER, 0));
+		}
+
+		vertex_array->instancing_data_count = instance_count;
+	}
+
+	ztgl_callAndReportOnErrorFast(glDrawArraysInstanced(mode, 0, vertex_array->vert_count_active, instance_count));
+	ztgl_callAndReportOnErrorFast(glBindVertexArray(0));
+}
+
+// ================================================================================================================================================================================================
+
 i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices, i32 vertices_size)
 {
 	ZT_PROFILE_OPENGL("ztgl_vertexArrayGetVertices");
@@ -4144,13 +4304,16 @@ i32  ztgl_vertexArrayGetVertices(ztVertexArrayGL *vertex_array, ztVec3 *vertices
 #	endif
 }
 
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 #endif // implementation
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
-
 
 #ifdef __zt_game_h_internal_included__
 
@@ -4162,6 +4325,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 #	define vv_prefix "_ztvv_"
 #   define uv_prefix "_ztuv_"
+#	define iv_prefix "_ztiv_"
 
 	struct local
 	{
@@ -4185,6 +4349,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 			ztShLangSyntaxNode *struct_output = nullptr;
 			ztShLangSyntaxNode *struct_uniform = nullptr;
 			ztShLangSyntaxNode *struct_textures = nullptr;
+			ztShLangSyntaxNode *struct_instance = nullptr;
 
 			ztShLangSyntaxNode *var_input = nullptr;
 
@@ -4377,7 +4542,8 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 							if ((vars->struct_uniform && zt_strEquals(param->variable_decl.type_name, vars->struct_uniform->structure.name)) ||
 								(vars->struct_textures && zt_strEquals(param->variable_decl.type_name, vars->struct_textures->structure.name)) ||
 								(vars->struct_input && zt_strEquals(param->variable_decl.type_name, vars->struct_input->structure.name)) ||
-								(vars->struct_output && zt_strEquals(param->variable_decl.type_name, vars->struct_output->structure.name))) {
+								(vars->struct_output && zt_strEquals(param->variable_decl.type_name, vars->struct_output->structure.name)) ||
+								(vars->struct_instance && zt_strEquals(param->variable_decl.type_name, vars->struct_instance->structure.name))) {
 								continue;
 							}
 
@@ -4461,6 +4627,10 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					}
 					else if (node->variable_val.decl->parent == vars->struct_textures) {
 						zt_strCat(*s, s_len, uv_prefix);
+						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
+					}
+					else if (node->variable_val.decl->parent == vars->struct_instance) {
+						zt_strCat(*s, s_len, iv_prefix);
 						zt_strCat(*s, s_len, node->variable_val.decl->variable_decl.name);
 					}
 					else if (node->variable_val.decl->parent == vars->struct_output && vars->which_shader == Shader_Frag) {
@@ -4791,12 +4961,13 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		zt_strCat(*vs, vs_len, "#version 330 core\n\n");
 #endif
 
-		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr;
+		ztShLangSyntaxNode *param_input = nullptr, *param_uniforms = nullptr, *param_output = nullptr, *param_instance = nullptr;
 		zt_flink(child, vertex_func_node->first_child) {
 			if (child->type == ztShLangSyntaxNodeType_VariableDecl) {
 				if (zt_strEquals(child->variable_decl.qualifier, "input")) { param_input = child; }
 				else if (zt_strEquals(child->variable_decl.qualifier, "uniforms")) { param_uniforms = child; }
 				else if (zt_strEquals(child->variable_decl.qualifier, "output")) { param_output = child; }
+				else if (zt_strEquals(child->variable_decl.qualifier, "instance")) { param_instance = child; }
 			}
 		}
 		zt_assert(param_input && param_uniforms && param_output);
@@ -4804,6 +4975,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		ztShLangSyntaxNode *struct_input = _zt_shaderLangFindStructure(global_node, param_input->variable_decl.type_name);
 		ztShLangSyntaxNode *struct_uniforms = _zt_shaderLangFindStructure(global_node, param_uniforms->variable_decl.type_name);
 		ztShLangSyntaxNode *struct_output = _zt_shaderLangFindStructure(global_node, param_output->variable_decl.type_name);
+		ztShLangSyntaxNode *struct_instance = param_instance == nullptr ? nullptr : _zt_shaderLangFindStructure(global_node, param_instance->variable_decl.type_name);
 		zt_assert(struct_input && struct_uniforms && struct_output);
 
 		vars.struct_uniform = struct_uniforms;
@@ -4811,6 +4983,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 		vars.var_input = param_input;
 		vars.struct_output = struct_output;
 		vars.v_output = param_output;
+		vars.struct_instance = struct_instance;
 
 		{	// write the location variables
 
@@ -4827,14 +5000,29 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 				zt_strMakePrintf(vvar, 256, "attribute %s %s%s;\n", local::dataType(child->variable_decl.type_name), vv_prefix, child->variable_decl.name);
 #				endif
 				zt_strCat(*vs, vs_len, vvar);
+				child_count = zt_max(child_count + 1, index + 1);
 			}
 			zt_strCat(*vs, vs_len, "\n");
+
+#			if !defined(ZT_GLES)
+			if (struct_instance) {
+				i32 inst_idx = ZTGL_INSTANCED_START_INDEX;
+				zt_flink(child, struct_instance->first_child) {
+					i32 index = inst_idx;//child->variable_decl.qualifier ? zt_strToInt(child->variable_decl.qualifier, -1) : child_count;
+					zt_strMakePrintf(vvar, 256, "layout (location = %d) in %s %s%s;\n", index, local::dataType(child->variable_decl.type_name), iv_prefix, child->variable_decl.name);
+					zt_strCat(*vs, vs_len, vvar);
+					//child_count = zt_max(child_count + 1, index + 1);
+					inst_idx += 1;
+				}
+			}
+			zt_strCat(*vs, vs_len, "\n");
+#			endif
 		}
 
 		{	// write the structures
 
 			ztShLangSyntaxNode *ignore[] = {
-				struct_input, struct_uniforms,
+				struct_input, struct_uniforms, struct_instance,
 			};
 
 			local::writeStructs(global_node, vertex_func_node, ignore, zt_elementsOf(ignore), vs, vs_len, &vars);
