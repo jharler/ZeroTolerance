@@ -2371,9 +2371,7 @@ ztGuiGlobals *zt_gui = nullptr;
 
 ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGuiGlobals)
 {
-	if (version == ZT_GAME_GUI_GLOBALS_VERSION) {
-		zt_gui = (ztGuiGlobals *)memory;
-	}
+	zt_gui = (ztGuiGlobals *)memory;
 }
 
 void zt_dllGuiLoad()
@@ -20868,25 +20866,12 @@ ztInternal void _zt_guiDebugTextureViewerRefresh()
 	zt_guiComboBoxClear(dropdown);
 
 	zt_fiz(zt_game->textures_count) {
-		if (zt_game->textures[i].renderer == ztRenderer_Invalid) {
+		if (zt_game->textures[i].renderer_texture == nullptr) {
 			continue;
 		}
-		bool render_tex = false;
-		bool cubemap_tex = false;
-		switch (zt_currentRenderer())
-		{
-			case ztRenderer_OpenGL: {
-				zt_openGLSupport(if (zt_game->textures[i].gl_texture == nullptr) continue);
-				zt_openGLSupport(render_tex = ztgl_textureIsRenderTarget(zt_game->textures[i].gl_texture));
-				zt_openGLSupport(cubemap_tex = zt_bitIsSet(zt_game->textures[i].gl_texture->flags, ztTextureGLFlags_CubeMap));
-			} break;
+		bool render_tex = zt_textureIsRenderTarget(i);
+		bool cubemap_tex = zt_bitIsSet(zt_game->textures[i].flags, ztTextureFlags_CubeMap);
 
-			case ztRenderer_DirectX: {
-				zt_directxSupport(if (zt_game->textures[i].dx_texture == nullptr) continue);
-				zt_directxSupport(render_tex = ztdx_textureIsRenderTarget(zt_game->textures[i].dx_texture));
-				zt_directxSupport(cubemap_tex = zt_bitIsSet(zt_game->textures[i].dx_texture->flags, ztTextureDXFlags_CubeMap));
-			} break;
-		}
 		zt_strMakePrintf(buffer, 512, "[%d] %d x %d %s %s", i, zt_game->textures[i].width, zt_game->textures[i].height, (render_tex ? "(render texture)" : (cubemap_tex ? "(cube map)" : "")), (zt_game->textures[i].name[0] == 0 ? "" : zt_game->textures[i].name));
 		zt_guiComboBoxAppend(dropdown, buffer, (void*)i);
 	}
@@ -20902,7 +20887,7 @@ ztInternal void _zt_guiDebugTextureViewerLoadTexture(ztTextureID tex_id)
 {
 	ZT_PROFILE_GUI("_zt_guiDebugTextureViewerLoadTexture");
 
-	if (tex_id == ztInvalidID || zt_game->textures[tex_id].renderer == ztRenderer_Invalid) {
+	if (tex_id == ztInvalidID || zt_game->textures[tex_id].renderer_texture == nullptr) {
 		return;
 	}
 

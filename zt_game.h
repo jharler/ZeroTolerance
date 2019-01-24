@@ -87,14 +87,6 @@
 // renderer defines
 // ================================================================================================================================================================================================
 
-#if !defined(ZT_NO_OPENGL)
-#	include "zt_renderer_opengl.h"
-#endif
-
-#if !defined(ZT_NO_DIRECTX)
-#	include "zt_renderer_directx.h"
-#endif
-
 #if !defined(ZT_NO_AUDIO)
 #	if !defined(ZT_NO_DSOUND)
 #		include "zt_audio_dsound.h"
@@ -176,20 +168,6 @@ i32  zt_indexInGridInDirectionWrap(i32 cols, i32 rows, i32 c, i32 r, ztDirection
 void zt_colRowInGridFromIndex(i32 cols, i32 rows, i32 index, i32 *c, i32 *r);
 
 // ================================================================================================================================================================================================
-// renderer enumerations
-// ================================================================================================================================================================================================
-
-enum ztRenderer_Enum
-{
-	ztRenderer_Invalid,
-
-	ztRenderer_OpenGL,
-	ztRenderer_DirectX,
-
-	ztRenderer_MAX,
-};
-
-// ================================================================================================================================================================================================
 
 enum ztRendererFlags_Enum
 {
@@ -229,9 +207,6 @@ struct ztGameSettings
 	i32                                 screen_w, native_w;
 	i32                                 screen_h, native_h;
 	i32                                 monitor;
-	ztRenderer_Enum                     renderer;
-	i32                                 renderer_target_version_major;
-	i32                                 renderer_target_version_minor;
 	i32                                 renderer_flags;
 	ztRendererScreenChangeBehavior_Enum renderer_screen_change_behavior;
 	i32                                 renderer_memory;
@@ -242,8 +217,6 @@ struct ztGameSettings
 };
 
 // ================================================================================================================================================================================================
-
-ztRenderer_Enum zt_currentRenderer();
 
 r32 zt_pixelsPerUnit();
 
@@ -266,22 +239,22 @@ bool zt_appHasFocus();
 
 struct ztGameDetails
 {
-	const char* app_path;
-	const char *data_path;
-	const char* user_path;
+	const char  *app_path;
+	const char  *data_path;
+	const char  *user_path;
 
 	int          argc;
 	const char** argv;
 
-	i32 current_frame;
-	r32 current_dt;
-	r64 app_start_time;
+	i32          current_frame;
+	r32          current_dt;
+	r64          app_start_time;
 
 	struct {
-		i32 shader_switches;
-		i32 texture_switches;
-		i32 triangles_drawn;
-		i32 draw_calls;
+		i32      shader_switches;
+		i32      texture_switches;
+		i32      triangles_drawn;
+		i32      draw_calls;
 	} curr_frame, prev_frame;
 };
 
@@ -1128,12 +1101,12 @@ struct ztShaderVariableValues
 		union {
 			r32 val_float;
 			i32 val_int;
-			r32 val_vec2[2];
-			r32 val_vec3[3];
-			r32 val_vec4[4];
-			r32 val_mat3[9];
-			r32 val_mat4[16];
-			i32 val_tex;
+			ztVec2 val_vec2;
+			ztVec3 val_vec3;
+			ztVec4 val_vec4;
+			ztMat3 val_mat3;
+			ztMat4 val_mat4;
+			i32    val_tex;
 		};
 	};
 
@@ -1476,6 +1449,11 @@ enum ztTextureColorFormat_Enum
 
 // ================================================================================================================================================================================================
 
+#define ZT_FUNC_TEXTURE_RENDER(name)	void name(int side, int mip_level, int w, int h, ztMat4 *proj, ztMat4 *view, void *user_data)
+typedef ZT_FUNC_TEXTURE_RENDER(ztTextureRender_Func);
+
+// ================================================================================================================================================================================================
+
 ztTextureID zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 flags = 0);
 ztTextureID zt_textureMake(byte *pixels, i32 width, i32 height, i32 flags = 0);
 ztTextureID zt_textureMakeFromFile(const char *file, i32 flags = 0);
@@ -1555,6 +1533,7 @@ void            zt_vertexArrayFree(ztVertexArrayID vertex_array_id);
 
 bool            zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count);
 void            zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_Enum draw_type = ztVertexArrayDrawType_Triangles);
+void            zt_vertexArrayDrawInstanced(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *instance_data, int instance_count, ztVertexArrayDrawType_Enum draw_type = ztVertexArrayDrawType_Triangles);
 
 int             zt_vertexArrayVertexCount(ztVertexArrayID vertex_array_id);
 
@@ -2374,11 +2353,10 @@ void zt_characterCameraControllerSync       (ztCharacterCameraController *char_c
 // renderer functions
 // ================================================================================================================================================================================================
 
-bool zt_rendererSupported(ztRenderer_Enum renderer);
-int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count);
+// ================================================================================================================================================================================================
+// renderer interface
+// ================================================================================================================================================================================================
 
-bool zt_rendererVersionSupported(ztRenderer_Enum renderer, i32 v_major, i32 v_minor);
-bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor);
 
 void zt_rendererClear(r32 r, r32 g, r32 b, r32 a);
 void zt_rendererClear(ztVec4 clr);
@@ -2437,7 +2415,9 @@ void zt_rendererSetBlendMode(ztRendererBlendMode_Enum source = ztRendererBlendMo
 
 // ================================================================================================================================================================================================
 
-void zt_rendererRequestChange(ztRenderer_Enum renderer);
+void zt_rendererClipRegion(i32 x, i32 y, i32 w, i32 h);
+void zt_rendererClipRegionReset();
+
 void zt_rendererRequestWindowed();
 void zt_rendererRequestWindowedBorderless();
 void zt_rendererRequestFullscreen();
@@ -2448,6 +2428,7 @@ void zt_alignToPixel(r32 *val, r32 ppu);
 void zt_alignToPixel(r32 *val, r32 ppu, r32 *offset);
 void zt_alignToPixel(ztVec2 *val, r32 ppu);
 void zt_alignToPixel(ztVec3 *val, r32 ppu);
+
 
 // ================================================================================================================================================================================================
 // resolutions
@@ -6021,16 +6002,16 @@ void zt_gameSceneManagerTransitionTo(ztGameSceneManager *game_scene_manager, ztG
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#define ZT_FUNC_DLL_SET_GAME_GLOBALS(name) void name(void *memory, int version)
+#define ZT_FUNC_DLL_SET_GAME_GLOBALS(name) void name(void *memory)
 typedef ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals_Func);
+
+#define ZT_FUNC_DLL_SEND_GAME_GLOBALS(name) void name(zt_dllSetGameGlobals_Func *set_globals)
+typedef ZT_FUNC_DLL_SEND_GAME_GLOBALS(zt_dllSendGameGlobals_Func);
 
 #if !defined(ZT_DLL)
 
-#if defined(ZT_OPENGL)
-void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals, zt_dllSetOpenGLGlobals_Func *set_globals_opengl);
-#else
 void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals);
-#endif
+
 #endif
 
 
@@ -6320,8 +6301,318 @@ bool                _zt_shaderLangIsFunctionReferenced(ztShLangSyntaxNode *node,
 const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_type);
 
 // ================================================================================================================================================================================================
+
+struct ztShaderLangDefines
+{
+	ztStringPool string_pool;
+	ztString    *defines;
+	ztString    *values;
+	i32          count;
+	i32          size;
+};
+
+void _zt_shaderLangDefinesMake(ztShaderLangDefines *defines);
+void _zt_shaderLangDefinesFree(ztShaderLangDefines *defines);
+bool _zt_shaderLangDefinesAddDefine(ztShaderLangDefines *defines, const char *define, const char *value);
+
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+
+struct ztRenderer;
+struct ztShader;
+
+//#define ZT_FUNC_RENDERER_DLL_GLOBALS_SET(name) void name(void *memory)
+//typedef ZT_FUNC_RENDERER_DLL_GLOBALS_SET(ztRendererDllGlobalsSet);
+//
+//#define ZT_FUNC_RENDERER_DLL_GLOBALS_SEND(name) void name(ztRendererDllGlobalsSet *set_globals)
+//typedef ZT_FUNC_RENDERER_DLL_GLOBALS_SEND(ztRendererDllGlobalsSend);
+
+#define ZT_FUNC_RENDERER_RENDERER_FREE(name) void name(ztRenderer *renderer)
+typedef ZT_FUNC_RENDERER_RENDERER_FREE(ztRendererRendererFree_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_MAKE(name) void *name(ztRenderer *renderer, ztMemoryArena *arena, void *window, i32 client_w, i32 client_h, i32 pixels_per_unit, i32 flags)
+typedef ZT_FUNC_RENDERER_CONTEXT_MAKE(ztRendererContextMake_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_FREE(name) void name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CONTEXT_FREE(ztRendererContextFree_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_DRAW(name) void name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CONTEXT_DRAW(ztRendererContextDraw_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_GET_SIZE(name) ztVec2i name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CONTEXT_GET_SIZE(ztRendererContextGetSize_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_SET_SIZE(name) bool name(ztRenderer *renderer, void *context, i32 screen_w, i32 screen_h, i32 native_w, i32 native_h)
+typedef ZT_FUNC_RENDERER_CONTEXT_SET_SIZE(ztRendererContextSetSize_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_IS_FULLSCREEN(name) bool name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CONTEXT_IS_FULLSCREEN(ztRendererContextIsFullscreen_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_TOGGLE_FULLSCREEN(name) bool name(ztRenderer *renderer, void *context, bool fullscreen)
+typedef ZT_FUNC_RENDERER_CONTEXT_TOGGLE_FULLSCREEN(ztRendererContextToggleFullscreen_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_CHANGE_RESOLUTION(name) bool name(ztRenderer *renderer, void *context, i32 w, i32 h)
+typedef ZT_FUNC_RENDERER_CONTEXT_CHANGE_RESOLUTION(ztRendererContextChangeResolution_Func);
+
+#define ZT_FUNC_RENDERER_CONTEXT_QUERY_RESOLUTION_CHANGE(name) bool name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CONTEXT_QUERY_RESOLUTION_CHANGE(ztRendererContextQueryResolutionChange_Func);
+
+#define ZT_FUNC_RENDERER_CLEAR_COLOR(name) void name(ztRenderer *renderer, void *context, r32 r, r32 g, r32 b, r32 a)
+typedef ZT_FUNC_RENDERER_CLEAR_COLOR(ztRendererClearColor_Func);
+
+#define ZT_FUNC_RENDERER_CLEAR_DEPTH(name) void name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_CLEAR_DEPTH(ztRendererClearDepth_Func);
+
+#define ZT_FUNC_RENDERER_CLEAR(name) void name(ztRenderer *renderer, void *context, r32 r, r32 g, r32 b, r32 a)
+typedef ZT_FUNC_RENDERER_CLEAR(ztRendererClear_Func);
+
+#define ZT_FUNC_RENDERER_VIEWPORT_SET(name) bool name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_VIEWPORT_SET(ztRendererViewportSet_Func);
+
+#define ZT_FUNC_RENDERER_VIEWPORT_SET_SIZE(name) bool name(ztRenderer *renderer, void *context, i32 width, i32 height)
+typedef ZT_FUNC_RENDERER_VIEWPORT_SET_SIZE(ztRendererViewportSetSize_Func);
+
+#define ZT_FUNC_RENDERER_VIEWPORT_CLIP(name) bool name(ztRenderer *renderer, void *context, i32 x, i32 y, i32 w, i32 h)
+typedef ZT_FUNC_RENDERER_VIEWPORT_CLIP(ztRendererViewportClip_Func);
+
+#define ZT_FUNC_RENDERER_VIEWPORT_RESET_CLIP(name) bool name(ztRenderer *renderer, void *context)
+typedef ZT_FUNC_RENDERER_VIEWPORT_RESET_CLIP(ztRendererViewportResetClip_Func);
+
+#define ZT_FUNC_RENDERER_CULLING_SET(name) void name(ztRenderer *renderer, void *context, ztRendererFaceCulling_Enum culling)
+typedef ZT_FUNC_RENDERER_CULLING_SET(ztRendererCullingSet_Func);
+
+#define ZT_FUNC_RENDERER_DEPTH_TEST_SET(name) void name(ztRenderer *renderer, void *context, bool use_depth_test, ztRendererDepthTestFunction_Enum function)
+typedef ZT_FUNC_RENDERER_DEPTH_TEST_SET(ztRendererDepthTestSet_Func);
+
+#define ZT_FUNC_RENDERER_DEPTH_TEST_WRITE(name) void name(ztRenderer *renderer, void *context, bool write_to_depth)
+typedef ZT_FUNC_RENDERER_DEPTH_TEST_WRITE(ztRendererDepthTestWrite_Func);
+
+#define ZT_FUNC_RENDERER_BLEND_MODE_SET(name) void name(ztRenderer *renderer, void *context, ztRendererBlendMode_Enum source, ztRendererBlendMode_Enum dest)
+typedef ZT_FUNC_RENDERER_BLEND_MODE_SET(ztRendererBlendModeSet_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_MAKE(name) void *name(ztRenderer *renderer, void *context, ztShLangSyntaxNode *syntax_root)
+typedef ZT_FUNC_RENDERER_SHADER_MAKE(ztRendererShaderMake_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_POPULATE_VARIABLES(name) void name(ztRenderer *renderer, void *context, void *renderer_shader, ztShader *shader)
+typedef ZT_FUNC_RENDERER_SHADER_POPULATE_VARIABLES(ztRendererShaderPopulateVariables_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_POPULATE_DEFINES(name) void name(ztRenderer *renderer, void *context, ztShaderLangDefines *defines)
+typedef ZT_FUNC_RENDERER_SHADER_POPULATE_DEFINES(ztRendererShaderPopulateDefines_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_FREE(name) void name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_SHADER_FREE(ztRendererShaderFree_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_BEGIN(name) void name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_SHADER_BEGIN(ztRendererShaderBegin_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_END(name) void name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_SHADER_END(ztRendererShaderEnd_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_HAS_VARIABLE(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash)
+typedef ZT_FUNC_RENDERER_SHADER_HAS_VARIABLE(ztRendererShaderHasVariable_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_HAS_INSTANCING(name) bool name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_SHADER_HAS_INSTANCING(ztRendererShaderHasInstancing_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_FLOAT(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, r32 value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_FLOAT(ztRendererShaderSetVariableFloat_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_INT(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, i32 value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_INT(ztRendererShaderSetVariableInt_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC2(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, const ztVec2 &value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC2(ztRendererShaderSetVariableVec2_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC3(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, const ztVec3 &value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC3(ztRendererShaderSetVariableVec3_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC4(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, const ztVec4 &value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_VEC4(ztRendererShaderSetVariableVec4_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_MAT4(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, const ztMat4 &value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_MAT4(ztRendererShaderSetVariableMat4_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_MAT3(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, const ztMat3 &value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_MAT3(ztRendererShaderSetVariableMat3_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_TEXTURE(name) bool name(ztRenderer *renderer, void *context, void *shader, u32 name_hash, void *value)
+typedef ZT_FUNC_RENDERER_SHADER_SET_VARIABLE_TEXTURE(ztRendererShaderSetVariableTexture_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_COMMIT_VARIABLE_CHANGES(name) void name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_SHADER_COMMIT_VARIABLE_CHANGES(ztRendererShaderCommitVariableChanges_Func);
+
+#define ZT_FUNC_RENDERER_SHADER_MAKE_POINT_LIGHT_SHADOWS(name) void *name(ztRenderer *renderer, void *context, bool instanced)
+typedef ZT_FUNC_RENDERER_SHADER_MAKE_POINT_LIGHT_SHADOWS(ztRendererShaderMakePointLightShadows_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE(name) void *name(ztRenderer *renderer, void *context, ztMemoryArena *arena, byte *pixels, int w, int h, int d, i32 flags, int *actual_width, int *actual_height)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE(ztRendererTextureMake_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP(name) void *name(ztRenderer *renderer, void *context, ztMemoryArena *arena, byte **pixels, int w, int h, int d)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP(ztRendererTextureMakeCubeMap_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FROM_RENDER(name) void *name(ztRenderer *renderer, void *context, int w, int h, int mip_map_levels, ztTextureRender_Func *render_func, void *user_data)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FROM_RENDER(ztRendererTextureMakeCubeMapFromRender_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FROM_HDR(name) void *name(ztRenderer *renderer, void *context, void *hdr_texture, int w, int h)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FROM_HDR(ztRendererTextureMakeCubeMapFromHDR_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FOR_DEPTH(name) void *name(ztRenderer *renderer, void *context, i32 dimension)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_CUBE_MAP_FOR_DEPTH(ztRendererTextureMakeCubeMapForDepth_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_IRRADIANCE_CUBE_MAP(name) void *name(ztRenderer *renderer, void *context, void *cube_map_texture)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_IRRADIANCE_CUBE_MAP(ztRendererTextureMakeIrradianceCubeMap_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_PREFILTER_CUBE_MAP(name) void *name(ztRenderer *renderer, void *context, void *cube_map_texture)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_PREFILTER_CUBE_MAP(ztRendererTextureMakePrefilterCubeMap_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_RENDER_TARGET(name) void *name(ztRenderer *renderer, void *context, ztMemoryArena *arena, int w, int h, i32 flags)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_RENDER_TARGET(ztRendererTextureMakeRenderTarget_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_MAKE_DEPTH_RENDER_TARGET(name) void *name(ztRenderer *renderer, void *context, ztMemoryArena *arena, int w, int h)
+typedef ZT_FUNC_RENDERER_TEXTURE_MAKE_DEPTH_RENDER_TARGET(ztRendererTextureMakeDepthRenderTarget_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_FREE(name) void name(ztRenderer *renderer, void *context, void *texture)
+typedef ZT_FUNC_RENDERER_TEXTURE_FREE(ztRendererTextureFree_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_RESET_BIND(name) void name(ztRenderer *renderer, void *context, void *shader)
+typedef ZT_FUNC_RENDERER_TEXTURE_RESET_BIND(ztRendererTextureResetBind_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_BIND(name) void name(ztRenderer *renderer, void *context, void *texture, int  as_idx)
+typedef ZT_FUNC_RENDERER_TEXTURE_BIND(ztRendererTextureBind_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_PREPARE(name) void name(ztRenderer *renderer, void *context, void *texture, bool should_clear)
+typedef ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_PREPARE(ztRendererTextureRenderTargetPrepare_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_COMMIT(name) void name(ztRenderer *renderer, void *context, void *texture)
+typedef ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_COMMIT(ztRendererTextureRenderTargetCommit_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_ADD_ATTACHMENT(name) void *name(ztRenderer *renderer, void *context, void *texture, ztTextureColorFormat_Enum color_format)
+typedef ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_ADD_ATTACHMENT(ztRendererTextureRenderTargetAddAttachment_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_ATTACHMENT_ENABLE(name) void name(ztRenderer *renderer, void *context, void *texture, int attachment_idx, bool enable)
+typedef ZT_FUNC_RENDERER_TEXTURE_RENDER_TARGET_ATTACHMENT_ENABLE(ztRendererTextureRenderTargetAttachmentEnable_Func);
+
+#define ZT_FUNC_RENDERER_TEXTURE_GET_PIXELS(name) bool name(ztRenderer *renderer, void *context, void *texture, byte *pixels)
+typedef ZT_FUNC_RENDERER_TEXTURE_GET_PIXELS(ztRendererTextureGetPixels_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_MAKE(name) void *name(ztRenderer *renderer, void *context, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_MAKE(ztRendererVertexArrayMake_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_FREE(name) void name(ztRenderer *renderer, void *context, void *vertex_array)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_FREE(ztRendererVertexArrayFree_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_UPDATE(name) bool name(ztRenderer *renderer, void *context, void *vertex_array, ztVertexArrayEntry *entries, int entries_count, void *vert_data, int vert_count)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_UPDATE(ztRendererVertexArrayUpdate_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_DRAW(name) void name(ztRenderer *renderer, void *context, void *vertex_array, ztVertexArrayDrawType_Enum draw_type)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_DRAW(ztRendererVertexArrayDraw_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_DRAW_INSTANCED(name) void name(ztRenderer *renderer, void *context, void *vertex_array, ztVertexArrayEntry *instance_entries, int instance_entries_count, void *instance_data, int instance_count, ztVertexArrayDrawType_Enum draw_type)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_DRAW_INSTANCED(ztRendererVertexArrayDrawInstanced_Func);
+
+#define ZT_FUNC_RENDERER_VERTEX_ARRAY_GET_VERTICES(name) i32 name(ztRenderer *renderer, void *context, void *vertex_array, ztVec3 *vertices, i32 vertices_size)
+typedef ZT_FUNC_RENDERER_VERTEX_ARRAY_GET_VERTICES(ztRendererVertexArrayGetVertices_Func);
+
+// ================================================================================================================================================================================================
+
+// ================================================================================================================================================================================================
+
+struct ztRenderer
+{
+	char  display[64];
+	char  version[32];
+	void *user_data;
+
+	bool uvs_flip_y_render_target;
+
+	//ztRendererDllGlobalsSet                            *dll_globals_set;
+	//ztRendererDllGlobalsSend                           *dll_globals_send;
+
+	ztRendererRendererFree_Func                        *renderer_free;
+
+	ztRendererContextMake_Func                         *context_make;
+	ztRendererContextFree_Func                         *context_free;
+	ztRendererContextDraw_Func                         *context_draw;
+	ztRendererContextGetSize_Func                      *context_get_size;
+	ztRendererContextSetSize_Func                      *context_set_size;
+	ztRendererContextIsFullscreen_Func                 *context_is_fullscreen;
+	ztRendererContextToggleFullscreen_Func             *context_toggle_fullscreen;
+	ztRendererContextChangeResolution_Func             *context_change_resolution;
+	ztRendererContextQueryResolutionChange_Func        *context_query_resolution_change;        // not used on all platforms
+
+	ztRendererClearColor_Func                          *clear_color;
+	ztRendererClearDepth_Func                          *clear_depth;
+	ztRendererClear_Func                               *clear;
+
+	ztRendererViewportSet_Func                         *viewport_set;
+	ztRendererViewportSetSize_Func                     *viewport_set_size;
+	ztRendererViewportClip_Func                        *viewport_clip;
+	ztRendererViewportResetClip_Func                   *viewport_reset_clip;
+
+	ztRendererCullingSet_Func                          *culling_set;
+
+	ztRendererDepthTestSet_Func                        *depth_test_set;
+	ztRendererDepthTestWrite_Func                      *depth_test_write;
+
+	ztRendererBlendModeSet_Func                        *blend_mode_set;
+
+	ztRendererShaderMake_Func                          *shader_make;
+	ztRendererShaderFree_Func                          *shader_free;
+	ztRendererShaderPopulateVariables_Func             *shader_populate_variables;
+	ztRendererShaderPopulateDefines_Func               *shader_populate_defines;
+	ztRendererShaderBegin_Func                         *shader_begin;
+	ztRendererShaderEnd_Func                           *shader_end;
+	ztRendererShaderHasVariable_Func                   *shader_has_variable;
+	ztRendererShaderHasInstancing_Func                 *shader_has_instancing;
+	ztRendererShaderSetVariableFloat_Func              *shader_set_variable_float;
+	ztRendererShaderSetVariableInt_Func                *shader_set_variable_int;
+	ztRendererShaderSetVariableVec2_Func               *shader_set_variable_vec2;
+	ztRendererShaderSetVariableVec3_Func               *shader_set_variable_vec3;
+	ztRendererShaderSetVariableVec4_Func               *shader_set_variable_vec4;
+	ztRendererShaderSetVariableMat4_Func               *shader_set_variable_mat4;
+	ztRendererShaderSetVariableMat3_Func               *shader_set_variable_mat3;
+	ztRendererShaderSetVariableTexture_Func            *shader_set_variable_texture;
+	ztRendererShaderSetVariableTexture_Func            *shader_set_variable_texture_cube;
+	ztRendererShaderCommitVariableChanges_Func         *shader_commit_variable_changes;
+	ztRendererShaderMakePointLightShadows_Func         *shader_make_point_light_shadows;
+
+	ztRendererTextureMake_Func                         *texture_make;
+	ztRendererTextureMakeCubeMap_Func                  *texture_make_cube_map;
+	ztRendererTextureMakeCubeMapFromRender_Func        *texture_make_cube_map_from_render;
+	ztRendererTextureMakeCubeMapFromHDR_Func           *texture_make_cube_map_from_hdr;
+	ztRendererTextureMakeCubeMapForDepth_Func          *texture_make_cube_map_for_depth;
+	ztRendererTextureMakeIrradianceCubeMap_Func        *texture_make_irradiance_cube_map;
+	ztRendererTextureMakePrefilterCubeMap_Func         *texture_make_prefilter_cube_map;
+	ztRendererTextureMakeRenderTarget_Func             *texture_make_render_target;
+	ztRendererTextureMakeDepthRenderTarget_Func        *texture_make_depth_render_target;
+	ztRendererTextureFree_Func                         *texture_free;
+	ztRendererTextureResetBind_Func                    *texture_reset_bind;
+	ztRendererTextureBind_Func                         *texture_bind;
+	ztRendererTextureRenderTargetPrepare_Func          *texture_render_target_prepare;
+	ztRendererTextureRenderTargetCommit_Func           *texture_render_target_commit;
+	ztRendererTextureRenderTargetAddAttachment_Func    *texture_render_target_add_attachment;
+	ztRendererTextureRenderTargetAttachmentEnable_Func *texture_render_target_attachment_enable;
+	ztRendererTextureGetPixels_Func                    *texture_get_pixels;                           // optional
+
+	ztRendererVertexArrayMake_Func                     *vertex_array_make;
+	ztRendererVertexArrayFree_Func                     *vertex_array_free;
+	ztRendererVertexArrayUpdate_Func                   *vertex_array_update;
+	ztRendererVertexArrayDraw_Func                     *vertex_array_draw;
+	ztRendererVertexArrayDrawInstanced_Func            *vertex_array_draw_instanced;
+	ztRendererVertexArrayGetVertices_Func              *vertex_array_get_vertices;                    // optional
+};
+
+// ================================================================================================================================================================================================
+
+ztRenderer *zt_renderer();
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
 
 #endif // include guard
 
@@ -6331,15 +6622,6 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 #ifndef __zt_game_h_internal_included__
 #define __zt_game_h_internal_included__
-
-// configure renderers
-#if defined(ZT_OPENGL)
-#	define zt_openGLSupport(code) code
-#	define zt_noOpenGLSupport(code)
-#else
-#	define zt_openGLSupport(code)
-#	define zt_noOpenGLSupport(code) code
-#endif
 
 #if defined(ZT_DIRECTX)
 #	define zt_directxSupport(code) code
@@ -6403,11 +6685,6 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 #endif // ZT_ANDROID
 
-#if !defined(ZT_NO_OPENGL)
-#	define ZT_OPENGL_IMPLEMENTATION
-#	include "zt_renderer_opengl.h"
-#endif
-
 #if !defined(ZT_NO_DIRECTX)
 #	define ZT_DIRECTX_IMPLEMENTATION
 #	include "zt_renderer_directx.h"
@@ -6437,20 +6714,17 @@ const char         *_zt_shaderLangTokenTypeDesc(ztShLangTokenType_Enum token_typ
 
 struct ztWindowDetails
 {
-	RECT client_rect;
-	RECT window_rect;
+	RECT   client_rect;
+	RECT   window_rect;
 	ztVec4 client_rect_buffer;
-	HWND handle;
+	HWND   handle;
 
 	int screen_w, screen_h;
 	r32 aspect_ratio;
 	r32 resize_cooldown;
 
-	zt_openGLSupport(ztContextGL *gl_context);
-	zt_openGLSupport(ztVertexArrayGL gl_tri_verts_array);
-
-	zt_directxSupport(ztContextDX *dx_context);
-	zt_directxSupport(ztVertexArrayDX *dx_tri_verts_array);
+	void           *renderer_context;
+	ztVertexArrayID renderer_drawing_va;
 };
 
 #elif defined(ZT_EMSCRIPTEN)|| defined(ZT_ANDROID) // end ZT_WINDOWS
@@ -6466,11 +6740,12 @@ struct ztWindowDetails
 	r32 aspect_ratio;
 	r32 resize_cooldown;
 
-	zt_openGLSupport(ztContextGL *gl_context);
-	zt_openGLSupport(ztVertexArrayGL gl_tri_verts_array);
+	void           *renderer_context;
+	ztVertexArrayID renderer_drawing_va;
 };
 
 #endif // ZT_WINDOWS
+
 // ================================================================================================================================================================================================
 
 struct ztProfiledThread;
@@ -6621,7 +6896,6 @@ struct ztDebugVar
 
 enum ztRendererRequest_Enum
 {
-	ztRendererRequest_Change,
 	ztRendererRequest_Windowed,
 	ztRendererRequest_WindowedBorderless,
 	ztRendererRequest_Fullscreen,
@@ -6639,10 +6913,6 @@ struct ztRendererRequest
 	ztRendererRequest_Enum type;
 
 	union {
-		struct {
-			ztRenderer_Enum change_to;
-		};
-
 		struct {
 			ztVec2i resolution;
 		};
@@ -6690,12 +6960,10 @@ struct ztShaderCallbacks
 
 struct ztShader
 {
-	zt_openGLSupport(ztShaderGL *gl_shader);
-	zt_directxSupport(ztShaderDX *dx_shader);
-
 	char                  name[64];
-	ztRenderer_Enum       renderer;
 	ztShaderLoadType_Enum load_type;
+
+	void                 *renderer_shader;
 
 	union {
 		struct {
@@ -6736,17 +7004,15 @@ enum ztTextureLoadType_Enum
 
 struct ztTexture
 {
-	zt_openGLSupport(ztTextureGL *gl_texture);
-	zt_directxSupport(ztTextureDX *dx_texture);
-
 	i32 width, height;
 	i32 width_actual, height_actual;
 	i32 flags;
 	r32 render_texture_scale;
 	i32 access_count;
 
-	ztRenderer_Enum renderer;
 	ztTextureLoadType_Enum load_type;
+
+	void *renderer_texture;
 
 	char name[128];
 
@@ -6778,14 +7044,8 @@ struct ztTexture
 
 struct ztVertexArray
 {
-	ztRenderer_Enum renderer;
-
-	union {
-		zt_openGLSupport(ztVertexArrayGL gl_va);
-		zt_directxSupport(ztVertexArrayDX *dx_va);
-	};
-
-	i32 vertices;
+	i32   vertices;
+	void *renderer_vertex_array;
 };
 
 // ================================================================================================================================================================================================
@@ -6929,14 +7189,13 @@ struct ztFont
 
 struct ztMesh
 {
-	i32 triangles;
-	i32 indices;
+	i32             triangles;
+	i32             indices;
 
-	ztVec3 obb_center;
-	ztVec3 obb_size;
+	ztVec3          obb_center;
+	ztVec3          obb_size;
 
-	zt_openGLSupport(ztVertexArrayGL gl_vertex_array);
-	zt_directxSupport(ztVertexArrayDX *dx_vertex_array);
+	ztVertexArrayID vertex_array;
 };
 
 // ================================================================================================================================================================================================
@@ -7092,7 +7351,7 @@ struct ztGameGlobals
 
 	bool                      app_has_focus = true;
 
-	zt_openGLSupport(zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = nullptr);
+	ztRenderer                renderer;
 
 	bool                      quit_requested = false;
 
@@ -7196,8 +7455,6 @@ struct ztGameGlobals
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-#define ZT_GAME_GLOBALS_VERSION   1 // update this any time ztGameGlobals is changed
-
 ztGameGlobals *zt_game = nullptr;
 
 
@@ -7232,47 +7489,29 @@ ztGameGlobals *zt_game = nullptr;
 
 ZT_DLLEXPORT ZT_FUNC_DLL_SET_GAME_GLOBALS(zt_dllSetGameGlobals)
 {
-	if (version == ZT_GAME_GLOBALS_VERSION) {
-		zt_game = (ztGameGlobals *)memory;
+	zt_game = (ztGameGlobals *)memory;
 
-#		if !defined(ZT_NO_PROFILE)
-		// fix profiler strings
-		zt_fize(zt_game->profiler->threads) {
-			zt_fjz(ZT_PROFILER_FRAMES_KEPT) {
-				zt_fkz(zt_game->profiler->threads[i].sections[j]) {
-					zt_game->profiler->threads[i].allocations[j][k].system = "(dll reload string loss)";
-					zt_game->profiler->threads[i].allocations[j][k].section = "(dll reload string loss)";
-				}
+#	if !defined(ZT_NO_PROFILE)
+	// fix profiler strings
+	zt_fize(zt_game->profiler->threads) {
+		zt_fjz(ZT_PROFILER_FRAMES_KEPT) {
+			zt_fkz(zt_game->profiler->threads[i].sections[j]) {
+				zt_game->profiler->threads[i].allocations[j][k].system = "(dll reload string loss)";
+				zt_game->profiler->threads[i].allocations[j][k].section = "(dll reload string loss)";
 			}
 		}
-#		endif
 	}
+#	endif
 }
 
 #else
 
-#if defined(ZT_OPENGL)
-
-	void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals, zt_dllSetOpenGLGlobals_Func *set_globals_opengl)
-	{
-		if (set_globals) {
-			set_globals(zt_game, ZT_GAME_GLOBALS_VERSION);
-		}
-		if (set_globals_opengl) {
-			zt_game->zt_dllSetOpenGLGlobals = set_globals_opengl;
-		}
-	}
-
-#else
-
 void zt_dllSendGameGlobals(zt_dllSetGameGlobals_Func *set_globals)
-	{
-		if (set_globals) {
-			set_globals(zt_game, ZT_GAME_GLOBALS_VERSION);
-		}
+{
+	if (set_globals) {
+		set_globals(zt_game);
 	}
-
-#endif
+}
 
 #endif // ZT_DLL
 
@@ -8398,7 +8637,7 @@ bool zt_assetMakePackedFile(const char *directory, const char *packed_file_name,
 	zt_strTokenize(buffer, "\n", tokens, tokens_count);
 
 	int dir_len = zt_strLen(directory);
-	if(!zt_strEndsWith(directory, ztFilePathSeparatorStr)) {
+	if (!zt_strEndsWith(directory, ztFilePathSeparatorStr)) {
 		dir_len += 1;
 	}
 
@@ -9024,7 +9263,7 @@ ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id,
 {
 	ZT_PROFILE_ASSETS("_zt_assetLoadData");
 	zt_returnValOnNull(asset_mgr, false);
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return false;
 	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, false);
@@ -9109,8 +9348,8 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-solid\n\n#import \"zt_defaults\"\n\nstruct VertexInput\n{\n	ZT_VERTEX_INPUT;\n}\n\nstruct PixelInput\n{\n	ZT_PIXEL_INPUT;\n}\n\nstruct PixelOutput\n{\n	ZT_PIXEL_OUPUT_COLOR;\n}\n\nstruct Uniforms\n{\n	ZT_UNIFORM_MPV;\n}\n\nprogram Solid\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		ZT_VERTEX_SHADER_COPY_PUNC;\n	}\n	\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.color.rgb, min(_input.color.a, 1.0));\n	}\n}",
 	"// shader-unlit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = textureSample(textures.diffuse_tex, _input.uv) * _input.color;\n	}\n}",
 #	if !defined(ZT_SHADER_DEFAULT_NO_LIGHTING)
-	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
-	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if(current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.directional_light_shadowmap);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.directional_light_shadowmap, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if(uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if(clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
+	"// shader-lit\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 frag_pos;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	mat3 tbn;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec3 normalCalculation(PixelInput _input, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, _input.uv).rgb;\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return _input.normal;\n	}\n	normal = normalize(_input.normal * 2.0 - 1.0);\n	normal = normalize(_input.tbn * _input.normal);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	return 0.0;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, _input.uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(uniforms.light_pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1.0);\n	\n	vec3 light_dir = normalize(light.pos - _input.frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, _input, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.normal = normalize(transpose(mat3(uniforms.model)) * _input.normal);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(_output.frag_pos, 1.0);\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		vec3 n = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.tbn = mat3(t, b, n);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv) * _input.color * uniforms.diffuse_color;\n		if (clr.a < .1) {\n			discard();\n		}\n		vec3 normal = normalCalculation(_input, textures);\n		vec3 view_dir = normalize(uniforms.view_pos - _input.frag_pos);\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}\n}",
+	"// shader-litshadow\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n	vec4 tangent : 4;\n	vec4 bitangent : 5;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 normal;\n	vec2 uv;\n	vec4 color;\n	vec4 frag_pos_light_space;\n	vec3 tangent_light_pos;\n	vec3 tangent_view_pos;\n	vec3 tangent_frag_pos;\n	vec3 view_pos;\n	vec3 frag_pos;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n	texture2d specular_tex;\n	texture2d normal_tex;\n	texture2d height_tex;\n	texture2d directional_light_shadowmap;\n}\n\nstruct PointLight\n{\n	vec3 pos;\n	\n	float intensity;\n\n	vec3 ambient_color;\n	vec3 diffuse_color;\n	vec3 specular_color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	mat4 light_matrix;\n\n	vec4 diffuse_color;\n	vec4 specular_color;\n	float shininess;\n	\n	vec3 view_pos;\n\n	vec3 light_pos;\n	float light_ambient;\n	float light_intensity;\n	vec4 light_color;\n	\n	PointLight point_lights[4];\n	int point_lights_count;\n}\n\nvec2 parallaxMapping(vec2 uv, vec3 view_dir, Textures textures)\n{\n	float height = textureSample(textures.height_tex, uv).r;\n	vec2 p = view_dir.xy * ((1.0 - height) * .25);\n	return uv - p;\n}\n\nvec3 normalCalculation(vec2 uv, vec3 vertex_normal, Textures textures)\n{\n	vec3 normal = textureSample(textures.normal_tex, uv).rgb;\n	\n	if (normal.x == 1.0 && normal.y == 1.0 && normal.z == 1.0) {\n		return vertex_normal;\n	}\n	normal = normalize((normal * 2.0) - 1.0);\n	return normal;\n}\n\nfloat shadowCalculation(vec3 light_dir, vec3 normal, PixelInput _input, Textures textures)\n{\n	vec3 proj_coords = _input.frag_pos_light_space.xyz / _input.frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n	\n	float current_depth = proj_coords.z;\n	if (current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n	\n	float bias = 0.005;//max(0.005 * (1.0 - dot(normal, light_dir)), 0.0025);\n	\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(textures.directional_light_shadowmap);// * .5;\n	\n	const int samples = 3;\n	for(int x = -samples; x <= samples; ++x) {\n		for(int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(textures.directional_light_shadowmap, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\nfloat specularCalculation(vec3 light_dir, vec3 normal, vec3 view_dir, vec2 uv, Uniforms uniforms, Textures textures)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_value = textureSample(textures.specular_tex, uv).r;\n	return pow(max(dot(normal, halfway_dir), 0.0), 256.0) * uniforms.shininess * 5.0 * spec_value;\n}\n\nvec4 directionalLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = uniforms.light_color * uniforms.light_intensity;\n	\n	vec3 light_dir = normalize(_input.tangent_light_pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr * uniforms.specular_color;\n	float shadow = shadowCalculation(light_dir, normal, _input, textures);\n\n	vec4 ambient_clr = clr * uniforms.light_ambient;\n	return (ambient_clr + (1.0 - shadow) * (diffuse + specular)) * clr;\n}\n\nvec4 pointLightCalculation(vec4 clr, vec3 normal, vec3 view_dir, vec2 uv, PointLight light, PixelInput _input, Uniforms uniforms, Textures textures)\n{\n	vec4 light_clr = vec4(light.ambient_color, 1);\n	\n	vec3 light_dir = normalize(light.pos - _input.tangent_frag_pos);\n	float diff = max(dot(light_dir, normal), 0.0);\n	vec4 diffuse = diff * light_clr;\n \n	vec4 specular = specularCalculation(light_dir, normal, view_dir, uv, uniforms, textures) * light_clr;// * specular_color;\n	float shadow = 0.0;//shadowCalculation(light_dir, normal, _input, textures);\n\n	float distance = length(light.pos - _input.tangent_frag_pos);\n	float constant = 1.0;\n	float attenuation = 1.0 * light.intensity;\n	\n	return ((1.0 - shadow) * (diffuse + specular)) * clr * attenuation;\n}\n\nprogram DefaultLit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.normal = normalize(vec3(uniforms.model * vec4(_input.normal, 0)));\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n\n		vec3 frag_pos = vec3(uniforms.model * vec4(_input.position, 1.0));\n		_output.frag_pos_light_space = uniforms.light_matrix * vec4(frag_pos, 1.0);\n		_output.frag_pos = frag_pos;\n		\n		vec3 t = normalize(vec3(uniforms.model * _input.tangent));\n		vec3 b = normalize(vec3(uniforms.model * _input.bitangent));\n		mat3 tbn = transpose(mat3(t, b, _output.normal));\n		\n		_output.tangent_light_pos = tbn * uniforms.light_pos;\n		_output.tangent_view_pos  = tbn * uniforms.view_pos;\n		_output.tangent_frag_pos  = tbn * frag_pos;\n		_output.normal            = tbn * _output.normal;\n		_output.view_pos          = uniforms.view_pos;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec3 view_dir = normalize(_input.tangent_view_pos - _input.tangent_frag_pos);\n		vec2 uv = parallaxMapping(_input.uv, view_dir, textures);\n		if (uv.x > 1.0 || uv.x < 0.0 || uv.y > 1.0 || uv.y < 0.0) {\n			discard();\n		}\n		\n		vec4 clr = textureSample(textures.diffuse_tex, uv) * _input.color * uniforms.diffuse_color;\n		if (clr.a < .1) {\n			discard();\n		}\n		\n		vec3 normal = normalCalculation(uv, _input.normal, textures);\n		\n		vec4 lighting = directionalLightCalculation(clr, normal, view_dir, uv, _input, uniforms, textures);\n		\n		for(int i = 0; i < 4; ++i) {\n			if (i >= uniforms.point_lights_count) break;\n			lighting += pointLightCalculation(clr, normal, view_dir, uv, uniforms.point_lights[i], _input, uniforms, textures);\n		}\n        \n		_output.color = vec4(lighting.xyz, clr.a);\n	}",
 	"// shader-shadowdirectional\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = model_mat * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
 	"// shader-shadowdirectionaltextured\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	vec2  uv : 1;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		mat4 model_mat = uniforms.model;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = uniforms.model * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n		}\n	}\n}",
 	"// shader-shadowdirectional-instanced\n\nstruct VertexInput\n{\n	vec3  position : 0;\n	ivec4 bones : 6;\n	vec4  weights : 7;\n}\n\nstruct InstanceInput\n{\n	mat4 model_mat;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 light_matrix;\n\n	mat4 bones[200];\n	int  bones_count;\n}\n\nprogram DefaultShadowDirectional\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output, InstanceInput _instance : instance)\n	{\n		mat4 model_mat = _instance.model_mat;\n\n		if (uniforms.bones_count > 0) {\n			mat4 bone_mat  = uniforms.bones[_input.bones.x] * _input.weights.x;\n			bone_mat      += uniforms.bones[_input.bones.y] * _input.weights.y;\n			bone_mat      += uniforms.bones[_input.bones.z] * _input.weights.z;\n			bone_mat      += uniforms.bones[_input.bones.w] * _input.weights.w;\n			\n			model_mat = model_mat * bone_mat;\n		}\n\n		_output.position = uniforms.light_matrix * model_mat * vec4(_input.position, 1.0);\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(_input.position.z, _input.position.z, _input.position.z, 1);\n	}\n}",
@@ -9120,11 +9359,11 @@ ztInternal const char *_zt_default_shaders[] = {
 	"// shader-depthtextured\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Uniforms\n{\n	mat4 projection;\n	mat4 view;\n	mat4 model;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 clr = textureSample(textures.diffuse_tex, _input.uv);\n		if (clr.a <= 0.1) {\n			discard();\n		}\n		else {\n			_output.color = vec4(1 - _input.position.z, 1 - _input.position.z, 1 - _input.position.z, 1);\n		}\n	}\n}",
 	"// shader-skybox\n\nstruct VertexInput\n{\n	vec3 position : 0;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec3 uv;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	textureCube skybox_tex;\n}\n\nstruct Uniforms\n{\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		vec4 pos = uniforms.projection * uniforms.view * vec4(_input.position, 1.0);\n		_output.position = vec4(pos.x, pos.y, pos.w, pos.w);\n		_output.uv = _input.position;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		_output.color = vec4(textureSample(textures.skybox_tex, _input.uv).rgb, 1);\n	}\n}",
 	"// shader-signeddistancefield\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultUnlit\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		const float smoothing = 1.0 / 64.0;\n	\n		float distance = textureSample(textures.diffuse_tex, _input.uv).a;\n		float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance) * _input.color.a;\n		_output.color = vec4(_input.color.rgb, alpha);\n	}\n}",
-	//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if(length(color.rgb) < .5) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
+	//	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if (length(color.rgb) < .5) {\n			color = vec4(0, 0, 0, 1);\n		}\n		\n		_output.color = color;\n	}\n}",
 	"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float threshold;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		\n		if (dot(color.rgb, vec3(0.2126, 0.7152, 0.0722)) > uniforms.threshold) {\n			color = vec4(color.rgb, 1.0);\n		} else {\n			color = vec4(0, 0, 0, 1);\n		}		\n		\n		_output.color = color;\n	}\n}",
 	//"// shader-bright\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n	vec4 color : 3;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n	vec4 color;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n}\n\nprogram DefaultBright\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n		_output.color = _input.color;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		vec4 color = (textureSample(textures.diffuse_tex, _input.uv) * _input.color);\n		float brightness = (color.r * 0.2126) + (color.g * 0.7152) + (color.b * 0.0722);\n		if (brightness < 1.0) color = vec4(0,0,0,1);\n_output.color = vec4(color.rgb * brightness, 1);\n	}\n}",
-	"// shader-blur-vert\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
-	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if(isnan(color.r)) color.r = replacement.r;\n	if(isnan(color.g)) color.g = replacement.g;\n	if(isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
+	"// shader-blur-vert\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if (isnan(color.r)) color.r = replacement.r;\n	if (isnan(color.g)) color.g = replacement.g;\n	if (isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(uniforms.texel_size * i, 0.0)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
+	"// shader-blur-horz\n\nstruct VertexInput\n{\n	vec3 position : 0;\n	vec2 uv : 1;\n	vec3 normal : 2;\n}\n\nstruct PixelInput\n{\n	vec4 position : position;\n	vec2 uv;\n	vec3 normal;\n}\n\nstruct PixelOutput\n{\n	vec4 color : color;\n}\n\nstruct Textures\n{\n	texture2d diffuse_tex;\n}\n\nstruct Uniforms\n{\n	mat4 model;\n	mat4 view;\n	mat4 projection;\n	\n	float texel_size;\n}\n\nvec4 colorNanCheck(vec4 color, vec4 replacement)\n{\n	if (isnan(color.r)) color.r = replacement.r;\n	if (isnan(color.g)) color.g = replacement.g;\n	if (isnan(color.b)) color.b = replacement.b;\n	return color;\n}\n\nprogram DefaultBlurHorz\n{\n	vertex_shader vertexShader(VertexInput _input :input, Uniforms uniforms : uniforms, PixelInput _output : output)\n	{\n		_output.position = uniforms.projection * uniforms.view * uniforms.model * vec4(_input.position, 1.0);\n		_output.uv = _input.uv;\n		_output.normal = _input.normal;\n	}\n\n	pixel_shader pixelShader(PixelInput _input :input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n	{\n		float weights[] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216};\n		vec4 color = textureSample(textures.diffuse_tex, _input.uv) * weights[0];\n		vec4 orig_color = color;\n		\n		for (int i = 1; i < 5; ++i) {\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv + vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n			color += colorNanCheck(textureSample(textures.diffuse_tex, _input.uv - vec2(0.0, uniforms.texel_size * i)) * weights[i], orig_color);\n		}\n	\n		_output.color = vec4(color.rgb, 1);\n	}\n}",
 };
 
 // ================================================================================================================================================================================================
@@ -9190,13 +9429,6 @@ void zt_colRowInGridFromIndex(i32 cols, i32 rows, i32 index, i32 *c, i32 *r)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-ztRenderer_Enum zt_currentRenderer()
-{
-	return zt_game->win_game_settings[0].renderer;
-}
-
-// ================================================================================================================================================================================================
-
 r32 zt_pixelsPerUnit()
 {
 	return (r32)zt_game->win_game_settings[0].pixels_per_unit;
@@ -9218,23 +9450,9 @@ bool zt_appHasFocus()
 
 // ================================================================================================================================================================================================
 
-ztInternal void (*_zt_rendererSwapBuffers)(ztWindowDetails*);
 ztInternal bool (*_zt_rendererSetViewport)(ztWindowDetails*, ztGameSettings*, bool);
-ztInternal bool (*_zt_rendererMakeContext)(ztWindowDetails*, ztGameSettings*, i32);
-ztInternal bool (*_zt_rendererFreeContext)(ztWindowDetails*);
 ztInternal bool (*_zt_rendererToggleFullscreen)(ztWindowDetails*, ztGameSettings*, bool);
 ztInternal bool (*_zt_rendererChangeResolution)(ztWindowDetails*, ztGameSettings*, i32, i32);
-
-ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer);
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails *win_details, ztGameSettings *game_settings, bool force);
-ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags);
-ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details);
-ztInternal void _ztdx_rendererSwapBuffers(ztWindowDetails *win_details);
-ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails *win_details, ztGameSettings *game_settings, bool);
-ztInternal bool _ztdx_rendererChangeResolution(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 w, i32 h); 
 
 // ================================================================================================================================================================================================
 
@@ -10059,7 +10277,7 @@ void zt_inputRegistryFree(ztInputRegistry *input_registry)
 		zt_free(input_registry->entries_vals);
 	}
 
-	if(input_registry->mappings) {
+	if (input_registry->mappings) {
 		zt_free(input_registry->mappings);
 		zt_free(input_registry->mappings_entries);
 	}
@@ -10180,7 +10398,7 @@ r32 zt_inputRegistryGetInputValue(ztInputEntryVal *entry_val, r32 *time_active)
 	}
 
 	if (entry_val->value != 0) {
-		if(time_active) *time_active = entry_val->time;
+		if (time_active) *time_active = entry_val->time;
 		return entry_val->value;
 	}
 
@@ -10208,56 +10426,6 @@ bool zt_inputRegistryGetInputValueJustPressed(ztInputEntryVal *entry_val)
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
-// ================================================================================================================================================================================================
-
-bool zt_rendererSupported(ztRenderer_Enum renderer)
-{
-	switch (renderer)
-	{
-	case ztRenderer_OpenGL: return zt_openGLSupport(true) zt_noOpenGLSupport(false);
-	case ztRenderer_DirectX: return zt_directxSupport(true) zt_noDirectxSupport(false);
-	}
-
-	return false;
-}
-
-// ================================================================================================================================================================================================
-
-int zt_rendererSupportedList(ztRenderer_Enum* renderers, int renderers_count)
-{
-	int idx = 0;
-	zt_openGLSupport(if (idx < renderers_count) renderers[idx++] = ztRenderer_OpenGL);
-	zt_directxSupport(if (idx < renderers_count) renderers[idx++] = ztRenderer_DirectX);
-	return idx;
-}
-
-// ================================================================================================================================================================================================
-
-bool zt_rendererVersionSupported(ztRenderer_Enum renderer, int v_major, int v_minor)
-{
-	if (renderer == ztRenderer_OpenGL) {
-		zt_noOpenGLSupport(return false);
-
-		// TODO(josh): this needs updated to check dlls
-		switch (v_major)
-		{
-			case 4: return v_minor >= 0 && v_minor <= 5;
-			case 3: return v_minor >= 0 && v_minor <= 3;
-			case 2: return v_minor >= 0 && v_minor <= 1;
-			case 1: return v_minor >= 0 && v_minor <= 5;
-		}
-	}
-	else if (renderer == ztRenderer_DirectX) {
-		zt_noDirectxSupport(return false);
-
-		if (v_major == 11) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 // ================================================================================================================================================================================================
 
 bool zt_drawListMake(ztDrawList *draw_list, i32 max_commands, i32 flags, ztMemoryArena *arena)
@@ -11619,7 +11787,7 @@ bool zt_drawListPushClipRegion(ztDrawList *draw_list, ztVec2 center, ztVec2 size
 		center.x = left + size.x / 2;
 		center.y = bottom + size.y / 2;
 
-		if(size.x <= 0 || size.y <= 0) {
+		if (size.x <= 0 || size.y <= 0) {
 			center = draw_list->current_clip->clip_center;
 			size = draw_list->current_clip->clip_size;
 		}
@@ -11889,6 +12057,13 @@ ztInternal void _zt_rendererCheckToResetStats()
 
 // ================================================================================================================================================================================================
 
+ztInternal void *_zt_rendererGetActiveContext()
+{
+	return zt_game->win_details[0].renderer_context;
+}
+
+// ================================================================================================================================================================================================
+
 void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_lists_count, const ztColor& clear, i32 flags, ztTextureID render_target_id)
 {
 	ZT_PROFILE_RENDERING("zt_renderDrawLists");
@@ -11994,8 +12169,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 		zt_fiz(draw_lists_count) {
 			ztDrawList *draw_list = draw_lists[i];
 			zt_fjz(draw_list->commands_count) {
-				if(draw_list->commands[j].type == ztDrawCommandType_ChangeTexture) {
-					if(draw_list->commands[j].texture_pop) {
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeTexture) {
+					if (draw_list->commands[j].texture_pop) {
 						if (--stack_textures_idx >= 0) {
 							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_textures[stack_textures_idx], zt_sizeof(ztDrawCommand));
 						}
@@ -12007,8 +12182,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						stack_textures[++stack_textures_idx] = &draw_list->commands[j];
 					}
 				}
-				if(draw_list->commands[j].type == ztDrawCommandType_ChangeColor) {
-					if(draw_list->commands[j].color_pop) {
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeColor) {
+					if (draw_list->commands[j].color_pop) {
 						if (--stack_colors_idx >= 0) {
 							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_colors[stack_colors_idx], zt_sizeof(ztDrawCommand));
 						}
@@ -12020,8 +12195,8 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 						stack_colors[++stack_colors_idx] = &draw_list->commands[j];
 					}
 				}
-				if(draw_list->commands[j].type == ztDrawCommandType_ChangeOffset) {
-					if(draw_list->commands[j].offset_pop) {
+				if (draw_list->commands[j].type == ztDrawCommandType_ChangeOffset) {
+					if (draw_list->commands[j].offset_pop) {
 						if (--stack_offsets_idx >= 0) {
 							zt_memCpy(&draw_list->commands[j], zt_sizeof(ztDrawCommand), stack_offsets[stack_offsets_idx], zt_sizeof(ztDrawCommand));
 						}
@@ -12622,820 +12797,471 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 	}
 #endif // defined(ZT_DEBUG)
 
-	if (zt_game->win_game_settings[0].renderer == ztRenderer_OpenGL) {
-#if defined(ZT_OPENGL)
-		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
-			if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
-				zt_rendererClear(clear);
-			}
+	if (render_target_id != ztInvalidID) {
+		zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
+		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear)) {
+			zt_rendererClear(clear);
 		}
+	}
 
-		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			ztgl_depthTestLessEqual();
+	if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
+		zt_rendererSetDepthTest(true, ztRendererDepthTestFunction_LessEqual);
+	}
+	else {
+		zt_rendererSetDepthTest(false, ztRendererDepthTestFunction_Never);
+	}
+
+	zt_rendererSetBlendMode(ztRendererBlendMode_SourceAlpha, ztRendererBlendMode_OneMinusSourceAlpha);
+
+	ztCompileItem *blend = nullptr;
+
+	void *renderer_context = _zt_rendererGetActiveContext();
+
+	ztMat4 mat2d;
+
+	if (clip_regions_count > 0) {
+		zt_rendererClipRegionReset();
+	}
+
+	ztCompileClipRegion *curr_clip_region = nullptr;
+
+	ztVec4 active_color = ztVec4::one;
+	ztMat4 *transform = nullptr;
+
+	zt_fiz(shaders_count) {
+		ZT_PROFILE_RENDERING("zt_renderDrawLists::shader loop");
+
+		ztShaderID shader_id = shaders[i]->shader;
+
+		static u32 model_hash = zt_strHash("model");
+
+		if (shaders[i]->shader != ztInvalidID) {
+			zt_game->game_details.curr_frame.shader_switches += 1;
+			zt_shaderBegin(shader_id);
+			zt_shaderSetVariableMat4(shader_id, model_hash, ztMat4::identity);
+			zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
 		}
 		else {
-			ztgl_depthTestOff();
-		}
-
-		if (zt_game->textures_active_render_target) {
-			ztgl_blendMode(ztGLBlendMode_SourceAlpha, ztGLBlendMode_OneMinusSourceAlpha);
-		}
-		else {
-			ztgl_blendMode(ztGLBlendMode_SourceAlpha, ztGLBlendMode_OneMinusSourceAlpha);
-		}
-
-		ztCompileItem *blend = nullptr;
-
-		ztMat4 mat2d;
-
-		if (clip_regions_count > 0) {
-			ztgl_clipReset();
-		}
-
-		ztCompileClipRegion *curr_clip_region = nullptr;
-
-		ztVec4 active_color = ztVec4::one;
-		ztMat4 *transform = nullptr;
-
-		zt_fiz(shaders_count) {
-			ZT_PROFILE_RENDERING("zt_renderDrawLists::shader loop");
-
-			ztShaderID shader_id = shaders[i]->shader;
-
-			static u32 model_hash = zt_strHash("model");
-
-			if (shaders[i]->shader != ztInvalidID) {
-				zt_game->game_details.curr_frame.shader_switches += 1;
-				zt_shaderBegin(shader_id);
-				zt_shaderSetVariableMat4(shader_id, model_hash, ztMat4::identity);
-				zt_shaderSetCameraMatrices(shader_id, camera->mat_proj, camera->mat_view);
-			}
-			else {
-				zt_game->game_details.curr_frame.shader_switches += 1;
-				ztShaderID sid = zt_shaderGetDefault(ztShaderDefault_Solid);
-				zt_shaderBegin(sid);
-				zt_shaderSetVariableMat4(sid, model_hash, ztMat4::identity);
-				zt_shaderSetCameraMatrices(sid, camera->mat_proj, camera->mat_view);
-				ztgl_textureBind(zt_game->textures[0].gl_texture, 0);
-
-				mat2d = camera->mat_proj * camera->mat_view;
-			}
-
-			ztCompileTexture *cmp_tex = shaders[i]->texture;
-			while (cmp_tex) {
-
-				if (cmp_tex->cnt_display_items == 0) {
+			if (shaders[i]->texture && shaders[i]->texture->cnt_display_items == 0) {
+				ztCompileTexture *cmp_tex = shaders[i]->texture->next;
+				bool has_something_to_display = false;
+				while (cmp_tex) {
+					if (cmp_tex->cnt_display_items != 0) {
+						has_something_to_display = true;
+						break;
+					}
 					cmp_tex = cmp_tex->next;
+				}
+
+				if (!has_something_to_display) {
 					continue;
 				}
+			}
 
-				if (curr_clip_region) {
-					curr_clip_region = nullptr;
-					ztgl_clipReset();
+			zt_game->game_details.curr_frame.shader_switches += 1;
+			ztShaderID sid = zt_shaderGetDefault(ztShaderDefault_Solid);
+			zt_shaderBegin(sid);
+			zt_shaderSetVariableMat4(sid, model_hash, ztMat4::identity);
+			zt_shaderSetCameraMatrices(sid, camera->mat_proj, camera->mat_view);
+
+			zt_game->renderer.texture_bind(&zt_game->renderer, renderer_context, zt_game->textures[0].renderer_texture, 0);
+
+			mat2d = camera->mat_proj * camera->mat_view;
+		}
+
+		ztCompileTexture *cmp_tex = shaders[i]->texture;
+		while (cmp_tex) {
+
+			if (cmp_tex->cnt_display_items == 0) {
+				cmp_tex = cmp_tex->next;
+				continue;
+			}
+
+			if (curr_clip_region) {
+				curr_clip_region = nullptr;
+				zt_rendererClipRegionReset();
+			}
+
+			if (cmp_tex->command && shader_id != ztInvalidID) {
+				ZT_PROFILE_RENDERING("zt_renderDrawLists::texture binding");
+
+				zt_game->game_details.curr_frame.texture_switches += 1;
+				zt_fiz(cmp_tex->command->texture_count) {
+					static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+					zt_shaderSetVariableTex(shader_id, diffuse_tex_hash, cmp_tex->command->texture[i]);
 				}
-
-				if (cmp_tex->command && shader_id != ztInvalidID) {
-					ZT_PROFILE_RENDERING("zt_renderDrawLists::texture binding");
-
-					//ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
-					zt_game->game_details.curr_frame.texture_switches += 1;
-					zt_fiz(cmp_tex->command->texture_count) {
-						static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-						zt_shaderSetVariableTex(shader_id, diffuse_tex_hash, cmp_tex->command->texture[i]);
-//						if (zt_game->textures[cmp_tex->command->texture[i]].renderer == ztRenderer_OpenGL) {
-//							ztgl_shaderVariableTex(zt_game->shaders[shader_id].gl_shader, diffuse_tex_hash, zt_game->textures[cmp_tex->command->texture[i]].gl_texture);
-//						}
-					}
-					if (cmp_tex->command->texture_count > 0) {
-						zt_shaderApplyVariables(shader_id);
-					}
+				if (cmp_tex->command->texture_count > 0) {
+					zt_shaderApplyVariables(shader_id);
 				}
+			}
 
-				if (curr_clip_region) {
-					curr_clip_region = nullptr;
-					ztgl_clipReset();
-				}
+			//if (curr_clip_region) {
+			//	curr_clip_region = nullptr;
+			//	zt_rendererClipRegionReset();
+			//}
 
-				if (blend) {
-					zt_rendererSetBlendMode(blend->command->blend_src, blend->command->blend_dest);
-				}
+			if (blend) {
+				zt_rendererSetBlendMode(blend->command->blend_src, blend->command->blend_dest);
+			}
 
-				ztCompileItem *cmp_item = cmp_tex->item;
+			ztCompileItem *cmp_item = cmp_tex->item;
 
-				ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
+			ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
 
-				struct OpenGL
+			struct local
+			{
+				static ztInline void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4 &active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
 				{
-					static ztInline void processLastCommand(ztCamera *cam, ztMat4 *mat, ztVec4 &active_color, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
+					ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand");
+
+					static ztVertexArrayEntry entries[] = {
+						{ ztVertexArrayDataType_Float, 3 },
+						{ ztVertexArrayDataType_Float, 2 },
+						{ ztVertexArrayDataType_Float, 3 },
+						{ ztVertexArrayDataType_Float, 4 },
+					};
+
+
+					switch (last_command)
 					{
-						ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand");
-						switch (last_command)
-						{
-							case ztDrawCommandType_Billboard:
-							case ztDrawCommandType_Triangle: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::v");
-								if (buffer->vertices_count > 0) {
-									ztVertexEntryGL entries[] = {
-										{ GL_FLOAT, 3 * sizeof(GLfloat) },
-										{ GL_FLOAT, 2 * sizeof(GLfloat) },
-										{ GL_FLOAT, 3 * sizeof(GLfloat) },
-										{ GL_FLOAT, 4 * sizeof(GLfloat) },
-									};
-
-									ztgl_vertexArrayUpdate(&zt_game->win_details[0].gl_tri_verts_array, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-									ztgl_vertexArrayDraw(&zt_game->win_details[0].gl_tri_verts_array, GL_TRIANGLES);
-									//zt_game->win_details[0].gl_tri_verts_array.vert_count = 0;
-
-									zt_game->game_details.curr_frame.draw_calls += 1;
-								}
-							} break;
-
-							case ztDrawCommandType_Line: {
-								if (buffer->vertices_count > 0) {
-									ztVertexEntryGL entries[] = {
-										{ GL_FLOAT, 3 * sizeof(GLfloat) },
-										{ GL_FLOAT, 2 * sizeof(GLfloat) },
-										{ GL_FLOAT, 3 * sizeof(GLfloat) },
-										{ GL_FLOAT, 4 * sizeof(GLfloat) },
-									};
-
-									ztgl_vertexArrayUpdate(&zt_game->win_details[0].gl_tri_verts_array, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-									ztgl_vertexArrayDraw(&zt_game->win_details[0].gl_tri_verts_array, GL_LINES);
-									//zt_game->win_details[0].gl_tri_verts_array.vert_count = 0;
-
-									zt_game->game_details.curr_frame.draw_calls += 1;
-								}
-							} break;
-
-							case ztDrawCommandType_Point: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
-								ztVertexEntryGL entries[] = {
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 2 * sizeof(GLfloat) },
-									{ GL_FLOAT, 3 * sizeof(GLfloat) },
-									{ GL_FLOAT, 4 * sizeof(GLfloat) },
-								};
-
-								ztgl_vertexArrayUpdate(&zt_game->win_details[0].gl_tri_verts_array, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
-								ztgl_vertexArrayDraw(&zt_game->win_details[0].gl_tri_verts_array, GL_POINTS);
-								//zt_game->win_details[0].gl_tri_verts_array.vert_count = 0;
-
-								zt_game->game_details.curr_frame.draw_calls += 1;
-							} break;
-						}
-
-						switch (this_command)
-						{
-							case ztDrawCommandType_Billboard:
-							case ztDrawCommandType_Triangle: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::t");
-								buffer->vertices_count = 0;
-							} break;
-
-							case ztDrawCommandType_Line: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l");
-								buffer->vertices_count = 0;
-							} break;
-
-							case ztDrawCommandType_Point: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::p");
-								buffer->vertices_count = 0; 
-							} break;
-						}
-					}
-				};
-
-				while (cmp_item) {
-					if (cmp_item->clip_region != curr_clip_region && camera->type == ztCameraType_Orthographic) {
-						ZT_PROFILE_RENDERING("zt_renderDrawLists::clip regions");
-						OpenGL::processLastCommand(nullptr, nullptr, active_color, ztDrawCommandType_Invalid, last_command, &buffer);
-						last_command = ztDrawCommandType_Invalid;
-
-						curr_clip_region = cmp_item->clip_region;
-
-						if (curr_clip_region) {
-							if(camera->width == camera->native_w && camera->height == camera->native_h) {
-								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
-								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
-								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
-
-								ztgl_clipViewport(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
-							}
-							else {
-								/// need to properly adjust the clip rectangle
-								// x, y is lower left corner of the screen, in pixels
-
-								ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
-								int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
-								int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
-
-								r32 w_pct = camera->width / (r32)camera->native_w;
-								r32 h_pct = camera->height / (r32)camera->native_h;
-
-								pos.x = zt_convertToi32Ceil(pos.x * w_pct);
-								pos.y = zt_convertToi32Ceil(pos.y * h_pct);
-								w     = zt_convertToi32Ceil(    w * w_pct);
-								h     = zt_convertToi32Ceil(    h * w_pct);
-
-								ztgl_clipViewport(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
-							}
-						}
-						else {
-							ztgl_clipReset();
-						}
-					}
-
-					if (cmp_item->command->type != last_command) {
-						bool skipProcess = false;
-						switch (cmp_item->command->type)
-						{
-							case ztDrawCommandType_ChangeColor:
-							case ztDrawCommandType_ChangeOffset:
-							case ztDrawCommandType_ChangeTransform:
-							case ztDrawCommandType_DebugItem:
-								skipProcess = true;
-								break;
-						}
-
-						if (!skipProcess) {
-							OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
-							last_command = cmp_item->command->type;
-						}
-					}
-
-					switch (cmp_item->command->type)
-					{
+						case ztDrawCommandType_Billboard:
 						case ztDrawCommandType_Triangle: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::triangle");
-							++zt_game->game_details.curr_frame.triangles_drawn;
-
-							zt_fkz(3) {
-								int idx = buffer.vertices_count++;
-								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
-								if (has_offset) {
-									buffer.vertices[idx].pos = cmp_item->command->tri_pos[k] + offset;
-								}
-								else {
-									buffer.vertices[idx].pos = cmp_item->command->tri_pos[k];
-								}
-								buffer.vertices[idx].uv = cmp_item->command->tri_uv[k];
-								buffer.vertices[idx].norm = cmp_item->command->tri_norm[k];
-								buffer.vertices[idx].color = cmp_item->command->tri_color[k] * active_color;
-								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
-
-
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-							}
-
-							if(ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
-								OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
-								last_command = cmp_item->command->type;
-							}
-						} break;
-
-						case ztDrawCommandType_Billboard: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::billboard");
-							zt_game->game_details.curr_frame.triangles_drawn += 2;
-
-							ztVec3 p[4] = {
-								zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-							};
-
-							ztVec2 uv[4] = {
-								zt_vec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.y),
-								zt_vec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.w),
-								zt_vec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.w),
-								zt_vec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.y),
-							};
-
-							ztVec3 pos_lookat = camera->position;
-
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisX)) pos_lookat.x = cmp_item->command->billboard_center.x;
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisY)) pos_lookat.y = cmp_item->command->billboard_center.y;
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisZ)) pos_lookat.z = cmp_item->command->billboard_center.z;
-
-							ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, cmp_item->command->billboard_center, cmp_item->command->billboard_up).getInverse();
-							mat.values[ztMat4_Col3Row0] = mat.values[ztMat4_Col3Row1] = mat.values[ztMat4_Col3Row2] = 0; // remove translation
-
-							if (cmp_item->command->billboard_rotation != 0) {
-								ztQuat quat = ztQuat::makeFromEuler(0, 0, cmp_item->command->billboard_rotation);
-								zt_fiz(4) {
-									quat.rotatePosition(&p[i]);
-								}
-							}
-
-							zt_fiz(4) {
-								p[i] = cmp_item->command->billboard_center + (mat * p[i]);
-							}
-
-							zt_fiz(2) {
-								int idx = buffer.vertices_count++;
-								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
-								buffer.vertices[idx].pos = p[0];
-								buffer.vertices[idx].uv = uv[0];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-
-								idx = buffer.vertices_count++;
-								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
-								buffer.vertices[idx].pos = p[1 + i];
-								buffer.vertices[idx].uv = uv[1 + i];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-
-								idx = buffer.vertices_count++;
-								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
-								buffer.vertices[idx].pos = p[2 + i];
-								buffer.vertices[idx].uv = uv[2 + i];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-
-								if(ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
-									OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
-									last_command = cmp_item->command->type;
-								}
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::v");
+							if (buffer->vertices_count > 0) {
+								zt_vertexArrayUpdate(zt_game->win_details[0].renderer_drawing_va, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+								zt_vertexArrayDraw  (zt_game->win_details[0].renderer_drawing_va, ztVertexArrayDrawType_Triangles);
+								zt_game->game_details.curr_frame.draw_calls += 1;
 							}
 						} break;
 
 						case ztDrawCommandType_Line: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
-							zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
-
-							zt_fkz(2) {
-								int idx = buffer.vertices_count++;
-								zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
-								if (has_offset) {
-									buffer.vertices[idx].pos = cmp_item->command->line[k] + offset;
-								}
-								else {
-									buffer.vertices[idx].pos = cmp_item->command->line[k];
-								}
-								buffer.vertices[idx].uv = ztVec2::one;
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
+							if (buffer->vertices_count > 0) {
+								zt_vertexArrayUpdate(zt_game->win_details[0].renderer_drawing_va, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+								zt_vertexArrayDraw  (zt_game->win_details[0].renderer_drawing_va, ztVertexArrayDrawType_Lines);
+								zt_game->game_details.curr_frame.draw_calls += 1;
 							}
-
-							if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
-								OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
-								last_command = cmp_item->command->type;
-							}
-
 						} break;
 
 						case ztDrawCommandType_Point: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
+							zt_vertexArrayUpdate(zt_game->win_details[0].renderer_drawing_va, entries, zt_elementsOf(entries), buffer->vertices, buffer->vertices_count);
+							zt_vertexArrayDraw  (zt_game->win_details[0].renderer_drawing_va, ztVertexArrayDrawType_Points);
+							zt_game->game_details.curr_frame.draw_calls += 1;
+						} break;
+					}
+
+					switch (this_command)
+					{
+						case ztDrawCommandType_Billboard:
+						case ztDrawCommandType_Triangle: {
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::t");
+							buffer->vertices_count = 0;
+						} break;
+
+						case ztDrawCommandType_Line: {
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l");
+							buffer->vertices_count = 0;
+						} break;
+
+						case ztDrawCommandType_Point: {
+							ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::p");
+							buffer->vertices_count = 0; 
+						} break;
+					}
+				}
+			};
+
+			while (cmp_item) {
+				if (cmp_item->clip_region != curr_clip_region && camera->type == ztCameraType_Orthographic) {
+					ZT_PROFILE_RENDERING("zt_renderDrawLists::clip regions");
+					local::processLastCommand(nullptr, nullptr, active_color, ztDrawCommandType_Invalid, last_command, &buffer);
+					last_command = ztDrawCommandType_Invalid;
+
+					curr_clip_region = cmp_item->clip_region;
+
+					if (curr_clip_region) {
+						if (camera->width == camera->native_w && camera->height == camera->native_h) {
+							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
+							int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
+							int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
+
+							zt_rendererClipRegion(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
+						}
+						else {
+							/// need to properly adjust the clip rectangle
+							// x, y is lower left corner of the screen, in pixels
+
+							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, curr_clip_region->command->clip_center - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
+							int w = zt_convertToi32Ceil(curr_clip_region->command->clip_size.x * ppu);
+							int h = zt_convertToi32Ceil(curr_clip_region->command->clip_size.y * ppu);
+
+							r32 w_pct = camera->width / (r32)camera->native_w;
+							r32 h_pct = camera->height / (r32)camera->native_h;
+
+							pos.x = zt_convertToi32Ceil(pos.x * w_pct);
+							pos.y = zt_convertToi32Ceil(pos.y * h_pct);
+							w     = zt_convertToi32Ceil(    w * w_pct);
+							h     = zt_convertToi32Ceil(    h * w_pct);
+
+							zt_rendererClipRegion(zt_convertToi32Floor(pos.x * clip_scale_w), zt_convertToi32Floor(pos.y * clip_scale_h), zt_convertToi32Floor(w * clip_scale_w), zt_convertToi32Floor(h * clip_scale_h));
+						}
+					}
+					else {
+						zt_rendererClipRegionReset();
+					}
+				}
+
+				if (cmp_item->command->type != last_command) {
+					bool skipProcess = false;
+					switch (cmp_item->command->type)
+					{
+						case ztDrawCommandType_ChangeColor:
+						case ztDrawCommandType_ChangeOffset:
+						case ztDrawCommandType_ChangeTransform:
+						case ztDrawCommandType_DebugItem:
+							skipProcess = true;
+							break;
+					}
+
+					if (!skipProcess) {
+						local::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+						last_command = cmp_item->command->type;
+					}
+				}
+
+				switch (cmp_item->command->type)
+				{
+					case ztDrawCommandType_Triangle: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::triangle");
+						++zt_game->game_details.curr_frame.triangles_drawn;
+
+						zt_fkz(3) {
 							int idx = buffer.vertices_count++;
 							zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
 							if (has_offset) {
-								buffer.vertices[idx].pos = cmp_item->command->point + offset;
+								buffer.vertices[idx].pos = cmp_item->command->tri_pos[k] + offset;
 							}
 							else {
-								buffer.vertices[idx].pos = cmp_item->command->point;
+								buffer.vertices[idx].pos = cmp_item->command->tri_pos[k];
 							}
-							buffer.vertices[idx].uv = ztVec2::one;
-							buffer.vertices[idx].norm = ztVec3::zero;
-							buffer.vertices[idx].color = active_color;
+							buffer.vertices[idx].uv    = cmp_item->command->tri_uv[k];
+							buffer.vertices[idx].norm  = cmp_item->command->tri_norm[k];
+							buffer.vertices[idx].color = cmp_item->command->tri_color[k] * active_color;
+							buffer.vertices[idx].uv.y  = 1 - buffer.vertices[idx].uv.y;
 
+							if (transform) {
+								buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+							}
+						}
+
+						if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+							local::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+							last_command = cmp_item->command->type;
+						}
+					} break;
+
+					case ztDrawCommandType_Billboard: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::billboard");
+						zt_game->game_details.curr_frame.triangles_drawn += 2;
+
+						ztVec3 p[4] = {
+							zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+							zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+							zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+							zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
+						};
+
+						ztVec2 uv[4] = {
+							zt_vec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.y),
+							zt_vec2(cmp_item->command->billboard_uv.x, 1 - cmp_item->command->billboard_uv.w),
+							zt_vec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.w),
+							zt_vec2(cmp_item->command->billboard_uv.z, 1 - cmp_item->command->billboard_uv.y),
+						};
+
+						ztVec3 pos_lookat = camera->position;
+
+						if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisX)) pos_lookat.x = cmp_item->command->billboard_center.x;
+						if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisY)) pos_lookat.y = cmp_item->command->billboard_center.y;
+						if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisZ)) pos_lookat.z = cmp_item->command->billboard_center.z;
+
+						ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, cmp_item->command->billboard_center, cmp_item->command->billboard_up).getInverse();
+						mat.values[ztMat4_Col3Row0] = mat.values[ztMat4_Col3Row1] = mat.values[ztMat4_Col3Row2] = 0; // remove translation
+
+						if (cmp_item->command->billboard_rotation != 0) {
+							ztQuat quat = ztQuat::makeFromEuler(0, 0, cmp_item->command->billboard_rotation);
+							zt_fiz(4) {
+								quat.rotatePosition(&p[i]);
+							}
+						}
+
+						zt_fiz(4) {
+							p[i] = cmp_item->command->billboard_center + (mat * p[i]);
+						}
+
+						zt_fiz(2) {
+							int idx = buffer.vertices_count++;
+							zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+							buffer.vertices[idx].pos   = p[0];
+							buffer.vertices[idx].uv    = uv[0];
+							buffer.vertices[idx].norm  = ztVec3::zero;
+							buffer.vertices[idx].color = active_color;
+							if (transform) {
+								buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+							}
+
+							idx = buffer.vertices_count++;
+							zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+							buffer.vertices[idx].pos   = p[1 + i];
+							buffer.vertices[idx].uv    = uv[1 + i];
+							buffer.vertices[idx].norm  = ztVec3::zero;
+							buffer.vertices[idx].color = active_color;
+							if (transform) {
+								buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+							}
+
+							idx = buffer.vertices_count++;
+							zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+							buffer.vertices[idx].pos   = p[2 + i];
+							buffer.vertices[idx].uv    = uv[2 + i];
+							buffer.vertices[idx].norm  = ztVec3::zero;
+							buffer.vertices[idx].color = active_color;
 							if (transform) {
 								buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
 							}
 
 							if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
-								OpenGL::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+								local::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
 								last_command = cmp_item->command->type;
 							}
-						} break;
+						}
+					} break;
 
-						case ztDrawCommandType_ChangeColor: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change color");
-							active_color = cmp_item->command->color;
-						} break;
+					case ztDrawCommandType_Line: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
+						zt_assert((cmp_tex->command && cmp_tex->command->texture_count > 0) || shader_id == ztInvalidID); // you need to push a texture before adding the line
 
-						case ztDrawCommandType_ChangeOffset: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change offset");
-							offset = cmp_item->command->offset;
-							has_offset = offset != ztVec3::zero;
-						} break;
-
-						case ztDrawCommandType_ChangeTransform: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change transform");
-							if (cmp_item->command->transform == ztMat4::identity) {
-								transform = nullptr;
+						zt_fkz(2) {
+							int idx = buffer.vertices_count++;
+							zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+							if (has_offset) {
+								buffer.vertices[idx].pos = cmp_item->command->line[k] + offset;
 							}
 							else {
-								transform = &cmp_item->command->transform;
+								buffer.vertices[idx].pos = cmp_item->command->line[k];
 							}
-						} break;
+							buffer.vertices[idx].uv    = ztVec2::one;
+							buffer.vertices[idx].norm  = ztVec3::zero;
+							buffer.vertices[idx].color = active_color;
 
-						case ztDrawCommandType_ChangeBlendMode: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change blend mode");
-							zt_rendererSetBlendMode(cmp_item->command->blend_src, cmp_item->command->blend_dest);
-							blend = cmp_item;
-						} break;
-
-						case ztDrawCommandType_VertexArray: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::vertex array");
-							zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
-
-						} break;
-					};
-
-					cmp_item = cmp_item->next;
-				}
-				OpenGL::processLastCommand(nullptr, nullptr, active_color, ztDrawCommandType_Invalid, last_command, &buffer);
-
-				if (curr_clip_region) {
-					curr_clip_region = nullptr;
-					ztgl_clipReset();
-				}
-
-				if (cmp_tex->command && shader_id != ztInvalidID) {
-					ZT_PROFILE_RENDERING("zt_renderDrawLists::resetting texture");
-					ztgl_textureBindReset(zt_game->shaders[shader_id].gl_shader);
-				}
-
-				cmp_tex = cmp_tex->next;
-			}
-
-			if (curr_clip_region) {
-				curr_clip_region = nullptr;
-				ztgl_clipReset();
-			}
-
-			if (shader_id != ztInvalidID) {
-				zt_shaderEnd(shader_id);
-			}
-			else {
-				ztgl_callAndReportOnErrorFast(glBindTexture(GL_TEXTURE_2D, 0));
-				ztgl_callAndReportOnErrorFast(glUseProgram(0));
-			}
-		}
-
-		if (clip_regions_count > 0) {
-			ztgl_clipReset();
-		}
-
-		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetCommit(render_target_id);
-		}
-
-#endif // ZT_OPENGL
-	}
-	else if (zt_game->win_game_settings[0].renderer == ztRenderer_DirectX) {
-#if defined(ZT_DIRECTX)
-
-		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetPrepare(render_target_id, !zt_bitIsSet(flags, ztRenderDrawListFlags_NoClear));
-		}
-
-		if (!zt_bitIsSet(flags, ztRenderDrawListFlags_NoDepthTest)) {
-			ztdx_depthTestLess(zt_game->win_details[0].dx_context);
-		}
-		else {
-			ztdx_depthTestOff(zt_game->win_details[0].dx_context);
-		}
-
-		ztCompileClipRegion *curr_clip_region = nullptr;
-
-		static u32 model_hash = zt_strHash("model");
-		static u32 view_hash = zt_strHash("view");
-		static u32 projection_hash = zt_strHash("projection");
-
-		zt_fiz(shaders_count) {
-			ZT_PROFILE_RENDERING("zt_renderDrawLists::shader loop");
-
-			ztShaderID shader_id = shaders[i]->shader;
-			if (shaders[i]->shader != ztInvalidID) {
-				zt_game->game_details.curr_frame.shader_switches += 1;
-				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
-
-				ztMat4 dxMod = ztMat4::identity;
-				ztMat4 dxView = camera->mat_view;
-				ztMat4 dxProj = camera->mat_proj;
-
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, projection_hash, dxProj);
-				zt_shaderApplyVariables(shader_id);
-			}
-			else {
-				shader_id = zt_shaderGetDefault(ztShaderDefault_Solid);
-
-				zt_game->game_details.curr_frame.shader_switches += 1;
-				ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader);
-
-				ztMat4 dxMod = ztMat4::identity;
-				ztMat4 dxView = camera->mat_view;
-				ztMat4 dxProj = camera->mat_proj;
-
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, model_hash, dxMod);
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, view_hash, dxView);
-				zt_shaderSetVariableMat4(&zt_game->shaders[shader_id].variables, projection_hash, dxProj);
-				zt_shaderApplyVariables(shader_id);
-				// set color
-			}
-
-			ztVec4 active_color = ztVec4::one;
-			ztMat4 *transform = nullptr;
-
-			ztCompileTexture *cmp_tex = shaders[i]->texture;
-			while (cmp_tex) {
-				if (cmp_tex->cnt_display_items == 0) {
-					cmp_tex = cmp_tex->next;
-					continue;
-				}
-
-				if (cmp_tex->command && shader_id != ztInvalidID) {
-					ZT_PROFILE_RENDERING("zt_renderDrawLists::texture binding");
-					zt_game->game_details.curr_frame.texture_switches += 1;
-					static u32 tex_diffuse_hash = zt_strHash("diffuse_tex");
-					if (zt_game->textures[cmp_tex->command->texture[0]].renderer == ztRenderer_DirectX) {
-						zt_shaderSetVariableTex(shader_id, tex_diffuse_hash, cmp_tex->command->texture[0]);
-					}
-					zt_shaderApplyVariables(shader_id);
-				}
-
-				ztCompileItem *cmp_item = cmp_tex->item;
-
-				ztDrawCommandType_Enum last_command = ztDrawCommandType_Invalid;
-
-				struct DirectX
-				{
-					static void processLastCommand(ztShaderID active_shader, ztDrawCommandType_Enum this_command, ztDrawCommandType_Enum last_command, ztBuffer *buffer)
-					{
-						ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand");
-						switch (last_command)
-						{
-							case ztDrawCommandType_Billboard:
-							case ztDrawCommandType_Triangle: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::v");
-								//zt_shaderApplyVariables(active_shader);
-
-								ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
-								ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array);
-								buffer->vertices_count = 0;
-
-								zt_game->game_details.curr_frame.draw_calls += 1;
-							} break;
-
-							case ztDrawCommandType_Line:
-							case ztDrawCommandType_Point: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::l/p");
-								//zt_shaderApplyVariables(active_shader);
-
-								ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, buffer->vertices, buffer->vertices_count);
-								ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->win_details[0].dx_tri_verts_array, D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-								buffer->vertices_count = 0;
-
-								zt_game->game_details.curr_frame.draw_calls += 1;
-							} break;
+							if (transform) {
+								buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+							}
 						}
 
-						switch (this_command)
-						{
-							case ztDrawCommandType_Billboard:
-							case ztDrawCommandType_Triangle: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::t");
-								buffer->vertices_count = 0;
-								ztdx_cullBack(zt_game->win_details[0].dx_context);
-							} break;
-
-							case ztDrawCommandType_Line:
-							case ztDrawCommandType_Point: {
-								ZT_PROFILE_RENDERING("zt_renderDrawLists::lastCommand::lp");
-								buffer->vertices_count = 0;
-								ztdx_cullNone(zt_game->win_details[0].dx_context);
-							} break;
-						}
-					}
-				};
-
-				while (cmp_item) {
-
-					if (cmp_item->clip_region != curr_clip_region && camera->type == ztCameraType_Orthographic) {
-						ZT_PROFILE_RENDERING("zt_renderDrawLists::clip regions");
-						DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, last_command, &buffer);
-						last_command = ztDrawCommandType_Invalid;
-
-						curr_clip_region = cmp_item->clip_region;
-
-						if (curr_clip_region) {
-							ztVec2i pos = zt_cameraOrthoWorldToScreen(camera, (curr_clip_region->command->clip_center * zt_vec2(1, -1)) - curr_clip_region->command->clip_size * zt_vec2(.5f, .5f));
-
-							int w = zt_convertToi32Floor(curr_clip_region->command->clip_size.x * ppu);
-							int h = zt_convertToi32Floor(curr_clip_region->command->clip_size.y * ppu);
-
-							ztdx_clipRegionSet(zt_game->win_details[0].dx_context, pos.x, pos.y, pos.x + w, pos.y + h);
-						}
-						else {
-							ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
-						}
-					}
-
-					if (cmp_item->command->type != last_command) {
-						bool skipProcess = false;
-						switch (cmp_item->command->type)
-						{
-							case ztDrawCommandType_ChangeColor:
-							case ztDrawCommandType_ChangeOffset:
-							case ztDrawCommandType_ChangeTransform:
-							case ztDrawCommandType_DebugItem:
-								skipProcess = true;
-								break;
-						}
-
-						if (!skipProcess) {
-							DirectX::processLastCommand(shader_id, cmp_item->command->type, last_command, &buffer);
+						if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+							local::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
 							last_command = cmp_item->command->type;
 						}
-					}
 
-					switch (cmp_item->command->type)
-					{
-						case ztDrawCommandType_Triangle: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::triangle");
-							++zt_game->game_details.curr_frame.triangles_drawn;
+					} break;
 
-							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
-								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Triangle, &buffer);
-							}
+					case ztDrawCommandType_Point: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
+						int idx = buffer.vertices_count++;
+						zt_assert(buffer.vertices_count < ztRenderDrawListVertexArraySize);
+						if (has_offset) {
+							buffer.vertices[idx].pos = cmp_item->command->point + offset;
+						}
+						else {
+							buffer.vertices[idx].pos = cmp_item->command->point;
+						}
+						buffer.vertices[idx].uv    = ztVec2::one;
+						buffer.vertices[idx].norm  = ztVec3::zero;
+						buffer.vertices[idx].color = active_color;
 
-							zt_fkz(3) {
-								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->tri_pos[k].values[j] + offset.values[j];
-								zt_fjz(2) buffer.vertices[idx].uv.values[j] = cmp_item->command->tri_uv[k].values[j];
-								zt_fjz(3) buffer.vertices[idx].norm.values[j] = cmp_item->command->tri_norm[k].values[j];
-								zt_fjz(4) buffer.vertices[idx].color.values[j] = cmp_item->command->tri_color[k].values[j] * active_color.values[j];
-								buffer.vertices[idx].uv.y = 1 - buffer.vertices[idx].uv.y;
+						if (transform) {
+							buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
+						}
 
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-							}
+						if (ztRenderDrawListVertexArraySize - buffer.vertices_count < 32) {
+							local::processLastCommand(camera, &mat2d, active_color, cmp_item->command->type, last_command, &buffer);
+							last_command = cmp_item->command->type;
+						}
+					} break;
 
-						} break;
+					case ztDrawCommandType_ChangeColor: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::change color");
+						active_color = cmp_item->command->color;
+					} break;
 
-						case ztDrawCommandType_Billboard: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::billboard");
-							zt_game->game_details.curr_frame.triangles_drawn += 2;
+					case ztDrawCommandType_ChangeOffset: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::change offset");
+						offset = cmp_item->command->offset;
+						has_offset = offset != ztVec3::zero;
+					} break;
 
-							ztVec3 p[4] = {
-								zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(-cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, -cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-								zt_vec3(+cmp_item->command->billboard_size.x / 2.f + offset.x, +cmp_item->command->billboard_size.y / 2.f + offset.y, offset.z),
-							};
+					case ztDrawCommandType_ChangeTransform: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::change transform");
+						if (cmp_item->command->transform == ztMat4::identity) {
+							transform = nullptr;
+						}
+						else {
+							transform = &cmp_item->command->transform;
+						}
+					} break;
 
-							ztVec2 uv[4] = {
-								zt_vec2(cmp_item->command->billboard_uv.x, cmp_item->command->billboard_uv.y),
-								zt_vec2(cmp_item->command->billboard_uv.x, cmp_item->command->billboard_uv.w),
-								zt_vec2(cmp_item->command->billboard_uv.z, cmp_item->command->billboard_uv.w),
-								zt_vec2(cmp_item->command->billboard_uv.z, cmp_item->command->billboard_uv.y),
-							};
+					case ztDrawCommandType_ChangeBlendMode: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::change blend mode");
+						zt_rendererSetBlendMode(cmp_item->command->blend_src, cmp_item->command->blend_dest);
+						blend = cmp_item;
+					} break;
 
-							ztVec3 pos_lookat = camera->position;
+					case ztDrawCommandType_VertexArray: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::vertex array");
+						zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
 
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisX)) pos_lookat.x = cmp_item->command->billboard_center.x;
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisY)) pos_lookat.y = cmp_item->command->billboard_center.y;
-							if (!zt_bitIsSet(cmp_item->command->billboard_flags, ztDrawCommandBillboardFlags_AxisZ)) pos_lookat.z = cmp_item->command->billboard_center.z;
+					} break;
+				};
 
-							ztMat4 mat = ztMat4::identity.getLookAt(pos_lookat, cmp_item->command->billboard_center).getInverse();
-							mat.values[ztMat4_Col3Row0] = mat.values[ztMat4_Col3Row1] = mat.values[ztMat4_Col3Row2] = 0; // remove translation
-
-							zt_fiz(4) {
-								p[i] = cmp_item->command->billboard_center + (mat * p[i]);
-							}
-
-							zt_fiz(2) {
-								int idx = buffer.vertices_count++;
-								buffer.vertices[idx].pos = p[0];
-								buffer.vertices[idx].uv = uv[0];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-
-								idx = buffer.vertices_count++;
-								buffer.vertices[idx].pos = p[1 + i];
-								buffer.vertices[idx].uv = uv[1 + i];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-
-								idx = buffer.vertices_count++;
-								buffer.vertices[idx].pos = p[2 + i];
-								buffer.vertices[idx].uv = uv[2 + i];
-								buffer.vertices[idx].norm = ztVec3::zero;
-								buffer.vertices[idx].color = active_color;
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-							}
-						} break;
-
-						case ztDrawCommandType_Line: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::line");
-							if (buffer.vertices_count >= zt_elementsOf(buffer.vertices)) {
-								DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, ztDrawCommandType_Line, &buffer);
-							}
-
-							zt_fkz(2) {
-								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + offset.values[j];
-								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
-								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
-								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-							}
-						} break;
-
-						case ztDrawCommandType_Point: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::point");
-							zt_fkz(2) {
-								int idx = buffer.vertices_count++;
-								zt_fjz(3) buffer.vertices[idx].pos.values[j] = cmp_item->command->line[k].values[j] + (k * 0.001f) + offset.values[j];
-								zt_fjz(2) buffer.vertices[idx].uv.values[j] = (r32)k;
-								zt_fjz(3) buffer.vertices[idx].norm.values[j] = 1.f;
-								zt_fjz(4) buffer.vertices[idx].color.values[j] = active_color.values[j];
-								if (transform) {
-									buffer.vertices[idx].pos = (*transform) * buffer.vertices[idx].pos;
-								}
-							}
-						} break;
-
-						case ztDrawCommandType_ChangeColor: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change color");
-							active_color = cmp_item->command->color;
-						} break;
-
-						case ztDrawCommandType_ChangeOffset: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change offset");
-							offset = cmp_item->command->offset;
-						} break;
-
-						case ztDrawCommandType_ChangeTransform: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::change transform");
-							if (cmp_item->command->transform == ztMat4::identity) {
-								transform = nullptr;
-							}
-							else {
-								transform = &cmp_item->command->transform;
-							}
-						} break;
-
-						case ztDrawCommandType_VertexArray: {
-							ZT_PROFILE_RENDERING("zt_renderDrawLists::vertex array");
-							zt_vertexArrayDraw(cmp_item->command->vertex_array, cmp_item->command->vertex_array_draw_type);
-						} break;
-					};
-
-					cmp_item = cmp_item->next;
-				}
-				DirectX::processLastCommand(shader_id, ztDrawCommandType_Invalid, last_command, &buffer);
-
-				if (curr_clip_region) {
-					curr_clip_region = nullptr;
-					ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
-				}
-
-				cmp_tex = cmp_tex->next;
+				cmp_item = cmp_item->next;
 			}
+			local::processLastCommand(nullptr, nullptr, active_color, ztDrawCommandType_Invalid, last_command, &buffer);
 
 			if (curr_clip_region) {
 				curr_clip_region = nullptr;
-				ztdx_clipRegionRemove(zt_game->win_details[0].dx_context);
+				zt_rendererClipRegionReset();
 			}
-			// unbind shader?
+
+			if (cmp_tex->command && shader_id != ztInvalidID) {
+				ZT_PROFILE_RENDERING("zt_renderDrawLists::resetting texture");
+				zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, zt_game->shaders[shader_id].renderer_shader);
+			}
+
+			cmp_tex = cmp_tex->next;
 		}
 
-		if (render_target_id != ztInvalidID) {
-			zt_textureRenderTargetCommit(render_target_id);
+		if (curr_clip_region) {
+			curr_clip_region = nullptr;
+			zt_rendererClipRegionReset();
 		}
-#endif // ZT_DIRECTX
+
+		if (shader_id != ztInvalidID) {
+			zt_shaderEnd(shader_id);
+		}
+		else {
+			ztShaderID shid = zt_shaderGetDefault(ztShaderDefault_Solid);
+			zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, zt_game->shaders[shid].renderer_shader);
+			zt_shaderEnd(shid);
+			//ztgl_callAndReportOnErrorFast(glUseProgram(0));
+		}
+	}
+
+	if (clip_regions_count > 0) {
+		zt_rendererClipRegionReset();
+	}
+
+	if (render_target_id != ztInvalidID) {
+		zt_textureRenderTargetCommit(render_target_id);
 	}
 }
 
@@ -13780,7 +13606,7 @@ void zt_debugDisplayRenderWorld(ztDrawList *draw_list, ztCamera *camera)
 			continue;
 		}
 		
-		if(entry->color != prev_color) {
+		if (entry->color != prev_color) {
 			if (prev_color != ztVec4::min) {
 				zt_drawListPopColor(draw_list);
 			}
@@ -13886,7 +13712,7 @@ void zt_debugDisplayRenderGui(ztDrawList *draw_list, ztCamera *camera, bool clea
 			continue;
 		}
 
-		if(entry->color != prev_color) {
+		if (entry->color != prev_color) {
 			if (prev_color != ztVec4::min) {
 				zt_drawListPopColor(draw_list);
 			}
@@ -14019,76 +13845,29 @@ ztVertexArrayID zt_vertexArrayMake(ztVertexArrayEntry *entries, int entries_coun
 			}
 
 			zt_fize(zt_game->vertex_arrays) {
-				if (zt_game->vertex_arrays[i].renderer == ztRenderer_Invalid) {
+				if (zt_game->vertex_arrays[i].renderer_vertex_array == nullptr) {
 					return i;
 				}
 			}
 
+			zt_logCritical("No more vertex array entries left in cache");
 			return ztInvalidID;
 		}
 	};
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztVertexEntryGL gl_entries[64];
-			zt_assert(entries_count < zt_elementsOf(gl_entries));
-			zt_fiz(entries_count) {
-				switch (entries[i].type)
-				{
-					case ztVertexArrayDataType_Float: {
-						gl_entries[i].type = GL_FLOAT;
-						gl_entries[i].size = sizeof(float) * entries[i].count;
-					} break;
+	void *renderer_vertex_array = zt_game->renderer.vertex_array_make(&zt_game->renderer, _zt_rendererGetActiveContext(), entries, entries_count, vert_data, vert_count);
 
-					case ztVertexArrayDataType_Int: {
-						gl_entries[i].type = GL_INT;
-						gl_entries[i].size = sizeof(int) * entries[i].count;
-					} break;
-
-					default: zt_assert(false);
-				}
-			}
-			ztVertexArrayID va_id = local::getNextID();
-			if (va_id == ztInvalidID) return ztInvalidID;
-
-			if (!ztgl_vertexArrayMake(&zt_game->vertex_arrays[va_id].gl_va, gl_entries, entries_count, vert_data, vert_count)) {
-				return ztInvalidID;
-			}
-
-			zt_game->vertex_arrays[va_id].vertices = vert_count;
-			zt_game->vertex_arrays[va_id].renderer = ztRenderer_OpenGL;
-			return va_id;
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			ztVertexEntryDX dx_entries[64];
-			zt_assert(entries_count < zt_elementsOf(dx_entries));
-			zt_fiz(entries_count) {
-				dx_entries[i].size = entries[i].count * zt_vertexArrayDataSize(entries[i].type);
-				// DirectX doesn't care about data types here
-			}
-			ztVertexArrayDX *dx_va = ztdx_vertexArrayMake(zt_game->win_details[0].dx_context, dx_entries, entries_count, vert_data, vert_count);
-
-			if (dx_va == nullptr) {
-				return ztInvalidID;
-			}
-
-			ztVertexArrayID va_id = local::getNextID();
-			if (va_id == ztInvalidID) return ztInvalidID;
-			zt_game->vertex_arrays[va_id].dx_va = dx_va;
-			zt_game->vertex_arrays[va_id].vertices = vert_count;
-			zt_game->vertex_arrays[va_id].renderer = ztRenderer_DirectX;
-
-			return va_id;
-#			endif
-		} break;
+	if (renderer_vertex_array == nullptr) {
+		return ztInvalidID;
 	}
 
-	return ztInvalidID;
+	ztVertexArrayID va_id = local::getNextID();
+	if (va_id == ztInvalidID) return ztInvalidID;
+
+	zt_game->vertex_arrays[va_id].vertices = vert_count;
+	zt_game->vertex_arrays[va_id].renderer_vertex_array = renderer_vertex_array;
+
+	return va_id;
 }
 
 // ================================================================================================================================================================================================
@@ -14101,23 +13880,9 @@ void zt_vertexArrayFree(ztVertexArrayID vertex_array_id)
 	}
 	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztgl_vertexArrayFree(&zt_game->vertex_arrays[vertex_array_id].gl_va);
-#			endif
-		} break;
+	zt_game->renderer.vertex_array_free(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array);
 
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			ztdx_vertexArrayFree(zt_game->vertex_arrays[vertex_array_id].dx_va);
-			zt_game->vertex_arrays[vertex_array_id].dx_va = nullptr;
-#			endif
-		} break;
-	}
-
-	zt_game->vertex_arrays[vertex_array_id].renderer = ztRenderer_Invalid;
+	zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array = nullptr;
 }
 
 // ================================================================================================================================================================================================
@@ -14127,43 +13892,13 @@ bool zt_vertexArrayUpdate(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *e
 	ZT_PROFILE_RENDERING("zt_vertexArrayUpdate");
 	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, false);
 
-	zt_game->vertex_arrays[vertex_array_id].vertices = vert_count;
-
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztVertexEntryGL gl_entries[64];
-			zt_assert(entries_count < zt_elementsOf(gl_entries));
-			zt_fiz(entries_count) {
-				switch (entries[i].type)
-				{
-					case ztVertexArrayDataType_Float: {
-						gl_entries[i].type = GL_FLOAT;
-						gl_entries[i].size = sizeof(float) * entries[i].count;
-					} break;
-
-					case ztVertexArrayDataType_Int: {
-						gl_entries[i].type = GL_INT;
-						gl_entries[i].size = sizeof(int) * entries[i].count;
-					} break;
-
-					default: zt_assert(false);
-				}
-			}
-
-			return ztgl_vertexArrayUpdate(&zt_game->vertex_arrays[vertex_array_id].gl_va, gl_entries, entries_count, vert_data, vert_count);
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			return ztdx_vertexArrayUpdate(zt_game->win_details[0].dx_context, zt_game->vertex_arrays[vertex_array_id].dx_va, vert_data, vert_count);
-#			endif
-		} break;
+	if (!zt_game->renderer.vertex_array_update(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array, entries, entries_count, vert_data, vert_count)) {
+		return false;
 	}
 
-	return false;
+	zt_game->vertex_arrays[vertex_array_id].vertices = vert_count;
+
+	return true;
 }
 
 // ================================================================================================================================================================================================
@@ -14184,50 +13919,28 @@ void zt_vertexArrayDraw(ztVertexArrayID vertex_array_id, ztVertexArrayDrawType_E
 		zt_game->game_details.curr_frame.triangles_drawn += zt_game->vertex_arrays[vertex_array_id].vertices / 3;
 	}
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			GLenum gl_draw_type = GL_TRIANGLES;
-			switch (draw_type)
-			{
-				case ztVertexArrayDrawType_Triangles: {
-					gl_draw_type = GL_TRIANGLES;
-				} break;
+	zt_game->renderer.vertex_array_draw(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array, draw_type);
+}
 
-				case ztVertexArrayDrawType_Lines: {
-					gl_draw_type = GL_LINES;
-				} break;
+// ================================================================================================================================================================================================
 
-				case ztVertexArrayDrawType_Points: {
-					gl_draw_type = GL_POINTS;
-				} break;
-			}
-			return ztgl_vertexArrayDraw(&zt_game->vertex_arrays[vertex_array_id].gl_va, gl_draw_type);
-#			endif
-		} break;
+void zt_vertexArrayDrawInstanced(ztVertexArrayID vertex_array_id, ztVertexArrayEntry *entries, int entries_count, void *instance_data, int instance_count, ztVertexArrayDrawType_Enum draw_type)
+{
+	ZT_PROFILE_RENDERING("zt_vertexArrayDraw");
+	zt_assertReturnOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count);
 
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			D3D11_PRIMITIVE_TOPOLOGY dx_draw_type = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			switch (draw_type)
-			{
-				case ztVertexArrayDrawType_Triangles: {
-					dx_draw_type = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				} break;
-
-				case ztVertexArrayDrawType_Lines: {
-					dx_draw_type = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
-				} break;
-
-				case ztVertexArrayDrawType_Points: {
-					dx_draw_type = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
-				} break;
-			}
-			return ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, zt_game->vertex_arrays[vertex_array_id].dx_va, dx_draw_type);
-#			endif
-		} break;
+	if (zt_game->vertex_arrays[vertex_array_id].vertices <= 0) {
+		return;
 	}
+
+	_zt_rendererCheckToResetStats();
+	zt_game->game_details.curr_frame.draw_calls += 1;
+
+	if (draw_type == ztVertexArrayDrawType_Triangles) {
+		zt_game->game_details.curr_frame.triangles_drawn += (zt_game->vertex_arrays[vertex_array_id].vertices / 3) * instance_count;
+	}
+
+	zt_game->renderer.vertex_array_draw_instanced(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array, entries, entries_count, instance_data, instance_count, draw_type);
 }
 
 // ================================================================================================================================================================================================
@@ -14261,15 +13974,8 @@ i32 zt_vertexArrayGetVertices(ztVertexArrayID vertex_array_id, ztVec3 *vertices,
 	ZT_PROFILE_RENDERING("zt_vertexArrayVertexCount");
 	zt_assertReturnValOnFail(vertex_array_id >= 0 && vertex_array_id < zt_game->vertex_arrays_count, 0);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(return ztgl_vertexArrayGetVertices(&zt_game->vertex_arrays[vertex_array_id].gl_va, vertices, vertices_size));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_assert(false);
-		} break;
+	if (zt_game->renderer.vertex_array_get_vertices) {
+		return zt_game->renderer.vertex_array_get_vertices(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->vertex_arrays[vertex_array_id].renderer_vertex_array, vertices, vertices_size);
 	}
 
 	return 0;
@@ -15432,7 +15138,7 @@ void zt_drawListAddSprite(ztDrawList *draw_list, ztSprite *sprite, const ztVec3 
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSprite");
 
-	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
+	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer_texture == nullptr) {
 		return;
 	}
 
@@ -15524,7 +15230,7 @@ void zt_drawListAddSpriteFast(ztDrawList *draw_list, ztSprite *sprite, const ztV
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddSpriteFast");
 
-	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer == ztRenderer_Invalid) {
+	if (sprite->tex < 0 || zt_game->textures[sprite->tex].renderer_texture == nullptr) {
 		return;
 	}
 
@@ -16079,7 +15785,7 @@ bool zt_spriteManagerLoad(ztSpriteManager *sprite_manager, ztSerial *serial, ztT
 	zt_returnValOnNull(sprite_manager, false);
 	zt_returnValOnNull(serial, false);
 
-#	define _serialCheck(CODE) if(!CODE) { zt_logCritical("call failed: " #CODE); return false; }
+#	define _serialCheck(CODE) if (!CODE) { zt_logCritical("call failed: " #CODE); return false; }
 
 	_serialCheck(zt_serialGroupPush(serial));
 	{
@@ -16166,7 +15872,7 @@ bool zt_spriteManagerSave(ztSpriteManager *sprite_manager, ztSerial *serial)
 	zt_returnValOnNull(sprite_manager, false);
 	zt_returnValOnNull(serial, false);
 
-#	define _serialCheck(CODE) if(!CODE) return false;
+#	define _serialCheck(CODE) if (!CODE) return false;
 
 	_serialCheck(zt_serialGroupPush(serial));
 	{
@@ -16546,12 +16252,12 @@ ztInternal bool _zt_modelMakeBase(ztModel *model, ztMeshID mesh_id, ztVertexArra
 		model->type = ztModelType_VertexArray;
 		model->vertex_array_id = va_id;
 	}
-	else if(sprite != nullptr) {
+	else if (sprite != nullptr) {
 		model->type = ztModelType_Sprite;
 		model->sprite = *sprite;
 		model->sprite_facing = sprite_facing;
 	}
-	else if(sprite_anim_controller != nullptr) {
+	else if (sprite_anim_controller != nullptr) {
 		model->type = ztModelType_SpriteAnimation;
 		model->sprite_anim_controller = sprite_anim_controller;
 		model->sprite_anim_facing = sprite_facing;
@@ -16748,7 +16454,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 		return false;
 	}
 
-#	define serialCheck(code) if(!code) { zt_serialClose(&serial); zt_logCritical("model file serialization failed"); return false; }
+#	define serialCheck(code) if (!code) { zt_serialClose(&serial); zt_logCritical("model file serialization failed"); return false; }
 #	define serialError(error) { zt_serialClose(&serial); zt_logCritical("model file serialization failed (%s)", error); return false; }
 
 	// read header
@@ -17214,7 +16920,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 							{
 								i32 mesh_idx = -1;
 								if (!zt_serialRead(serial, &mesh_idx)) return false;
-								if(mesh_idx < 0 || mesh_idx > mesh_count) return false;
+								if (mesh_idx < 0 || mesh_idx > mesh_count) return false;
 
 								if (input->models_used >= input->models_size) {
 									zt_assert(false);
@@ -17415,7 +17121,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 					serialCheck(zt_serialRead(&serial, &height));
 
 					i32 data_size = width * height * 4;
-					if(data_size > 0) {
+					if (data_size > 0) {
 						byte *data = zt_mallocStructArray(byte, data_size);
 						i32 data_read = 0;
 						serialCheck(zt_serialRead(&serial, data, data_size, &data_read));
@@ -17452,7 +17158,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 				{
 					static void addStaticLayer(ztAnimLayer *layers, int layers_size, int *layers_count, ztBone *bone)
 					{
-						if(*layers_count + 3 >= layers_size) {
+						if (*layers_count + 3 >= layers_size) {
 							return;
 						}
 
@@ -17472,7 +17178,7 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 					}
 				};
 
-				if(input->bones_used > 0) {
+				if (input->bones_used > 0) {
 					ztAnimLayer layers[1024];
 					int         layers_count = 0;
 
@@ -17740,8 +17446,8 @@ bool zt_modelMakeFromZtmFile(ztModelLoaderInput *input, void *data, i32 data_siz
 	}
 
 	zt_fiz(input->models_used) {
-		if(model_material_indexes[i] != -1) {
-			if( mesh_references[model_material_indexes[i]]++ == 0) {
+		if (model_material_indexes[i] != -1) {
+			if ( mesh_references[model_material_indexes[i]]++ == 0) {
 				input->models[i].flags |= ztModelFlags_OwnsMaterials;
 			}
 			input->models[i].material = materials[model_material_indexes[i]];
@@ -17882,17 +17588,17 @@ bool zt_modelClone(ztModelLoaderInput *input, ztModel *model_to_clone, bool take
 							bool layer_target_found = false;
 
 							zt_fvz(bone_idx, model_to_clone->bones_count) {
-								if(layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.position) {
+								if (layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.position) {
 									layer_target_found = true;
 									layer_target = zt_variantPointerMake_vec3(&model->bones[bone_idx].transform.position);
 									break;
 								}
-								if(layer->target.type == ztVariant_quat && layer->target.v_quat == &model_to_clone->bones[bone_idx].transform.rotation) {
+								if (layer->target.type == ztVariant_quat && layer->target.v_quat == &model_to_clone->bones[bone_idx].transform.rotation) {
 									layer_target_found = true;
 									layer_target = zt_variantPointerMake_quat(&model->bones[bone_idx].transform.rotation);
 									break;
 								}
-								if(layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.scale) {
+								if (layer->target.type == ztVariant_vec3 && layer->target.v_vec3 == &model_to_clone->bones[bone_idx].transform.scale) {
 									layer_target_found = true;
 									layer_target = zt_variantPointerMake_vec3(&model->bones[bone_idx].transform.scale);
 									break;
@@ -18138,14 +17844,14 @@ i32 zt_modelGetVertices(ztModel *model, ztVec3 *vertices, i32 vertices_size, ztM
 		verts_count = zt_vertexArrayGetVertices(model->vertex_array_id, vertices, vertices_size);
 	}
 
-	if(verts_count > 0 && verts_count <= vertices_size) {
-		if(transform == ztModelGetVerticesTransform_LocalTransform) {
+	if (verts_count > 0 && verts_count <= vertices_size) {
+		if (transform == ztModelGetVerticesTransform_LocalTransform) {
 			ztMat4 local_mat = zt_transformToMat4(&model->transform);
 			zt_fiz(verts_count) {
 				vertices[i] = local_mat.getMultiply(vertices[i]);
 			}
 		}
-		else if(transform == ztModelGetVerticesTransform_WorldTransform) {
+		else if (transform == ztModelGetVerticesTransform_WorldTransform) {
 			zt_modelCalcMatrix(model, ztVec3::zero);
 
 			zt_fiz(verts_count) {
@@ -18384,7 +18090,7 @@ void zt_modelEditWidgetFree(ztModelEditWidget *widget)
 	ZT_PROFILE_RENDERING("zt_modelEditWidgetFree");
 
 	zt_fize(widget->verts) {
-		if(widget->verts[i]) {
+		if (widget->verts[i]) {
 			zt_free(widget->verts[i]);
 			widget->verts[i] = 0;
 			widget->verts_count[i] = 0;
@@ -18446,7 +18152,7 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 
 	static ztMat4 orig_mat_inv;
 
-	if(!widget->dragging) {
+	if (!widget->dragging) {
 		ztVec3 ray_pos, ray_dir;
 		ztMat4 calc_mat_inv = _zt_modelEditWidgetGetMatInv(widget);
 
@@ -18511,7 +18217,7 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 
 		ztTransform *transform = _zt_modelEditWidgetGetTransform(widget);
 
-		if(input_keys[ztInputKeys_Escape].justPressed() || input_mouse->rightJustPressed()) {
+		if (input_keys[ztInputKeys_Escape].justPressed() || input_mouse->rightJustPressed()) {
 			*transform = widget->dragging_transform_origin;
 			widget->dragging = false;
 			return false;
@@ -18612,7 +18318,7 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 
 				transform->rotation = widget->dragging_transform_origin.rotation * quat_to_add;
 
-				if(snap) {
+				if (snap) {
 					ztVec3 euler_after = transform->rotation.euler();
 
 					zt_fize(rot_to_add.values) {
@@ -18930,7 +18636,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
 	zt_textureSetName(scene->tex_directional_shadow_map, "Directional Shadow Map");
 
-	if(scene->tex_directional_shadow_map == ztInvalidID) {
+	if (scene->tex_directional_shadow_map == ztInvalidID) {
 		zt_freeArena(scene, arena);
 		return nullptr;
 	}
@@ -18974,7 +18680,7 @@ void zt_sceneFree(ztScene *scene)
 	}
 
 	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
-		if(scene->lights[i].shadowmap_tex != ztInvalidID) {
+		if (scene->lights[i].shadowmap_tex != ztInvalidID) {
 			zt_textureFree(scene->lights[i].shadowmap_tex);
 		}
 	}
@@ -19081,7 +18787,7 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 		scene->instancing_info[current_instance - 1].last_drawn_id = 0;
 
 		for(int j = i; j < scene->models_count; ++j) {
-			if(scene->models[j].instance_id == current_instance) {
+			if (scene->models[j].instance_id == current_instance) {
 				zt_modelCalcMatrix(scene->models[j].model);
 				scene->instancing_info[current_instance-1].count += 1;
 				scene->models[j].instance_cache_idx = current_cache_idx++;
@@ -19123,7 +18829,7 @@ void zt_sceneAddLight(ztScene *scene, ztLight *light, int shadow_map_res, i32 fl
 			light_info->shadowmap_tex = zt_textureMakeCubeMapForDepth(shadow_map_res);
 			zt_textureSetName(light_info->shadowmap_tex, "Light Shadowmap");
 
-			if((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
+			if ((light->type == ztLightType_Spot || light->type == ztLightType_Point) && scene->shader_point_light_shadows == ztInvalidID) {
 				scene->shader_point_light_shadows = zt_shaderMakePointLightShadows(false);
 				scene->shader_point_light_shadows_instanced = zt_shaderMakePointLightShadows(true);
 			}
@@ -19144,7 +18850,7 @@ void zt_sceneRemoveLight(ztScene *scene, ztLight *light)
 	zt_assertReturnOnFail(scene->lights_count < zt_elementsOf(scene->lights));
 
 	zt_fiz(scene->lights_count) {
-		if(scene->lights[i].light == light) {
+		if (scene->lights[i].light == light) {
 
 			if (light->casts_shadows) {
 				zt_textureFree(scene->lights[i].shadowmap_tex);
@@ -19448,7 +19154,7 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 				if (!zt_bitIsSet(scene->models[i].flags, ztSceneModelFlags_NoCalcMatrix)) {
 					if (scene->models[i].root_parent == nullptr) {
 						if (zt_modelCalcMatrix(scene->models[i].model, world_offset)) {
-							if(scene->models[i].instance_id != 0) {
+							if (scene->models[i].instance_id != 0) {
 								scene->instancing_data_cache[scene->models[i].instance_cache_idx].matrix = scene->models[i].model->calculated_mat;
 							}
 						}
@@ -19519,11 +19225,11 @@ void zt_scenePrepare(ztScene *scene, ztCamera *camera, const ztVec3 &world_offse
 
 			bool visible = true;
 
-			if(scene->lights[i].dist_from_cam - radius > scene->culling_distance) {
+			if (scene->lights[i].dist_from_cam - radius > scene->culling_distance) {
 				visible = false;
 			}
 			else {
-				if(!zt_collisionSphereInFrustum(camera_frustum, scene->lights[i].light->position, radius)) {
+				if (!zt_collisionSphereInFrustum(camera_frustum, scene->lights[i].light->position, radius)) {
 					visible = false;
 				}
 			}
@@ -21938,26 +21644,9 @@ ZT_FUNC_OCTREE_ITEM_CONTAINED(zt_ocTreeItemContainedTestTriangles)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i32* v_minor)
+ztRenderer *zt_renderer()
 {
-	if (renderer == ztRenderer_OpenGL) {
-		zt_noOpenGLSupport(return false);
-
-		// TODO(josh): this needs updated to check dlls
-		*v_major = 4;
-		*v_minor = 5;
-		return true;
-	}
-	else if (renderer == ztRenderer_DirectX) {
-		zt_noDirectxSupport(return false);
-
-		*v_major = 11;
-		*v_minor = 0;
-	}
-
-	*v_major = *v_minor = 0;
-
-	return false;
+	return &zt_game->renderer;
 }
 
 // ================================================================================================================================================================================================
@@ -21965,16 +21654,7 @@ bool zt_rendererGetMaxVersionSupported(ztRenderer_Enum renderer, i32* v_major, i
 void zt_rendererClear(r32 r, r32 g, r32 b, r32 a)
 {
 	ZT_PROFILE_RENDERING("zt_rendererClear");
-	switch(zt_game->win_game_settings[0].renderer)
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_clear(r, g, b, a));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_clear(zt_game->win_details[0].dx_context, r, g, b, a));
-		} break;
-	}
+	zt_game->renderer.clear(&zt_game->renderer, _zt_rendererGetActiveContext(), r, g, b, a);
 }
 
 // ================================================================================================================================================================================================
@@ -21989,16 +21669,7 @@ void zt_rendererClear(ztVec4 clr)
 void zt_rendererClearDepth()
 {
 	ZT_PROFILE_RENDERING("zt_rendererClearDepth");
-	switch (zt_game->win_game_settings[0].renderer)
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_clearDepth());
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_clearDepth(zt_game->win_details[0].dx_context));
-		} break;
-	}
+	zt_game->renderer.clear_depth(&zt_game->renderer, _zt_rendererGetActiveContext());
 }
 
 // ================================================================================================================================================================================================
@@ -22006,18 +21677,7 @@ void zt_rendererClearDepth()
 bool zt_rendererUvsFlipYRenderTarget()
 {
 	ZT_PROFILE_RENDERING("zt_rendererUvsReversed");
-	switch (zt_game->win_game_settings[0].renderer)
-	{
-		case ztRenderer_OpenGL: {
-			return false;
-		} break;
-
-		case ztRenderer_DirectX: {
-			return true;
-		} break;
-	}
-
-	return false;
+	return zt_game->renderer.uvs_flip_y_render_target;
 }
 
 // ================================================================================================================================================================================================
@@ -22025,44 +21685,12 @@ bool zt_rendererUvsFlipYRenderTarget()
 void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum function)
 {
 	ZT_PROFILE_RENDERING("zt_rendererSetDepthTest");
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			if (!depth_test) {
-				ztgl_depthTestOff();
-			}
-			else {
-				switch (function)
-				{
-					case ztRendererDepthTestFunction_Never       : ztgl_depthTestNever();        break;
-					case ztRendererDepthTestFunction_Less        : ztgl_depthTestLess();         break;
-					case ztRendererDepthTestFunction_LessEqual   : ztgl_depthTestLessEqual();    break;
-					case ztRendererDepthTestFunction_Equal       : ztgl_depthTestEqual();        break;
-					case ztRendererDepthTestFunction_Greater     : ztgl_depthTestGreater();      break;
-					case ztRendererDepthTestFunction_NotEqual    : ztgl_depthTestNotEqual();     break;
-					case ztRendererDepthTestFunction_GreaterEqual: ztgl_depthTestGreaterEqual(); break;
-					case ztRendererDepthTestFunction_Always      : ztgl_depthTestAlways();       break;
-				}
-				
-			}
-#			endif
-		} break;
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			switch (function)
-			{
-				case ztRendererDepthTestFunction_Never       : ztdx_depthTestNever(zt_game->win_details[0].dx_context);        break;
-				case ztRendererDepthTestFunction_Less        : ztdx_depthTestLess(zt_game->win_details[0].dx_context);         break;
-				case ztRendererDepthTestFunction_LessEqual   : ztdx_depthTestLessEqual(zt_game->win_details[0].dx_context);    break;
-				case ztRendererDepthTestFunction_Equal       : ztdx_depthTestEqual(zt_game->win_details[0].dx_context);        break;
-				case ztRendererDepthTestFunction_Greater     : ztdx_depthTestGreater(zt_game->win_details[0].dx_context);      break;
-				case ztRendererDepthTestFunction_NotEqual    : ztdx_depthTestNotEqual(zt_game->win_details[0].dx_context);     break;
-				case ztRendererDepthTestFunction_GreaterEqual: ztdx_depthTestGreaterEqual(zt_game->win_details[0].dx_context); break;
-				case ztRendererDepthTestFunction_Always      : ztdx_depthTestAlways(zt_game->win_details[0].dx_context);       break;
-			}
-#			endif
-		} break;
+
+	if (!depth_test) {
+		zt_rendererEnableDepthWriting(false);
+	}
+	else {
+		zt_game->renderer.depth_test_set(&zt_game->renderer, _zt_rendererGetActiveContext(), depth_test, function);
 	}
 }
 
@@ -22070,6 +21698,7 @@ void zt_rendererSetDepthTest(bool depth_test, ztRendererDepthTestFunction_Enum f
 
 void zt_rendererEnableDepthWriting(bool depth_writing)
 {
+	zt_game->renderer.depth_test_write(&zt_game->renderer, _zt_rendererGetActiveContext(), depth_writing);
 }
 
 // ================================================================================================================================================================================================
@@ -22077,30 +21706,7 @@ void zt_rendererEnableDepthWriting(bool depth_writing)
 void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 {
 	ZT_PROFILE_RENDERING("zt_rendererSetFaceCulling");
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			switch (culling)
-			{
-				case ztRendererFaceCulling_CullBack : ztgl_cullBack(); break;
-				case ztRendererFaceCulling_CullFront: ztgl_cullFront(); break;
-				case ztRendererFaceCulling_CullNone : ztgl_cullNone(); break;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			switch (culling)
-			{
-				case ztRendererFaceCulling_CullBack : ztdx_cullBack(zt_game->win_details[0].dx_context); break;
-				case ztRendererFaceCulling_CullFront: ztdx_cullFront(zt_game->win_details[0].dx_context); break;
-				case ztRendererFaceCulling_CullNone : ztdx_cullNone(zt_game->win_details[0].dx_context); break;
-			}
-#			endif
-		} break;
-	}
+	zt_game->renderer.culling_set(&zt_game->renderer, _zt_rendererGetActiveContext(), culling);
 }
 
 // ================================================================================================================================================================================================
@@ -22108,34 +21714,23 @@ void zt_rendererSetFaceCulling(ztRendererFaceCulling_Enum culling)
 void zt_rendererSetBlendMode(ztRendererBlendMode_Enum source, ztRendererBlendMode_Enum dest)
 {
 	ZT_PROFILE_RENDERING("zt_rendererSetBlendMode");
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztgl_blendMode((ztGLBlendMode_Enum)source, (ztGLBlendMode_Enum)dest);
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			ztdx_blendMode(zt_game->win_details[0].dx_context, (ztBlendModeDX_Enum)source, (ztBlendModeDX_Enum)dest);
-#			endif
-		} break;
-	}
-
+	zt_game->renderer.blend_mode_set(&zt_game->renderer, _zt_rendererGetActiveContext(), source, dest);
 }
 
 // ================================================================================================================================================================================================
 
-void zt_rendererRequestChange(ztRenderer_Enum renderer)
+void zt_rendererClipRegion(i32 x, i32 y, i32 w, i32 h)
 {
-	ZT_PROFILE_RENDERING("zt_rendererRequestChange");
-	if (zt_game->renderer_requests_count >= zt_elementsOf(zt_game->renderer_requests))
-		return;
+	ZT_PROFILE_RENDERING("zt_rendererClipRegion");
+	zt_game->renderer.viewport_clip(&zt_game->renderer, _zt_rendererGetActiveContext(), x, y, w, h);
+}
 
-	ztRendererRequest* request = &zt_game->renderer_requests[zt_game->renderer_requests_count++];
-	request->type = ztRendererRequest_Change;
-	request->change_to = renderer;
+// ================================================================================================================================================================================================
+
+void zt_rendererClipRegionReset()
+{
+	ZT_PROFILE_RENDERING("zt_rendererClipRegionReset");
+	zt_game->renderer.viewport_reset_clip(&zt_game->renderer, _zt_rendererGetActiveContext());
 }
 
 // ================================================================================================================================================================================================
@@ -22321,18 +21916,7 @@ typedef ZT_SHADER_LANG_PREPROCESS_GET_FILE_DATA(_zt_shaderLangPreprocessGetFileD
 
 // ================================================================================================================================================================================================
 
-struct ztShaderLangDefines
-{
-	ztStringPool string_pool;
-	ztString    *defines;
-	ztString    *values;
-	i32          count;
-	i32          size;
-};
-
-// ================================================================================================================================================================================================
-
-ztInternal void _zt_shaderLangDefinesMake(ztShaderLangDefines *defines)
+void _zt_shaderLangDefinesMake(ztShaderLangDefines *defines)
 {
 	zt_memSet(defines, zt_sizeof(ztShaderLangDefines), 0);
 
@@ -22355,7 +21939,7 @@ ztInternal void _zt_shaderLangDefinesMake(ztShaderLangDefines *defines)
 
 // ================================================================================================================================================================================================
 
-ztInternal void _zt_shaderLangDefinesFree(ztShaderLangDefines *defines)
+void _zt_shaderLangDefinesFree(ztShaderLangDefines *defines)
 {
 	zt_fiz(defines->count) {
 		zt_stringFree(&defines->string_pool, defines->defines[i]);
@@ -22371,7 +21955,7 @@ ztInternal void _zt_shaderLangDefinesFree(ztShaderLangDefines *defines)
 
 // ================================================================================================================================================================================================
 
-ztInternal bool _zt_shaderLangDefinesAddDefine(ztShaderLangDefines *defines, const char *define, const char *value)
+bool _zt_shaderLangDefinesAddDefine(ztShaderLangDefines *defines, const char *define, const char *value)
 {
 	if (defines->count >= defines->size) {
 		return false;
@@ -22396,10 +21980,10 @@ ztInternal i32 _zt_shaderLangPreprocessImport(const char *import, char *buffer, 
 		to_copy = "#ifndef ZT_LIGHTING_SHARED_IMPORT\n#define ZT_LIGHTING_SHARED_IMPORT\n\n#import \"zt_defaults\"\n\nstruct PointLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n	float linear;\n	float quadratic;\n}\n\nstruct SpotLight\n{\n	vec3  pos;\n	float intensity;\n	vec3  direction;\n	float cutoff_in;\n	float cutoff_out;\n	vec3  ambient_color;\n	int   shadowmap_use;\n	float far_plane;\n}\n\n#ifndef ZT_MAX_POINT_LIGHTS\n#define ZT_MAX_POINT_LIGHTS 4\n#endif\n\n#ifndef ZT_MAX_SPOT_LIGHTS\n#define ZT_MAX_SPOT_LIGHTS 4\n#endif\n\n#define ZT_DIRECTIONAL_LIGHT_UNIFORMS  	vec3 view_pos; mat4 light_matrix; vec3 light_pos; float light_ambient; float light_intensity; vec4 light_color;\n#define ZT_DIRECTIONAL_POINT_SPOT_LIGHT_UNIFORMS ZT_DIRECTIONAL_LIGHT_UNIFORMS; PointLight point_lights[ZT_MAX_POINT_LIGHTS]; int point_lights_count; SpotLight spot_lights[ZT_MAX_SPOT_LIGHTS]; int spot_lights_count;\n\n\n#define ZT_DIRECTIONAL_POINT_SPOT_LIGHT_SHADOWMAPS 	texture2d directional_light_shadowmap; textureCube point_lights_shadowmap[ZT_MAX_POINT_LIGHTS]; textureCube spot_lights_shadowmap[ZT_MAX_SPOT_LIGHTS];\n\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS 0.0025\n#endif\n\n#ifndef ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES\n#define ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES 3\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_calculateDirectionalLightingShadow(vec3 light_dir, vec3 normal, vec4 frag_pos_light_space, texture2d shadow_map_tex)\n{\n	vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;\n	proj_coords = proj_coords * 0.5 + 0.5;\n	if (proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0) {\n		return 0.0;\n	}\n\n	float current_depth = proj_coords.z;\n	if (current_depth > 1.0 || current_depth < 0.0) {\n		return 0.0;\n	}\n\n	float bias = max(ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS * (1.0 - dot(normal, light_dir)), ZT_LIGHTING_DIRECTIONAL_SHADOW_BIAS);\n\n	float shadow = 0.0;\n	vec2 texel_size = 1.0 / textureSize(shadow_map_tex);// * .5;\n\n	const int samples = ZT_LIGHTING_DIRECTIONAL_SHADOW_SAMPLES;\n	for (int x = -samples; x <= samples; ++x) {\n		for (int y = -samples; y <= samples; ++y) {\n			float pcf_depth = textureSample(shadow_map_tex, proj_coords.xy + vec2(x, y) * texel_size).r;\n			shadow += (current_depth - bias) > pcf_depth ? 1.0 : 0.0;\n		}\n	}\n	shadow /= (float(samples) * 2.0 + 1.0) * (float(samples) * 2.0 + 1.0);\n	return shadow;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_POINT_SHADOW_BIAS\n#define ZT_LIGHTING_POINT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculatePointLightingShadow(PointLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_POINT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_LIGHTING_SPOT_SHADOW_BIAS\n#define ZT_LIGHTING_SPOT_SHADOW_BIAS 0.0025\n#endif\n\n\nfloat zt_calculateSpotLightingShadow(SpotLight light, textureCube depth_tex, vec3 frag_pos, vec3 normal)\n{\n	if (light.shadowmap_use == 0) {\n		return 0;\n	}\n\n	vec3 frag_to_light = (frag_pos - light.pos) * vec3(1, -1, -1);\n	float current_depth = length(frag_to_light);\n\n	float shadow = 0;\n\n	float offset = 0.1;\n	float bias = ZT_LIGHTING_SPOT_SHADOW_BIAS;\n\n	int samples = 20;\n	vec3 sample_offset_dir[20] = {\n		vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1),\n		vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),\n		vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),\n		vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),\n		vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)\n	};\n	\n	float sample_offset_radius = 0.05;\n\n	for (int i = 0; i < samples; ++i) {\n		float closest_depth = textureSample(depth_tex, frag_to_light + sample_offset_dir[i] * sample_offset_radius).r;\n		closest_depth *= light.far_plane;\n\n		if (current_depth - bias > closest_depth) {\n			shadow += 1;\n		}\n	}\n\n	shadow /= float(samples);\n\n	return shadow;\n}\n\n#endif";
 	}
 	else if (zt_strEquals(import, "zt_blinn_phong")) {
-		to_copy = "#ifndef ZT_BLINN_PHONG_IMPORT\n#define ZT_BLINN_PHONG_IMPORT\n\n#import \"zt_default_lighting\"\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_blinnPhongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_angle = max(dot(halfway_dir, normal), 0.0);\n	return pow(spec_angle, shininess);\n}\n\nfloat zt_phongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 reflect_dir = reflect(-light_dir, normal);\n	float spec_angle = max(dot(view_dir, reflect_dir), 0.0);\n	return pow(spec_angle, shininess);\n }\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateDirectionalLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 light_clr, float light_intensity, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 ambient = light_clr * ambient_color * diffuse_clr;\n\n	float diff = max(dot(normal, normalize(-light_dir)), 0.0);\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(-light_dir, normal, view_dir, specular * 1);\n	vec3 specular_clr = light_clr * specular_factor * (light_intensity * .25);\n\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_POINT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_POINT_LIGHT_CONSTANT 1.0\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculatePointLighting(PointLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 light_clr = light.ambient_color;\n	vec3 ambient = light_clr * diffuse_clr;\n	\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float diff = max(dot(normal, light_dir), 0.0);\n	\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular);\n	vec3 specular_clr = vec3(0.03) * specular_factor;\n	\n	float distance = length(light.pos - frag_pos) / (light.intensity * .75);\n	float attenuation = 1.0 / (ZT_BLINNPHONG_POINT_LIGHT_CONSTANT + light.linear * distance + light.quadratic * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	//return ambient + ((diffuse + specular_clr) * (1 - shadow));\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT 0.0\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_LINEAR\n#define ZT_BLINNPHONG_SPOT_LIGHT_LINEAR 0.35\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC\n#define ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC 0.44\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateSpotLighting(SpotLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_clr, vec3 diffuse_clr, float specular, float shadow)\n{\n\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float theta = dot(light_dir, normalize(-light.direction));\n\n	float epsilon = light.cutoff_in - light.cutoff_out;\n	float intensity = (1 - clamp((theta - light.cutoff_out) / epsilon, 0.0, 1.0)) * (light.intensity * .05f);\n	\n	vec3 ambient = light.ambient_color * diffuse_clr * intensity * (1 - shadow);\n	\n	float diff = max(dot(normal, light_dir), 0.0);\n	vec3 diffuse = (ambient * diff * diffuse_clr) * intensity;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular * 256);\n	vec3 specular_clr = vec3(.3) * specular_factor * intensity;\n	\n	float distance = length(light.pos - frag_pos) * .2;\n	float attenuation = 1.0 / (ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT + ZT_BLINNPHONG_SPOT_LIGHT_LINEAR * distance + ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	return ambient + ((diffuse + specular_clr));	\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_blinnPhongPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n{\n	if (__exists(_input.frag_pos, uniforms.view_pos, _input.uv)) {\n		vec3 world_pos = _input.frag_pos;\n		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n		\n		vec2 uv;\n		\n		if(__exists(textures.specular_tex)) {\n			uv = zt_parallaxMapping(_input.uv, view_dir, textureSample(textures.specular_tex, _input.uv).b);\n		}\n		if(__missing(textures.specular_tex)) {\n			uv = _input.uv;\n		}\n		\n		vec4 input_color = vec4(1);\n		if (__exists(_input.color)) {\n			input_color = _input.color;\n		}\n\n		vec4 diffuse_color = input_color;\n		if (__exists(uniforms.diffuse_color)) {\n			diffuse_color *= uniforms.diffuse_color;\n		}\n		if (__exists(textures.diffuse_tex)) {\n			diffuse_color *= textureSample(textures.diffuse_tex, uv);\n		}\n		\n		vec3 albedo = diffuse_color.rgb;\n		vec3 normal = zt_normalCalculation(_input, textures, uv);\n		vec3 reflection = reflect(-view_dir, normal);\n		\n		float specular = 1;\n		if (__exists(textures.specular_tex, uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r * uniforms.shininess;\n		}\n		if(__exists(textures.specular_tex) && __missing(uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r;\n		}\n		if(__missing(textures.specular_tex) && __exists(uniforms.shininess)) {\n			specular = uniforms.shininess;\n		}\n		\n		vec3 ambient_color = vec3(.01);\n		if (__exists(uniforms.ambient_color)) {\n			ambient_color = uniforms.ambient_color;\n		}\n		\n		vec3 lit_color = vec3(0);\n		\n		if (__exists(uniforms.light_pos, uniforms.light_ambient, uniforms.light_color, uniforms.light_intensity)) {\n			vec3 light_dir = normalize(-uniforms.light_pos);\n			vec4 light_color = uniforms.light_color;\n\n			float shadow = 0;\n			if (__exists(_input.frag_pos_light_space, textures.directional_light_shadowmap)) {\n				shadow = zt_calculateDirectionalLightingShadow(light_dir, normal, _input.frag_pos_light_space, textures.directional_light_shadowmap);\n			}\n			\n			lit_color = zt_blinnPhongCalculateDirectionalLighting(light_dir, view_dir, normal, ambient_color, light_color.rgb, uniforms.light_intensity, albedo, specular, shadow);\n		}\n\n 		if (__exists(uniforms.point_lights, uniforms.point_lights_count)) {\n 			for (int i = 0; i < uniforms.point_lights_count; ++i) {\n 				float shadow = 0;\n 				if (__exists(textures.point_lights_shadowmap)) {\n 					shadow = zt_calculatePointLightingShadow(uniforms.point_lights[i], textures.point_lights_shadowmap[i], world_pos, normal);\n 				}\n 				\n 				lit_color += zt_blinnPhongCalculatePointLighting(uniforms.point_lights[i], world_pos, view_dir, normal, albedo, specular, shadow);\n 			}\n 		}\n \n 		if (__exists(uniforms.spot_lights, uniforms.spot_lights_count)) {\n 			for (int i = 0; i < uniforms.spot_lights_count; ++i) {\n 				float shadow = 0;\n 				if (__exists(textures.spot_lights_shadowmap)) {\n 					shadow = zt_calculateSpotLightingShadow(uniforms.spot_lights[i], textures.spot_lights_shadowmap[i], world_pos, normal);\n 				}\n 				\n 				lit_color += zt_blinnPhongCalculateSpotLighting(uniforms.spot_lights[i], world_pos, view_dir, normal, ambient_color, albedo, specular, shadow);\n 			}\n 		}\n		\n		if (__exists(textures.emissive_tex, uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			lit_color += emissive * uniforms.emissive_strength;\n		}\n		if (__exists(textures.emissive_tex) && __missing(uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			lit_color += emissive;\n		}\n	\n		_output.color = vec4(lit_color, 1.0);\n		\n		if (__exists(_output.position, _input.frag_pos_view)) {\n			_output.position = _input.frag_pos_view;\n		}\n		\n		if (__exists(_output.normal, _input.normal_view)) {\n			_output.normal = vec4(normalize(_input.normal_view), 1);\n		}\n	}\n}\n\n#endif";
+		to_copy = "#ifndef ZT_BLINN_PHONG_IMPORT\n#define ZT_BLINN_PHONG_IMPORT\n\n#import \"zt_default_lighting\"\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_blinnPhongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 halfway_dir = normalize(light_dir + view_dir);\n	float spec_angle = max(dot(halfway_dir, normal), 0.0);\n	return pow(spec_angle, shininess);\n}\n\nfloat zt_phongCalculateSpecular(vec3 light_dir, vec3 normal, vec3 view_dir, float shininess)\n{\n	vec3 reflect_dir = reflect(-light_dir, normal);\n	float spec_angle = max(dot(view_dir, reflect_dir), 0.0);\n	return pow(spec_angle, shininess);\n }\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateDirectionalLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 light_clr, float light_intensity, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 ambient = light_clr * ambient_color * diffuse_clr;\n\n	float diff = max(dot(normal, normalize(-light_dir)), 0.0);\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(-light_dir, normal, view_dir, specular * 1);\n	vec3 specular_clr = light_clr * specular_factor * (light_intensity * .25);\n\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_POINT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_POINT_LIGHT_CONSTANT 1.0\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculatePointLighting(PointLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 diffuse_clr, float specular, float shadow)\n{\n	vec3 light_clr = light.ambient_color;\n	vec3 ambient = light_clr * diffuse_clr;\n	\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float diff = max(dot(normal, light_dir), 0.0);\n	\n	vec3 diffuse = light_clr * diff * diffuse_clr;\n\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular);\n	vec3 specular_clr = vec3(0.03) * specular_factor;\n	\n	float distance = length(light.pos - frag_pos) / (light.intensity * .75);\n	float attenuation = 1.0 / (ZT_BLINNPHONG_POINT_LIGHT_CONSTANT + light.linear * distance + light.quadratic * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	//return ambient + ((diffuse + specular_clr) * (1 - shadow));\n	return ambient + ((diffuse + specular_clr) * (1 - shadow));\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT\n#define ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT 0.0\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_LINEAR\n#define ZT_BLINNPHONG_SPOT_LIGHT_LINEAR 0.35\n#endif\n\n#ifndef ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC\n#define ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC 0.44\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_blinnPhongCalculateSpotLighting(SpotLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_clr, vec3 diffuse_clr, float specular, float shadow)\n{\n\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	float theta = dot(light_dir, normalize(-light.direction));\n\n	float epsilon = light.cutoff_in - light.cutoff_out;\n	float intensity = (1 - clamp((theta - light.cutoff_out) / epsilon, 0.0, 1.0)) * (light.intensity * .05f);\n	\n	vec3 ambient = light.ambient_color * diffuse_clr * intensity * (1 - shadow);\n	\n	float diff = max(dot(normal, light_dir), 0.0);\n	vec3 diffuse = (ambient * diff * diffuse_clr) * intensity;\n	\n	float specular_factor = zt_blinnPhongCalculateSpecular(light_dir, normal, view_dir, specular * 256);\n	vec3 specular_clr = vec3(.3) * specular_factor * intensity;\n	\n	float distance = length(light.pos - frag_pos) * .2;\n	float attenuation = 1.0 / (ZT_BLINNPHONG_SPOT_LIGHT_CONSTANT + ZT_BLINNPHONG_SPOT_LIGHT_LINEAR * distance + ZT_BLINNPHONG_SPOT_LIGHT_QUADRATIC * (distance * distance));\n	\n	ambient *= attenuation;\n	diffuse *= attenuation;\n	specular_clr *= attenuation;\n	\n	return ambient + ((diffuse + specular_clr));	\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_blinnPhongPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n{\n	if (__exists(_input.frag_pos, uniforms.view_pos, _input.uv)) {\n		vec3 world_pos = _input.frag_pos;\n		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n		\n		vec2 uv;\n		\n		if (__exists(textures.specular_tex)) {\n			uv = zt_parallaxMapping(_input.uv, view_dir, textureSample(textures.specular_tex, _input.uv).b);\n		}\n		if (__missing(textures.specular_tex)) {\n			uv = _input.uv;\n		}\n		\n		vec4 input_color = vec4(1);\n		if (__exists(_input.color)) {\n			input_color = _input.color;\n		}\n\n		vec4 diffuse_color = input_color;\n		if (__exists(uniforms.diffuse_color)) {\n			diffuse_color *= uniforms.diffuse_color;\n		}\n		if (__exists(textures.diffuse_tex)) {\n			diffuse_color *= textureSample(textures.diffuse_tex, uv);\n		}\n		\n		vec3 albedo = diffuse_color.rgb;\n		vec3 normal = zt_normalCalculation(_input, textures, uv);\n		vec3 reflection = reflect(-view_dir, normal);\n		\n		float specular = 1;\n		if (__exists(textures.specular_tex, uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r * uniforms.shininess;\n		}\n		if (__exists(textures.specular_tex) && __missing(uniforms.shininess)) {\n			specular = textureSample(textures.specular_tex, uv).r;\n		}\n		if (__missing(textures.specular_tex) && __exists(uniforms.shininess)) {\n			specular = uniforms.shininess;\n		}\n		\n		vec3 ambient_color = vec3(.01);\n		if (__exists(uniforms.ambient_color)) {\n			ambient_color = uniforms.ambient_color;\n		}\n		\n		vec3 lit_color = vec3(0);\n		\n		if (__exists(uniforms.light_pos, uniforms.light_ambient, uniforms.light_color, uniforms.light_intensity)) {\n			vec3 light_dir = normalize(-uniforms.light_pos);\n			vec4 light_color = uniforms.light_color;\n\n			float shadow = 0;\n			if (__exists(_input.frag_pos_light_space, textures.directional_light_shadowmap)) {\n				shadow = zt_calculateDirectionalLightingShadow(light_dir, normal, _input.frag_pos_light_space, textures.directional_light_shadowmap);\n			}\n			\n			lit_color = zt_blinnPhongCalculateDirectionalLighting(light_dir, view_dir, normal, ambient_color, light_color.rgb, uniforms.light_intensity, albedo, specular, shadow);\n		}\n\n 		if (__exists(uniforms.point_lights, uniforms.point_lights_count)) {\n 			for (int i = 0; i < uniforms.point_lights_count; ++i) {\n 				float shadow = 0;\n 				if (__exists(textures.point_lights_shadowmap)) {\n 					shadow = zt_calculatePointLightingShadow(uniforms.point_lights[i], textures.point_lights_shadowmap[i], world_pos, normal);\n 				}\n 				\n 				lit_color += zt_blinnPhongCalculatePointLighting(uniforms.point_lights[i], world_pos, view_dir, normal, albedo, specular, shadow);\n 			}\n 		}\n \n 		if (__exists(uniforms.spot_lights, uniforms.spot_lights_count)) {\n 			for (int i = 0; i < uniforms.spot_lights_count; ++i) {\n 				float shadow = 0;\n 				if (__exists(textures.spot_lights_shadowmap)) {\n 					shadow = zt_calculateSpotLightingShadow(uniforms.spot_lights[i], textures.spot_lights_shadowmap[i], world_pos, normal);\n 				}\n 				\n 				lit_color += zt_blinnPhongCalculateSpotLighting(uniforms.spot_lights[i], world_pos, view_dir, normal, ambient_color, albedo, specular, shadow);\n 			}\n 		}\n		\n		if (__exists(textures.emissive_tex, uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			lit_color += emissive * uniforms.emissive_strength;\n		}\n		if (__exists(textures.emissive_tex) && __missing(uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			lit_color += emissive;\n		}\n	\n		_output.color = vec4(lit_color, 1.0);\n		\n		if (__exists(_output.position, _input.frag_pos_view)) {\n			_output.position = _input.frag_pos_view;\n		}\n		\n		if (__exists(_output.normal, _input.normal_view)) {\n			_output.normal = vec4(normalize(_input.normal_view), 1);\n		}\n	}\n}\n\n#endif";
 	}
 	else if (zt_strEquals(import, "zt_pbr")) {
-		to_copy = "#ifndef ZT_PBR_IMPORT\n#define ZT_PBR_IMPORT\n\n#import \"zt_default_lighting\"\n\n#define ZT_PBR_TEXTURES  	texture2d diffuse_tex; texture2d specular_tex; texture2d normal_tex; texture2d emissive_tex; textureCube irradiance_map_tex; textureCube prefilter_map_tex; texture2d brdf_lut_tex;\n\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_fresnelSchlick(float cos_theta, vec3 v)\n{\n	return v + (1.0 - v) * pow(1.0 - cos_theta, 5.0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_fresnelSchlickRoughness(float cos_theta, vec3 v, float roughness)\n{\n	return v + (max(vec3(1.0 - roughness), v) - v) * pow(1.0 - cos_theta, 5.0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_distributionGGX(vec3 n, vec3 h, float roughness)\n{\n	float a = roughness * roughness;\n	float a2 = a * a;\n	float n_dot_h = max(dot(n, h), 0.0);\n	float n_dot_h2 = n_dot_h * n_dot_h;\n\n	float nom = a2;\n	float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n	denom = 3.14159265359 * denom * denom;\n\n	return nom / denom;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_geometrySchlickGGX(float n_dot_v, float roughness)\n{\n	float r = (roughness + 1.0);\n	float k = (r * r) / 8.0;\n\n	float nom = n_dot_v;\n	float denom = n_dot_v * (1.0 - k) + k;\n\n	return nom / denom;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)\n{\n	float n_dot_v = max(dot(n, v), 0.0);\n	float n_dot_l = max(dot(n, l), 0.0);\n	float ggx2 = zt_geometrySchlickGGX(n_dot_v, roughness);\n	float ggx1 = zt_geometrySchlickGGX(n_dot_l, roughness);\n\n	return ggx1 * ggx2;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculateDirectionalLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 light_clr, float light_intensity, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 H = normalize(view_dir + light_dir);\n\n	float distance = 1;\n	float attenuation = 1.0 / (distance * distance);\n	vec3 radiance = light_clr * attenuation * light_intensity * 5;\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * (light_intensity / 10);\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PBR_POINT_LIGHT_CONSTANT\n#define ZT_PBR_POINT_LIGHT_CONSTANT 1.0\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculatePointLighting(PointLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	vec3 H = normalize(view_dir + light_dir);\n	float distance = length(light.pos - frag_pos) / (light.intensity * 3);\n	float attenuation = 1.0 / (ZT_PBR_POINT_LIGHT_CONSTANT + light.linear * distance + light.quadratic * (distance * distance));\n	vec3 radiance = light.ambient_color * attenuation * (light.intensity * 6);\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * (light.intensity);\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PBR_SPOT_LIGHT_CONSTANT\n#define ZT_PBR_SPOT_LIGHT_CONSTANT 0.0\n#endif\n\n#ifndef ZT_PBR_SPOT_LIGHT_LINEAR\n#define ZT_PBR_SPOT_LIGHT_LINEAR 0.35\n#endif\n\n#ifndef ZT_PBR_SPOT_LIGHT_QUADRATIC\n#define ZT_PBR_SPOT_LIGHT_QUADRATIC 0.44\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculateSpotLighting(SpotLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 light_dir = normalize(light.pos - frag_pos);\n\n	float theta = dot(light_dir, normalize(-light.direction));\n	float epsilon = light.cutoff_in - light.cutoff_out;\n	float intensity = (1 - clamp((theta - light.cutoff_out) / epsilon, 0.0, 1.0)) * (light.intensity * 1.f);\n	\n	vec3 H = normalize(view_dir + light_dir);\n	vec3 radiance;\n	float distance = length(light.pos - frag_pos) * .4;\n	float attenuation = 1.0 / (ZT_PBR_SPOT_LIGHT_CONSTANT + ZT_PBR_SPOT_LIGHT_LINEAR * distance + ZT_PBR_SPOT_LIGHT_QUADRATIC * (distance * distance));\n	radiance = light.ambient_color * attenuation * intensity;\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * intensity;\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_pbrPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n{\n	if (__exists(_input.frag_pos, uniforms.view_pos, _input.uv)) {\n		vec3 world_pos = _input.frag_pos;\n		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n		\n		vec2 uv;\n		\n		if(__exists(textures.specular_tex)) {\n			uv = zt_parallaxMapping(_input.uv, view_dir, textureSample(textures.specular_tex, _input.uv).r);\n		}\n		if(__missing(textures.height_tex)) {\n			uv = _input.uv;\n		}\n		\n		vec4 input_color = vec4(1);\n		if (__exists(_input.color)) {\n			input_color = _input.color;\n		}\n\n		vec4 albedo_color = input_color;\n		if (__exists(uniforms.diffuse_color)) {\n			albedo_color *= uniforms.diffuse_color;\n		}\n		if (__exists(textures.diffuse_tex)) {\n			albedo_color *= textureSample(textures.diffuse_tex, uv);\n		}\n		\n		vec3 albedo = albedo_color.rgb;\n		vec3 normal = zt_normalCalculation(_input, textures, uv);\n		vec3 reflection = reflect(-view_dir, normal);\n		\n		float metallic = 0;\n		if (__exists(textures.specular_tex)) {\n			metallic = textureSample(textures.specular_tex, uv).g;\n		}\n		\n		float roughness = 0;\n\n		if (__exists(textures.specular_tex, uniforms.shininess)) {\n			roughness = textureSample(textures.specular_tex, uv).r * uniforms.shininess;\n		}\n		if(__exists(textures.specular_tex) && __missing(uniforms.shininess)) {\n			roughness = textureSample(textures.specular_tex, uv).r;\n		}\n		if(__missing(textures.specular_tex) && __exists(uniforms.shininess)) {\n			roughness = uniforms.shininess;\n		}\n		\n		float ambient_occlusion = 1; // reflectivity is heavily affected by this\n		if(__exists(textures.ao_tex)) {\n			ambient_occlusion = textureSample(textures.ao_tex, uv);\n		}\n		\n		vec3 ambient_color = vec3(.04);\n		if (__exists(uniforms.ambient_color)) {\n			ambient_color = uniforms.ambient_color;\n		}\n		ambient_color = lerp(ambient_color, albedo, metallic);\n		\n		vec3 lit_color = vec3(0);\n		\n		if (__exists(uniforms.light_pos, uniforms.light_ambient, uniforms.light_color, uniforms.light_intensity)) {\n			vec3 light_dir = normalize(uniforms.light_pos);\n			vec4 light_color = uniforms.light_color;\n\n			float shadow = 0;\n			if (__exists(_input.frag_pos_light_space, textures.directional_light_shadowmap)) {\n				shadow = zt_calculateDirectionalLightingShadow(light_dir, normal, _input.frag_pos_light_space, textures.directional_light_shadowmap);\n			}\n			\n			lit_color = zt_pbrCalculateDirectionalLighting(light_dir, view_dir, normal, ambient_color, light_color.rgb, uniforms.light_intensity, albedo, roughness, metallic, shadow);\n		}\n\n		if (__exists(uniforms.point_lights, uniforms.point_lights_count)) {\n			for (int i = 0; i < uniforms.point_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.point_lights_shadowmap)) {\n					shadow = zt_calculatePointLightingShadow(uniforms.point_lights[i], textures.point_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_pbrCalculatePointLighting(uniforms.point_lights[i], world_pos, view_dir, normal, ambient_color, albedo, roughness, metallic, shadow);\n			}\n		}\n\n		if (__exists(uniforms.spot_lights, uniforms.spot_lights_count)) {\n			for (int i = 0; i < uniforms.spot_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.spot_lights_shadowmap)) {\n					shadow = zt_calculateSpotLightingShadow(uniforms.spot_lights[i], textures.spot_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_pbrCalculateSpotLighting(uniforms.spot_lights[i], world_pos, view_dir, normal, ambient_color, albedo, roughness, metallic, shadow);\n			}\n		}\n		\n		vec3 color = lit_color;\n		\n		vec3 irradiance;\n		if(__exists(textures.irradiance_map_tex, textures.prefilter_map_tex, textures.brdf_lut_tex, uniforms.light_ambient)) {\n			vec3 ambient_lighting = zt_fresnelSchlickRoughness(max(dot(normal, view_dir), 0.0), ambient_color, roughness);\n			\n			vec3 kS = ambient_lighting;\n			vec3 kD = 1.0 - kS;\n			kD *= 1.0 - metallic;\n		\n			vec3 irradiance = textureSample(textures.irradiance_map_tex, normal).rgb;\n			vec3 diffuse = irradiance * albedo;\n			\n			#define MAX_REFLECTION_LOD 4.0\n			\n			vec3 prefiltered_color = textureSampleLOD(textures.prefilter_map_tex, reflection, roughness * MAX_REFLECTION_LOD).rgb;\n			vec4 brdf = textureSample(textures.brdf_lut_tex, vec2(max(dot(-normal, view_dir), 0.0), roughness));\n			vec3 specular = prefiltered_color * (ambient_lighting * brdf.r + brdf.g);\n			\n			vec3 ambient = (kD * diffuse + specular) * ambient_occlusion * uniforms.light_ambient;\n			\n			color += ambient;\n		}\n		\n		if (__exists(textures.emissive_tex, uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			color += emissive * uniforms.emissive_strength;\n		}\n		if (__exists(textures.emissive_tex) && __missing(uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			color += emissive;\n		}\n	\n		_output.color = vec4(color, 1.0);\n		\n		if (__exists(_output.position, _input.frag_pos_view)) {\n			_output.position = _input.frag_pos_view;\n		}\n		\n		if (__exists(_output.normal, _input.normal_view)) {\n			_output.normal = vec4(normalize(_input.normal_view), 1);\n		}\n	}\n}\n\n#endif\n";
+		to_copy = "#ifndef ZT_PBR_IMPORT\n#define ZT_PBR_IMPORT\n\n#import \"zt_default_lighting\"\n\n#define ZT_PBR_TEXTURES  	texture2d diffuse_tex; texture2d specular_tex; texture2d normal_tex; texture2d emissive_tex; textureCube irradiance_map_tex; textureCube prefilter_map_tex; texture2d brdf_lut_tex;\n\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_fresnelSchlick(float cos_theta, vec3 v)\n{\n	return v + (1.0 - v) * pow(1.0 - cos_theta, 5.0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_fresnelSchlickRoughness(float cos_theta, vec3 v, float roughness)\n{\n	return v + (max(vec3(1.0 - roughness), v) - v) * pow(1.0 - cos_theta, 5.0);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_distributionGGX(vec3 n, vec3 h, float roughness)\n{\n	float a = roughness * roughness;\n	float a2 = a * a;\n	float n_dot_h = max(dot(n, h), 0.0);\n	float n_dot_h2 = n_dot_h * n_dot_h;\n\n	float nom = a2;\n	float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n	denom = 3.14159265359 * denom * denom;\n\n	return nom / denom;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_geometrySchlickGGX(float n_dot_v, float roughness)\n{\n	float r = (roughness + 1.0);\n	float k = (r * r) / 8.0;\n\n	float nom = n_dot_v;\n	float denom = n_dot_v * (1.0 - k) + k;\n\n	return nom / denom;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nfloat zt_geometrySmith(vec3 n, vec3 v, vec3 l, float roughness)\n{\n	float n_dot_v = max(dot(n, v), 0.0);\n	float n_dot_l = max(dot(n, l), 0.0);\n	float ggx2 = zt_geometrySchlickGGX(n_dot_v, roughness);\n	float ggx1 = zt_geometrySchlickGGX(n_dot_l, roughness);\n\n	return ggx1 * ggx2;\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculateDirectionalLighting(vec3 light_dir, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 light_clr, float light_intensity, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 H = normalize(view_dir + light_dir);\n\n	float distance = 1;\n	float attenuation = 1.0 / (distance * distance);\n	vec3 radiance = light_clr * attenuation * light_intensity * 5;\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * (light_intensity / 10);\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PBR_POINT_LIGHT_CONSTANT\n#define ZT_PBR_POINT_LIGHT_CONSTANT 1.0\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculatePointLighting(PointLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 light_dir = normalize(light.pos - frag_pos);\n	vec3 H = normalize(view_dir + light_dir);\n	float distance = length(light.pos - frag_pos) / (light.intensity * 3);\n	float attenuation = 1.0 / (ZT_PBR_POINT_LIGHT_CONSTANT + light.linear * distance + light.quadratic * (distance * distance));\n	vec3 radiance = light.ambient_color * attenuation * (light.intensity * 6);\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * (light.intensity);\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n#ifndef ZT_PBR_SPOT_LIGHT_CONSTANT\n#define ZT_PBR_SPOT_LIGHT_CONSTANT 0.0\n#endif\n\n#ifndef ZT_PBR_SPOT_LIGHT_LINEAR\n#define ZT_PBR_SPOT_LIGHT_LINEAR 0.35\n#endif\n\n#ifndef ZT_PBR_SPOT_LIGHT_QUADRATIC\n#define ZT_PBR_SPOT_LIGHT_QUADRATIC 0.44\n#endif\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvec3 zt_pbrCalculateSpotLighting(SpotLight light, vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ambient_color, vec3 albedo_clr, float roughness, float metallic, float shadow)\n{\n	vec3 light_dir = normalize(light.pos - frag_pos);\n\n	float theta = dot(light_dir, normalize(-light.direction));\n	float epsilon = light.cutoff_in - light.cutoff_out;\n	float intensity = (1 - clamp((theta - light.cutoff_out) / epsilon, 0.0, 1.0)) * (light.intensity * 1.f);\n	\n	vec3 H = normalize(view_dir + light_dir);\n	vec3 radiance;\n	float distance = length(light.pos - frag_pos) * .4;\n	float attenuation = 1.0 / (ZT_PBR_SPOT_LIGHT_CONSTANT + ZT_PBR_SPOT_LIGHT_LINEAR * distance + ZT_PBR_SPOT_LIGHT_QUADRATIC * (distance * distance));\n	radiance = light.ambient_color * attenuation * intensity;\n\n	float NDF = zt_distributionGGX(normal, H, roughness);\n	float G   = zt_geometrySmith(normal, view_dir, light_dir, roughness);\n	vec3  F   = zt_fresnelSchlick(max(dot(H, view_dir), 0.0), ambient_color);\n\n	vec3  nominator   = NDF * G * F;\n	float denominator = 4 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;\n	vec3  specular    = (nominator / denominator) * intensity;\n	\n	vec3 kS = F;\n	vec3 kD = vec3(1.0) - kS;\n	kD *= 1.0 - metallic;\n\n	float NdotL = max(dot(normal, light_dir), 0.0);\n\n	return (kD * albedo_clr / 3.14159265359 + specular) * radiance * NdotL * (1 - shadow);\n}\n\n// ----------------------------------------------------------------------------------------------------------------------------------------------------------------\n\nvoid zt_pbrPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output)\n{\n	if (__exists(_input.frag_pos, uniforms.view_pos, _input.uv)) {\n		vec3 world_pos = _input.frag_pos;\n		vec3 view_dir = normalize(uniforms.view_pos - world_pos);\n		\n		vec2 uv;\n		\n		if (__exists(textures.specular_tex)) {\n			uv = zt_parallaxMapping(_input.uv, view_dir, textureSample(textures.specular_tex, _input.uv).r);\n		}\n		if (__missing(textures.height_tex)) {\n			uv = _input.uv;\n		}\n		\n		vec4 input_color = vec4(1);\n		if (__exists(_input.color)) {\n			input_color = _input.color;\n		}\n\n		vec4 albedo_color = input_color;\n		if (__exists(uniforms.diffuse_color)) {\n			albedo_color *= uniforms.diffuse_color;\n		}\n		if (__exists(textures.diffuse_tex)) {\n			albedo_color *= textureSample(textures.diffuse_tex, uv);\n		}\n		\n		vec3 albedo = albedo_color.rgb;\n		vec3 normal = zt_normalCalculation(_input, textures, uv);\n		vec3 reflection = reflect(-view_dir, normal);\n		\n		float metallic = 0;\n		if (__exists(textures.specular_tex)) {\n			metallic = textureSample(textures.specular_tex, uv).g;\n		}\n		\n		float roughness = 0;\n\n		if (__exists(textures.specular_tex, uniforms.shininess)) {\n			roughness = textureSample(textures.specular_tex, uv).r * uniforms.shininess;\n		}\n		if (__exists(textures.specular_tex) && __missing(uniforms.shininess)) {\n			roughness = textureSample(textures.specular_tex, uv).r;\n		}\n		if (__missing(textures.specular_tex) && __exists(uniforms.shininess)) {\n			roughness = uniforms.shininess;\n		}\n		\n		float ambient_occlusion = 1; // reflectivity is heavily affected by this\n		if (__exists(textures.ao_tex)) {\n			ambient_occlusion = textureSample(textures.ao_tex, uv);\n		}\n		\n		vec3 ambient_color = vec3(.04);\n		if (__exists(uniforms.ambient_color)) {\n			ambient_color = uniforms.ambient_color;\n		}\n		ambient_color = lerp(ambient_color, albedo, metallic);\n		\n		vec3 lit_color = vec3(0);\n		\n		if (__exists(uniforms.light_pos, uniforms.light_ambient, uniforms.light_color, uniforms.light_intensity)) {\n			vec3 light_dir = normalize(uniforms.light_pos);\n			vec4 light_color = uniforms.light_color;\n\n			float shadow = 0;\n			if (__exists(_input.frag_pos_light_space, textures.directional_light_shadowmap)) {\n				shadow = zt_calculateDirectionalLightingShadow(light_dir, normal, _input.frag_pos_light_space, textures.directional_light_shadowmap);\n			}\n			\n			lit_color = zt_pbrCalculateDirectionalLighting(light_dir, view_dir, normal, ambient_color, light_color.rgb, uniforms.light_intensity, albedo, roughness, metallic, shadow);\n		}\n\n		if (__exists(uniforms.point_lights, uniforms.point_lights_count)) {\n			for (int i = 0; i < uniforms.point_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.point_lights_shadowmap)) {\n					shadow = zt_calculatePointLightingShadow(uniforms.point_lights[i], textures.point_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_pbrCalculatePointLighting(uniforms.point_lights[i], world_pos, view_dir, normal, ambient_color, albedo, roughness, metallic, shadow);\n			}\n		}\n\n		if (__exists(uniforms.spot_lights, uniforms.spot_lights_count)) {\n			for (int i = 0; i < uniforms.spot_lights_count; ++i) {\n				float shadow = 0;\n				if (__exists(textures.spot_lights_shadowmap)) {\n					shadow = zt_calculateSpotLightingShadow(uniforms.spot_lights[i], textures.spot_lights_shadowmap[i], world_pos, normal);\n				}\n				\n				lit_color += zt_pbrCalculateSpotLighting(uniforms.spot_lights[i], world_pos, view_dir, normal, ambient_color, albedo, roughness, metallic, shadow);\n			}\n		}\n		\n		vec3 color = lit_color;\n		\n		vec3 irradiance;\n		if (__exists(textures.irradiance_map_tex, textures.prefilter_map_tex, textures.brdf_lut_tex, uniforms.light_ambient)) {\n			vec3 ambient_lighting = zt_fresnelSchlickRoughness(max(dot(normal, view_dir), 0.0), ambient_color, roughness);\n			\n			vec3 kS = ambient_lighting;\n			vec3 kD = 1.0 - kS;\n			kD *= 1.0 - metallic;\n		\n			vec3 irradiance = textureSample(textures.irradiance_map_tex, normal).rgb;\n			vec3 diffuse = irradiance * albedo;\n			\n			#define MAX_REFLECTION_LOD 4.0\n			\n			vec3 prefiltered_color = textureSampleLOD(textures.prefilter_map_tex, reflection, roughness * MAX_REFLECTION_LOD).rgb;\n			vec4 brdf = textureSample(textures.brdf_lut_tex, vec2(max(dot(-normal, view_dir), 0.0), roughness));\n			vec3 specular = prefiltered_color * (ambient_lighting * brdf.r + brdf.g);\n			\n			vec3 ambient = (kD * diffuse + specular) * ambient_occlusion * uniforms.light_ambient;\n			\n			color += ambient;\n		}\n		\n		if (__exists(textures.emissive_tex, uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			color += emissive * uniforms.emissive_strength;\n		}\n		if (__exists(textures.emissive_tex) && __missing(uniforms.emissive_strength)) {\n			vec3 emissive = textureSample(textures.emissive_tex, _input.uv).rgb;\n			color += emissive;\n		}\n	\n		_output.color = vec4(color, 1.0);\n		\n		if (__exists(_output.position, _input.frag_pos_view)) {\n			_output.position = _input.frag_pos_view;\n		}\n		\n		if (__exists(_output.normal, _input.normal_view)) {\n			_output.normal = vec4(normalize(_input.normal_view), 1);\n		}\n	}\n}\n\n#endif\n";
 	}
 	else if (zt_strEquals(import, "zt_cell")) {
 		to_copy = "#ifndef ZT_CELL_IMPORT\n#define ZT_CELL_IMPORT\n\n#import \"zt_blinn_phong\"\n\nvoid zt_cellPixelShaderLighting(PixelInput _input : input, Uniforms uniforms : uniforms, Textures textures : textures, PixelOutput _output : output, int color_count)\n{\n	// super simple for now, just reduce to the number of colors\n	zt_blinnPhongPixelShaderLighting(_input, uniforms, textures, _output);\n	\n	vec4 color = _output.color;\n	_output.color = vec4(floor(color.rgb * color_count) / color_count, 1);\n}\n\n#endif\n";
@@ -22713,7 +22297,7 @@ ztInternal bool _zt_shaderLangPreprocess(const char *data, int data_len, char **
 						return ztStrPosNotFound;
 					}
 				}
-				else if(zt_strStartsWith(working + next_preprocessor, "#define")) {
+				else if (zt_strStartsWith(working + next_preprocessor, "#define")) {
 					section_beg = next_preprocessor + 1;
 				}
 				else {
@@ -22833,7 +22417,7 @@ ztInternal bool _zt_shaderLangPreprocess(const char *data, int data_len, char **
 			if (end) {
 				// do nothing, it's already been handled
 			}
-			else if(skip) {
+			else if (skip) {
 				// we are ignoring all remaining aspects of this #if block
 				working_len = zt_strReplace(working, working_len, working_size, end_of_section, end_section_line_len, skip_text, zt_strLen(skip_text));
 			}
@@ -23218,7 +22802,7 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 									type = ztShLangTokenType_Invalid;
 									reuse_token = true;
 								}
-								else if(prev_token->type == ztShLangTokenType_NumberFloat && zt_strEndsWith(data + tokens[i-1].beg, tokens[i - 1].len, "e", 1)) {
+								else if (prev_token->type == ztShLangTokenType_NumberFloat && zt_strEndsWith(data + tokens[i-1].beg, tokens[i - 1].len, "e", 1)) {
 									prev_token->token_len += 1;
 									type = ztShLangTokenType_Invalid;
 									reuse_token = true;
@@ -23269,7 +22853,7 @@ ztInternal ztShLangToken *_zt_shaderLangTokenize(const char *data, int data_len,
 						zt_strToIntHex(token + 2, 0, &is_number);
 					}
 					if (is_number) {
-						if(prev_token->type == ztShLangTokenType_NumberFloat && zt_strEndsWith(data + prev_token->token_beg, prev_token->token_len, "e-", 2)) {
+						if (prev_token->type == ztShLangTokenType_NumberFloat && zt_strEndsWith(data + prev_token->token_beg, prev_token->token_len, "e-", 2)) {
 							prev_token->token_len += curr_token->token_len;
 							type = ztShLangTokenType_Invalid;
 							reuse_token = true;
@@ -23654,7 +23238,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 		static char *makeString(char *cache, int *cache_used, int cache_size, const char *source, int source_len)
 		{
 			zt_assert(*cache_used + source_len + 1 < cache_size);
-			if(*cache_used + source_len + 1 >= cache_size) {
+			if (*cache_used + source_len + 1 >= cache_size) {
 				static char out_of_memory[32];
 				zt_strCpy(out_of_memory, 32, "out of memory");
 				return out_of_memory;
@@ -23767,7 +23351,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 		{
 			read_next_token(expr_begin);
 
-			if(expr_begin->type == ztShLangTokenType_EndCommand) {
+			if (expr_begin->type == ztShLangTokenType_EndCommand) {
 				return nullptr;
 			}
 
@@ -24353,7 +23937,7 @@ ztShLangSyntaxNode *_zt_shaderLangGenerateSyntaxTree(char *file_data, ztShLangTo
 							return error_ute(ident_next);
 						}
 					}
-					else if(ident_next->type == ztShLangTokenType_BraceClose && is_var_assignment) {
+					else if (ident_next->type == ztShLangTokenType_BraceClose && is_var_assignment) {
 						push_back_token();
 						return result;
 					}
@@ -25452,7 +25036,7 @@ ztInternal bool _zt_shaderLangVerifySyntaxTree(ztShLangSyntaxNode *global_scope,
 						}
 					};
 
-					if(zt_strEquals(var_node->function_call.name, "__missing")) {
+					if (zt_strEquals(var_node->function_call.name, "__missing")) {
 						variables_exist = !variables_exist;
 					}
 
@@ -25845,7 +25429,7 @@ struct ztShaderReloadAssetData
 		//ztInternal bool _zt_assetLoadData(ztAssetManager *asset_mgr, ztAssetID asset_id, ztAssetManagerType_Enum valid_type, void **data, i32 *data_size)
 
 		void *vfile_data = nullptr;
-		if( !_zt_assetLoadData(vars->asset_mgr, asset_id, nullptr, 0, &vfile_data, file_data_size)) {
+		if ( !_zt_assetLoadData(vars->asset_mgr, asset_id, nullptr, 0, &vfile_data, file_data_size)) {
 			zt_logCritical("unable to load asset data: %s", file_name);
 			return false;
 		}
@@ -25939,10 +25523,13 @@ on_error:
 
 ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 {
+	zt_game->renderer.shader_populate_variables(&zt_game->renderer, _zt_rendererGetActiveContext(), shader->renderer_shader, shader);
+
+#if 0
 	if (shader->renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
 			shader->variables.variables_count = shader->gl_shader->uniforms_count;
-			if(shader->variables.variables_count > zt_elementsOf(shader->variables.variables)) {
+			if (shader->variables.variables_count > zt_elementsOf(shader->variables.variables)) {
 				zt_logCritical("shader has too many uniforms");
 				shader->variables.variables_count = zt_elementsOf(shader->variables.variables);
 			}
@@ -26002,14 +25589,16 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 				}
 			}
 #		endif // ZT_DIRECTX
-	}}
+	}
+#endif // if 0
+}
 
 // ================================================================================================================================================================================================
 
 ztInternal ztShaderID _zt_shaderGetNextID()
 {
 	zt_fiz(zt_game->shaders_count) {
-		if (zt_game->shaders[i].renderer == ztRenderer_Invalid) {
+		if (zt_game->shaders[i].renderer_shader == nullptr) {
 			return i;
 		}
 	}
@@ -26033,16 +25622,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 	ztShaderLangDefines defines;
 	_zt_shaderLangDefinesMake(&defines);
 
-	char *renderer_define = nullptr;
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: renderer_define = "ZT_OPENGL"; break;
-		case ztRenderer_DirectX: renderer_define = "ZT_DIRECTX"; break;
-	}
-
-	if (renderer_define) {
-		_zt_shaderLangDefinesAddDefine(&defines, renderer_define, "1");
-	}
+	zt_game->renderer.shader_populate_defines(&zt_game->renderer, _zt_rendererGetActiveContext(), &defines);
 
 	char *data_out;
 	int data_out_size = 0;
@@ -26077,6 +25657,58 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 
 	//_zt_shaderLangDumpSyntaxTree(syntax_root);
 
+	void *renderer_shader = zt_game->renderer.shader_make(&zt_game->renderer, _zt_rendererGetActiveContext(), syntax_root);
+
+	if (renderer_shader == nullptr) {
+		zt_logVerbose(data_out);
+	}
+
+	_zt_shaderLangFreeSyntaxTree(syntax_root);
+	zt_free(shader_tokens);
+	zt_freeArena(data_out, zt_memGetTempArena());
+
+	if (renderer_shader == nullptr) {
+		return ztInvalidID;
+	}
+
+	shader_id = replace != ztInvalidID ? replace : _zt_shaderGetNextID();
+
+	if (replace != ztInvalidID) {
+		zt_shaderFree(replace);
+	}
+
+	ztShader* shader = &zt_game->shaders[shader_id];
+	shader->renderer_shader = renderer_shader;
+
+	_zt_shaderSetupVariables(shader);
+
+	if (error) {
+		zt_logCritical("Unable to make shader '%s' (%s)", name, error);
+		zt_stringFree(error);
+		return ztInvalidID;
+	}
+
+	if (replace != ztInvalidID && shader_id != ztInvalidID) {
+		ztShader *shader = &zt_game->shaders[shader_id];
+		zt_fjz(shader->variables.variables_count) {
+			zt_fiz(var_values.variables_count) {
+				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
+					zt_memCpy(&shader->variables.variables[j], zt_sizeof(ztShaderVariableValues::Variable), &var_values.variables[i], zt_sizeof(ztShaderVariableValues::Variable));
+					break;
+				}
+			}
+		}
+	}
+	else {
+		zt_game->shaders[shader_id].callbacks.begin_func      = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+		zt_game->shaders[shader_id].callbacks.begin_user_data = nullptr;
+		zt_game->shaders[shader_id].callbacks.end_func        = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+		zt_game->shaders[shader_id].callbacks.end_user_data   = nullptr;
+	}
+
+	return shader_id;
+
+#if 0
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
 	if (game_settings->renderer == ztRenderer_OpenGL) {
 #		if defined(ZT_OPENGL)
@@ -26181,38 +25813,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 		error = zt_stringMakeFrom("DirectX has been disabled in the library.");
 #		endif // ZT_DIRECTX
 	}
-
-	_zt_shaderLangFreeSyntaxTree(syntax_root);
-
-	zt_free(shader_tokens);
-
-	zt_freeArena(data_out, zt_memGetTempArena());
-
-	if (error) {
-		zt_logCritical("Unable to make shader '%s' (%s)", name, error);
-		zt_stringFree(error);
-		return ztInvalidID;
-	}
-
-	if (replace != ztInvalidID && shader_id != ztInvalidID) {
-		ztShader *shader = &zt_game->shaders[shader_id];
-		zt_fjz(shader->variables.variables_count) {
-			zt_fiz(var_values.variables_count) {
-				if (zt_strEquals(var_values.variables[i].name, shader->variables.variables[j].name)) {
-					zt_memCpy(&shader->variables.variables[j], zt_sizeof(ztShaderVariableValues::Variable), &var_values.variables[i], zt_sizeof(ztShaderVariableValues::Variable));
-					break;
-				}
-			}
-		}
-	}
-	else {
-		zt_game->shaders[shader_id].callbacks.begin_func      = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-		zt_game->shaders[shader_id].callbacks.begin_user_data = nullptr;
-		zt_game->shaders[shader_id].callbacks.end_func        = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-		zt_game->shaders[shader_id].callbacks.end_user_data   = nullptr;
-	}
-
-	return shader_id;
+#endif // if 0
 
 #if 0
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
@@ -26299,8 +25900,7 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 		return ztInvalidID;
 #endif // ZT_DIRECTX
 	}
-#endif
-	return ztInvalidID;
+#endif // if 0
 }
 
 // ================================================================================================================================================================================================
@@ -26350,7 +25950,7 @@ ztShaderID zt_shaderMake(ztAssetManager *asset_mgr, ztAssetID asset_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderMake(ztAssetID)");
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return ztInvalidID;
 	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -26417,7 +26017,7 @@ void zt_shaderFree(ztShaderID shader_id)
 
 	ztShader* shader = &zt_game->shaders[shader_id];
 
-	if (shader->renderer == ztRenderer_Invalid) {
+	if (shader->renderer_shader == nullptr) {
 		return;
 	}
 
@@ -26425,12 +26025,9 @@ void zt_shaderFree(ztShaderID shader_id)
 		zt_assetRemoveReloadCallback(shader->asset_mgr, shader->asset_id, (void*)shader_id);
 	}
 
-	if (shader->renderer == ztRenderer_OpenGL) {
-		zt_openGLSupport(ztgl_shaderFree(shader->gl_shader));
-	}
-	else if (shader->renderer == ztRenderer_DirectX) {
-		zt_directxSupport(ztdx_shaderFree(zt_game->win_details[0].dx_context, shader->dx_shader));
-	}
+	zt_game->renderer.shader_free(&zt_game->renderer, _zt_rendererGetActiveContext(), shader->renderer_shader);
+
+	shader->renderer_shader = nullptr;
 
 	// we need to keep the callbacks otherwise they are lost when reloading a shader.  these are overwritten when loading a new shader, so there's no risk of old values being held over upon variable reuse
 	ztShaderCallbacks callbacks;
@@ -26458,23 +26055,9 @@ void zt_shaderAddDefine(const char *define, const char *replace_with)
 bool zt_shaderHasInstancing(ztShaderID shader_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderHasInstancing");
+	zt_assertReturnValOnFail(shader_id >= 0 && shader_id < zt_elementsOf(zt_game->shaders), false);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(return ztgl_shaderHasInstancing(zt_game->shaders[shader_id].gl_shader));
-		} break;
-
-		case ztRenderer_DirectX: {
-			return false;
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}
-
-	return false;
+	return zt_game->renderer.shader_has_instancing(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->shaders[shader_id].renderer_shader);
 }
 
 // ================================================================================================================================================================================================
@@ -26482,22 +26065,11 @@ bool zt_shaderHasInstancing(ztShaderID shader_id)
 void zt_shaderBegin(ztShaderID shader_id)
 {
 	ZT_PROFILE_RENDERING("zt_shaderBegin");
+	zt_assertReturnOnFail(shader_id >= 0 && shader_id < zt_elementsOf(zt_game->shaders));
+
 	zt_game->game_details.curr_frame.shader_switches += 1;
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_shaderBegin(zt_game->shaders[shader_id].gl_shader));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_shaderBegin(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader));
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}
+	zt_game->renderer.shader_begin(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->shaders[shader_id].renderer_shader);
 
 	zt_fiz(zt_game->shaders[shader_id].variables.variables_count) {
 		zt_game->shaders[shader_id].variables.variables[i].changed = true;
@@ -26515,20 +26087,7 @@ void zt_shaderEnd(ztShaderID shader_id)
 
 	ZT_FUNCTION_POINTER_ACCESS_SAFE(zt_game->shaders[shader_id].callbacks.end_func, ztShaderEnd_Func)(shader_id, zt_game->shaders[shader_id].callbacks.end_user_data);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_shaderEnd(zt_game->shaders[shader_id].gl_shader));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_shaderEnd(zt_game->win_details[0].dx_context, zt_game->shaders[shader_id].dx_shader));
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}
+	zt_game->renderer.shader_end(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->shaders[shader_id].renderer_shader);
 }
 
 // ================================================================================================================================================================================================
@@ -26603,59 +26162,59 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 		switch(shader->variables[i].type)
 		{
 			case ztShaderVariable_Float: {
-				if(shader->variables[i].val_float != shader_vars->variables[i].val_float) {
+				if (shader->variables[i].val_float != shader_vars->variables[i].val_float) {
 					shader->variables[i].val_float = shader_vars->variables[i].val_float;
 					shader->variables[i].changed = true;
 				}
 			} break;
 
 			case ztShaderVariable_Int: {
-				if(shader->variables[i].val_int != shader_vars->variables[i].val_int) {
+				if (shader->variables[i].val_int != shader_vars->variables[i].val_int) {
 					shader->variables[i].val_int = shader_vars->variables[i].val_int;
 					shader->variables[i].changed = true;
 				}
 			} break;
 
 			case ztShaderVariable_Vec2: {
-				zt_fkze(shader->variables[i].val_vec2) {
-					if(shader->variables[i].val_vec2[k] != shader_vars->variables[i].val_vec2[k]) {
-						shader->variables[i].val_vec2[k] = shader_vars->variables[i].val_vec2[k];
+				zt_fkze(shader->variables[i].val_vec2.values) {
+					if (shader->variables[i].val_vec2.values[k] != shader_vars->variables[i].val_vec2.values[k]) {
+						shader->variables[i].val_vec2.values[k] = shader_vars->variables[i].val_vec2.values[k];
 						shader->variables[i].changed = true;
 					}
 				}
 			} break;
 
 			case ztShaderVariable_Vec3: {
-				zt_fkze(shader->variables[i].val_vec3) {
-					if(shader->variables[i].val_vec3[k] != shader_vars->variables[i].val_vec3[k]) {
-						shader->variables[i].val_vec3[k] = shader_vars->variables[i].val_vec3[k];
+				zt_fkze(shader->variables[i].val_vec3.values) {
+					if (shader->variables[i].val_vec3.values[k] != shader_vars->variables[i].val_vec3.values[k]) {
+						shader->variables[i].val_vec3.values[k] = shader_vars->variables[i].val_vec3.values[k];
 						shader->variables[i].changed = true;
 					}
 				}
 			} break;
 
 			case ztShaderVariable_Vec4: {
-				zt_fkze(shader->variables[i].val_vec4) {
-					if(shader->variables[i].val_vec4[k] != shader_vars->variables[i].val_vec4[k]) {
-						shader->variables[i].val_vec4[k] = shader_vars->variables[i].val_vec4[k];
+				zt_fkze(shader->variables[i].val_vec4.values) {
+					if (shader->variables[i].val_vec4.values[k] != shader_vars->variables[i].val_vec4.values[k]) {
+						shader->variables[i].val_vec4.values[k] = shader_vars->variables[i].val_vec4.values[k];
 						shader->variables[i].changed = true;
 					}
 				}
 			} break;
 
 			case ztShaderVariable_Mat3: {
-				zt_fkze(shader->variables[i].val_mat3) {
-					if(shader->variables[i].val_mat3[k] != shader_vars->variables[i].val_mat3[k]) {
-						shader->variables[i].val_mat3[k] = shader_vars->variables[i].val_mat3[k];
+				zt_fkze(shader->variables[i].val_mat3.values) {
+					if (shader->variables[i].val_mat3.values[k] != shader_vars->variables[i].val_mat3.values[k]) {
+						shader->variables[i].val_mat3.values[k] = shader_vars->variables[i].val_mat3.values[k];
 						shader->variables[i].changed = true;
 					}
 				}
 			} break;
 
 			case ztShaderVariable_Mat4: {
-				zt_fkze(shader->variables[i].val_mat4) {
-					if(shader->variables[i].val_mat4[k] != shader_vars->variables[i].val_mat4[k]) {
-						shader->variables[i].val_mat4[k] = shader_vars->variables[i].val_mat4[k];
+				zt_fkze(shader->variables[i].val_mat4.values) {
+					if (shader->variables[i].val_mat4.values[k] != shader_vars->variables[i].val_mat4.values[k]) {
+						shader->variables[i].val_mat4.values[k] = shader_vars->variables[i].val_mat4.values[k];
 						shader->variables[i].changed = true;
 					}
 				}
@@ -26663,7 +26222,7 @@ void zt_shaderApplyVariables(ztShaderID shader_id, ztShaderVariableValues *shade
 
 			case ztShaderVariable_TexCube:
 			case ztShaderVariable_Tex: {
-				if(shader->variables[i].val_tex != shader_vars->variables[i].val_tex) {
+				if (shader->variables[i].val_tex != shader_vars->variables[i].val_tex) {
 					shader->variables[i].val_tex = shader_vars->variables[i].val_tex;
 					shader->variables[i].changed = true;
 				}
@@ -26682,6 +26241,29 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 	ztShader *shader = &zt_game->shaders[shader_id];
 	ztShaderVariableValues *shader_vars = &shader->variables;
 
+	if (shader_vars->variables_count) {
+		ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
+		if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
+			void *renderer_context = _zt_rendererGetActiveContext();
+			switch (val->type)
+			{
+				case ztShaderVariable_Float:   zt_game->renderer.shader_set_variable_float  (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_float); break;
+				case ztShaderVariable_Int:     zt_game->renderer.shader_set_variable_int    (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_int); break;
+				case ztShaderVariable_Vec2:    zt_game->renderer.shader_set_variable_vec2   (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec2); break;
+				case ztShaderVariable_Vec3:    zt_game->renderer.shader_set_variable_vec3   (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec3); break;
+				case ztShaderVariable_Vec4:    zt_game->renderer.shader_set_variable_vec4   (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec4); break;
+				case ztShaderVariable_Mat3:    zt_game->renderer.shader_set_variable_mat3   (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_mat3); break;
+				case ztShaderVariable_Mat4:    zt_game->renderer.shader_set_variable_mat4   (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_mat4); break;
+				case ztShaderVariable_Tex:     zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, shader->renderer_shader); zt_game->renderer.shader_set_variable_texture(&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, zt_game->textures[val->val_tex].renderer_texture); break;
+				case ztShaderVariable_TexCube: zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, shader->renderer_shader); zt_game->renderer.shader_set_variable_texture(&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, zt_game->textures[val->val_tex].renderer_texture); break;
+			}
+			val->changed = false;
+
+			zt_game->renderer.shader_commit_variable_changes(&zt_game->renderer, renderer_context, shader->renderer_shader);
+		}
+	}
+
+#if 0
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -26733,6 +26315,7 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 #			endif
 		} break;
 	}
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -26743,6 +26326,39 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 	ztShader *shader = &zt_game->shaders[shader_id];
 	ztShaderVariableValues *shader_vars = &shader->variables;
 
+	if (shader_vars->variables_count) {
+		void *renderer_context = _zt_rendererGetActiveContext();
+
+		zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, shader->renderer_shader);
+
+		int changed = 0;
+
+		zt_fiz(shader_vars->variables_count) {
+			ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
+			if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
+				changed += 1;
+				switch (val->type)
+				{
+					case ztShaderVariable_Float:   zt_game->renderer.shader_set_variable_float       (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_float); break;
+					case ztShaderVariable_Int:     zt_game->renderer.shader_set_variable_int         (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_int); break;
+					case ztShaderVariable_Vec2:    zt_game->renderer.shader_set_variable_vec2        (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec2); break;
+					case ztShaderVariable_Vec3:    zt_game->renderer.shader_set_variable_vec3        (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec3); break;
+					case ztShaderVariable_Vec4:    zt_game->renderer.shader_set_variable_vec4        (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_vec4); break;
+					case ztShaderVariable_Mat3:    zt_game->renderer.shader_set_variable_mat3        (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_mat3); break;
+					case ztShaderVariable_Mat4:    zt_game->renderer.shader_set_variable_mat4        (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, val->val_mat4); break;
+					case ztShaderVariable_Tex:     zt_game->renderer.shader_set_variable_texture     (&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, zt_game->textures[val->val_tex].renderer_texture); break;
+					case ztShaderVariable_TexCube: zt_game->renderer.shader_set_variable_texture_cube(&zt_game->renderer, renderer_context, shader->renderer_shader, val->name_hash, zt_game->textures[val->val_tex].renderer_texture); break;
+				}
+				val->changed = false;
+			}
+		}
+
+		if (changed > 0) {
+			zt_game->renderer.shader_commit_variable_changes(&zt_game->renderer, renderer_context, shader->renderer_shader);
+		}
+	}
+
+#if 0
 	switch (zt_currentRenderer())
 	{
 		case ztRenderer_OpenGL: {
@@ -26810,6 +26426,7 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 #			endif
 		} break;
 	}
+#endif
 }
 
 // ================================================================================================================================================================================================
@@ -26904,10 +26521,10 @@ int zt_shaderSetVariableVec2(ztShaderVariableValues *shader_vars, u32 variable_h
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec2);
 
 	zt_fize(value.values) {
-		if(shader_vars->variables[idx].val_vec2[i] != value.values[i]) {
+		if (shader_vars->variables[idx].val_vec2.values[i] != value.values[i]) {
 			shader_vars->variables[idx].changed = true;
-			shader_vars->variables[idx].val_vec2[0] = value.values[0];
-			shader_vars->variables[idx].val_vec2[1] = value.values[1];
+			shader_vars->variables[idx].val_vec2.values[0] = value.values[0];
+			shader_vars->variables[idx].val_vec2.values[1] = value.values[1];
 			break;
 		}
 	}
@@ -26921,11 +26538,11 @@ int zt_shaderSetVariableVec3(ztShaderVariableValues *shader_vars, u32 variable_h
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec3);
 	zt_fize(value.values) {
-		if(shader_vars->variables[idx].val_vec3[i] != value.values[i]) {
+		if (shader_vars->variables[idx].val_vec3.values[i] != value.values[i]) {
 			shader_vars->variables[idx].changed = true;
-			shader_vars->variables[idx].val_vec3[0] = value.values[0];
-			shader_vars->variables[idx].val_vec3[1] = value.values[1];
-			shader_vars->variables[idx].val_vec3[2] = value.values[2];
+			shader_vars->variables[idx].val_vec3.values[0] = value.values[0];
+			shader_vars->variables[idx].val_vec3.values[1] = value.values[1];
+			shader_vars->variables[idx].val_vec3.values[2] = value.values[2];
 			break;
 		}
 	}
@@ -26939,12 +26556,12 @@ int zt_shaderSetVariableVec4(ztShaderVariableValues *shader_vars, u32 variable_h
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableVec4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Vec4);
 	zt_fize(value.values) {
-		if(shader_vars->variables[idx].val_vec4[i] != value.values[i]) {
+		if (shader_vars->variables[idx].val_vec4.values[i] != value.values[i]) {
 			shader_vars->variables[idx].changed = true;
-			shader_vars->variables[idx].val_vec4[0] = value.values[0];
-			shader_vars->variables[idx].val_vec4[1] = value.values[1];
-			shader_vars->variables[idx].val_vec4[2] = value.values[2];
-			shader_vars->variables[idx].val_vec4[3] = value.values[3];
+			shader_vars->variables[idx].val_vec4.values[0] = value.values[0];
+			shader_vars->variables[idx].val_vec4.values[1] = value.values[1];
+			shader_vars->variables[idx].val_vec4.values[2] = value.values[2];
+			shader_vars->variables[idx].val_vec4.values[3] = value.values[3];
 			break;
 		}
 	}
@@ -26958,10 +26575,10 @@ int zt_shaderSetVariableMat4(ztShaderVariableValues *shader_vars, u32 variable_h
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat4");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat4);
 	zt_fize(value.values) {
-		if(shader_vars->variables[idx].val_mat4[i] != value.values[i]) {
+		if (shader_vars->variables[idx].val_mat4.values[i] != value.values[i]) {
 			shader_vars->variables[idx].changed = true;
 			zt_fiz(zt_elementsOf(value.values)) {
-				shader_vars->variables[idx].val_mat4[i] = value.values[i];
+				shader_vars->variables[idx].val_mat4.values[i] = value.values[i];
 			}
 			break;
 		}
@@ -26976,10 +26593,10 @@ int zt_shaderSetVariableMat3(ztShaderVariableValues *shader_vars, u32 variable_h
 	ZT_PROFILE_RENDERING("zt_shaderSetVariableMat3");
 	_zt_shaderCheckHashAndType(shader_vars, ztShaderVariable_Mat3);
 	zt_fiz(12) {
-		if(shader_vars->variables[idx].val_mat3[i] != value[i]) {
+		if (shader_vars->variables[idx].val_mat3.values[i] != value[i]) {
 			shader_vars->variables[idx].changed = true;
 			zt_fiz(12) {
-				shader_vars->variables[idx].val_mat3[i] = value[i];
+				shader_vars->variables[idx].val_mat3.values[i] = value[i];
 			}
 			break;
 		}
@@ -27066,15 +26683,15 @@ void zt_shaderSetVariableTexCube(ztShaderID shader_id, const char *variable, i32
 
 // ================================================================================================================================================================================================
 
-void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableInt    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTex    (shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
-void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); if(apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableFloat  (ztShaderID shader_id, u32 variable_hash, r32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableFloat  (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableInt    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableInt    (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec2   (ztShaderID shader_id, u32 variable_hash, const ztVec2 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec2   (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec3   (ztShaderID shader_id, u32 variable_hash, const ztVec3 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec3   (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableVec4   (ztShaderID shader_id, u32 variable_hash, const ztVec4 &value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableVec4   (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableMat4   (ztShaderID shader_id, u32 variable_hash, const ztMat4& value, bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat4   (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableMat3   (ztShaderID shader_id, u32 variable_hash, r32 value[12]      , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableMat3   (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableTex    (ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTex    (shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
+void zt_shaderSetVariableTexCube(ztShaderID shader_id, u32 variable_hash, i32 value          , bool apply_immediately) { _zt_shaderCheck(shader_id); int idx = zt_shaderSetVariableTexCube(shader_vars, variable_hash, value); if (apply_immediately) _zt_shaderApplyVariable(shader_id, idx); }
 
 // ================================================================================================================================================================================================
 
@@ -27103,38 +26720,23 @@ ztShaderID zt_shaderGetDefault(ztShaderDefault_Enum shader_default)
 
 ztShaderID zt_shaderMakePointLightShadows(bool instanced)
 {
-	switch(zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#		if defined(ZT_OPENGL)
-			ztShaderGL *gl_shader = ztgl_shaderMakePointLightShadows(zt_game->win_details[0].gl_context, instanced);
-			if (gl_shader != nullptr) {
-				ztShaderID shader_id = _zt_shaderGetNextID();
-				zt_game->shaders[shader_id].gl_shader = gl_shader;
-
-				ztShader* shader = &zt_game->shaders[shader_id];
-				shader->renderer = ztRenderer_OpenGL;
-
-				_zt_shaderSetupVariables(shader);
-
-				zt_game->shaders[shader_id].callbacks.begin_func      = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-				zt_game->shaders[shader_id].callbacks.begin_user_data = nullptr;
-				zt_game->shaders[shader_id].callbacks.end_func        = ZT_FUNCTION_POINTER_TO_VAR_NULL;
-				zt_game->shaders[shader_id].callbacks.end_user_data   = nullptr;
-
-				return shader_id;
-			}
-#		endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#		if defined(ZT_DIRECTX)
-			zt_assert(false);
-#		endif
-		} break;
+	void *renderer_shader = zt_game->renderer.shader_make_point_light_shadows(&zt_game->renderer, _zt_rendererGetActiveContext(), instanced);
+	if (renderer_shader == nullptr) {
+		return ztInvalidID;
 	}
 
-	return ztInvalidID;
+	ztShaderID shader_id = _zt_shaderGetNextID();
+	ztShader* shader = &zt_game->shaders[shader_id];
+	shader->renderer_shader = renderer_shader;
+
+	_zt_shaderSetupVariables(shader);
+
+	shader->callbacks.begin_func      = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+	shader->callbacks.begin_user_data = nullptr;
+	shader->callbacks.end_func        = ZT_FUNCTION_POINTER_TO_VAR_NULL;
+	shader->callbacks.end_user_data   = nullptr;
+
+	return shader_id;
 }
 
 // ================================================================================================================================================================================================
@@ -28060,22 +27662,9 @@ ztInternal void _zt_textureAdjustScreenTargets()
 
 	zt_fiz(zt_game->textures_count) {
 		if (zt_bitIsSet(zt_game->textures[i].flags, ztTextureFlags_RenderTargetScreen)) {
-			switch (zt_game->textures[i].renderer)
-			{
-				case ztRenderer_OpenGL: {
-#					if defined(ZT_OPENGL)
-					ztgl_textureFree(zt_game->textures[i].gl_texture);
-					zt_game->textures[i].gl_texture = ztgl_textureMakeRenderTarget(zt_game->win_details[0].gl_context, width, height, zt_game->textures[i].flags);
-#					endif
-				} break;
+			zt_game->renderer.texture_free(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[i].renderer_texture);
 
-				case ztRenderer_DirectX: {
-#					if defined(ZT_DIRECTX)
-					ztdx_textureFree(zt_game->textures[i].dx_texture);
-					zt_game->textures[i].dx_texture = ztdx_textureMakeRenderTarget(zt_game->win_details[0].dx_context, width, height, zt_game->textures[i].flags);
-#					endif
-				} break;
-			}
+			zt_game->textures[i].renderer_texture = zt_game->renderer.texture_make_render_target(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_memGetGlobalArena(), width, height, zt_game->textures[i].flags);
 
 			zt_game->textures[i].width = width;
 			zt_game->textures[i].height = height;
@@ -28088,7 +27677,7 @@ ztInternal void _zt_textureAdjustScreenTargets()
 ztInternal ztTextureID _zt_textureGetNextID()
 {
 	zt_fiz(zt_game->textures_count) {
-		if (zt_game->textures[i].renderer == ztRenderer_Invalid) {
+		if (zt_game->textures[i].renderer_texture == nullptr) {
 			return i;
 		}
 	}
@@ -28103,6 +27692,13 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 {
 	ZT_PROFILE_RENDERING("_zt_textureMakeBase");
 
+	int actual_width = 0, actual_height = 0;
+
+	void *renderer_texture = zt_game->renderer.texture_make(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_memGetGlobalArena(), pixel_data, width, height, depth, flags, &actual_width, &actual_height);
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
 	ztTextureID texture_id = replace_id == ztInvalidID ? _zt_textureGetNextID() : replace_id;
 	ztTexture *texture = &zt_game->textures[texture_id];
 
@@ -28116,49 +27712,12 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 		height = zt_game->win_game_settings[0].native_h;
 	}
 
-	texture->renderer = zt_currentRenderer();
+	texture->renderer_texture = renderer_texture;
 	texture->width = width;
 	texture->height = height;
 	texture->flags = flags;
 	texture->name[0] = 0;
 	texture->access_count = 1;
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			if (pixel_data) {
-				texture->gl_texture = ztgl_textureMakeFromPixelData(zt_game->win_details[0].gl_context, pixel_data, width, height, depth, flags);
-			}
-			else {
-				texture->gl_texture = ztgl_textureMakeRenderTarget(zt_game->win_details[0].gl_context, width, height, flags);
-			}
-			if (texture->gl_texture == nullptr) {
-				zt_game->textures_count -= 1;
-				return ztInvalidID;
-			}
-			texture->width_actual = texture->gl_texture->wa;
-			texture->height_actual = texture->gl_texture->ha;
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			if (pixel_data) {
-				texture->dx_texture = ztdx_textureMakeFromPixelData(zt_game->win_details[0].dx_context, pixel_data, width, height, depth, flags);
-			}
-			else {
-				texture->dx_texture = ztdx_textureMakeRenderTarget(zt_game->win_details[0].dx_context, width, height, flags);
-			}
-			if (texture->dx_texture == nullptr) {
-				zt_game->textures_count -= 1;
-				return ztInvalidID;
-			}
-			texture->width_actual = texture->width;
-			texture->height_actual = texture->height;
-#			endif
-		} break;
-	}
 
 	return texture_id;
 }
@@ -28171,7 +27730,7 @@ ztInternal ztTextureID _zt_textureMake(ztAssetManager *asset_mgr, ztAssetID asse
 	ztBlockProfiler bp_tex("zt_textureMake (from asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return ztInvalidID;
 	}
 	zt_assertReturnValOnFail(asset_id >= 0 && asset_id < asset_mgr->asset_count, ztInvalidID);
@@ -28425,7 +27984,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, const char *asset_f
 		zt_strPrintf(asset_name, zt_elementsOf(asset_name), asset_format, names[i]);
 		asset_ids[i] = zt_assetLoad(asset_mgr, asset_name);
 
-		if(asset_ids[i] == ztInvalidID) {
+		if (asset_ids[i] == ztInvalidID) {
 			zt_logCritical("unable to load cube map texture %d (%s)", i, asset_name);
 			return ztInvalidID;
 		}
@@ -28448,7 +28007,7 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 
 	zt_fiz(ztTextureCubeMapFiles_MAX) {
 		ztAssetID asset_id = files[i];
-		if(asset_id == ztInvalidID) {
+		if (asset_id == ztInvalidID) {
 			return ztInvalidID;
 		}
 		zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -28477,8 +28036,8 @@ ztTextureID zt_textureMakeCubeMap(ztAssetManager *asset_mgr, ztAssetID files[ztT
 	}
 
 	int width, height, depth;
-	byte *pixel_data[ztTextureGLCubeMapFiles_MAX];
-	zt_fiz(ztTextureGLCubeMapFiles_MAX) {
+	byte *pixel_data[ztTextureCubeMapFiles_MAX];
+	zt_fiz(ztTextureCubeMapFiles_MAX) {
 		stbi_set_flip_vertically_on_load(true);
 		pixel_data[i] = stbi_load_from_memory((const stbi_uc*)tex_data[i], tex_size[i], &width, &height, &depth, 4);
 	}
@@ -28499,35 +28058,19 @@ ztTextureID zt_textureMakeCubeMapFromPixelData(byte *pixel_data[ztTextureCubeMap
 {
 	zt_returnValOnNull(pixel_data, ztInvalidID);
 
+	void *renderer_texture = zt_game->renderer.texture_make_cube_map(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_memGetGlobalArena(), pixel_data, width, height, depth);
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
-	texture->renderer = zt_currentRenderer();
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapFromPixelData(zt_game->win_details[0].gl_context, pixel_data, width, height, depth);
-			if (texture->gl_texture == nullptr) {
-				zt_logCritical("unable to make cube map from pixel data");
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			texture->dx_texture = ztdx_textureMakeCubeMapFromPixelData(zt_game->win_details[0].dx_context, pixel_data, width, height, depth);
-			if (texture->dx_texture == nullptr) {
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-	}
-
-	texture->width  = width;
-	texture->height = height;
-	texture->flags  = ztTextureFlags_CubeMap;
+	texture->renderer_texture = renderer_texture;
+	texture->width            = width;
+	texture->height           = height;
+	texture->flags            = ztTextureFlags_CubeMap;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28552,37 +28095,22 @@ ztTextureID zt_textureMakeCubeMapFromHDR(ztAssetManager *asset_mgr, ztAssetID as
 		return ztInvalidID;
 	}
 
-	ztTextureID texture_id = _zt_textureGetNextID();
-	ztTexture *texture = &zt_game->textures[texture_id];
-
-	texture->renderer = zt_currentRenderer();
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapFromHDR(zt_game->win_details[0].gl_context, texture_hdr->gl_texture, w, h);
-			if (texture->gl_texture == nullptr) {
-				texture->renderer = ztRenderer_Invalid;
-				zt_textureFree(tex);
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt_assert(false);
-			return ztInvalidID;
-#			endif
-		} break;
-	}
+	void *renderer_texture = zt_game->renderer.texture_make_cube_map_from_hdr(&zt_game->renderer, _zt_rendererGetActiveContext(), texture_hdr->renderer_texture, w, h);
 
 	zt_textureFree(tex);
 
-	texture->width  = w;
-	texture->height = h;
-	texture->flags  = ztTextureFlags_CubeMap;
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
+	ztTextureID texture_id = _zt_textureGetNextID();
+	ztTexture *texture = &zt_game->textures[texture_id];
+
+	texture->renderer_texture = renderer_texture;
+	texture->width            = w;
+	texture->height           = h;
+	texture->flags            = ztTextureFlags_CubeMap;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28593,31 +28121,19 @@ ztTextureID zt_textureMakeCubeMapForDepth(i32 dimension)
 {
 	dimension = zt_nextPow2(dimension);
 
+	void *renderer_texture = zt_game->renderer.texture_make_cube_map_for_depth(&zt_game->renderer, _zt_rendererGetActiveContext(), dimension);
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
-	texture->renderer = zt_currentRenderer();
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeCubeMapForDepth(zt_game->win_details[0].gl_context, dimension);
-			if (texture->gl_texture == nullptr) {
-				texture->renderer = ztRenderer_Invalid;
-				zt_textureFree(texture_id);
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt_assert(false);
-			return ztInvalidID;
-#			endif
-		} break;
-	}
+	texture->renderer_texture = renderer_texture;
+	texture->width            = dimension;
+	texture->height           = dimension;
+	texture->flags            = ztTextureFlags_CubeMap;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28628,35 +28144,20 @@ ztTextureID zt_textureMakeIrradianceCubeMapFromCubeMap(ztTextureID cube_map_text
 {
 	zt_assertReturnValOnFail(cube_map_texture_id != ztInvalidID, ztInvalidID);
 	ztTexture *cube_map_texture = &zt_game->textures[cube_map_texture_id];
-	if (cube_map_texture == nullptr) {
+
+	void *renderer_texture = zt_game->renderer.texture_make_irradiance_cube_map(&zt_game->renderer, _zt_rendererGetActiveContext(), cube_map_texture->renderer_texture);
+	if (renderer_texture == nullptr) {
 		return ztInvalidID;
 	}
 
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
-	texture->renderer = zt_currentRenderer();
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeIrradianceCubeMapFromCubeMap(zt_game->win_details[0].gl_context, cube_map_texture->gl_texture);
-			if (texture->gl_texture == nullptr) {
-				texture->renderer = ztRenderer_Invalid;
-				zt_textureFree(texture_id);
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt_assert(false);
-			return ztInvalidID;
-#			endif
-		} break;
-	}
+	texture->renderer_texture = renderer_texture;
+	texture->width            = cube_map_texture->width;
+	texture->height           = cube_map_texture->height;
+	texture->flags            = ztTextureFlags_CubeMap;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28671,31 +28172,19 @@ ztTextureID zt_textureMakePrefilterCubeMapFromCubeMap(ztTextureID cube_map_textu
 		return ztInvalidID;
 	}
 
+	void *renderer_texture = zt_game->renderer.texture_make_prefilter_cube_map(&zt_game->renderer, _zt_rendererGetActiveContext(), cube_map_texture->renderer_texture);
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
-	texture->renderer = zt_currentRenderer();
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakePrefilterCubeMapFromCubeMap(zt_game->win_details[0].gl_context, cube_map_texture->gl_texture);
-			if (texture->gl_texture == nullptr) {
-				texture->renderer = ztRenderer_Invalid;
-				zt_textureFree(texture_id);
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt_assert(false);
-			return ztInvalidID;
-#			endif
-		} break;
-	}
+	texture->renderer_texture = renderer_texture;
+	texture->width            = cube_map_texture->width;
+	texture->height           = cube_map_texture->height;
+	texture->flags            = ztTextureFlags_CubeMap;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28732,7 +28221,7 @@ ztTextureID zt_textureMakeBidirectionalReflectanceDistributionFunctionLUT(i32 w,
 	vertices[5].uv = zt_vec2(1, 1);
 
 	ztVertexArrayID va = zt_vertexArrayMakeDefault(vertices, 6);
-	if(va == ztInvalidID) {
+	if (va == ztInvalidID) {
 		zt_textureFree(render_tex);
 		zt_shaderFree(shader);
 		return ztInvalidID;
@@ -28762,39 +28251,23 @@ ztTextureID zt_textureMakeRandom(ztRandom *random, i32 w, i32 h)
 		pixels[i] = zt_vec3(zt_randomVal(random), zt_randomVal(random), zt_randomVal(random));
 	}
 
-	ztTextureID texture_id = _zt_textureGetNextID();
-	ztTexture *texture = &zt_game->textures[texture_id];
-
-	texture->renderer = zt_currentRenderer();
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureMakeFromPixelData(zt_game->win_details[0].gl_context, (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR | ztTextureGLFlags_PixelPerfect);
-			if (texture->gl_texture == nullptr) {
-				zt_free(pixels);
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			// TODO: Implement:
-			//texture->dx_texture = ztdx_textureMapFromPixelData(zt_game->win_details[0].dx_context, (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR);
-			//if (texture->dx_texture == nullptr) {
-			//	zt_free(pixels);
-			//	return ztInvalidID;
-			//}
-#			endif
-		} break;
-	}
+	int actual_width = 0, actual_height = 0;
+	void *renderer_texture = zt_game->renderer.texture_make(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_memGetGlobalArena(), (byte*)pixels, w, h, 3, ztTextureFlags_Repeat | ztTextureFlags_HDR | ztTextureFlags_PixelPerfect, &actual_width, &actual_height);
 
 	zt_free(pixels);
 
-	texture->width  = w;
-	texture->height = h;
-	texture->flags = ztTextureFlags_Repeat | ztTextureFlags_HDR;
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
+	ztTextureID texture_id = _zt_textureGetNextID();
+	ztTexture *texture = &zt_game->textures[texture_id];
+
+	texture->renderer_texture = renderer_texture;
+	texture->width            = w;
+	texture->height           = h;
+	texture->flags            = ztTextureFlags_Repeat | ztTextureFlags_HDR | ztTextureFlags_PixelPerfect;
+	texture->load_type        = ztTextureLoadType_Invalid;
 
 	return texture_id;
 }
@@ -28952,7 +28425,7 @@ void zt_textureFree(ztTextureID texture_id)
 	}
 	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
 
-	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
+	if (zt_game->textures[texture_id].renderer_texture == nullptr) {
 		return;
 	}
 
@@ -28961,18 +28434,9 @@ void zt_textureFree(ztTextureID texture_id)
 		return;
 	}
 
-	if (zt_game->textures[texture_id].renderer == ztRenderer_OpenGL) {
-#		if defined(ZT_OPENGL)
-		ztgl_textureFree(zt_game->textures[texture_id].gl_texture);
-		zt_game->textures[texture_id].gl_texture = nullptr;
-#		endif // ZT_OPENGL
-	}
-	else if (zt_game->textures[texture_id].renderer == ztRenderer_DirectX) {
-#		if defined(ZT_DIRECTX)
-		ztdx_textureFree(zt_game->textures[texture_id].dx_texture);
-		zt_game->textures[texture_id].dx_texture = nullptr;
-#		endif // ZT_DIRECTX
-	}
+	zt_game->renderer.texture_free(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[texture_id].renderer_texture);
+
+	zt_game->textures[texture_id].renderer_texture = nullptr;
 
 	if (zt_game->textures[texture_id].load_type == ztTextureLoadType_Data) {
 		zt_freeArena(zt_game->textures[texture_id].data, zt_game->textures[texture_id].arena);
@@ -28997,7 +28461,7 @@ void zt_textureSetName(ztTextureID texture_id, const char *name)
 	}
 	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
 
-	if (zt_game->textures[texture_id].renderer == ztRenderer_Invalid) {
+	if (zt_game->textures[texture_id].renderer_texture == nullptr) {
 		return;
 	}
 
@@ -29011,17 +28475,7 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id, bool clear)
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetPrepare");
 	zt_assert(zt_game->textures_active_render_target == false); // cannot render to a render target if we're already doing that
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureRenderTargetPrepare(zt_game->textures[texture_id].gl_texture, clear));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_textureRenderTargetPrepare(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
-		} break;
-	}
-
+	zt_game->renderer.texture_render_target_prepare(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[texture_id].renderer_texture, clear);
 	zt_game->textures_active_render_target = true;
 }
 
@@ -29030,17 +28484,9 @@ void zt_textureRenderTargetPrepare(ztTextureID texture_id, bool clear)
 void zt_textureRenderTargetCommit(ztTextureID texture_id)
 {
 	ZT_PROFILE_RENDERING("zt_textureRenderTargetCommit");
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureRenderTargetCommit(zt_game->textures[texture_id].gl_texture, zt_game->win_details[0].gl_context));
-		} break;
+	zt_assert(zt_game->textures_active_render_target == true);
 
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_textureRenderTargetCommit(zt_game->win_details[0].dx_context, zt_game->textures[texture_id].dx_texture));
-		} break;
-	}
-
+	zt_game->renderer.texture_render_target_commit(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[texture_id].renderer_texture);
 	zt_game->textures_active_render_target = false;
 }
 
@@ -29053,33 +28499,19 @@ ztTextureID zt_textureRenderTargetAddAttachment(ztTextureID render_texture_id, z
 
 	zt_assert(!zt_bitIsSet(zt_game->textures[render_texture_id].flags, ztTextureFlags_RenderTargetScreen)); // the attachments will be lost when the render target is recreated
 
+	void *renderer_texture = zt_game->renderer.texture_render_target_add_attachment(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[render_texture_id].renderer_texture, color_format);
+	if (renderer_texture == nullptr) {
+		return ztInvalidID;
+	}
+
+
 	ztTextureID texture_id = _zt_textureGetNextID();
 	ztTexture *texture = &zt_game->textures[texture_id];
 
-	texture->renderer = zt_currentRenderer();
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			texture->gl_texture = ztgl_textureRenderTargetAddAttachment(zt_game->textures[render_texture_id].gl_texture, (ztTextureGLColorFormat_Enum)color_format);
-			if (texture->gl_texture == nullptr) {
-				texture->renderer = ztRenderer_Invalid;
-				return ztInvalidID;
-			}
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			texture->renderer = ztRenderer_Invalid;
-			zt_assertReturnValOnFail(false, ztInvalidID);
-#			endif
-		} break;
-	}
-
-	texture->width  = zt_game->textures[render_texture_id].width;
-	texture->height = zt_game->textures[render_texture_id].height;
-	texture->flags  = 0;
+	texture->renderer_texture = renderer_texture;
+	texture->width            = zt_game->textures[render_texture_id].width;
+	texture->height           = zt_game->textures[render_texture_id].height;
+	texture->flags            = 0;
 
 	return texture_id;
 }
@@ -29092,21 +28524,7 @@ void zt_textureRenderTargetAttachmentEnable(ztTextureID texture_id, int attachme
 	zt_assertReturnOnFail(texture_id > 0 && texture_id < zt_game->textures_count);
 
 	ztTexture *texture = &zt_game->textures[texture_id];
-
-	switch (texture->renderer)
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztgl_textureRenderTargetAttachmentEnable(texture->gl_texture, attachment_idx, enable);
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			zt_assertReturnOnFail(false);
-#			endif
-		} break;
-	}
+	zt_game->renderer.texture_render_target_attachment_enable(&zt_game->renderer, _zt_rendererGetActiveContext(), texture->renderer_texture, attachment_idx, enable);
 }
 
 // ================================================================================================================================================================================================
@@ -29134,15 +28552,8 @@ void zt_textureGetPixels(ztTextureID texture_id, byte *pixels)
 	ZT_PROFILE_RENDERING("zt_textureGetPixels");
 	zt_assertReturnOnFail(texture_id >= 0 && texture_id < zt_game->textures_count);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_textureGetPixels(zt_game->textures[texture_id].gl_texture, zt_game->win_details[0].gl_context, pixels));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(zt_assert(false));
-		} break;
+	if (zt_game->renderer.texture_get_pixels) {
+		zt_game->renderer.texture_get_pixels(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->textures[texture_id].renderer_texture, pixels);
 	}
 }
 
@@ -29153,18 +28564,7 @@ bool zt_textureIsRenderTarget(ztTextureID texture_id)
 	ZT_PROFILE_RENDERING("zt_textureIsRenderTarget");
 	zt_assertReturnValOnFail(texture_id >= 0 && texture_id < zt_game->textures_count, false);
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(return zt_game->textures[texture_id].gl_texture == nullptr ? false : ztgl_textureIsRenderTarget(zt_game->textures[texture_id].gl_texture));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(return zt_game->textures[texture_id].dx_texture == nullptr ? false : ztdx_textureIsRenderTarget(zt_game->textures[texture_id].dx_texture));
-		} break;
-	}
-
-	return false;
+	return zt_game->textures[texture_id].load_type == ztTextureLoadType_RenderTarget;
 }
 
 // ================================================================================================================================================================================================
@@ -29587,7 +28987,7 @@ void zt_cameraLookAt(ztCamera *camera, const ztVec3 &target, const ztVec3 &up)
 
 // ================================================================================================================================================================================================
 
-#define _serialCheck(code)	if(!code) { zt_logCritical("Camera serialization failed."); return false; }
+#define _serialCheck(code)	if (!code) { zt_logCritical("Camera serialization failed."); return false; }
 
 bool zt_cameraSave(ztCamera *camera, ztSerial *serial)
 {
@@ -31199,7 +30599,7 @@ ztFontID _zt_fontMakeFromSTB(const char *name, void *data, i32 data_size, i32 si
 ztFontID zt_fontMakeFromTrueTypeAsset(ztAssetManager *asset_mgr, ztAssetID asset_id, i32 size_in_pixels, const char *charset, i32 charset_size)
 {
 	ZT_PROFILE_RENDERING("zt_fontMakeFromTrueTypeAsset");
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return ztInvalidID;
 	}
 
@@ -31347,7 +30747,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			if (zt_strStartsWith(node_buff, "<font ")) {
 				char type[16];
 				zt_strGetBetween(type, zt_elementsOf(type), node_buff, "type=\"", "\"");
-				if(!zt_strEquals(type, "NGL")) {
+				if (!zt_strEquals(type, "NGL")) {
 					error = "unsupported xml bitmap format";
 					goto on_error;
 				}
@@ -31362,7 +30762,7 @@ ztInternal ztFontID _zt_fontMakeFromBmpFontBase(ztAssetManager *asset_mgr, ztAss
 			else if (zt_strStartsWith(node_buff, "<kerning ")) {
 				kernings += 1;
 			}
-			else if(zt_strStartsWith(node_buff, "<description ")) {
+			else if (zt_strStartsWith(node_buff, "<description ")) {
 				zt_strGetBetween(font->name, zt_elementsOf(font->name), node_buff, "family=\"", "\"");
 				font->size_pixels = local::getIntBetween(node_buff, "size=\"", "\"");
 			}
@@ -33091,7 +32491,7 @@ int zt_materialLoad(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMaterial *m
 {
 	ZT_PROFILE_RENDERING("zt_materialLoad");
 	zt_returnValOnNull(asset_mgr, 0);
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return 0;
 	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -33230,111 +32630,65 @@ bool zt_materialIsEqual(ztMaterial *material1, ztMaterial *material2)
 void zt_materialPrepare(ztMaterial *material, ztShaderID shader, ztTextureID *additional_tex, u32 *additional_tex_name_hashes, int additional_tex_count)
 {
 	ZT_PROFILE_RENDERING("zt_materialPrepare");
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztgl_textureBindReset(zt_game->shaders[shader].gl_shader);
+	zt_game->renderer.texture_reset_bind(&zt_game->renderer, _zt_rendererGetActiveContext(), zt_game->shaders[shader].renderer_shader);
 
-			int tex_count = 0;
+	int tex_count = 0;
 
-			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-			if (!zt_bitIsSet(material->diffuse_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, nullptr)) {
-				ztTextureID diffuse_tex = zt_max(material->diffuse_tex, ztTextureDefaultWhite);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
-			}
+	static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
+	if (!zt_bitIsSet(material->diffuse_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, nullptr)) {
+		ztTextureID diffuse_tex = zt_max(material->diffuse_tex, ztTextureDefaultWhite);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
+	}
 
+	static u32 specular_tex_hash = zt_strHash("specular_tex");
+	if (!zt_bitIsSet(material->specular_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, nullptr)) {
+		ztTextureID specular_tex = zt_max(material->specular_tex, ztTextureDefaultBlack);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		//ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
+		zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
+	}
 
-			static u32 specular_tex_hash = zt_strHash("specular_tex");
-			if (!zt_bitIsSet(material->specular_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, nullptr)) {
-				ztTextureID specular_tex = zt_max(material->specular_tex, ztTextureDefaultBlack);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				ztgl_textureBind(zt_game->textures[specular_tex].gl_texture, tex_count);
-				zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
-			}
+	static u32 normal_tex_hash = zt_strHash("normal_tex");
+	if (!zt_bitIsSet(material->normal_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, nullptr)) {
+		ztTextureID normal_tex = zt_max(material->normal_tex, ztTextureDefaultWhite);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
+	}
 
-			static u32 normal_tex_hash = zt_strHash("normal_tex");
-			if (!zt_bitIsSet(material->normal_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, nullptr)) {
-				ztTextureID normal_tex = zt_max(material->normal_tex, ztTextureDefaultWhite);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
-			}
+	static u32 height_tex_hash = zt_strHash("height_tex");
+	if (!zt_bitIsSet(material->height_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, nullptr)) {
+		ztTextureID height_tex = zt_max(material->height_tex, ztTextureDefaultWhite);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
+	}
 
-			static u32 height_tex_hash = zt_strHash("height_tex");
-			if (!zt_bitIsSet(material->height_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, nullptr)) {
-				ztTextureID height_tex = zt_max(material->height_tex, ztTextureDefaultWhite);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
-			}
+	static u32 roughness_tex_hash = zt_strHash("roughness_tex");
+	if (!zt_bitIsSet(material->roughness_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, nullptr)) {
+		ztTextureID roughness_tex = zt_max(material->roughness_tex, ztTextureDefaultWhite);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
+	}
 
-			static u32 roughness_tex_hash = zt_strHash("roughness_tex");
-			if (!zt_bitIsSet(material->roughness_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, nullptr)) {
-				ztTextureID roughness_tex = zt_max(material->roughness_tex, ztTextureDefaultWhite);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, material->roughness_tex_override ? material->roughness_tex_override : roughness_tex_hash, roughness_tex);
-			}
+	static u32 emissive_tex_hash = zt_strHash("emissive_tex");
+	if (!zt_bitIsSet(material->emissive_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, nullptr)) {
+		ztTextureID emissive_tex = zt_max(material->emissive_tex, ztTextureDefaultBlack);
+		zt_game->game_details.curr_frame.texture_switches += 1;
+		zt_shaderSetVariableTex(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, emissive_tex);
 
-			static u32 emissive_tex_hash = zt_strHash("emissive_tex");
-			if (!zt_bitIsSet(material->emissive_flags, ztMaterialFlags_IgnoreTexture) || zt_shaderHasVariable(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, nullptr)) {
-				ztTextureID emissive_tex = zt_max(material->emissive_tex, ztTextureDefaultBlack);
-				zt_game->game_details.curr_frame.texture_switches += 1;
-				zt_shaderSetVariableTex(shader, material->emissive_tex_override ? material->emissive_tex_override : emissive_tex_hash, emissive_tex);
-
-				static u32 emissive_strength_hash = zt_strHash("emissive_strength");
-				zt_shaderSetVariableFloat(shader, material->emissive_strength_override ? material->emissive_strength_override : emissive_strength_hash, material->emissive_strength);
-			}
-
-
-			zt_fiz(additional_tex_count) {
-				if (additional_tex[i] != ztInvalidID) {
-					zt_game->game_details.curr_frame.texture_switches += 1;
-					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
-					tex_count += 1;
-				}
-			}
-
-			zt_game->shaders[shader].textures_bound = tex_count;
-
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-
-			ztTextureID diffuse_tex = zt_max(material->diffuse_tex, 0);
+		static u32 emissive_strength_hash = zt_strHash("emissive_strength");
+		zt_shaderSetVariableFloat(shader, material->emissive_strength_override ? material->emissive_strength_override : emissive_strength_hash, material->emissive_strength);
+	}
+	
+	zt_fiz(additional_tex_count) {
+		if (additional_tex[i] != ztInvalidID) {
 			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 diffuse_tex_hash = zt_strHash("diffuse_tex");
-			zt_shaderSetVariableTex(shader, material->diffuse_tex_override ? material->diffuse_tex_override : diffuse_tex_hash, diffuse_tex);
-
-			ztTextureID specular_tex = zt_max(material->specular_tex, 0);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 specular_tex_hash = zt_strHash("specular_tex");
-			zt_shaderSetVariableTex(shader, material->specular_tex_override ? material->specular_tex_override : specular_tex_hash, specular_tex);
-
-			ztTextureID normal_tex = zt_max(material->normal_tex, 0);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 normal_tex_hash = zt_strHash("normal_tex");
-			zt_shaderSetVariableTex(shader, material->normal_tex_override ? material->normal_tex_override : normal_tex_hash, normal_tex);
-
-			ztTextureID height_tex = zt_max(material->height_tex, 0);
-			zt_game->game_details.curr_frame.texture_switches += 1;
-			static u32 height_tex_hash = zt_strHash("height_tex");
-			zt_shaderSetVariableTex(shader, material->height_tex_override ? material->height_tex_override : height_tex_hash, height_tex);
-
-			zt_fiz(additional_tex_count) {
-				if (additional_tex[i] != ztInvalidID) {
-					zt_game->game_details.curr_frame.texture_switches += 1;
-					zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
-				}
-			}
-#			endif
-		} break;
-
-		default: {
-			zt_assert(false);
+			zt_shaderSetVariableTex(shader, additional_tex_name_hashes[i], additional_tex[i]);
+			tex_count += 1;
 		}
 	}
+
+	zt_game->shaders[shader].textures_bound = tex_count;
 
 	static u32 diffuse_color_hash = zt_strHash("diffuse_color");
 	static u32 specular_color_hash = zt_strHash("specular_color");
@@ -33494,74 +32848,22 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 		mesh->obb_center = zt_vec3(ext_min.x + mesh->obb_size.x / 2, ext_min.y + mesh->obb_size.y / 2, ext_min.z + mesh->obb_size.z / 2);
 	}
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
+
+	ztVertexArrayEntry *entries = zt_mallocStructArrayArena(ztVertexArrayEntry, 6 + entries_count, zt_memGetTempArena());
+	entries[0] = { ztVertexArrayDataType_Float, 3 };
+	entries[1] = { ztVertexArrayDataType_Float, 2 };
+	entries[2] = { ztVertexArrayDataType_Float, 3 };
+	entries[3] = { ztVertexArrayDataType_Float, 4 };
+	entries[4] = { ztVertexArrayDataType_Float, 4 };
+	entries[5] = { ztVertexArrayDataType_Float, 4 };
 			
-			ztVertexEntryGL *entries = zt_mallocStructArrayArena(ztVertexEntryGL, 6 + entries_count, zt_memGetTempArena());
-			entries[0] = { GL_FLOAT, 3 * sizeof(GLfloat) };
-			entries[1] = { GL_FLOAT, 2 * sizeof(GLfloat) };
-			entries[2] = { GL_FLOAT, 3 * sizeof(GLfloat) };
-			entries[3] = { GL_FLOAT, 4 * sizeof(GLfloat) };
-			entries[4] = { GL_FLOAT, 4 * sizeof(GLfloat) };
-			entries[5] = { GL_FLOAT, 4 * sizeof(GLfloat) };
-			
-			zt_fiz(entries_count) {
-				switch(add_entries[i].type)
-				{
-					case ztVertexArrayDataType_Float: {
-						entries[i + 6].type = GL_FLOAT;
-						entries[i + 6].size = add_entries[i].count * sizeof(float);
-					} break;
-
-					case ztVertexArrayDataType_Int: {
-						entries[i + 6].type = GL_INT;
-						entries[i + 6].size = add_entries[i].count * sizeof(int);
-					} break;
-
-					default: zt_assert(false);
-				}
-
-			}
-
-			bool result = ztgl_vertexArrayMake(&mesh->gl_vertex_array, entries, 6 + entries_count, vertices, indices_count);
-
-			zt_freeArena(entries, zt_memGetTempArena());
-
-			if (!result) {
-				return ztInvalidID;
-			}
-
-#			endif // ZT_OPENGL
-		} break;
-
-		case ztRenderer_DirectX: {
-#			if defined(ZT_DIRECTX)
-			ztWindowDetails *win_details = &zt_game->win_details[0];
-
-			ztVertexEntryDX *entries = zt_mallocStructArray(ztVertexEntryDX, 6 + entries_count);
-			entries[0] = { 3 * sizeof(r32) };
-			entries[1] = { 2 * sizeof(r32) };
-			entries[2] = { 3 * sizeof(r32) };
-			entries[3] = { 4 * sizeof(r32) };
-			entries[4] = { 4 * sizeof(r32) };
-			entries[5] = { 4 * sizeof(r32) };
-
-			for(int i = 6; i < entries_count; ++i) {
-				entries[i].size = add_entries[i - 6].count * zt_vertexArrayDataSize(add_entries[i - 6].type);
-			}
-
-			mesh->dx_vertex_array = ztdx_vertexArrayMake(win_details->dx_context, entries, 6 + entries_count, vertices, indices_count);
-
-			zt_free(entries);
-
-			if (mesh->dx_vertex_array == nullptr) {
-				return ztInvalidID;
-			}
-#			endif // ZT_DIRECTX
-		} break;
+	zt_fiz(entries_count) {
+		entries[i + 6] = add_entries[i];
 	}
+
+	mesh->vertex_array = zt_vertexArrayMake(entries, 6 + entries_count, vertices, indices_count);
+
+	zt_freeArena(entries, zt_memGetTempArena());
 
 	if (t_indices != nullptr) {
 		zt_free(t_indices);
@@ -33571,6 +32873,10 @@ ztMeshID zt_meshMake(ztVec3 *verts, ztVec2 *uvs, ztVec3 *normals, i32 vert_count
 	}
 
 	zt_free(vertices);
+
+	if (mesh->vertex_array == ztInvalidID) {
+		return ztInvalidID;
+	}
 
 	return mesh_id;
 }
@@ -33594,16 +32900,8 @@ void zt_meshFree(ztMeshID mesh_id)
 
 	ztMesh *mesh = &zt_game->meshes[mesh_id];
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_vertexArrayFree(&mesh->gl_vertex_array));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_vertexArrayFree(mesh->dx_vertex_array));
-		} break;
-	}
+	zt_vertexArrayFree(mesh->vertex_array);
+	mesh->vertex_array = ztInvalidID;
 }
 
 // ================================================================================================================================================================================================
@@ -34237,7 +33535,7 @@ int zt_meshLoadOBJ(ztAssetManager *asset_mgr, ztAssetID asset_id, ztMeshID *mesh
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
 
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return 0;
 	}
 
@@ -34327,20 +33625,7 @@ void zt_meshRender(ztMeshID mesh_id)
 	zt_game->game_details.curr_frame.triangles_drawn += mesh->triangles;
 	zt_game->game_details.curr_frame.draw_calls += 1;
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(ztgl_vertexArrayDraw(&mesh->gl_vertex_array));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_directxSupport(ztdx_vertexArrayDraw(zt_game->win_details[0].dx_context, mesh->dx_vertex_array));
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}
+	zt_vertexArrayDraw(mesh->vertex_array);
 }
 
 // ================================================================================================================================================================================================
@@ -34354,41 +33639,8 @@ void zt_meshRenderInstanced(ztMeshID mesh_id, ztVertexArrayEntry *entries, i32 e
 	zt_game->game_details.curr_frame.triangles_drawn += mesh->triangles * instance_count;
 	zt_game->game_details.curr_frame.draw_calls += 1;
 
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			ztVertexEntryGL gl_entries[64];
-			zt_assert(zt_elementsOf(gl_entries) >= entries_size);
-			zt_fiz(entries_size) {
-				switch(entries[i].type)
-				{
-					case ztVertexArrayDataType_Float: {
-						gl_entries[i].type = GL_FLOAT;
-						gl_entries[i].size = entries[i].count * sizeof(float);
-					} break;
-
-					case ztVertexArrayDataType_Int: {
-						gl_entries[i].type = GL_INT;
-						gl_entries[i].size = entries[i].count * sizeof(int);
-					} break;
-
-					default: zt_assert(false);
-				}
-			}
-
-			ztgl_vertexArrayDrawInstanced(&mesh->gl_vertex_array, gl_entries, entries_size, instance_data, instance_count);
-#			endif
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_assert(false); // not yet supported
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}}
+	zt_vertexArrayDrawInstanced(mesh->vertex_array, entries, entries_size, instance_data, instance_count);
+}
 
 // ================================================================================================================================================================================================
 
@@ -34398,23 +33650,7 @@ i32 zt_meshGetVertices(ztMeshID mesh_id, ztVec3 *vertices, i32 vertices_size)
 	zt_assertReturnValOnFail(mesh_id >= 0 && mesh_id < zt_game->meshes_count, 0);
 
 	ztMesh *mesh = &zt_game->meshes[mesh_id];
-
-	switch (zt_currentRenderer())
-	{
-		case ztRenderer_OpenGL: {
-			zt_openGLSupport(return ztgl_vertexArrayGetVertices(&mesh->gl_vertex_array, vertices, vertices_size));
-		} break;
-
-		case ztRenderer_DirectX: {
-			zt_assert(false);
-		} break;
-
-		default: {
-			zt_assert(false);
-		}
-	}
-
-	return 0;
+	return zt_vertexArrayGetVertices(mesh->vertex_array, vertices, vertices_size);
 }
 
 // ================================================================================================================================================================================================
@@ -34696,44 +33932,16 @@ ztInternal bool _zt_rendererRequestProcess()
 		ztRendererRequest* request = &zt_game->renderer_requests[i];
 		switch(request->type)
 		{
-			case ztRendererRequest_Change: {
-				zt_fiz(zt_game->win_count) {
-					_zt_rendererFreeContext(&zt_game->win_details[i]);
-				}
-
-				if (request->change_to == ztRenderer_OpenGL) {
-					zt_logInfo("Switching to OpenGL renderer");
-				}
-				else if (request->change_to == ztRenderer_DirectX) {
-					zt_logInfo("Switching to DirectX renderer");
-				}
-				else {
-					zt_assert(false && "Unknown renderer");
-				}
-
-				if (!_zt_rendererSetRendererFuncs(request->change_to)) {
-					return false;
-				}
-
-				zt_fiz(zt_game->win_count) {
-					zt_game->win_game_settings[i].renderer = request->change_to;
-					if (!_zt_rendererMakeContext(&zt_game->win_details[i], &zt_game->win_game_settings[i], zt_game->win_game_settings[i].renderer_flags)) {
-						zt_logCritical("Failed to switch renderer");
-						return false;
-					}
-				}
-
-			} break;
-
 			case ztRendererRequest_Windowed: {
 				zt_logInfo("Switching to windowed mode");
 				zt_fiz(zt_game->win_count) {
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Fullscreen);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Windowed;
 
-					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], false)) {
+					if (!zt_game->renderer.context_toggle_fullscreen(&zt_game->renderer, zt_game->win_details[i].renderer_context, false)) {
 						return false;
 					}
+
 					zt_game->win_details[i].resize_cooldown = .25f;
 				}
 			} break;
@@ -34744,7 +33952,7 @@ ztInternal bool _zt_rendererRequestProcess()
 					zt_bitRemove(zt_game->win_game_settings[i].renderer_flags, ztRendererFlags_Windowed);
 					zt_game->win_game_settings[i].renderer_flags |= ztRendererFlags_Fullscreen;
 
-					if (!_zt_rendererToggleFullscreen(&zt_game->win_details[i], &zt_game->win_game_settings[i], true)) {
+					if (!zt_game->renderer.context_toggle_fullscreen(&zt_game->renderer, zt_game->win_details[i].renderer_context, false)) {
 						return false;
 					}
 					zt_game->win_details[i].resize_cooldown = .25f;
@@ -34755,7 +33963,7 @@ ztInternal bool _zt_rendererRequestProcess()
 				zt_logInfo("Switching resolution to %d x %d", request->resolution.x, request->resolution.y);
 
 				zt_fiz(zt_game->win_count) {
-					if (!_zt_rendererChangeResolution(&zt_game->win_details[0], &zt_game->win_game_settings[0], request->resolution.x, request->resolution.y)) {
+					if (!zt_game->renderer.context_change_resolution(&zt_game->renderer, zt_game->win_details[i].renderer_context, request->resolution.x, request->resolution.y)) {
 						return false;
 					}
 					zt_game->win_details[i].resize_cooldown = .25f;
@@ -34812,9 +34020,11 @@ ztInternal bool _zt_rendererRequestProcess()
 			} break;
 
 			case ztRendererRequest_UpdatePixelsPerUnit: {
-				zt_game->win_game_settings[0].pixels_per_unit = zt_convertToi32Floor(request->ppu);
-				zt_logInfo("Switching ppu to %d", zt_game->win_game_settings[0].pixels_per_unit);
-				_zt_rendererSetViewport(&zt_game->win_details[0], &zt_game->win_game_settings[0], true);
+				zt_fiz(zt_game->win_count) {
+					zt_game->win_game_settings[i].pixels_per_unit = zt_convertToi32Floor(request->ppu);
+					zt_game->renderer.viewport_set(&zt_game->renderer, zt_game->win_details[i].renderer_context);
+				}
+				zt_logInfo("Switched ppu to %d", zt_game->win_game_settings[0].pixels_per_unit);
 			} break;
 		}
 	}
@@ -34824,200 +34034,48 @@ ztInternal bool _zt_rendererRequestProcess()
 
 // ================================================================================================================================================================================================
 
-ztInternal bool _ztdx_rendererSetViewport(ztWindowDetails* win_details, ztGameSettings *game_settings, bool force)
+ztInternal bool _zt_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags)
 {
-	ZT_PROFILE_RENDERING("_ztdx_rendererSetViewport");
-#if defined(ZT_DIRECTX)
-	return ztdx_setViewport(win_details->dx_context);
-#else
-	return false;
-#endif
-}
+	ZT_PROFILE_RENDERING("_zt_rendererMakeContext");
 
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztdx_rendererMakeContext(ztWindowDetails *win_details, ztGameSettings *game_settings, i32 renderer_flags)
-{
-	ZT_PROFILE_RENDERING("_ztdx_rendererMakeContext");
-#	if defined(ZT_DIRECTX)
-	win_details->dx_context = ztdx_contextMake(win_details->handle, game_settings->native_w, game_settings->native_h, game_settings->pixels_per_unit, renderer_flags);
-	if (win_details->dx_context == nullptr) {
+	void *context = zt_game->renderer.context_make(&zt_game->renderer, zt_memGetGlobalArena(), win_details->handle, game_settings->native_w, game_settings->native_h, game_settings->pixels_per_unit, renderer_flags);
+	if (context == nullptr) {
 		return false;
 	}
-	
-	ztVertexEntryDX entries[] = {
-		3 * zt_sizeof(r32), // pos
-		2 * zt_sizeof(r32), // uv
-		3 * zt_sizeof(r32), // normals
-		4 * zt_sizeof(r32), // color
+
+	win_details->renderer_context = context;
+
+	ztVertexArrayEntry entries[] = {
+		{ ztVertexArrayDataType_Float, 3 }, // position
+		{ ztVertexArrayDataType_Float, 2 }, // uv
+		{ ztVertexArrayDataType_Float, 3 }, // normal
+		{ ztVertexArrayDataType_Float, 4 }, // color
 	};
 
-	win_details->dx_tri_verts_array = ztdx_vertexArrayMake(win_details->dx_context, entries, zt_elementsOf(entries), nullptr, ztRenderDrawListVertexArraySize);
-	if (win_details->dx_tri_verts_array == nullptr) {
-		return false;
-	}
-	
-	return true;
-#	endif
-	return false;
-}
+	// todo: when supporting multiple windows this will need to push active context
 
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztdx_rendererFreeContext(ztWindowDetails *win_details)
-{
-	ZT_PROFILE_RENDERING("_ztdx_rendererFreeContext");
-#	if defined(ZT_DIRECTX)
-	ztdx_contextFree(win_details->dx_context);
-	win_details->dx_context = nullptr;
-
-	ztdx_vertexArrayFree(win_details->dx_tri_verts_array);
-	win_details->dx_tri_verts_array = nullptr;
-
-	return true;
-#else
-	return false;
-#endif
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal ztInline void _ztdx_rendererSwapBuffers(ztWindowDetails* win_details)
-{
-	ZT_PROFILE_RENDERING("_ztdx_rendererSwapBuffers");
-	zt_directxSupport(ztdx_contextDisplay(win_details->dx_context));
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztdx_rendererToggleFullscreen(ztWindowDetails* win_details, ztGameSettings *game_settings, bool fullscreen)
-{
-	ZT_PROFILE_RENDERING("_ztdx_rendererToggleFullscreen");
-#if defined(ZT_DIRECTX)
-	return _ztdx_rendererSetViewport(win_details, game_settings, true);
-#else
-	return false;
-#endif
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztdx_rendererChangeResolution(ztWindowDetails* win_details, ztGameSettings *game_settings, i32 w, i32 h)
-{
-	ZT_PROFILE_RENDERING("_ztdx_rendererChangeResolution");
-#if defined(ZT_DIRECTX)
-	zt_assert(false); // not yet implemented
-	return false;
-#else
-	return false;
-#endif
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal void _ztgl_rendererSwapBuffers(ztWindowDetails* wd)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererSwapBuffers");
-	ztgl_contextDisplay(wd->gl_context);
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztgl_rendererSetViewport(ztWindowDetails* wd, ztGameSettings* settings, bool)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererSetViewport");
-	wd->gl_context->pixels_per_unit = settings->pixels_per_unit;
-	return ztgl_setViewport(wd->gl_context);
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztgl_rendererMakeContext(ztWindowDetails* wd, ztGameSettings* gs, i32 flags)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererMakeContext");
-	wd->gl_context = ztgl_contextMake(zt_memGetGlobalArena(), wd->handle, gs->native_w, gs->native_h, gs->pixels_per_unit, flags);
-#if !defined(ZT_DLL) && defined(ZT_LOADER)
-	if (wd->gl_context && zt_game->zt_dllSetOpenGLGlobals) {
-		zt_dllSendOpenGLGlobals(zt_game->zt_dllSetOpenGLGlobals);
-	}
-#endif
-	ztVertexEntryGL entries[] = {
-		{GL_FLOAT, 3 * zt_sizeof(r32)}, // pos
-		{GL_FLOAT, 2 * zt_sizeof(r32)}, // uv
-		{GL_FLOAT, 3 * zt_sizeof(r32)}, // normals
-		{GL_FLOAT, 4 * zt_sizeof(r32)}, // color
-	};
-
-	if (!ztgl_vertexArrayMake(&wd->gl_tri_verts_array, entries, zt_elementsOf(entries), nullptr, ztRenderDrawListVertexArraySize)) {
-		return false;
-	}
-
-	return wd->gl_context != nullptr;
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztgl_rendererFreeContext(ztWindowDetails* wd)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererFreeContext");
-	ztgl_contextFree(wd->gl_context);
-	wd->gl_context = nullptr;
-	return true;
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztgl_rendererToggleFullscreen(ztWindowDetails* wd, ztGameSettings* gs, bool fullscreen)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererToggleFullscreen");
-	return ztgl_contextToggleFullscreen(wd->gl_context, fullscreen);
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _ztgl_rendererChangeResolution(ztWindowDetails* wd, ztGameSettings* gs, i32 w, i32 h)
-{
-	ZT_PROFILE_RENDERING("_ztgl_rendererToggleFullscreen");
-	return ztgl_contextChangeResolution(wd->gl_context, w, h);
-}
-
-// ================================================================================================================================================================================================
-
-ztInternal bool _zt_rendererSetRendererFuncs(ztRenderer_Enum renderer)
-{
-	if (renderer == ztRenderer_OpenGL) {
-#		if defined(ZT_OPENGL)
-		_zt_rendererSwapBuffers      = _ztgl_rendererSwapBuffers;
-		_zt_rendererSetViewport      = _ztgl_rendererSetViewport;
-		_zt_rendererMakeContext      = _ztgl_rendererMakeContext;
-		_zt_rendererFreeContext      = _ztgl_rendererFreeContext;
-		_zt_rendererToggleFullscreen = _ztgl_rendererToggleFullscreen;
-		_zt_rendererChangeResolution = _ztgl_rendererChangeResolution;
-#		else
-		zt_logFatal("OpenGL is not supported in this configuration");
-		return false;
-#		endif
-	}
-	else if (renderer == ztRenderer_DirectX) {
-#		if defined(ZT_DIRECTX)
-		_zt_rendererSwapBuffers      = _ztdx_rendererSwapBuffers;
-		_zt_rendererSetViewport      = _ztdx_rendererSetViewport;
-		_zt_rendererMakeContext      = _ztdx_rendererMakeContext;
-		_zt_rendererFreeContext      = _ztdx_rendererFreeContext;
-		_zt_rendererToggleFullscreen = _ztdx_rendererToggleFullscreen;
-		_zt_rendererChangeResolution = _ztdx_rendererChangeResolution;
-#		else
-		zt_logFatal("DirectX is not supported in this configuration");
-		return false;
-#		endif
-	}
-	else {
+	win_details->renderer_drawing_va = zt_vertexArrayMake(entries, zt_elementsOf(entries), nullptr, ztRenderDrawListVertexArraySize);
+	if (win_details->renderer_drawing_va == ztInvalidID) {
 		return false;
 	}
 
 	return true;
 }
 
+// ================================================================================================================================================================================================
+
+ztInternal bool _zt_rendererFreeContext(ztWindowDetails *win_details)
+{
+	ZT_PROFILE_RENDERING("_zt_rendererFreeContext");
+
+	zt_vertexArrayFree(win_details->renderer_drawing_va);
+	win_details->renderer_drawing_va = ztInvalidID;
+
+	zt_game->renderer.context_free(&zt_game->renderer, win_details->renderer_context);
+	win_details->renderer_context = nullptr;
+
+	return true;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -35083,7 +34141,7 @@ void zt_collisionGeometryMakeTriangles(ztCollisionGeometry *geo, ztVec3 *vertice
 
 void zt_collisionGeometryFree(ztCollisionGeometry *geo)
 {
-	if(geo->type == ztCollisionGeometryType_Triangles) {
+	if (geo->type == ztCollisionGeometryType_Triangles) {
 		zt_free(geo->vertices);
 		geo->vertices_count = 0;
 	}
@@ -35116,7 +34174,7 @@ ztInternal bool _zt_collisionGeometryIntersecting_AABB_OBB(ztCollisionGeometry *
 		r32 penetrations[16];
 
 		int contacts_count = zt_collisionOBBInOBBGetContactPoints(obb_pos_1, obb_ext_1, obb_rot_1, obb_pos_2, obb_ext_2, obb_rot_2, contact_normal, contacts, penetrations, zt_elementsOf(contacts));
-		if(contacts_count == 0) {
+		if (contacts_count == 0) {
 			// this technically shouldn't happen, so place a breakpoint here and find out why it did
 			contacts_count = zt_collisionOBBInOBBGetContactPoints(obb_pos_1, obb_ext_1, obb_rot_1, obb_pos_2, obb_ext_2, obb_rot_2, contact_normal, contacts, penetrations, zt_elementsOf(contacts));
 			return false;
@@ -35170,7 +34228,7 @@ ztInternal bool _zt_collisionGeometryIntersecting_AABB_Triangles(ztCollisionGeom
 
 	ztVec3 one_pos = (curr_tran_one->position + geo_one->aabb_center) - curr_tran_two->position; // most poisition into vertices' local space so we can avoid adding the triangle's transform for each triangle
 
-	if(curr_tran_two->rotation != ztQuat::identity) {
+	if (curr_tran_two->rotation != ztQuat::identity) {
 		for(int i = 0; i < geo_two->vertices_count; i += 3) {
 			ztVec3 p1 = curr_tran_two->rotation.rotatePosition(geo_two->vertices[i]);
 			ztVec3 p2 = curr_tran_two->rotation.rotatePosition(geo_two->vertices[i+1]);
@@ -35515,7 +34573,7 @@ bool zt_collisionGeometryIntersecting(ztCollisionGeometry *geo_one, ztTransform 
 #define ZT_COLLISION_GEOMETRY_FILE_GUID          zt_guidMake(0x23e17e86, 0x28d4433b, 0x9e88c1db, 0x372b004d)
 #define ZT_COLLISION_GEOMETRY_FILE_VERSION       10001
 
-#define _serialCheck(code) if(!(code)) { zt_logCritical("ztCollisionGeometry serialization failed."); return false; }
+#define _serialCheck(code) if (!(code)) { zt_logCritical("ztCollisionGeometry serialization failed."); return false; }
 
 bool zt_collisionGeometrySave(ztSerial *serial, ztCollisionGeometry *geo)
 {
@@ -35836,7 +34894,7 @@ void zt_rigidBodyAddForceAtBodyPoint(ztRigidBody *rigid_body, const ztVec3 &forc
 #define ZT_RIGID_BODY_FILE_VERSION_2     10002
 #define ZT_RIGID_BODY_FILE_VERSION       10002
 
-#define _serialCheck(code) if(!(code)) { zt_logCritical("ztRigidBody serialization failed."); return false; }
+#define _serialCheck(code) if (!(code)) { zt_logCritical("ztRigidBody serialization failed."); return false; }
 
 // ================================================================================================================================================================================================
 
@@ -36016,7 +35074,7 @@ void zt_rigidBodiesUpdatePreCollision(ztRigidBody **rbs, int rbs_count, r32 dt)
 			//	if (rigid_body->model->transform.rotation.values[i] > 180) {
 			//		rigid_body->model->transform.rotation.values[i] -= 360;
 			//	}
-			//	else if(rigid_body->model->transform.rotation.values[i] < -180) {
+			//	else if (rigid_body->model->transform.rotation.values[i] < -180) {
 			//		rigid_body->model->transform.rotation.values[i] += 360;
 			//	}
 			//}
@@ -36070,7 +35128,7 @@ void zt_rigidBodiesUpdatePostCollision(ztRigidBody **rbs, int rbs_count, r32 dt)
 				
 					if (dist < .025f && current_motion < .125f) {
 						rigid_body->time_with_minimal_movement += dt;
-						if(rigid_body->time_with_minimal_movement >= .05f) {
+						if (rigid_body->time_with_minimal_movement >= .05f) {
 							rigid_body->flags |= ztRigidBodyFlags_Sleeping;
 						}
 					}
@@ -36384,7 +35442,7 @@ void zt_rigidBodyCollisionsResolve(ztRigidBodyCollision *collisions, int collisi
 					collision->rigid_bodies[i]->angular_velocity += rotation_change;
 
 					r32 linear_velocity_len = velocity_change.length();
-					if(linear_velocity_len < .5f) {
+					if (linear_velocity_len < .5f) {
 						zt_fjze(prev_linear_velocity.values) {
 							if (prev_linear_velocity.values[j] < 0 && collision->rigid_bodies[i]->velocity.values[j] > 0 || prev_linear_velocity.values[j] > 0 && collision->rigid_bodies[i]->velocity.values[j] < 0) {
 								// reversed direction, we need to just stop moving
@@ -36507,7 +35565,7 @@ void zt_staticBodyGenerateOcTree(ztStaticBody *static_body, i32 max_objects_per_
 #define ZT_STATIC_BODY_FILE_GUID        zt_guidMake(0x209cfa2d, 0xeeb84124, 0x97d35b8b, 0x182e1081)
 #define ZT_STATIC_BODY_FILE_VERSION     10001
 
-#define _serialCheck(code) if(!(code)) { zt_logCritical("ztStaticBody serialization failed."); return false; }
+#define _serialCheck(code) if (!(code)) { zt_logCritical("ztStaticBody serialization failed."); return false; }
 
 // ================================================================================================================================================================================================
 
@@ -36856,7 +35914,7 @@ void zt_movingBodyFree(ztMovingBody *moving_body)
 #define ZT_MOVING_BODY_FILE_GUID          zt_guidMake(0x07791b5f, 0x5c894d8b, 0x81c2515b, 0xf24f2f42)
 #define ZT_MOVING_BODY_FILE_VERSION       10001
 
-#define _serialCheck(code) if(!(code)) { zt_logCritical("ztMovingBody serialization failed."); return false; }
+#define _serialCheck(code) if (!(code)) { zt_logCritical("ztMovingBody serialization failed."); return false; }
 
 // ================================================================================================================================================================================================
 
@@ -37262,7 +36320,7 @@ int zt_collisionBrute(ztRigidBody **rigid_bodies, int rigid_bodies_count, ztRigi
 			bool body_one_needs_test = rigid_bodies[i]->inverse_mass != 0 && !zt_bitIsSet(rigid_bodies[i]->flags, ztRigidBodyFlags_Sleeping) && !zt_bitIsSet(rigid_bodies[i]->flags, ztRigidBodyFlags_Static);
 			bool body_two_needs_test = rigid_bodies[j]->inverse_mass != 0 && !zt_bitIsSet(rigid_bodies[j]->flags, ztRigidBodyFlags_Sleeping) && !zt_bitIsSet(rigid_bodies[j]->flags, ztRigidBodyFlags_Static);
 
-			if(!body_one_needs_test && !body_two_needs_test) {
+			if (!body_one_needs_test && !body_two_needs_test) {
 				continue;
 			}
 
@@ -37792,7 +36850,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 
 									int idx = largest_idx;
 
-									if(zt_bitIsSet(moving_body_1->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_1->collisions == nullptr) {
+									if (zt_bitIsSet(moving_body_1->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_1->collisions == nullptr) {
 										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
 											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
 											collision->moving_bodies[0] = moving_body_1;
@@ -37804,7 +36862,7 @@ void zt_physicsUpdate(ztPhysics *physics, r32 dt)
 											zt_singleLinkAddToEnd(moving_body_1->collisions, collision);
 										}
 									}
-									if(zt_bitIsSet(moving_body_2->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_2->collisions == nullptr) {
+									if (zt_bitIsSet(moving_body_2->flags, ztMovingBodyFlags_TrackCollisions) && moving_body_2->collisions == nullptr) {
 										if (physics->moving_body_collisions_count < physics->moving_body_collisions_size) {
 											ztMovingBodyCollision *collision = &physics->moving_body_collisions[physics->moving_body_collisions_count++];
 											collision->moving_bodies[0] = moving_body_2;
@@ -38514,7 +37572,7 @@ bool zt_collisionLineSegmentInAABB(const ztVec3 &line_0, const ztVec3 &line_1, c
 			if (t2 < tmax) { intersects = true; tmax = t2; }
 
 			if (intersects && intersection_axis) {
-				if(zt_real32Eq(tmin, 0) && zt_real32Eq(tmax, 1)) {
+				if (zt_real32Eq(tmin, 0) && zt_real32Eq(tmax, 1)) {
 					*intersection_axis = -1; // the line is entirely inside the aabb
 				}
 				else {
@@ -38997,7 +38055,7 @@ bool zt_collisionAABBInPlane(const ztVec3 &aabb_center, const ztVec3 &aabb_exten
 			ztVec3 contact_point = ztVec3::zero;
 
 			zt_fize(lines) {
-				//if(zt_real32Close(penetrations[i], smallest_penetration)) {
+				//if (zt_real32Close(penetrations[i], smallest_penetration)) {
 				if (penetrations[i] != ztReal32Min) {
 					intersections += 1;
 					contact_point += points[i];
@@ -39705,7 +38763,7 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 	{
 		static inline bool test(const ztPlane &plane, ztVec3 aabb[2])
 		{
-//			if(zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
+//			if (zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
 //			return true;
 
 			if (zt_vec3(aabb[0].x, aabb[1].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
@@ -39723,7 +38781,7 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 #	define test_plane(plane) if (!local::test(plane, aabb)) return false;
 #else
 #	define test_plane(plane) \
-		if(zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
+		if (zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
 #endif
 
 	test_plane(frustum.plane_near);
@@ -39779,7 +38837,7 @@ bool zt_collisionLineInGrid(int x1, int y1, int x2, int y2, byte* array2d, int c
 	r32 dx = (r32)x2 - (r32)x1;
 	r32 dy = (r32)y2 - (r32)y1;
 
-#	define lp_pixel(PX, PY) if( array2d[(PY) * cols + (PX)] != 0 && !((PX == x1 && PY == y1) || (PX == x2 && PY == y2))) return true;
+#	define lp_pixel(PX, PY) if ( array2d[(PY) * cols + (PX)] != 0 && !((PX == x1 && PY == y1) || (PX == x2 && PY == y2))) return true;
 
 	if (zt_abs(dx) > zt_abs(dy)) {
 		if (x2 < x1) {
@@ -40450,7 +39508,7 @@ r32 zt_tweenValue(r32 val_beg, r32 val_end, r32 percent, ztTweenEase_Func *ease_
 		if (percent < .5f) {
 			percent = ease_in(2 * percent, ease_in_user_data) / 2.0f;
 		}
-		else if(percent > .5) {
+		else if (percent > .5) {
 			percent = .5f + .5f * (1 - ease_out(1 - (percent - .5f) * 2, ease_out_user_data));
 		}
 	}
@@ -40810,10 +39868,10 @@ void zt_tweenItemUpdate(ztTweenItem *tween_item, int tween_item_count, r32 dt)
 			tween_item[i].time += dt;
 
 			if (tween_item[i].time - tween_item[i].delay >= tween_item[i].length) {
-				if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Loops)) {
+				if (zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_Loops)) {
 					tween_item[i].time -= tween_item[i].length + tween_item[i].delay;
 				}
-				else if(zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs)) {
+				else if (zt_bitIsSet(tween_item[i].flags, ztTweenItemFlags_PingPongs)) {
 					tween_item[i].time = tween_item[i].length - ((tween_item[i].time - tween_item[i].delay) - tween_item[i].length);
 					tween_item[i].flags |= ztTweenItemFlags_DirectionBack;
 					tween_item[i].delay = 0;
@@ -40924,7 +39982,7 @@ r32 zt_tweenGroupPercentComplete(ztTweenGroup *tween_group)
 
 	zt_fiz(tween_group->items_count) {
 		r32 pct_complete = zt_tweenItemPercentComplete(&tween_group->items[i]);
-		if(pct_complete < min_pct_complete) {
+		if (pct_complete < min_pct_complete) {
 			min_pct_complete = pct_complete;
 		}
 	}
@@ -42119,10 +41177,10 @@ r32 zt_spriteAnimControllerActiveSequencePercentComplete(ztSpriteAnimController 
 	zt_fiz(layer->keys_count) {
 		total_time += layer->keys[i].time;
 
-		if(layer->current_key == i) {
+		if (layer->current_key == i) {
 			current_time += layer->current_time;
 		}
-		else if(i < layer->current_key) {
+		else if (i < layer->current_key) {
 			current_time += layer->keys[i].time;
 		}
 	}
@@ -42214,7 +41272,7 @@ bool zt_spriteAnimManagerLoad(ztSpriteAnimManager *anim_manager, ztSerial *seria
 	zt_returnValOnNull(anim_manager, false);
 	zt_returnValOnNull(serial, false);
 
-#	define _serialCheck(CODE) if(!CODE) return false;
+#	define _serialCheck(CODE) if (!CODE) return false;
 
 	_serialCheck(zt_serialGroupPush(serial));
 	{
@@ -42280,7 +41338,7 @@ bool zt_spriteAnimManagerSave(ztSpriteAnimManager *anim_manager, ztSerial *seria
 	zt_returnValOnNull(anim_manager, false);
 	zt_returnValOnNull(serial, false);
 
-#	define _serialCheck(CODE) if(!CODE) return false;
+#	define _serialCheck(CODE) if (!CODE) return false;
 
 	_serialCheck(zt_serialGroupPush(serial));
 	{
@@ -42352,11 +41410,11 @@ void zt_spriteAnimManagerAddSequence(ztSpriteAnimManager *anim_manager, const ch
 
 	int idx = -1;
 	zt_fiz(anim_manager->sequences_count) {
-		if(idx < 0 && anim_manager->sequences[i].hash == 0) {
+		if (idx < 0 && anim_manager->sequences[i].hash == 0) {
 			idx = i;
 			break;
 		}
-		if(anim_manager->sequences[i].hash == sequence_hash) {
+		if (anim_manager->sequences[i].hash == sequence_hash) {
 			idx = i;
 			break;
 		}
@@ -42392,7 +41450,7 @@ bool zt_spriteAnimManagerLoadSequence(ztSpriteAnimManager *anim_manager, ztSprit
 	i32 hash = zt_strHash(name);
 
 	zt_fiz(anim_manager->sequences_count) {
-		if(anim_manager->sequences[i].hash == hash) {
+		if (anim_manager->sequences[i].hash == hash) {
 
 			ztSprite sprites[ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
 			r32      times  [ZT_SPRITE_ANIM_MANAGER_MAX_SPRITES];
@@ -43375,7 +42433,7 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 
 		if (!zt_serialRead(serial, &system->system_duration)) return false;
 
-		if(version >= 2) {
+		if (version >= 2) {
 			if (!zt_serialRead(serial, &system->system_delay)) return false;
 		}
 		else {
@@ -43469,7 +42527,7 @@ bool zt_serialRead(ztSerial *serial, ztParticleSystem *system, ztSpriteManager *
 				if (!zt_serialRead(serial, &hash)) return false;
 				ztMeshID mesh_id = ztInvalidID;
 				zt_fvz(midx, mesh_info_count) {
-					if(zt_strHash(mesh_info[midx].name) == hash) {
+					if (zt_strHash(mesh_info[midx].name) == hash) {
 						mesh_id = mesh_info[midx].mesh_id;
 						break;
 					}
@@ -43640,12 +42698,12 @@ bool zt_serialWrite(ztSerial *serial, ztParticleSystem *system, ztSpriteManager 
 			case ztParticleRenderingType_Mesh: {
 				i32 hash = 0;
 				zt_fiz(mesh_info_count) {
-					if(system->system_rendering.mesh.mesh_id == mesh_info[i].mesh_id) {
+					if (system->system_rendering.mesh.mesh_id == mesh_info[i].mesh_id) {
 						hash = zt_strHash(mesh_info[i].name);
 						break;
 					}
 				}
-				if(!zt_serialWrite(serial, hash)) return false;
+				if (!zt_serialWrite(serial, hash)) return false;
 			} break;
 
 			default: zt_assert(false);
@@ -43739,7 +42797,7 @@ void _zt_particleEmitterInit(ztParticleEmitter *emitter, ztParticleSystem *syste
 	zt_particleVariableVec3Init(&emitter->system_rotation, &emitter->system->system_rotation, &emitter->random);
 
 	if (emitter->system->noise_use) {
-		if(emitter->noise == nullptr) {
+		if (emitter->noise == nullptr) {
 			emitter->noise = zt_simplexNoiseMake(seed);
 		}
 		zt_particleVariableRealInit(&emitter->noise_multiplier, &emitter->system->noise_multiplier, &emitter->random);
@@ -43900,7 +42958,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 		return false;
 	}
 
-	if(emitter->delay > 0) {
+	if (emitter->delay > 0) {
 		emitter->delay -= dt;
 		if (emitter->delay <= 0) {
 			emitter->delay = 0;
@@ -43963,7 +43021,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 			}
 
 			zt_fzz(new_particles) {
-				if(emitter_life_pct >= 1) {
+				if (emitter_life_pct >= 1) {
 					break;
 				}
 
@@ -44015,7 +43073,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 							}
 
 							particle->velocity = particle->position.getNormal();
-							if(!emitter->system->system_local_space) {
+							if (!emitter->system->system_local_space) {
 								particle->position += emitter->position;
 							}
 						} break;
@@ -44379,7 +43437,7 @@ bool zt_particleEmitterUpdate(ztParticleEmitter *emitter, r32 dt)
 		bool enabled = false;
 
 		if (emitter->system->system_loops) {
-			if(emitter->system->system_duration > 0) {
+			if (emitter->system->system_duration > 0) {
 				emitter->life_left = emitter->system->system_duration;
 			}
 
@@ -44407,7 +43465,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 	int index = 0;
 
 	if (camera != nullptr) {
-		if(camera->type == ztCameraType_Perspective) {
+		if (camera->type == ztCameraType_Perspective) {
 			zt_fiz(emitter->particles_size) {
 				if (emitter->particles[i].life_left <= 0) {
 					continue;
@@ -44732,7 +43790,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 			zt_drawListPushColor(draw_list, ztColor_White);
 		}
 
-		if(camera) {// && camera->type == ztCameraType_Orthographic) {
+		if (camera) {// && camera->type == ztCameraType_Orthographic) {
 			need_uvs = true;
 			uvs_sprite = &emitter->system->system_rendering.billboard.sprite;
 		}
@@ -44815,7 +43873,7 @@ int _zt_particleEmitterRender(ztParticleEmitter *emitter, ztCamera *camera, ztDr
 			}
 		}
 
-		if(camera->type == ztCameraType_Perspective) {
+		if (camera->type == ztCameraType_Perspective) {
 			ZT_PROFILE_PARTICLES("_zt_particleEmitterRender::perspective");
 			if (draw_list && !mesh_render) {
 				zt_drawListPushColor(draw_list, particle->color);
@@ -45531,7 +44589,7 @@ struct ztParticleEmitterCameraCuller
 
 	ztParticleEmitterCameraCuller(ztCamera *camera)
 	{
-		if(camera->type == ztCameraType_Perspective) {
+		if (camera->type == ztCameraType_Perspective) {
 			zt_cameraCalcViewFrustum(&frustum, camera);
 		}
 		else {
@@ -45543,7 +44601,7 @@ struct ztParticleEmitterCameraCuller
 	bool culled(ztParticleEmitter *emitter, ztCamera *camera)
 	{
 		ztVec3 emitter_extents = (emitter->particle_ext_max - emitter->particle_ext_min);
-		if(camera->type == ztCameraType_Perspective) {
+		if (camera->type == ztCameraType_Perspective) {
 			return !zt_collisionAABBInFrustum(frustum, emitter->position, emitter_extents);
 		}
 		else {
@@ -45826,12 +44884,12 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 					emitter->particles[i].speed               = emitter->settings.velocity_speed - (emitter->settings.velocity_speed * (emitter->settings.velocity_speed_random * zt_randomVal(&emitter->randomizer)));
 					emitter->particles[i].rotation            = (emitter->settings.rotation * 360) * (1 - (zt_randomVal(&emitter->randomizer) * emitter->settings.rotation_random));
 
-					if(emitter->settings.rotation_direction == 0) {
-						if(zt_randomVal(&emitter->randomizer) < .5f) {
+					if (emitter->settings.rotation_direction == 0) {
+						if (zt_randomVal(&emitter->randomizer) < .5f) {
 							emitter->particles[i].rotation *= -1;
 						}
 					}
-					if(emitter->settings.rotation_direction == -1) {
+					if (emitter->settings.rotation_direction == -1) {
 						emitter->particles[i].rotation *= -1;
 					}
 
@@ -45858,7 +44916,7 @@ bool zt_particleEmitter2DUpdate(ztParticleEmitter2D *emitter, r32 dt, ztParticle
 						total_prop = 0;
 						zt_fiz(emitter->sprites_count) {
 							total_prop += emitter->sprites_props[i];
-							if(sprite_prop < total_prop) {
+							if (sprite_prop < total_prop) {
 								emitter->particles[i].sprite_idx = i;
 								break;
 							}
@@ -45937,7 +44995,7 @@ ztInternal void _zt_particleEmitter2DRender(ztParticleEmitter2D *emitter, ztDraw
 		};
 
 		zt_fiz(emitter->live_particles) {
-			if(emitter->particles[i].sprite_idx != x) {
+			if (emitter->particles[i].sprite_idx != x) {
 				continue;
 			}
 
@@ -46601,7 +45659,7 @@ bool zt_eventIsTriggered(ztEvent *evt, bool condition, i32 flags, r32 timeout)
 			return false;
 		}
 
-		if(zt_bitIsSet(evt->flags, ztEventFlags_Disabled)) {
+		if (zt_bitIsSet(evt->flags, ztEventFlags_Disabled)) {
 			return false;
 		}
 
@@ -46618,7 +45676,7 @@ bool zt_eventIsTriggered(ztEvent *evt, bool condition, i32 flags, r32 timeout)
 					evt->flags |= ztEventFlags_Disabled;
 				}
 
-				if(zt_bitIsSet(evt->flags, ztEventFlags_ResetOnTimeEnd)) {
+				if (zt_bitIsSet(evt->flags, ztEventFlags_ResetOnTimeEnd)) {
 					evt->triggered = false;
 				}
 
@@ -46714,8 +45772,8 @@ r32 zt_eventPercentComplete(ztEvent *evt)
 		return 0;
 	}
 
-	if(zt_bitIsSet(evt->flags, ztEventFlags_TrackTime)) {
-		if(evt->time_set <= 0) {
+	if (zt_bitIsSet(evt->flags, ztEventFlags_TrackTime)) {
+		if (evt->time_set <= 0) {
 			return 1;
 		}
 
@@ -47045,7 +46103,7 @@ ztAudioClipID zt_audioClipMake(ztAssetManager *asset_mgr, ztAssetID asset_id, i3
 	ztBlockProfiler bp_tex("zt_audioClipMake (from asset)");
 
 	zt_returnValOnNull(asset_mgr, ztInvalidID);
-	if(asset_id == ztInvalidID) {
+	if (asset_id == ztInvalidID) {
 		return ztInvalidID;
 	}
 	zt_assert(asset_id >= 0 && asset_id < asset_mgr->asset_count);
@@ -47208,7 +46266,7 @@ void zt_audioClipPlayOnceDelayed(ztAudioClipID audio_clip_id, r32 delay, r32 fre
 	}
 
 	zt_fize(zt_game->audio_delays) {
-		if(zt_game->audio_delays[i].clip_id <= 0) {
+		if (zt_game->audio_delays[i].clip_id <= 0) {
 			zt_game->audio_delays[i].clip_id = audio_clip_id + 1;
 			zt_game->audio_delays[i].frequency = frequency;
 			zt_game->audio_delays[i].delay = delay;
@@ -47382,7 +46440,7 @@ void zt_audioSystemSetVolume(i32 audio_system, r32 volume)
 	}
 
 	zt_fiz(zt_game->audio_clips_count) {
-		if(zt_game->audio_clips[i].system != audio_system) {
+		if (zt_game->audio_clips[i].system != audio_system) {
 			continue;
 		}
 
@@ -47450,12 +46508,12 @@ ztInternal void _zt_audioUpdateFrame(r32 dt)
 		}
 	}
 
-	if(zt_game->audio_has_delay) {
+	if (zt_game->audio_has_delay) {
 		int delays = 0;
 		zt_fize(zt_game->audio_delays) {
 			if (zt_game->audio_delays[i].clip_id > 0) {
 				zt_game->audio_delays[i].delay -= dt;
-				if(zt_game->audio_delays[i].delay <= 0) {
+				if (zt_game->audio_delays[i].delay <= 0) {
 					if (zt_game->audio_delays[i].loops) {
 						zt_audioClipPlayLooped(zt_game->audio_delays[i].clip_id - 1, zt_game->audio_delays[i].frequency);
 					}
@@ -48349,7 +47407,7 @@ bool _zt_winCreateWindow(ztGameSettings* game_settings, ztWindowDetails* window_
 		ztDisplay displays[16];
 		int displays_count = zt_displayGetDetails(displays, zt_elementsOf(displays));
 
-		if(game_settings->monitor < displays_count) {
+		if (game_settings->monitor < displays_count) {
 			ztDisplay *display = &displays[game_settings->monitor];
 			screen_x = display->screen_area.z;
 			screen_y = display->screen_area.w;
@@ -48397,13 +47455,7 @@ bool _zt_winCleanupWindow(ztWindowDetails* win_details, ztGameSettings* settings
 void _zt_winUpdateTitle(ztGameSettings *game_settings, ztWindowDetails *window_details)
 {
 	ZT_PROFILE_PLATFORM("_zt_winUpdateTitle");
-	const char* renderer;
-	switch(game_settings->renderer)
-	{
-	case ztRenderer_OpenGL: renderer = "OpenGL"; break;
-	case ztRenderer_DirectX: renderer = "DirectX"; break;
-	default: renderer = "Unknown Renderer"; break;
-	}
+	const char* renderer = zt_game->renderer.display;
 
 	zt_debugOnly(zt_strMakePrintf(title, 1024, "%s [Renderer: %s] [Resolution: %d x %d]", ZT_GAME_NAME, renderer, game_settings->screen_w, game_settings->screen_h));
 	zt_releaseOnly(zt_strMakePrintf(title, 1024, "%s", ZT_GAME_NAME));
@@ -48653,10 +47705,9 @@ void _zt_winHandleWindowSize(ztWindowDetails *window_details, ztGameSettings *ga
 
 		zt_logInfo("screen: %d/%d; native: %d/%d", game_settings->screen_w, game_settings->screen_h, game_settings->native_w, game_settings->native_h);
 
-		zt_openGLSupport(if (window_details->gl_context) ztgl_contextSetSize(window_details->gl_context, screen_w, screen_h, native_w, native_h));
-		zt_directxSupport(if (window_details->dx_context) ztdx_contextSetSize(window_details->dx_context, native_w, native_h));
+		zt_game->renderer.context_set_size(&zt_game->renderer, window_details->renderer_context, screen_w, screen_h, native_w, native_h);
+		zt_game->renderer.viewport_set(&zt_game->renderer, window_details->renderer_context);
 
-		_zt_rendererSetViewport(window_details, game_settings, true);
 		_zt_callFuncScreenChange(game_settings);
 		_zt_winUpdateTitle(game_settings, window_details);
 
@@ -48724,7 +47775,7 @@ ztInternal void _zt_winLogSystemInfo()
 		int drives_count = zt_driveGetDetails(drives, zt_elementsOf(drives));
 
 		zt_fiz(zt_min(drives_count, zt_elementsOf(drives))) {
-			if(drives[i].type == ztDriveType_Fixed) {
+			if (drives[i].type == ztDriveType_Fixed) {
 				u64 space_avail = 0, space_total = 0;
 				zt_driveGetSize(&drives[i], &space_avail, &space_total);
 
@@ -48758,7 +47809,7 @@ ztInternal void _zt_exceptionPopulateCallStack( char *error_message, int len, co
 		ztProfiledThread *pt = &zt_game->profiler->threads[thread_idx];
 
 		ztProfiledSection *current = pt->current;
-		if(current) {
+		if (current) {
 			zt_strCat(error_message, len, lead);
 			zt_strCat(error_message, len, "\n\n");
 			zt_strCat(error_message, len, "Call stack:\n");
@@ -48886,11 +47937,13 @@ void _zt_androidProcessMessages()
 {
 	_zt_androidProcessEvents();
 	
-	if (ztgl_android_contextQueryChangeResolution(zt_game->win_details[0].gl_context)) {
+	void *renderer_context = _zt_rendererGetActiveContext();
+
+	if (zt_game->renderer.context_query_resolution_change(&zt_game->renderer, renderer_context)) {
 		_zt_callFuncScreenChange(&zt_game->win_game_settings[0]);
 	}
 
-	_zt_rendererSwapBuffers(&zt_game->win_details[0]);
+	zt_game->renderer.context_draw(&zt_game->renderer, renderer_context);
 }
 
 // ================================================================================================================================================================================================
@@ -48915,7 +47968,7 @@ bool mainLoopCall(r64 *time_last)
 			mouse_look = zt_game->input_mouse_look;
 			if (mouse_look) {
 #				if defined(ZT_WINDOWS)
-				if(zt_game->app_has_focus) {
+				if (zt_game->app_has_focus) {
 					RECT client_rect; GetClientRect(zt_game->win_details[0].handle, &client_rect);
 					RECT window_rect; GetWindowRect(zt_game->win_details[0].handle, &window_rect);
 					RECT clip_rect;
@@ -48972,15 +48025,15 @@ bool mainLoopCall(r64 *time_last)
 
 #	if defined(ZT_WINDOWS)
 	zt_fiz(zt_game->win_count) {
-		if(zt_game->win_details[i].resize_cooldown > 0) {
+		if (zt_game->win_details[i].resize_cooldown > 0) {
 			zt_game->win_details[i].resize_cooldown -= dt;
-			if(zt_game->win_details[i].resize_cooldown < 0) {
+			if (zt_game->win_details[i].resize_cooldown < 0) {
 				_zt_winHandleWindowSize(&zt_game->win_details[i], &zt_game->win_game_settings[i]);
 			}
 			zt_rendererClear(ztColor_Black);
 		}
 
-		_zt_rendererSwapBuffers(&zt_game->win_details[i]);
+		zt_game->renderer.context_draw(&zt_game->renderer, zt_game->win_details[i].renderer_context);
 	}
 #	endif
 
@@ -49064,12 +48117,12 @@ void mainLoopEmscripten()
 
 					ztInputKeys *keys[2] = {input_key, nullptr};
 
-					if(input_key->code == ztInputKeys_LeftShift   || input_key->code == ztInputKeys_RightShift  ) keys[1] = &zt_game->input_keys[ztInputKeys_Shift];
-					if(input_key->code == ztInputKeys_LeftControl || input_key->code == ztInputKeys_RightControl) keys[1] = &zt_game->input_keys[ztInputKeys_Control];
-					if(input_key->code == ztInputKeys_LeftMenu    || input_key->code == ztInputKeys_RightMenu   ) keys[1] = &zt_game->input_keys[ztInputKeys_Menu];
+					if (input_key->code == ztInputKeys_LeftShift   || input_key->code == ztInputKeys_RightShift  ) keys[1] = &zt_game->input_keys[ztInputKeys_Shift];
+					if (input_key->code == ztInputKeys_LeftControl || input_key->code == ztInputKeys_RightControl) keys[1] = &zt_game->input_keys[ztInputKeys_Control];
+					if (input_key->code == ztInputKeys_LeftMenu    || input_key->code == ztInputKeys_RightMenu   ) keys[1] = &zt_game->input_keys[ztInputKeys_Menu];
 
 					zt_fize(keys) {
-						if(keys[i] == nullptr) break;
+						if (keys[i] == nullptr) break;
 						input_key = keys[i];
 
 						input_key->flags = input_key->display == 0 ? ztInputKeyFlags_StateKey : 0;
@@ -49152,7 +48205,7 @@ void mainLoopEmscripten()
 		}
 	}
 
-	if(zt_game->quit_requested) {
+	if (zt_game->quit_requested) {
 		zt_logDebug("quit requested");
 		emscripten_cancel_main_loop();
 	}
@@ -49166,7 +48219,7 @@ bool mainInitializationAndLoop();
 
 void mainLoopEmscriptenWaitForFileSync()
 {
-	if(emscripten_run_script_int("Module.syncdone") == 1) {
+	if (emscripten_run_script_int("Module.syncdone") == 1) {
 		zt_logInfo("emscripten_cancel_main_loop()");
 		emscripten_cancel_main_loop();
 
@@ -49320,7 +48373,7 @@ bool mainInitializationAndLoop()
 {
 	ztWindowDetails *win_details;
 
-	if(!zt_directoryExists(zt_game->game_details.user_path)) {
+	if (!zt_directoryExists(zt_game->game_details.user_path)) {
 		zt_directoryMake(zt_game->game_details.user_path);
 	}
 
@@ -49349,7 +48402,6 @@ bool mainInitializationAndLoop()
 		game_settings->native_h = game_settings->screen_h = 720;
 		game_settings->pixels_per_unit = 64;
 
-		game_settings->renderer = ztRenderer_OpenGL;
 		game_settings->renderer_flags = ztRendererFlags_Windowed | ztRendererFlags_LockAspect;
 		game_settings->renderer_screen_change_behavior = ztRendererScreenChangeBehavior_Resize;
 		game_settings->renderer_memory = zt_megabytes(16);
@@ -49413,11 +48465,6 @@ bool mainInitializationAndLoop()
 
 		zt_game->renderer_memory_size = game_settings->renderer_memory;
 		zt_game->renderer_memory = (byte*)zt_memAlloc(zt_memGetGlobalArena(), zt_game->renderer_memory_size);
-
-		if (!_zt_rendererSetRendererFuncs(game_settings->renderer)) {
-			zt_logCritical("main: Unknown renderer (%d)", game_settings->renderer);
-			return false;
-		}
 
 		if (!_zt_rendererMakeContext(win_details, game_settings, game_settings->renderer_flags)) {
 			zt_logCritical("main: Failed to create renderer context on main window");
@@ -49488,7 +48535,7 @@ bool mainInitializationAndLoop()
 	r64 time_last = zt_getTime();
 
 	do {
-		if(!mainLoopCall(&time_last)) {
+		if (!mainLoopCall(&time_last)) {
 			break;
 		}
 	} while (!zt_game->quit_requested);
@@ -49524,7 +48571,7 @@ int main(int argc, const char **argv)
 	zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "data");
 	zt_logInfo("application data path: %s", data_path);
 
-	if(!zt_directoryExists(data_path)) {
+	if (!zt_directoryExists(data_path)) {
 		zt_fileConcatFileToPath(data_path, ztFileMaxPath, data_path_temp, ztFilePathSeparatorStr "run" ztFilePathSeparatorStr "data");
 		zt_logInfo("adjusted application data path: %s", data_path);
 	}
@@ -49545,7 +48592,7 @@ int main(int argc, const char **argv)
 		zt_strCpy(data_path, ztFileMaxPath, "@data");
 		zt_strCpy(user_path, ztFileMaxPath, "data/data/" ZT_ANDROID_PACKAGE_NAME "/persistent_data");
 
-		if(!zt_directoryExists(user_path)) {
+		if (!zt_directoryExists(user_path)) {
 			zt_directoryMake(user_path);
 		}
 
@@ -49920,8 +48967,8 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 		} break;
 
 		case WM_SIZE: {
-			if(!IsIconic(handle)) {
-				if(window_details) {
+			if (!IsIconic(handle)) {
+				if (window_details) {
 					window_details->resize_cooldown = .05f;
 				}
 			}
@@ -49929,12 +48976,12 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 
 		case WM_SIZING: {
 			if (window_details && game_settings) {
-				if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
+				if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
 					RECT size;
 					GetWindowRect(handle, &size);
 					memcpy((void*)l_param, &size, sizeof(RECT));
 				}
-				else if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
+				else if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_LockAspect)) {
 					r32 aspect_ratio = window_details->aspect_ratio;//game_settings->native_h / (r32)game_settings->native_w;
 
 					RECT size;
@@ -50006,7 +49053,7 @@ LRESULT CALLBACK _zt_winCallback(HWND handle, UINT msg, WPARAM w_param, LPARAM l
 						process_l_param = false;
 					}
 				}
-				if(zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
+				if (zt_bitIsSet(game_settings->renderer_flags, ztRendererFlags_NoResize)) {
 					process_l_param = false;
 				}
 			}

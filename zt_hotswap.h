@@ -106,6 +106,9 @@ ZT_DLLEXPORT bool dll_unload(void *memory);
 
 #if defined(ZT_HOTSWAP_LOADER)
 
+#include <windows.h>
+
+
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -276,20 +279,7 @@ bool zt_loaderLoadDll(const char *dll_name, bool initial_load)
 		return false;
 	}
 
-#	if defined(ZT_OPENGL)
-	zt_dllSetOpenGLGlobals_Func *zt_dllSetOpenGLGlobals = (zt_dllSetOpenGLGlobals_Func *)GetProcAddress(g_dll.game_dll, "zt_dllSetOpenGLGlobals");
-	if (!zt_dllSetOpenGLGlobals) {
-		zt_logCritical("Game DLL does not contain a SetOpenGLGlobals function");
-		return false;
-	}
-	zt_dllSendGameGlobals(zt_dllSetGameGlobals, zt_dllSetOpenGLGlobals);
-
-	if (!initial_load) {
-		zt_dllSendOpenGLGlobals(zt_dllSetOpenGLGlobals);
-	}
-#	else
 	zt_dllSendGameGlobals(zt_dllSetGameGlobals);
-#	endif // ZT_OPENGL
 
 	zt_dllSetGameGuiGlobals_Func *zt_dllSetGameGuiGlobals = (zt_dllSetGameGuiGlobals_Func *)GetProcAddress(g_dll.game_dll, "zt_dllSetGameGuiGlobals");
 	if (zt_dllSetGameGuiGlobals) {
@@ -502,6 +492,8 @@ bool zt_loaderGameSettings(ztGameDetails* details, ztGameSettings* settings)
 {
 	zt_fileOpen(&g_log, ZT_LOG_FILE, ztFileOpenMethod_WriteOver);
 	zt_logAddCallback(zt_loaderLogCallback, ztLogMessageLevel_Verbose);
+
+	loaderInitializeRenderer(details, settings, zt_renderer());
 
 	g_dll.details = details;
 
