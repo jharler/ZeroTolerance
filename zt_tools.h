@@ -4924,6 +4924,8 @@ int zt_memCmp(const void *one, const void *two, i32 size)
 
 i32 zt_memHash(const void *mem, i32 mem_len)
 {
+	ZT_PROFILE_TOOLS("zt_memHash");
+
 	const int mod_adler = 65521;
 
 	i16 sum1 = 1, sum2 = 0;
@@ -5311,7 +5313,7 @@ void *zt_memAllocFromArena(ztMemoryArena *arena, i32 bytes)
 	}
 
 	zt_logMemory("memory (%llx): allocated %d + %d bytes at location 0x%llx (%d)", (long long unsigned int)arena, allocation->length, zt_sizeof(ztMemoryArena::allocation), (long long unsigned int)allocation->start, arena->alloc_cnt);
-	// conditional break: allocation->alloc_idx == 0 && allocation->start == 0x0
+	// conditional break: allocation->alloc_idx == 0 && allocation->length == 0
 	//zt_memValidateArena(arena);
 	zt_assert(allocation->start != 0);
 	return (void*)allocation->start;

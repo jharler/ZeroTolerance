@@ -9,21 +9,24 @@
 **
 **************************************************************************************************
 
-Zero Tolerance OpenGL Library
+	Zero Tolerance OpenGL Library
 
-In exactly one c/cpp source file of your project, you must:
+	In exactly one c/cpp source file of your project, you must:
 
-#define ZT_OPENGL_IMPLEMENTATION
-#include "zt_opengl.h"
-
-**************************************************************************************************
-
-Options:
-
+	#define ZT_OPENGL_IMPLEMENTATION
+	#include "zt_opengl.h"
 
 **************************************************************************************************
 
-Implimentation Options: (only used with ZT_OPENGL_IMPLEMENTATION #include)
+	Options:
+
+	ZT_OPENGL_DEBUGGING
+		This will check the error value of every OpenGL call, even those in performance
+		critical sections.  This should only be defined when a problem needs diagnosed.
+
+**************************************************************************************************
+
+	Implimentation Options: (only used with ZT_OPENGL_IMPLEMENTATION #include)
 
 
 **************************************************************************************************/
@@ -1061,6 +1064,8 @@ ZT_FUNC_RENDERER_CONTEXT_FREE(ztgl_contextFree)
 	wglMakeCurrent(GetDC(gl_context->handle), NULL);
 	wglDeleteContext(gl_context->context);
 	ReleaseDC(gl_context->handle, gl_context->hdc);
+
+	zt_freeArena(gl_context, gl_context->arena);
 }
 
 // ================================================================================================================================================================================================
@@ -4969,6 +4974,8 @@ ZT_FUNC_RENDERER_VERTEX_ARRAY_FREE(ztgl_vertexArrayFree)
 		zt_free(gl_vertex_array->vert_data);
 	}
 #	endif
+
+	zt_free(gl_vertex_array);
 }
 
 // ================================================================================================================================================================================================

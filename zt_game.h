@@ -43,15 +43,8 @@
  ***************************************************************************************************************************************************************************************************
 
     Options:
-		ZT_NO_OPENGL
-			Define this in order to disable OpenGL on platforms where it's supported
-
 		ZT_NO_DIRECTX
 			Define this in order to disable DirectX on platforms where it's supported
-
-		ZT_OPENGL_DEBUGGING
-			This will check the error value of every OpenGL call, even those in performance
-			critical sections.  This should only be defined when a problem needs diagnosed.
 
 		ZT_DIRECTX_DEBUGGING
 			This will check the error value of every DirectX call, even those in performance
@@ -13252,7 +13245,6 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 			ztShaderID shid = zt_shaderGetDefault(ztShaderDefault_Solid);
 			zt_game->renderer.texture_reset_bind(&zt_game->renderer, renderer_context, zt_game->shaders[shid].renderer_shader);
 			zt_shaderEnd(shid);
-			//ztgl_callAndReportOnErrorFast(glUseProgram(0));
 		}
 	}
 
@@ -18630,7 +18622,7 @@ ztScene *zt_sceneMake(ztMemoryArena *arena, int max_models, int shadow_map_res)
 	scene->render_override = ZT_FUNCTION_POINTER_TO_VAR_NULL;
 	scene->render_override_user_data = nullptr;
 	scene->instancing_last_id = 0;
-	scene->instancing_data_cache = zt_mallocStructArray(ztScene::InstanceInfo::Data, max_models);
+	scene->instancing_data_cache = zt_mallocStructArrayArena(ztScene::InstanceInfo::Data, max_models, arena);
 
 	scene->directional_light.light = nullptr;
 	scene->tex_directional_shadow_map = zt_textureMakeRenderTarget(shadow_map_res, shadow_map_res, ztTextureFlags_DepthMap);
@@ -18678,6 +18670,9 @@ void zt_sceneFree(ztScene *scene)
 		zt_freeArena(scene->vertex_array_vertices, scene->arena);
 		scene->vertex_array = ztInvalidID;
 	}
+
+	zt_freeArena(scene->instancing_info, scene->arena);
+	zt_freeArena(scene->instancing_data_cache, scene->arena);
 
 	zt_fiz(ZT_SCENE_MAX_LIGHTS) {
 		if (scene->lights[i].shadowmap_tex != ztInvalidID) {
@@ -18771,7 +18766,7 @@ ztInternal void _zt_sceneRebuildLists(ztScene *scene)
 		}
 
 		scene->instancing_info_size = zt_max(scene->instancing_info_size * 2, 128);
-		scene->instancing_info = zt_mallocStructArray(ztScene::InstanceInfo, scene->instancing_info_size);
+		scene->instancing_info = zt_mallocStructArrayArena(ztScene::InstanceInfo, scene->instancing_info_size, scene->arena);
 	}
 
 	int current_instance = 1;
@@ -25526,40 +25521,6 @@ ztInternal void _zt_shaderSetupVariables(ztShader *shader)
 	zt_game->renderer.shader_populate_variables(&zt_game->renderer, _zt_rendererGetActiveContext(), shader->renderer_shader, shader);
 
 #if 0
-	if (shader->renderer == ztRenderer_OpenGL) {
-#		if defined(ZT_OPENGL)
-			shader->variables.variables_count = shader->gl_shader->uniforms_count;
-			if (shader->variables.variables_count > zt_elementsOf(shader->variables.variables)) {
-				zt_logCritical("shader has too many uniforms");
-				shader->variables.variables_count = zt_elementsOf(shader->variables.variables);
-			}
-			zt_fiz(shader->variables.variables_count) {
-				ztShaderVariable_Enum var_type = ztShaderVariable_Invalid;
-				switch (shader->gl_shader->uniforms[i].type)
-				{
-					case GL_FLOAT       : var_type = ztShaderVariable_Float; break;
-					case GL_FLOAT_VEC2  : var_type = ztShaderVariable_Vec2; break;
-					case GL_FLOAT_VEC3  : var_type = ztShaderVariable_Vec3; break;
-					case GL_FLOAT_VEC4  : var_type = ztShaderVariable_Vec4; break;
-					case GL_INT         : var_type = ztShaderVariable_Int; break;
-					case GL_FLOAT_MAT3  : var_type = ztShaderVariable_Mat3; break;
-					case GL_FLOAT_MAT4  : var_type = ztShaderVariable_Mat4; break;
-					case GL_SAMPLER_2D  : var_type = ztShaderVariable_Tex; break;
-					case GL_SAMPLER_CUBE: var_type = ztShaderVariable_TexCube; break;
-				}
-
-				if (var_type == ztShaderVariable_Invalid) {
-					zt_logCritical("Unsupported shader variable type in variable %s", shader->gl_shader->uniforms[i].name);
-				}
-				else {
-					shader->variables.variables[i].type = var_type;
-					zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), shader->gl_shader->uniforms[i].name);
-					shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
-					shader->variables.variables[i].changed = true;
-				}
-			}
-#		endif // ZT_OPENGL
-	}
 	else if (shader->renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
 			shader->variables.variables_count = shader->dx_shader->variables_count;
@@ -25710,61 +25671,6 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 
 #if 0
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-	if (game_settings->renderer == ztRenderer_OpenGL) {
-#		if defined(ZT_OPENGL)
-
-		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
-		if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
-#	ifdef ZT_DEBUG
-			zt_logVerbose(data_out);
-#	endif
-
-			if (replace != ztInvalidID) {
-				shader_id = replace;
-			}
-			else {
-				shader_id = _zt_shaderGetNextID();
-			}
-
-			ztShaderGL *gl_shader = ztgl_shaderMake(zt_game->win_details[0].gl_context, vert_src, frag_src, geom_src);
-			if (gl_shader != nullptr) {
-				if (replace != ztInvalidID) {
-					zt_shaderFree(replace);
-				}
-				zt_game->shaders[shader_id].gl_shader = gl_shader;
-
-				ztShader* shader = &zt_game->shaders[shader_id];
-
-				shader->renderer = ztRenderer_OpenGL;
-
-				_zt_shaderSetupVariables(shader);
-			}
-			else {
-				shader_id = ztInvalidID;
-			}
-
-			if (gl_shader == nullptr) {
-				error = zt_stringMakeFrom("Unable to compile OpenGL shader program");
-
-				if (vert_src) zt_logCritical("Failed vertex shader:\n%s", vert_src);
-				if (geom_src) zt_logCritical("Failed geometry shader:\n%s", geom_src);
-				if (frag_src) zt_logCritical("Failed fragment shader:\n%s", frag_src);
-			}
-			else if (!zt_game->shader_loading_default) {
-				zt_debugOnly(zt_logVerbose("OpenGL vertex shader:\n%s", vert_src));
-				zt_debugOnly(zt_logVerbose("OpenGL geometry shader:\n%s", geom_src));
-				zt_debugOnly(zt_logVerbose("OpenGL fragment shader:\n%s", frag_src));
-			}
-
-			if (vert_src) zt_stringFree(vert_src, zt_memGetGlobalArena());
-			if (geom_src) zt_stringFree(geom_src, zt_memGetGlobalArena());
-			if (frag_src) zt_stringFree(frag_src, zt_memGetGlobalArena());
-
-#		else
-		error = zt_stringMakeFrom("DirectX has been disabled in the library.");
-#		endif // ZT_OPENGL
-		}
-	}
 	else if (game_settings->renderer == ztRenderer_DirectX) {
 #		if defined(ZT_DIRECTX)
 		ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
@@ -25817,8 +25723,6 @@ ztInternal ztShaderID _zt_shaderMakeBase(const char *name, const char *data_in, 
 
 #if 0
 	ztGameSettings *game_settings = &zt_game->win_game_settings[0];
-	if (game_settings->renderer == ztRenderer_OpenGL) {
-	}
 	else if (game_settings->renderer == ztRenderer_DirectX) {
 #if defined(ZT_DIRECTX)
 		if (dx_vert_cnt == 0) { error = zt_stringMakeFrom("No DirectX vertex shader found"); goto on_error; }
@@ -26266,29 +26170,6 @@ ztInternal void _zt_shaderApplyVariable(ztShaderID shader_id, int var_idx)
 #if 0
 	switch (zt_currentRenderer())
 	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			if (shader_vars->variables_count) {
-				ztShaderVariableValues::Variable *val = &shader_vars->variables[var_idx];
-				if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
-					switch (val->type)
-					{
-						case ztShaderVariable_Float: ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
-						case ztShaderVariable_Int: ztgl_shaderVariableInt(shader->gl_shader, val->name_hash, val->val_int); break;
-						case ztShaderVariable_Vec2: ztgl_shaderVariableVec2(shader->gl_shader, val->name_hash, val->val_vec2); break;
-						case ztShaderVariable_Vec3: ztgl_shaderVariableVec3(shader->gl_shader, val->name_hash, val->val_vec3); break;
-						case ztShaderVariable_Vec4: ztgl_shaderVariableVec4(shader->gl_shader, val->name_hash, val->val_vec4); break;
-						case ztShaderVariable_Mat3: ztgl_shaderVariableMat3(shader->gl_shader, val->name_hash, val->val_mat3); break;
-						case ztShaderVariable_Mat4: ztgl_shaderVariableMat4(shader->gl_shader, val->name_hash, val->val_mat4); break;
-						case ztShaderVariable_Tex: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
-						case ztShaderVariable_TexCube: ztgl_textureBindReset(shader->gl_shader); ztgl_shaderVariableTex(shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
-					}
-					val->changed = false;
-				}
-			}
-#			endif
-		} break;
-
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 			// populate cbuffer data
@@ -26361,39 +26242,6 @@ void zt_shaderApplyVariables(ztShaderID shader_id)
 #if 0
 	switch (zt_currentRenderer())
 	{
-		case ztRenderer_OpenGL: {
-#			if defined(ZT_OPENGL)
-			if (shader_vars->variables_count) {
-				{
-					ZT_PROFILE_RENDERING("ztgl_textureBindReset");
-					ztgl_textureBindReset(shader->gl_shader);
-				}
-				{
-					ZT_PROFILE_RENDERING("ztgl_shaderVariable...");
-
-					zt_fiz(shader_vars->variables_count) {
-						ztShaderVariableValues::Variable *val = &shader_vars->variables[i];
-						if (val->changed || val->type == ztShaderVariable_Tex || val->type == ztShaderVariable_TexCube) {
-							switch (val->type)
-							{
-								case ztShaderVariable_Float  : ztgl_shaderVariableFloat(shader->gl_shader, val->name_hash, val->val_float); break;
-								case ztShaderVariable_Int    : ztgl_shaderVariableInt  (shader->gl_shader, val->name_hash, val->val_int  ); break;
-								case ztShaderVariable_Vec2   : ztgl_shaderVariableVec2 (shader->gl_shader, val->name_hash, val->val_vec2 ); break;
-								case ztShaderVariable_Vec3   : ztgl_shaderVariableVec3 (shader->gl_shader, val->name_hash, val->val_vec3 ); break;
-								case ztShaderVariable_Vec4   : ztgl_shaderVariableVec4 (shader->gl_shader, val->name_hash, val->val_vec4 ); break;
-								case ztShaderVariable_Mat3   : ztgl_shaderVariableMat3 (shader->gl_shader, val->name_hash, val->val_mat3 ); break;
-								case ztShaderVariable_Mat4   : ztgl_shaderVariableMat4 (shader->gl_shader, val->name_hash, val->val_mat4 ); break;
-								case ztShaderVariable_Tex    : ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
-								case ztShaderVariable_TexCube: ztgl_shaderVariableTex  (shader->gl_shader, val->name_hash, zt_game->textures[val->val_tex].gl_texture); break;
-							}
-							val->changed = false;
-						}
-					}
-				}
-			}
-#			endif
-		} break;
-
 		case ztRenderer_DirectX: {
 #			if defined(ZT_DIRECTX)
 			// populate cbuffer data
