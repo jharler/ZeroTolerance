@@ -2625,6 +2625,58 @@ public:
 		cnt_var -= 1; \
 	}
 
+#define zt_arrayDefine(datatype, array_name) \
+		struct array_name \
+		{ \
+			datatype *data; \
+			i32       size; \
+			i32       count; \
+		}; \
+		ztInline void zt_arrayMake(array_name *arr, i32 max_size, ztMemoryArena *arena = zt_memGetGlobalArena()) { \
+			arr->data = zt_mallocStructArrayArena(datatype, max_size, arena); \
+			arr->size = max_size; \
+			arr->count = 0; \
+		} \
+		ztInline void zt_arrayFree(array_name *arr, ztMemoryArena *arena = zt_memGetGlobalArena()) { \
+			if (arr->data) zt_freeArena(arr->data, arena); \
+			arr->data = nullptr; \
+			arr->size = arr->count = 0; \
+		} \
+		ztInline i32 zt_arrayAppend(array_name *arr, const datatype item) { \
+			zt_assertReturnValOnFail(arr->count < arr->size, false); \
+			zt_memCpy(&arr->data[arr->count++], zt_sizeof(datatype), &item, zt_sizeof(datatype)); \
+			return arr->count - 1; \
+		} \
+		ztInline i32 zt_arrayAppendEmpty(array_name *arr) { \
+			zt_assertReturnValOnFail(arr->count < arr->size, -1); \
+			return arr->count++; \
+		} \
+		ztInline bool zt_arrayInsertBefore(array_name *arr, const datatype item, i32 before_idx) { \
+			zt_assertReturnValOnFail(arr->count < arr->size, false); \
+			for(int i = arr->count - 1; i > before_idx; --i) { \
+				zt_memCpy(&arr->data[i], zt_sizeof(datatype), &arr->data[i - 1], zt_sizeof(datatype)); \
+						} \
+			zt_memCpy(&arr->data[before_idx], zt_sizeof(datatype), &item, zt_sizeof(datatype)); \
+		} \
+		ztInline void zt_arrayRemoveSwap(array_name *arr, i32 index) { \
+			arr->data[index] = arr->data[arr->count - 1]; \
+			arr->count -= 1; \
+		} \
+		ztInline void zt_arrayRemove(array_name *arr, i32 index) { \
+			for(int i = index; i < arr->count; ++i) { \
+				arr->data[i] = arr->data[i + 1]; \
+			} \
+			arr->count -= 1; \
+		}
+
+zt_arrayDefine(ztString, ztStringArray);
+zt_arrayDefine(i32,      zti32Array);
+zt_arrayDefine(r32,      ztr32Array);
+zt_arrayDefine(ztVec2,   ztVec2Array);
+zt_arrayDefine(ztVec3,   ztVec3Array);
+zt_arrayDefine(ztVec4,   ztVec4Array);
+zt_arrayDefine(ztMat4,   ztMat4Array);
+
 
 // ================================================================================================================================================================================================
 // memory reader
@@ -7434,7 +7486,85 @@ u32 zt_strHash(const char *s)
 		case 3: h ^= data[2] << 16;
 		case 2: h ^= data[1] << 8;
 		case 1: h ^= data[0];
+			h *= m;
+	};
+
+	// Do a few final mixes of the hash to ensure the last few
+	// bytes are well-incorporated.
+	h ^= h >> 13;
+	h *= m;
+	h ^= h >> 15;
+
+	return h;
+}
+
+// ================================================================================================================================================================================================
+
+u32 zt_strHash(const char *s, int s_len_in)
+{
+	//ZT_PROFILE_TOOLS("zt_strHash"); this is called in the profiling code
+
+	if (s == nullptr) {
+		return 0;
+	}
+
+	// MurmurHash2, by Austin Appleby
+	// Note - This code makes a few assumptions about how your machine behaves -
+	// 1. We can read a 4-byte value from any address without crashing
+	// 2. sizeof(int) == 4
+	// And it has a few limitations -
+	// 1. It will not work incrementally.
+	// 2. It will not produce the same results on little-endian and big-endian
+	//    machines.
+
+	// 'm' and 'r' are mixing constants generated offline.
+	// They're not really 'magic', they just happen to work well.
+	const u32 m = 0x5bd1e995;
+	const int r = 24;
+
+	u32 s_len = s_len_in;
+	u32 seed = s_len + 1;
+
+	// Initialize the hash to a 'random' value
+	u32 h = seed ^ s_len;
+
+	// Mix 4 bytes at a time into the hash
+	const u8 * data = (const u8*)s;
+
+	struct
+	{
+		union {
+			u8 as_u8[4];
+			u32 as_u32;
+		};
+	} cvt;
+
+	while (s_len >= 4) {
+		cvt.as_u8[0] = data[0];
+		cvt.as_u8[1] = data[1];
+		cvt.as_u8[2] = data[2];
+		cvt.as_u8[3] = data[3];
+
+		u32 k = cvt.as_u32;//*(u32 *)data;
+
+		k *= m;
+		k ^= k >> r;
+		k *= m;
+
 		h *= m;
+		h ^= k;
+
+		data += 4;
+		s_len -= 4;
+	}
+
+	// Handle the last few bytes of the input array
+	switch (s_len)
+	{
+		case 3: h ^= data[2] << 16;
+		case 2: h ^= data[1] << 8;
+		case 1: h ^= data[0];
+			h *= m;
 	};
 
 	// Do a few final mixes of the hash to ensure the last few
@@ -9977,10 +10107,11 @@ void *zt_readEntireFile(const char *file_name, i32 *file_size, bool discard_utf_
 		return nullptr;
 	}
 
-	void *data = zt_memAllocFromArena(arena, file.size);
+	void *data = zt_memAllocFromArena(arena, file.size + 1); // add one so that the data can be null terminated in the case of reading a string
 	if (data == nullptr) {
 		return nullptr;
 	}
+	((byte*)data)[file.size] = 0; // null terminate
 
 	i32 bytes_read = zt_fileRead(&file, data, file.size);
 	if (bytes_read != file.size) {
