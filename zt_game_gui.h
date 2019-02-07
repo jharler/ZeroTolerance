@@ -1248,6 +1248,7 @@ extern const ztGuid ZT_GUI_EDITOR_EVENT_VALUE_CHANGED; // currently only works w
 // ================================================================================================================================================================================================
 
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, r32 *value, r32 min, r32 max, r32 step);
+ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, r64 *value, r64 min, r64 max, r64 step);
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, i32 *value, i32 min, i32 max, i32 step);
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, ztVec2 *value, ztVec2 min, ztVec2 max, r32 step = .1f, bool label_above = true, const char *label_x = "X", const char *label_y = "Y");
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, const char *label, ztVec3 *value, ztVec3 min, ztVec3 max, r32 step = .1f, bool label_above = true, const char *label_x = "X", const char *label_y = "Y", const char *label_z = "Z");
@@ -1263,10 +1264,12 @@ ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, ztParticleVariableVec2 *
 ztGuiItem  *zt_guiMakeEditor        (ztGuiItem *parent, ztParticleVariableVec3 *variable, ztVec3 def, ztVec3 min, ztVec3 max, r32 step, bool allow_sync);
 
 ztGuiItem  *zt_guiMakeFlagEditor    (ztGuiItem *parent, const char **flag_labels, i32 *flag_values, int flags_count, i32 *flags_variable, int columns);
+ztGuiItem  *zt_guiMakeEnumEditor    (ztGuiItem *parent, const char **enum_labels, i32 *enum_values, int enums_count, void *enums_variable);
 
 void        zt_guiEditorSetToMin    (ztGuiItem *editor);
 void        zt_guiEditorSetToMax    (ztGuiItem *editor);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, r32 value);
+void        zt_guiEditorSetToValue  (ztGuiItem *editor, r64 value);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, i32 value);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, ztVec2 value);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, ztVec3 value);
@@ -1276,6 +1279,7 @@ void        zt_guiEditorSetToValue  (ztGuiItem *editor, ztVec3i value);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, ztVec4i value);
 void        zt_guiEditorSetToValue  (ztGuiItem *editor, ztQuat value);
 void        zt_guiEditorReassign    (ztGuiItem *editor, r32 *value);
+void        zt_guiEditorReassign    (ztGuiItem *editor, r64 *value);
 void        zt_guiEditorReassign    (ztGuiItem *editor, i32 *value);
 void        zt_guiEditorReassign    (ztGuiItem *editor, ztVec2 *value);
 void        zt_guiEditorReassign    (ztGuiItem *editor, ztVec3 *value);
@@ -13952,6 +13956,7 @@ const ztGuid ZT_GUI_EDITOR_EVENT_VALUE_CHANGED = zt_guid(0xd51c421b, 0x62254089,
 enum ztGuiEditorType_Enum
 {
 	ztGuiEditorType_r32,
+	ztGuiEditorType_r64,
 	ztGuiEditorType_i32,
 };
 
@@ -13969,6 +13974,14 @@ struct ztGuiEditorValue
 			r32  max;
 			r32  step;
 		} val_r32;
+
+		struct {
+			r64  value_last;
+			r64 *value;
+			r64  min;
+			r64  max;
+			r64  step;
+		} val_r64;
 
 		struct {
 			i32  value_last;
@@ -14025,6 +14038,12 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 			vptr->needs_update_from_spinner = true;
 		}
 	}
+	else if (vptr->type == ztGuiEditorType_r64) {
+		if (vptr->val_r64.value && *vptr->val_r64.value != vptr->val_r64.value_last) {
+			vptr->val_r64.value_last = *vptr->val_r64.value;
+			vptr->needs_update_from_spinner = true;
+		}
+	}
 
 	bool value_changed = false;
 
@@ -14045,13 +14064,18 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 			*vptr->val_r32.value = zt_strToReal32(buffer, 0);
 			vptr->val_r32.value_last = *vptr->val_r32.value;
 		}
+		else if (vptr->type == ztGuiEditorType_r64) {
+			if (vptr->val_r64.value == nullptr) return;
+			*vptr->val_r64.value = zt_strToReal32(buffer, 0);
+			vptr->val_r64.value_last = *vptr->val_r64.value;
+		}
 
 		value_changed = true;
 	}
 	if (vptr->needs_update_from_spinner) {
 		vptr->needs_update_from_spinner = false;
 
-		char buffer[32] = { 0 };
+		char buffer[64] = { 0 };
 		if (vptr->type == ztGuiEditorType_i32) {
 			if (vptr->val_i32.value == nullptr) return;
 			zt_strPrintf(buffer, zt_elementsOf(buffer), "%d", *vptr->val_i32.value);
@@ -14059,6 +14083,24 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 		else if (vptr->type == ztGuiEditorType_r32) {
 			if (vptr->val_r32.value == nullptr) return;
 			zt_strPrintf(buffer, zt_elementsOf(buffer), "%.4f", *vptr->val_r32.value);
+
+			if (zt_strFind(buffer, ".")) {	// let's remove any trailing zeros
+				int len = zt_strLen(buffer);
+				zt_fizr(len - 1) {
+					if (buffer[i] == '0') {
+						buffer[i] = 0;
+					}
+					else if (buffer[i] == '.') {
+						buffer[i] = 0;
+						break;
+					}
+					else break;
+				}
+			}
+		}
+		else if (vptr->type == ztGuiEditorType_r64) {
+			if (vptr->val_r64.value == nullptr) return;
+			zt_strPrintf(buffer, zt_elementsOf(buffer), "%.4f", *vptr->val_r64.value);
 
 			if (zt_strFind(buffer, ".")) {	// let's remove any trailing zeros
 				int len = zt_strLen(buffer);
@@ -14090,7 +14132,10 @@ ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEditorUpdate)
 		if (vptr->type == ztGuiEditorType_r32) {
 			gui_event->values[0] = zt_variantMake_r32(*vptr->val_r32.value);
 		}
-		else if(vptr->type == ztGuiEditorType_i32) {
+		else if (vptr->type == ztGuiEditorType_r64) {
+			gui_event->values[0] = zt_variantMake_r64(*vptr->val_r64.value);
+		}
+		else if (vptr->type == ztGuiEditorType_i32) {
 			gui_event->values[1] = zt_variantMake_i32(*vptr->val_i32.value);
 		}
 	}
@@ -14149,7 +14194,7 @@ ZT_FUNC_GUI_TEXTEDIT_KEY(_zt_guiEditorTextChange)
 				break;
 
 			case '.':
-				if (vptr->type == ztGuiEditorType_r32) {
+				if (vptr->type == ztGuiEditorType_r32 || vptr->type == ztGuiEditorType_r64) {
 					ztGuiTextEditState *textedit_state = (ztGuiTextEditState*)textedit->state;
 					*should_process = zt_strFind(textedit_state->text_buffer, ".") == nullptr;
 				}
@@ -14179,6 +14224,10 @@ ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(_zt_guiEditorSpinnerChanged)
 		if (vptr->val_r32.value == nullptr) return;
 		*vptr->val_r32.value = zt_clamp(*vptr->val_r32.value + (vptr->val_r32.step * value), vptr->val_r32.min, vptr->val_r32.max);
 	}
+	else if (vptr->type == ztGuiEditorType_r64) {
+		if (vptr->val_r64.value == nullptr) return;
+		*vptr->val_r64.value = zt_clamp(*vptr->val_r64.value + (vptr->val_r64.step * value), vptr->val_r64.min, vptr->val_r64.max);
+	}
 	else if (vptr->type == ztGuiEditorType_i32) {
 		if (vptr->val_i32.value == nullptr) return;
 		*vptr->val_i32.value = zt_clamp(*vptr->val_i32.value + (vptr->val_i32.step * value), vptr->val_i32.min, vptr->val_i32.max);
@@ -14194,6 +14243,9 @@ ZT_FUNC_GUI_SPINNER_VALUE_CHANGED(_zt_guiEditorSpinnerChanged)
 
 					if (vptr2->type == ztGuiEditorType_r32) {
 						*vptr2->val_r32.value = *vptr->val_r32.value;
+					}
+					else if (vptr2->type == ztGuiEditorType_r64) {
+						*vptr2->val_r64.value = *vptr->val_r64.value;
 					}
 					else if (vptr2->type == ztGuiEditorType_i32) {
 						*vptr2->val_i32.value = *vptr->val_i32.value;
@@ -14220,22 +14272,27 @@ ztInternal ztGuiItem *_zt_guiEditorMakeBase(ztGuiItem *parent, const char *label
 
 	panel->functions.update = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEditorUpdate);
 
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, 0);
 		zt_guiSizerAddStretcher(sizer, 0, zt_guiThemeGetRValue(zt_guiItemGetTheme(parent), ztGuiThemeValue_r32_Padding, parent));
 	}
 
-	char val_min[64], val_max[64];
+	char val_min[400], val_max[400];
 	switch (value->type)
 	{
 		case ztGuiEditorType_i32: {
-			zt_strPrintf(val_min, 64, "%d", value->val_i32.min);
-			zt_strPrintf(val_max, 64, "%d", value->val_i32.max);
+			zt_strPrintf(val_min, zt_elementsOf(val_min), "%d", value->val_i32.min);
+			zt_strPrintf(val_max, zt_elementsOf(val_max), "%d", value->val_i32.max);
 		}; break;
 
 		case ztGuiEditorType_r32: {
-			zt_strPrintf(val_min, 64, "%.2f", value->val_r32.min);
-			zt_strPrintf(val_max, 64, "%.2f", value->val_r32.max);
+			zt_strPrintf(val_min, zt_elementsOf(val_min), "%.2f", value->val_r32.min);
+			zt_strPrintf(val_max, zt_elementsOf(val_max), "%.2f", value->val_r32.max);
+		}; break;
+
+		case ztGuiEditorType_r64: {
+			zt_strPrintf(val_min, zt_elementsOf(val_min), "%.2f", value->val_r64.min);
+			zt_strPrintf(val_max, zt_elementsOf(val_max), "%.2f", value->val_r64.max);
 		}; break;
 	}
 
@@ -14293,6 +14350,23 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, r32 *value, r3
 
 // ================================================================================================================================================================================================
 
+ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, r64 *value, r64 min, r64 max, r64 step)
+{
+	ZT_PROFILE_GUI("zt_guiMakeEditor");
+
+	ztGuiEditorValue *val = zt_mallocStructArena(ztGuiEditorValue, parent->gm->arena);
+	val->type = ztGuiEditorType_r64;
+	val->val_r64.value_last = value == nullptr ? 0 : *value;
+	val->val_r64.value = value;
+	val->val_r64.min = min;
+	val->val_r64.max = max;
+	val->val_r64.step = step;
+
+	return _zt_guiEditorMakeBase(parent, label, val);
+}
+
+// ================================================================================================================================================================================================
+
 ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, i32 *value, i32 min, i32 max, i32 step)
 {
 	ZT_PROFILE_GUI("zt_guiMakeEditor");
@@ -14318,7 +14392,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec2);
 
 	r32 padding = 1 / zt_pixelsPerUnit();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14353,7 +14427,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec3);
 
 	r32 padding = zt_guiPadding();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14388,7 +14462,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4 *value,
 	zt_guiItemSetName(sizer, ztGuiEditorFirstChildNameVec4);
 
 	r32 padding = zt_guiPadding();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 0, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14426,7 +14500,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec2i *value
 	panel->guid = ztGuiEditor_Guid;
 
 	r32 padding = 1 / zt_pixelsPerUnit();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14463,7 +14537,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec3i *value
 	panel->guid = ztGuiEditor_Guid;
 
 	r32 padding = 1 / zt_pixelsPerUnit();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14500,7 +14574,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztVec4i *value
 	panel->guid = ztGuiEditor_Guid;
 
 	r32 padding = 1 / zt_pixelsPerUnit();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14579,7 +14653,7 @@ ztGuiItem *zt_guiMakeEditor(ztGuiItem *parent, const char *label, ztQuat *value,
 	panel->guid = ztGuiEditor_Guid;
 
 	r32 padding = zt_guiPadding();
-	if (label != nullptr) {
+	if (label != nullptr && *label != 0) {
 		zt_guiSizerAddItem(sizer, zt_guiMakeStaticText(sizer, label), 1, padding, ztAlign_Center, ztGuiItemOrient_Horz);
 	}
 
@@ -14621,6 +14695,9 @@ void zt_guiEditorSetToMin(ztGuiItem *editor)
 		else if (vptr->type == ztGuiEditorType_r32) {
 			*vptr->val_r32.value = vptr->val_r32.min;
 		}
+		else if (vptr->type == ztGuiEditorType_r64) {
+			*vptr->val_r64.value = vptr->val_r64.min;
+		}
 		vptr->needs_update_from_spinner = true;
 	}
 	else {
@@ -14652,6 +14729,9 @@ void zt_guiEditorSetToMax(ztGuiItem *editor)
 		else if (vptr->type == ztGuiEditorType_r32) {
 			*vptr->val_r32.value = vptr->val_r32.min;
 		}
+		else if (vptr->type == ztGuiEditorType_r64) {
+			*vptr->val_r64.value = vptr->val_r64.min;
+		}
 		vptr->needs_update_from_spinner = true;
 	}
 	else {
@@ -14679,6 +14759,28 @@ void zt_guiEditorSetToValue(ztGuiItem *editor, r32 value)
 
 		if (vptr->type == ztGuiEditorType_r32) {
 			*vptr->val_r32.value = value;
+			return;
+		}
+		vptr->needs_update_from_spinner = true;
+	}
+
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorSetToValue(ztGuiItem *editor, r64 value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorSetToValue");
+
+	zt_assertReturnOnFail(editor->guid == ztGuiEditor_Guid && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildName)) {
+		ztGuiEditorValue *vptr = (ztGuiEditorValue*)editor->state;
+		zt_assertReturnOnFail(vptr != nullptr);
+
+		if (vptr->type == ztGuiEditorType_r64) {
+			*vptr->val_r64.value = value;
 			return;
 		}
 		vptr->needs_update_from_spinner = true;
@@ -14872,6 +14974,27 @@ void zt_guiEditorReassign(ztGuiItem *editor, r32 *value)
 		vptr->needs_update_from_spinner = true;
 		if (vptr->type == ztGuiEditorType_r32) {
 			vptr->val_r32.value = value;
+			return;
+		}
+	}
+	zt_assert(false); // wrong editor type
+}
+
+// ================================================================================================================================================================================================
+
+void zt_guiEditorReassign(ztGuiItem *editor, r64 *value)
+{
+	ZT_PROFILE_GUI("zt_guiEditorReassign");
+
+	zt_assertReturnOnFail(editor->guid == ztGuiEditor_Guid && editor->first_child);
+
+	if (zt_strEquals(editor->first_child->name, ztGuiEditorFirstChildName)) {
+		ztGuiEditorValue *vptr = (ztGuiEditorValue*)editor->state;
+		zt_assertReturnOnFail(vptr != nullptr);
+
+		vptr->needs_update_from_spinner = true;
+		if (vptr->type == ztGuiEditorType_r64) {
+			vptr->val_r64.value = value;
 			return;
 		}
 	}
@@ -16617,6 +16740,98 @@ ztGuiItem *zt_guiMakeFlagEditor(ztGuiItem *parent, const char **flag_labels, i32
 		zt_guiSizerAddItem(sizer, check, 0, padding, ztAlign_Left|ztAlign_VertCenter, 0);
 
 		flags->buttons[i] = check;
+	}
+
+	return panel;
+}
+
+// ================================================================================================================================================================================================
+
+struct ztGuiEditorEnums
+{
+	void *variable;
+	i32 variable_last_update;
+
+	ztGuiItem *combo;
+
+	i32 enum_values[256];
+	i32 enum_values_count;
+};
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GUI_COMBOBOX_ITEM_SELECTED(_zt_guiEnumEditorComboChange)
+{
+	ztGuiEditorEnums *enums = (ztGuiEditorEnums*)user_data;
+
+	i32 value = enums->enum_values[selected];
+
+#	if defined(ZT_COMPILER_MSVC)
+	i32 *enum_val = (i32*)enums->variable;
+	*enum_val = value;
+#	else
+#	error "Enum copy needs an implementation for this compiler"
+#	endif
+
+	enums->variable_last_update = value;
+}
+
+// ================================================================================================================================================================================================
+
+ZT_FUNC_GUI_ITEM_UPDATE(_zt_guiEnumEditorUpdate)
+{
+	ztGuiEditorEnums *enums = (ztGuiEditorEnums*)user_data;
+
+#	if defined(ZT_COMPILER_MSVC)
+	if (enums->variable_last_update != *(i32*)enums->variable) {
+		enums->variable_last_update = *(i32*)enums->variable;
+#	else
+#	error "Enum copy needs an implementation for this compiler"
+	{
+#	endif
+
+		zt_fiz(enums->enum_values_count) {
+			if(enums->variable_last_update == enums->enum_values[i]) {
+				zt_guiComboBoxSetSelected(enums->combo, i);
+				break;
+			}
+		}
+	}
+}
+
+// ================================================================================================================================================================================================
+
+ztGuiItem *zt_guiMakeEnumEditor(ztGuiItem *parent, const char **enum_labels, i32 *enum_values, int enums_count, void *enums_variable)
+{
+	zt_returnValOnNull(enums_variable, nullptr);
+
+	ztGuiEditorEnums *enums = zt_mallocStructArena(ztGuiEditorEnums, zt_guiGetActiveManager()->arena);
+	enums->variable = enums_variable;
+
+#	if defined(ZT_COMPILER_MSVC)
+	enums->variable_last_update = *(i32*)enums->variable;
+#	else
+#	error "Enum copy needs an implementation for this compiler"
+#	endif
+
+	ztGuiItem *panel = zt_guiMakePanel(parent, 0, enums, zt_guiGetActiveManager()->arena);
+
+	panel->functions.update = ZT_FUNCTION_POINTER_TO_VAR(_zt_guiEnumEditorUpdate);
+	panel->functions.user_data = enums;
+
+	ztGuiItem *sizer = zt_guiMakeSizer(panel, ztGuiItemOrient_Vert, true);
+
+	enums->combo = zt_guiMakeComboBox(sizer, enums_count);
+	zt_guiSizerAddItem(sizer, enums->combo, 1, 0);
+
+	zt_fiz(enums_count) {
+		zt_guiComboBoxAppend(enums->combo, enum_labels[i], (void*)enum_values[i]);
+
+		if (enums->variable_last_update == enum_values[i]) {
+			zt_guiComboBoxSetSelected(enums->combo, i);
+		}
+
+		enums->enum_values[enums->enum_values_count++] = enum_values[i];
 	}
 
 	return panel;
