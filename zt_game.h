@@ -1956,8 +1956,10 @@ struct ztPlane
 
 
 ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2);
+ztPlane zt_planeMake(const ztVec3 &p, const ztVec3 &normal);
 void    zt_planeNormalize(ztPlane *plane);
 r32     zt_planeDistanceFromPoint(const ztPlane *plane, const ztVec3 &point);
+ztVec3  zt_planeClosestPoint(const ztPlane *plane, const ztVec3 &point);
 
 // ================================================================================================================================================================================================
 // camera
@@ -2192,6 +2194,7 @@ bool                  zt_cameraControllerFPSLoad(ztCameraControllerFPS *controll
 enum ztCameraControllerArcballUpdateFlags_Enum
 {
 	ztCameraControllerArcballUpdateFlags_IgnoreKeys = (1 << 0),
+	ztCameraControllerArcballUpdateFlags_MovedProgrammatically = (1 << 1),
 };
 
 struct ztCameraControllerArcball
@@ -2475,6 +2478,8 @@ enum ztDrawCommandType_Enum
 	ztDrawCommandType_ChangeTransform,
 	ztDrawCommandType_ChangeBlendMode,
 
+	ztDrawCommandType_ClearDepth,
+
 	ztDrawCommandType_DebugItem,
 
 	ztDrawCommandType_MAX,
@@ -2692,6 +2697,8 @@ bool zt_drawListPushTransform(ztDrawList *draw_list, const ztMat4& transform);
 bool zt_drawListPopTransform(ztDrawList *draw_list);
 bool zt_drawListPushBlendMode(ztDrawList *draw_list, ztRendererBlendMode_Enum src, ztRendererBlendMode_Enum dest);
 bool zt_drawListPopBlendMode(ztDrawList *draw_list);
+
+bool zt_drawListAddDepthClear(ztDrawList *draw_list);
 
 bool zt_drawListAddDebugItem(ztDrawList *draw_list, const char *debug); // useful when inspecting array of drawlist in debugger
 
@@ -3147,11 +3154,22 @@ struct ztModelEditWidget
 	bool                       hover;
 	int                        hover_axis;
 	bool                       dragging;
+	r32                        dragging_dist;
+	bool                       dragging_cancelled;
 
 	r32                        ray_intersect_dist;
 	ztVec3                     ray_intersect_offset;
 	ztVec3                     start_value;
 	r32                        accum_value;
+
+	enum Mode_Enum
+	{
+		Mode_Translate,
+		Mode_Rotate,
+		Mode_Scale,
+	};
+
+	Mode_Enum mode;
 
 	enum Control_Enum
 	{
@@ -3161,6 +3179,9 @@ struct ztModelEditWidget
 		Control_TranslateX,
 		Control_TranslateY,
 		Control_TranslateZ,
+		Control_TranslatePlaneXY,
+		Control_TranslatePlaneYZ,
+		Control_TranslatePlaneXZ,
 		Control_ScaleX,
 		Control_ScaleY,
 		Control_ScaleZ,
@@ -11996,6 +12017,18 @@ bool zt_drawListPopBlendMode(ztDrawList *draw_list)
 
 // ================================================================================================================================================================================================
 
+bool zt_drawListAddDepthClear(ztDrawList *draw_list)
+{
+	ZT_PROFILE_RENDERING("zt_drawListAddDepthClear");
+	_zt_drawListCheck(draw_list);
+
+	auto *command = &draw_list->commands[draw_list->commands_count++];
+	command->type = ztDrawCommandType_ClearDepth;
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_drawListAddDebugItem(ztDrawList *draw_list, const char *debug)
 {
 	ZT_PROFILE_RENDERING("zt_drawListAddDebugItem");
@@ -13206,6 +13239,12 @@ void zt_renderDrawLists(ztCamera *camera, ztDrawList **draw_lists, int draw_list
 					case ztDrawCommandType_ChangeBlendMode: {
 						ZT_PROFILE_RENDERING("zt_renderDrawLists::change blend mode");
 						zt_rendererSetBlendMode(cmp_item->command->blend_src, cmp_item->command->blend_dest);
+						blend = cmp_item;
+					} break;
+
+					case ztDrawCommandType_ClearDepth: {
+						ZT_PROFILE_RENDERING("zt_renderDrawLists::clear depth");
+						zt_rendererClearDepth();
 						blend = cmp_item;
 					} break;
 
@@ -17927,12 +17966,14 @@ ztInternal void _zt_modelEditWidgetLoadVerts(ztModelEditWidget *widget)
 {
 	ZT_PROFILE_RENDERING("_zt_modelEditWidgetLoadVerts");
 
-	const char *base64_modelWidget = "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 ";
+	const char *base64_modelWidget = "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 ";
 
-	i32 uncompressed_size = 68756;
+	i32 uncompressed_size = 88377;
 
 	i32 base64_len = zt_strLen(base64_modelWidget);
 
@@ -17968,16 +18009,19 @@ ztInternal void _zt_modelEditWidgetLoadVerts(ztModelEditWidget *widget)
 			zt_assertReturnOnFail(zt_serialRead(&serial, name, zt_elementsOf(name), &name_len));
 
 			int index = -1;
-			if (zt_strEquals(name, "rotate_x")) index = ztModelEditWidget::Control_RotateX;
-			if (zt_strEquals(name, "rotate_y")) index = ztModelEditWidget::Control_RotateY;
-			if (zt_strEquals(name, "rotate_z")) index = ztModelEditWidget::Control_RotateZ;
-			if (zt_strEquals(name, "translate_x")) index = ztModelEditWidget::Control_TranslateX;
-			if (zt_strEquals(name, "translate_y")) index = ztModelEditWidget::Control_TranslateY;
-			if (zt_strEquals(name, "translate_z")) index = ztModelEditWidget::Control_TranslateZ;
-			if (zt_strEquals(name, "scale_x")) index = ztModelEditWidget::Control_ScaleX;
-			if (zt_strEquals(name, "scale_y")) index = ztModelEditWidget::Control_ScaleY;
-			if (zt_strEquals(name, "scale_z")) index = ztModelEditWidget::Control_ScaleZ;
-			if (zt_strEquals(name, "scale_all")) index = ztModelEditWidget::Control_ScaleAll;
+			if (zt_strStartsWith(name, "rotate_x"))    index = ztModelEditWidget::Control_RotateX;
+			if (zt_strStartsWith(name, "rotate_y"))    index = ztModelEditWidget::Control_RotateY;
+			if (zt_strStartsWith(name, "rotate_z"))    index = ztModelEditWidget::Control_RotateZ;
+			if (zt_strStartsWith(name, "translate_x")) index = ztModelEditWidget::Control_TranslateX;
+			if (zt_strStartsWith(name, "translate_y")) index = ztModelEditWidget::Control_TranslateY;
+			if (zt_strStartsWith(name, "translate_z")) index = ztModelEditWidget::Control_TranslateZ;
+			if (zt_strStartsWith(name, "plane_xy"))    index = ztModelEditWidget::Control_TranslatePlaneXY;
+			if (zt_strStartsWith(name, "plane_yz"))    index = ztModelEditWidget::Control_TranslatePlaneYZ;
+			if (zt_strStartsWith(name, "plane_xz"))    index = ztModelEditWidget::Control_TranslatePlaneXZ;
+			if (zt_strStartsWith(name, "scale_x"))     index = ztModelEditWidget::Control_ScaleX;
+			if (zt_strStartsWith(name, "scale_y"))     index = ztModelEditWidget::Control_ScaleY;
+			if (zt_strStartsWith(name, "scale_z"))     index = ztModelEditWidget::Control_ScaleZ;
+			if (zt_strStartsWith(name, "scale_all"))   index = ztModelEditWidget::Control_ScaleAll;
 
 			zt_assert(index != -1);
 
@@ -18024,8 +18068,9 @@ bool zt_modelEditWidgetMake(ztModelEditWidget *widget, ztModel *model)
 	widget->hover                 = false;
 	widget->verts_active          = -1;
 	widget->snap_amount_translate = .25f;
-	widget->snap_amount_rotation  = 5;
+	widget->snap_amount_rotation  = 45;
 	widget->snap_amount_scale     = .25f;
+	widget->mode                  = ztModelEditWidget::Mode_Translate;
 
 	return true;
 }
@@ -18046,8 +18091,9 @@ bool zt_modelEditWidgetMake(ztModelEditWidget *widget, ztBone *bone)
 	widget->hover                 = false;
 	widget->verts_active          = -1;
 	widget->snap_amount_translate = .25f;
-	widget->snap_amount_rotation  = 5;
+	widget->snap_amount_rotation  = 45;
 	widget->snap_amount_scale     = .25f;
+	widget->mode                  = ztModelEditWidget::Mode_Translate;
 
 	return true;
 }
@@ -18062,15 +18108,16 @@ bool zt_modelEditWidgetMake(ztModelEditWidget *widget, ztTransform *transform)
 		_zt_modelEditWidgetLoadVerts(widget);
 	}
 
-	widget->model = nullptr;
-	widget->bone = nullptr;
-	widget->transform = transform;
-	widget->dragging = false;
-	widget->hover = false;
-	widget->verts_active = -1;
+	widget->model                 = nullptr;
+	widget->bone                  = nullptr;
+	widget->transform             = transform;
+	widget->dragging              = false;
+	widget->hover                 = false;
+	widget->verts_active          = -1;
 	widget->snap_amount_translate = .25f;
-	widget->snap_amount_rotation = 5;
-	widget->snap_amount_scale = .25f;
+	widget->snap_amount_rotation  = 45;
+	widget->snap_amount_scale     = .25f;
+	widget->mode                  = ztModelEditWidget::Mode_Translate;
 
 	return true;
 }
@@ -18092,19 +18139,56 @@ void zt_modelEditWidgetFree(ztModelEditWidget *widget)
 
 // ================================================================================================================================================================================================
 
-ztInternal ztMat4 _zt_modelEditWidgetGetMatInv(ztModelEditWidget *widget)
+ztInternal ztMat4 _zt_modelEditWidgetGetMatInv(ztModelEditWidget *widget, r32 scale_multiplier = 1)
 {
+	ztMat4 mat = ztMat4::identity;
+	ztMat4 mat_scale = ztMat4::identity;
+	ztTransform transform;
+
 	if (widget->model) {
-		return widget->model->calculated_mat.getInverse();
+		transform = zt_transformFromMat4(&widget->model->calculated_mat);
 	}
 	else if (widget->bone) {
-		return widget->bone->mat_local_bind_transform.getInverse();
+		transform = widget->bone->transform;
 	}
 	else if (widget->transform) {
-		return zt_transformToMat4(widget->transform).getInverse();
+		transform = *widget->transform;
 	}
 
-	return ztMat4::identity;
+	transform.scale = ztVec3::one;
+
+	if (widget->mode != ztModelEditWidget::Mode_Rotate) {
+		transform.rotation = ztQuat::identity;
+	}
+
+	mat = zt_transformToMat4(&transform);
+
+	if (scale_multiplier != 1) {
+		ztMat4 mat_scale = ztMat4::identity.getScale(ztVec3::one * scale_multiplier);
+		mat *= mat_scale;
+	}
+
+	return mat.getInverse();
+}
+
+// ================================================================================================================================================================================================
+
+ztInternal r32 _zt_modelEditWidgetGetDistanceMultiplier(ztModelEditWidget *widget, ztCamera *camera)
+{
+	//if (widget->dragging) {
+	//	return widget->dragging_dist;
+	//}
+
+	ztMat4 mat = _zt_modelEditWidgetGetMatInv(widget).getInverse();
+	ztVec3 point = mat.getMultiply(ztVec3::zero);
+
+	ztFrustum frustum = zt_cameraCalcViewFrustum(camera);
+	ztPlane plane = frustum.plane_near;
+
+	ztVec3 closest = zt_planeClosestPoint(&plane, point);
+
+	r32 dist = closest.distance(point);
+	return dist / 6.f;
 }
 
 // ================================================================================================================================================================================================
@@ -18145,8 +18229,14 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 	static ztMat4 orig_mat_inv;
 
 	if (!widget->dragging) {
+
+		if (input_keys[ztInputKeys_1].justPressed()) widget->mode = ztModelEditWidget::Mode_Translate;
+		if (input_keys[ztInputKeys_2].justPressed()) widget->mode = ztModelEditWidget::Mode_Rotate;
+		if (input_keys[ztInputKeys_3].justPressed()) widget->mode = ztModelEditWidget::Mode_Scale;
+
+
 		ztVec3 ray_pos, ray_dir;
-		ztMat4 calc_mat_inv = _zt_modelEditWidgetGetMatInv(widget);
+		ztMat4 calc_mat_inv = _zt_modelEditWidgetGetMatInv(widget, _zt_modelEditWidgetGetDistanceMultiplier(widget, camera));
 
 		zt_cameraPerspGetMouseRayLocalToMatrix(camera, input_mouse->screen_x, input_mouse->screen_y, &ray_pos, &ray_dir, &calc_mat_inv);
 
@@ -18157,30 +18247,55 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 		ztVec3 intersect_pos = ztVec3::min;
 
 		zt_fize(widget->verts_aabb_center) {
-			ztVec3 intersection_point;
-			if (zt_collisionRayInAABB(ray_pos, ray_dir, widget->verts_aabb_center[i], widget->verts_aabb_size[i], nullptr, &intersection_point)) {
+			bool test_collision = false;
 
-				r32 intersect_time = ztReal32Max;
-				bool intersect_tri = false;
-				ztVec3 line_end = intersection_point + ray_dir * 10;
-				for (int j = 0; j < widget->verts_count[i]; j += 3) {
-					if (zt_collisionLineInTriangle(ray_pos, line_end, widget->verts[i][j], widget->verts[i][j+1], widget->verts[i][j+2], &intersection_point, &intersect_time)) {
-						intersect_tri = true;
-						break;
+			switch(i)
+			{
+				case ztModelEditWidget::Control_TranslateX:       test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_TranslateY:       test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_TranslateZ:       test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_TranslatePlaneXY: test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_TranslatePlaneYZ: test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_TranslatePlaneXZ: test_collision = widget->mode == ztModelEditWidget::Mode_Translate; break;
+				case ztModelEditWidget::Control_RotateX:          test_collision = widget->mode == ztModelEditWidget::Mode_Rotate; break;
+				case ztModelEditWidget::Control_RotateY:          test_collision = widget->mode == ztModelEditWidget::Mode_Rotate; break;
+				case ztModelEditWidget::Control_RotateZ:          test_collision = widget->mode == ztModelEditWidget::Mode_Rotate; break;
+				case ztModelEditWidget::Control_ScaleX:           test_collision = widget->mode == ztModelEditWidget::Mode_Scale; break;
+				case ztModelEditWidget::Control_ScaleY:           test_collision = widget->mode == ztModelEditWidget::Mode_Scale; break;
+				case ztModelEditWidget::Control_ScaleZ:           test_collision = widget->mode == ztModelEditWidget::Mode_Scale; break;
+				case ztModelEditWidget::Control_ScaleAll:         test_collision = widget->mode == ztModelEditWidget::Mode_Scale; break;
+			}
+
+			if (test_collision) {
+				ztVec3 intersection_point;
+				if (zt_collisionRayInAABB(ray_pos, ray_dir, widget->verts_aabb_center[i], widget->verts_aabb_size[i], nullptr, &intersection_point)) {
+
+					r32 intersect_time = ztReal32Max;
+					bool intersect_tri = false;
+					ztVec3 line_end = intersection_point + ray_dir * 10;
+					for (int j = 0; j < widget->verts_count[i]; j += 3) {
+						if (zt_collisionLineInTriangle(ray_pos, line_end, widget->verts[i][j], widget->verts[i][j+1], widget->verts[i][j+2], &intersection_point, &intersect_time)) {
+							intersect_tri = true;
+							break;
+						}
 					}
-				}
 
-				if (intersect_tri && intersect_time < closest_time) {
-					widget->verts_active = i;
-					closest_time = intersect_time;
-					intersect_pos = intersection_point;
+					if (intersect_tri && intersect_time < closest_time) {
+						widget->verts_active = i;
+						closest_time = intersect_time;
+						intersect_pos = intersection_point;
+					}
 				}
 			}
 		}
 
 		if (widget->verts_active >= 0) {
 			if (input_mouse->leftJustPressed()) {
+				widget->dragging_dist = _zt_modelEditWidgetGetDistanceMultiplier(widget, camera);
 				widget->dragging = true;
+				widget->dragging_cancelled = false;
+				widget->start_value = ztVec3::min;
+
 				// the intersect point is in object space, need to put it in world space
 
 				intersect_pos = calc_mat_inv.getMultiply(intersect_pos);
@@ -18197,6 +18312,23 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 				widget->dragging_origin = zt_vec2i(input_mouse->screen_x, input_mouse->screen_y);
 				widget->dragging_transform_origin = *_zt_modelEditWidgetGetTransform(widget);
 
+				switch (widget->verts_active)
+				{
+					case ztModelEditWidget::Control_RotateX:
+					case ztModelEditWidget::Control_RotateY:
+					case ztModelEditWidget::Control_RotateZ:
+					case ztModelEditWidget::Control_ScaleX:
+					case ztModelEditWidget::Control_ScaleY:
+					case ztModelEditWidget::Control_ScaleZ:
+					case ztModelEditWidget::Control_ScaleAll: {
+						zt_inputMouseSetCursor(ztInputMouseCursor_None);
+						zt_inputMouseLook(true);
+
+						widget->start_value = ztVec3::zero;
+						widget->dragging_origin = zt_vec2i(0, 0);
+					} break;
+				}
+
 				return true;
 			}
 		}
@@ -18204,7 +18336,9 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 	else {
 		if (input_mouse->leftJustReleased()) {
 			widget->dragging = false;
-			return false;
+			zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
+			zt_inputMouseLook(false);
+			return true;
 		}
 
 		ztTransform *transform = _zt_modelEditWidgetGetTransform(widget);
@@ -18212,133 +18346,280 @@ bool zt_modelEditWidgetUpdate(ztModelEditWidget *widget, ztInputKeys *input_keys
 		if (input_keys[ztInputKeys_Escape].justPressed() || input_mouse->rightJustPressed()) {
 			*transform = widget->dragging_transform_origin;
 			widget->dragging = false;
-			return false;
+			widget->dragging_cancelled = true;
+			zt_inputMouseSetCursor(ztInputMouseCursor_Arrow);
+			zt_inputMouseLook(false);
+			return true;
 		}
 		else {
-			ztVec2i dist_changed = zt_vec2i(input_mouse->screen_x - widget->dragging_origin.x, input_mouse->screen_y - widget->dragging_origin.y);
-
-			//r32 max_delta = zt_abs(dist_changed.x) > zt_abs(dist_changed.y) ? dist_changed.x : dist_changed.y;
-			r32 max_delta = (r32)-dist_changed.x;
-
-			ztMat4 calc_mat_inv = _zt_modelEditWidgetGetMatInv(widget);
-			ztVec3 object_pos = calc_mat_inv.getMultiply(ztVec3::zero);
-
-			max_delta *= widget->pull_dist;
-
-			if (input_keys[ztInputKeys_Shift].pressed()) {
-				max_delta *= .1f;
-			}
-
-			ztVec3 pos_to_add = ztVec3::zero;
-			ztVec3 rot_to_add = ztVec3::zero;
-			ztVec3 sca_to_add = ztVec3::zero;
-
 			bool snap = input_keys[ztInputKeys_Control].pressed();
+			bool slow = input_keys[ztInputKeys_Shift].pressed();
 
-			switch(widget->verts_active)
-			{
-				case ztModelEditWidget::Control_RotateX: {
-					//quat_to_add = ztQuat::makeFromEuler(max_delta * .005f, 0, 0);
-					rot_to_add.x = max_delta * .005f;
-				} break;
+			if (widget->verts_active >= ztModelEditWidget::Control_TranslateX && widget->verts_active <= ztModelEditWidget::Control_TranslatePlaneXZ) {
+				// position the transform based on where the cursor is on the axis plane
 
-				case ztModelEditWidget::Control_RotateY: {
-					//quat_to_add = ztQuat::makeFromEuler(0, -max_delta * .005f, 0);
-					rot_to_add.y = max_delta * .005f;
-				} break;
+				ztPlane axis_plane;
 
-				case ztModelEditWidget::Control_RotateZ: {
-					//quat_to_add = ztQuat::makeFromEuler(0, 0, max_delta * .005f);
-					rot_to_add.z = max_delta * .005f;
-				} break;
+				bool global_translate = true;
 
-				case ztModelEditWidget::Control_TranslateX: {
-					pos_to_add.x = -max_delta * .00025f;
-				} break;
+				ztMat4 mat = _zt_modelEditWidgetGetMatInv(widget);// zt_transformToMat4(_zt_modelEditWidgetGetTransform(widget)).getInverse();
+				ztVec3 point = mat.getMultiply(ztVec3::zero);
+				ztVec3 normal;
 
-				case ztModelEditWidget::Control_TranslateY: {
-					pos_to_add.y = max_delta * .00025f;
-				} break;
+				switch (widget->verts_active)
+				{
+					case ztModelEditWidget::Control_TranslateX: {
+						normal = global_translate ? zt_vec3(0, 1, 0) : mat.getMultiply(zt_vec3(0, 1, 0));
+						r32 dot_vert = zt_abs(camera->direction.dot(normal));
 
-				case ztModelEditWidget::Control_TranslateZ: {
-					pos_to_add.z = -max_delta * .00025f;
-				} break;
+						if (dot_vert < .5) {
+							normal = global_translate ? zt_vec3(0, 0, 1) : mat.getMultiply(zt_vec3(0, 0, 1));
+						}
+					} break;
 
-				case ztModelEditWidget::Control_ScaleX: {
-					sca_to_add.x = -max_delta * .00005f;
-				} break;
+					case ztModelEditWidget::Control_TranslateY: {
+						normal = global_translate ? zt_vec3(0, 0, 1) : mat.getMultiply(zt_vec3(0, 0, 1));
+						r32 dot_vert = zt_abs(camera->direction.dot(normal));
 
-				case ztModelEditWidget::Control_ScaleY: {
-					sca_to_add.y = max_delta * .00005f;
-				} break;
+						if (dot_vert < .5) {
+							normal = global_translate ? zt_vec3(1, 0, 0) : mat.getMultiply(zt_vec3(1, 0, 0));
+						}
 
-				case ztModelEditWidget::Control_ScaleZ: {
-					sca_to_add.z = -max_delta * .00005f;
-				} break;
+					} break;
 
-				case ztModelEditWidget::Control_ScaleAll: {
-					sca_to_add = zt_vec3(-max_delta, -max_delta, -max_delta) * .00005f;
-				} break;
+					case ztModelEditWidget::Control_TranslateZ: {
+						normal = global_translate ? zt_vec3(0, 1, 0) : mat.getMultiply(zt_vec3(0, 1, 0));
+						r32 dot_vert = zt_abs(camera->direction.dot(normal));
+
+						if (dot_vert < .5) {
+							normal = global_translate ? zt_vec3(1, 0, 0) : mat.getMultiply(zt_vec3(1, 0, 0));
+						}
+
+					} break;
+
+					case ztModelEditWidget::Control_TranslatePlaneXY: {
+						normal = global_translate ? zt_vec3(0, 0, 1) : mat.getMultiply(zt_vec3(0, 0, 1));
+					} break;
+					case ztModelEditWidget::Control_TranslatePlaneYZ: {
+						normal = global_translate ? zt_vec3(1, 0, 0) : mat.getMultiply(zt_vec3(1, 0, 0));
+					} break;
+					case ztModelEditWidget::Control_TranslatePlaneXZ: {
+						normal = global_translate ? zt_vec3(0, 1, 0) : mat.getMultiply(zt_vec3(0, 1, 0));
+					} break;
+				}
+
+				axis_plane = zt_planeMake(point, normal);
+
+				ztVec3 ray_pos, ray_dir;
+				zt_cameraPerspGetMouseRay(camera, input_mouse->screen_x, input_mouse->screen_y, &ray_pos, &ray_dir);
+
+				ztVec3 intersect_point;
+				if (zt_collisionLineInPlane(ray_pos, ray_pos + ray_dir * 999, axis_plane, &intersect_point)) {
+					if (widget->start_value == ztVec3::min) {
+						widget->start_value.x = intersect_point.x - transform->position.x;
+						widget->start_value.y = intersect_point.y - transform->position.y;
+						widget->start_value.z = intersect_point.z - transform->position.z;
+					}
+					else {
+						switch (widget->verts_active)
+						{
+							case ztModelEditWidget::Control_TranslateX: {
+								transform->position.x = intersect_point.x - widget->start_value.x;
+								if (snap) {
+									if (transform->position.x > 0) {
+										transform->position.x += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.x, widget->snap_amount_translate);
+									transform->position.x -= mod;
+								}
+							} break;
+
+							case ztModelEditWidget::Control_TranslateY: {
+								transform->position.y = intersect_point.y - widget->start_value.y;
+								if (snap) {
+									if (transform->position.y > 0) {
+										transform->position.y += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.y, widget->snap_amount_translate);
+									transform->position.y -= mod;
+								}
+							} break;
+
+							case ztModelEditWidget::Control_TranslateZ: {
+								transform->position.z = intersect_point.z - widget->start_value.z;
+								if (snap) {
+									if (transform->position.z > 0) {
+										transform->position.z += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.z, widget->snap_amount_translate);
+									transform->position.z -= mod;
+								}
+							} break;
+
+							case ztModelEditWidget::Control_TranslatePlaneXY: {
+								transform->position.x = intersect_point.x - widget->start_value.x;
+								transform->position.y = intersect_point.y - widget->start_value.y;
+								if (snap) {
+									if (transform->position.x > 0) {
+										transform->position.x += widget->snap_amount_translate;
+									}
+									if (transform->position.y > 0) {
+										transform->position.y += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.x, widget->snap_amount_translate);
+									transform->position.x -= mod;
+
+									mod = zt_fmod(transform->position.y, widget->snap_amount_translate);
+									transform->position.y -= mod;
+								}
+							} break;
+
+							case ztModelEditWidget::Control_TranslatePlaneYZ: {
+								transform->position.y = intersect_point.y - widget->start_value.y;
+								transform->position.z = intersect_point.z - widget->start_value.z;
+								if (snap) {
+									if (transform->position.y > 0) {
+										transform->position.y += widget->snap_amount_translate;
+									}
+									if (transform->position.z > 0) {
+										transform->position.z += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.y, widget->snap_amount_translate);
+									transform->position.y -= mod;
+
+									mod = zt_fmod(transform->position.z, widget->snap_amount_translate);
+									transform->position.z -= mod;
+								}
+							} break;
+
+							case ztModelEditWidget::Control_TranslatePlaneXZ: {
+								transform->position.x = intersect_point.x - widget->start_value.x;
+								transform->position.z = intersect_point.z - widget->start_value.z;
+								if (snap) {
+									if (transform->position.x > 0) {
+										transform->position.x += widget->snap_amount_translate;
+									}
+									if (transform->position.z > 0) {
+										transform->position.z += widget->snap_amount_translate;
+									}
+
+									r32 mod = zt_fmod(transform->position.x, widget->snap_amount_translate);
+									transform->position.x -= mod;
+
+									mod = zt_fmod(transform->position.z, widget->snap_amount_translate);
+									transform->position.z -= mod;
+								}
+							} break;
+						}
+					}
+				}
 			}
 
-			if (pos_to_add != ztVec3::zero) {
-				ztMat4 mat = calc_mat_inv.getInverse();
-				mat.translate(0, 0, 0);
+			else if (widget->verts_active == ztModelEditWidget::Control_RotateX || widget->verts_active == ztModelEditWidget::Control_RotateY || widget->verts_active == ztModelEditWidget::Control_RotateZ) {
 
-				pos_to_add = mat.getMultiply(pos_to_add);
+				widget->start_value += zt_vec3((r32)input_mouse->delta_x, (r32)input_mouse->delta_y, 0);
 
-				transform->position = widget->dragging_transform_origin.position + pos_to_add;
+				ztVec2 dist_changed = zt_vec2(widget->start_value.x - (r32)widget->dragging_origin.x, widget->start_value.y - (r32)widget->dragging_origin.y);
+
+				r32 max_delta = dist_changed.length() * -.05f;
+
+				if (slow) {
+					max_delta *= .1f;
+				}
+
+				ztVec3 rot_to_add = ztVec3::zero;
+
+				switch (widget->verts_active)
+				{
+					case ztModelEditWidget::Control_RotateX: {
+						rot_to_add.x = max_delta;
+					} break;
+
+					case ztModelEditWidget::Control_RotateY: {
+						rot_to_add.y = max_delta;
+					} break;
+
+					case ztModelEditWidget::Control_RotateZ: {
+						rot_to_add.z = max_delta;
+					} break;
+				}
+
+				if (rot_to_add != ztVec3::zero) {
+					ztVec3 rot = widget->dragging_transform_origin.rotation.euler() + rot_to_add;
+
+					zt_fize(rot.values) {
+						if (snap) {
+							r32 mod = zt_fmod(rot.values[i], widget->snap_amount_rotation);
+							rot.values[i] -= mod;
+						}
+
+						while (rot.values[i] > 180) rot.values[i] -= 360;
+						while (rot.values[i] < -180) rot.values[i] += 360;
+					}
+
+					ztQuat quat_to_add = ztQuat::makeFromEuler(rot);
+
+					transform->rotation = quat_to_add;
+				}
+			}
+
+			else if (widget->verts_active >= ztModelEditWidget::Control_ScaleX || widget->verts_active <= ztModelEditWidget::Control_ScaleAll) {
+				widget->start_value += zt_vec3((r32)input_mouse->delta_x, (r32)input_mouse->delta_y, 0);
+
+				ztVec2 dist_changed = zt_vec2(widget->start_value.x - (r32)widget->dragging_origin.x, widget->start_value.y - (r32)widget->dragging_origin.y);
+
+				int axis = 0;// zt_abs(dist_changed.x) > zt_abs(dist_changed.y) ? 0 : 1;
+
+				r32 max_delta = dist_changed.values[axis] * .0025f;
+
+				if (slow) {
+					max_delta *= .1f;
+				}
+
+				ztVec3 sca_to_add = ztVec3::zero;
+
+				switch (widget->verts_active)
+				{
+					case ztModelEditWidget::Control_ScaleX: {
+						sca_to_add.x = max_delta;
+					} break;
+
+					case ztModelEditWidget::Control_ScaleY: {
+						sca_to_add.y = max_delta;
+					} break;
+
+					case ztModelEditWidget::Control_ScaleZ: {
+						sca_to_add.z = max_delta;
+					} break;
+
+					case ztModelEditWidget::Control_ScaleAll: {
+						sca_to_add.x = max_delta;
+						sca_to_add.y = max_delta;
+						sca_to_add.z = max_delta;
+					} break;
+				}
+
+				ztVec3 sca = widget->dragging_transform_origin.scale + sca_to_add;
 
 				if (snap) {
-					zt_fize(pos_to_add.values) {
-						if (pos_to_add.values[i] != 0) {
-							if (transform->position.values[i] > 0) {
-								transform->position.values[i] += widget->snap_amount_translate;
+					zt_fize(sca.values) {
+						if (sca.values[i] != 0) {
+							if (sca.values[i] > 0) {
+								sca.values[i] += widget->snap_amount_scale;
 							}
 
-							r32 mod = zt_fmod(transform->position.values[i], widget->snap_amount_translate);
-							transform->position.values[i] -= mod;
+							r32 mod = zt_fmod(sca.values[i], widget->snap_amount_translate);
+							sca.values[i] -= mod;
 						}
 					}
 				}
-			}
 
-			if (rot_to_add != ztVec3::zero) {
-				ztVec3 euler_before = snap ? transform->rotation.euler() : ztVec3::zero;
-					
-				ztQuat quat_to_add = ztQuat::makeFromEuler(rot_to_add);
-
-				transform->rotation = widget->dragging_transform_origin.rotation * quat_to_add;
-
-				if (snap) {
-					ztVec3 euler_after = transform->rotation.euler();
-
-					zt_fize(rot_to_add.values) {
-						if (!zt_real32Close(euler_before.values[i], euler_after.values[i])) {
-							r32 mod = zt_fmod(euler_after.values[i], widget->snap_amount_rotation);
-							euler_after.values[i] -= mod;
-						}
-					}
-
-					transform->rotation = ztQuat::makeFromEuler(euler_after);
-				}
-			}
-
-			if (sca_to_add != ztVec3::zero) {
-				transform->scale = widget->dragging_transform_origin.scale + sca_to_add;
-
-				if (snap) {
-					zt_fize(sca_to_add.values) {
-						if (sca_to_add.values[i] != 0) {
-							if (transform->scale.values[i] > 0) {
-								transform->scale.values[i] += widget->snap_amount_scale;
-							}
-
-							r32 mod = zt_fmod(transform->scale.values[i], widget->snap_amount_translate);
-							transform->scale.values[i] -= mod;
-						}
-					}
-				}
+				transform->scale = sca;
 			}
 		}
 	}
@@ -18360,14 +18641,18 @@ void zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDra
 		return;
 	}
 
-	ztMat4 calculated_mat = _zt_modelEditWidgetGetMatInv(widget).getInverse();
+	ztMat4 calculated_mat = _zt_modelEditWidgetGetMatInv(widget, _zt_modelEditWidgetGetDistanceMultiplier(widget, camera)).getInverse();
+	//calculated_mat.scale(ztVec3::one * _zt_modelEditWidgetGetDistanceMultiplier(widget, camera));
 
 	struct local
 	{
 		static void draw(ztDrawList *draw_list, ztModelEditWidget *widget, int vert, ztColor color)
 		{
 			if (widget->verts_active != vert) {
-				color *= zt_vec4(.125f, .125f, .125f, 1);
+				color *= zt_vec4(.5f, .5f, .5f, 1);
+			}
+			else {
+				color.rgb *= 1.25f;
 			}
 
 			ztVec2 uvs[3] = { ztVec2::zero, zt_vec2(0, 1), zt_vec2(1, 1) };
@@ -18386,28 +18671,18 @@ void zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDra
 		}
 	};
 
-#if 0
-	{
-		ztVec3 position, rotation, scale;
-		calculated_mat.extract(&position, &rotation, &scale);
-
-		ztTransform ntra;
-		ntra.position = position;
-		ntra.rotation = ztQuat::makeFromEuler(rotation);
-		ntra.scale = ztVec3::one;
-
-		calculated_mat = zt_transformToMat4(&ntra);
-	}
-#endif
 	ztVec3 position = calculated_mat.getMultiply(ztVec3::zero);
 
 	zt_drawListPushShader(draw_list, zt_shaderGetDefault(ztShaderDefault_Unlit));
 	zt_drawListPushTexture(draw_list, ztTextureDefaultWhite);
+	zt_drawListPushColor(draw_list, ztColor_White);
 
 	zt_drawListPushTransform(draw_list, calculated_mat);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_RotateX, ztColor_Red);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_RotateY, ztColor_Green);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_RotateZ, ztColor_Blue);
+	if (widget->mode == ztModelEditWidget::Mode_Rotate) {
+		local::draw(draw_list, widget, ztModelEditWidget::Control_RotateX, ztColor_Red);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_RotateY, ztColor_Green);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_RotateZ, ztColor_Blue);
+	}
 //	zt_drawListPopTransform(draw_list);
 //
 //	ztTransform t;
@@ -18417,15 +18692,59 @@ void zt_modelEditWidgetRender(ztModelEditWidget *widget, ztCamera *camera, ztDra
 //	ztMat4 tm = zt_transformToMat4(&t);
 //
 //	zt_drawListPushTransform(draw_list, tm);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateX, ztColor_Red);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateY, ztColor_Green);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateZ, ztColor_Blue);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleX, ztColor_Red);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleY, ztColor_Green);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleZ, ztColor_Blue);
-	local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleAll, ztColor_Yellow);
+	if (widget->mode == ztModelEditWidget::Mode_Translate) {
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateX, ztColor_Red);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateY, ztColor_Green);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslateZ, ztColor_Blue);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslatePlaneXY, ztColor_Yellow);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslatePlaneYZ, ztColor_Cyan);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_TranslatePlaneXZ, ztColor_Purple);
+	}
+	if (widget->mode == ztModelEditWidget::Mode_Scale) {
+		local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleX, ztColor_Red);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleY, ztColor_Green);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleZ, ztColor_Blue);
+		local::draw(draw_list, widget, ztModelEditWidget::Control_ScaleAll, ztColor_Yellow);
+	}
 	zt_drawListPopTransform(draw_list);
 
+	if (widget->dragging && widget->verts_active >= ztModelEditWidget::Control_TranslatePlaneXY && widget->verts_active <= ztModelEditWidget::Control_TranslatePlaneXZ) {
+		ztVec3 origin = widget->dragging_transform_origin.position;
+
+		if (widget->verts_active == ztModelEditWidget::Control_TranslatePlaneXY) {
+			zt_drawListPushColor(draw_list, ztColor_Yellow * zt_vec4(1, 1, 1, .5f));
+			zt_drawListAddFilledQuad(draw_list, origin, zt_vec3(position.x, origin.y, origin.z), position, zt_vec3(origin.x, position.y, origin.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1));
+			zt_drawListAddFilledQuad(draw_list, position, zt_vec3(position.x, origin.y, origin.z), origin, zt_vec3(origin.x, position.y, origin.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, -1), zt_vec3(0, 0, -1), zt_vec3(0, 0, -1), zt_vec3(0, 0, -1));
+			zt_drawListPopColor(draw_list);
+		}
+
+		if (widget->verts_active == ztModelEditWidget::Control_TranslatePlaneYZ) {
+			zt_drawListPushColor(draw_list, ztColor_Cyan * zt_vec4(1, 1, 1, .5f));
+			zt_drawListAddFilledQuad(draw_list, origin, zt_vec3(origin.x, origin.y, position.z), position, zt_vec3(origin.x, position.y, origin.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1));
+			zt_drawListAddFilledQuad(draw_list, position, zt_vec3(origin.x, origin.y, position.z), origin, zt_vec3(origin.x, position.y, origin.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, -1), zt_vec3(0, 0, -1), zt_vec3(0, 0, -1), zt_vec3(0, 0, -1));
+			zt_drawListPopColor(draw_list);
+		}
+
+		if (widget->verts_active == ztModelEditWidget::Control_TranslatePlaneXZ) {
+			zt_drawListPushColor(draw_list, ztColor_Purple * zt_vec4(1, 1, 1, .5f));
+			zt_drawListAddFilledQuad(draw_list, origin, zt_vec3(origin.x, origin.y, position.z), position, zt_vec3(position.x, origin.y, origin.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1));
+			zt_drawListAddFilledQuad(draw_list, origin, zt_vec3(position.x, origin.y, origin.z), position, zt_vec3(origin.x, origin.y, position.z), ztVec2::zero, ztVec2::zero, ztVec2::zero, ztVec2::zero, zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1), zt_vec3(0, 0, 1));
+			zt_drawListPopColor(draw_list);
+		}
+#		if 0
+		// draw lines marking triangles in squares drawn above
+		zt_drawListAddLine(draw_list, origin, zt_vec3(origin.x, origin.y, position.z));
+		zt_drawListAddLine(draw_list, position, zt_vec3(origin.x, origin.y, position.z));
+		
+		zt_drawListAddLine(draw_list, origin, zt_vec3(origin.x, position.y, origin.z));
+		zt_drawListAddLine(draw_list, position, zt_vec3(origin.x, position.y, origin.z));
+		
+		zt_drawListAddLine(draw_list, origin, zt_vec3(position.x, origin.y, origin.z));
+		zt_drawListAddLine(draw_list, position, zt_vec3(position.x, origin.y, origin.z));
+#		endif
+	}	
+
+	zt_drawListPopColor(draw_list);
 	zt_drawListPopTexture(draw_list);
 	zt_drawListPopShader(draw_list);
 
@@ -27516,6 +27835,8 @@ ztInternal void _zt_textureAdjustScreenTargets()
 
 			zt_game->textures[i].width = width;
 			zt_game->textures[i].height = height;
+			zt_game->textures[i].width_actual = width;
+			zt_game->textures[i].height_actual = height;
 		}
 	}
 }
@@ -27563,6 +27884,8 @@ ztInternal ztTextureID _zt_textureMakeBase(byte *pixel_data, i32 width, i32 heig
 	texture->renderer_texture = renderer_texture;
 	texture->width = width;
 	texture->height = height;
+	texture->width_actual = actual_width;
+	texture->height_actual = actual_height;
 	texture->flags = flags;
 	texture->name[0] = 0;
 	texture->access_count = 1;
@@ -29370,7 +29693,7 @@ void zt_cameraControlUpdateArcball(ztCameraControllerArcball *controller, ztInpu
 
 	bool ignore_keys = zt_bitIsSet(flags, ztCameraControllerArcballUpdateFlags_IgnoreKeys);
 	bool middle_pressed = input_mouse->middlePressed();
-	if (middle_pressed || (!ignore_keys && input_keys[ztInputKeys_Control].pressed()) || input_mouse->wheel_delta) {
+	if (middle_pressed || (!ignore_keys && input_keys[ztInputKeys_Control].pressed()) || input_mouse->wheel_delta || zt_bitIsSet(flags, ztCameraControllerArcballUpdateFlags_MovedProgrammatically)) {
 
 		if (middle_pressed) {
 			if (input_keys[ztInputKeys_Shift].pressed()) {
@@ -29546,33 +29869,33 @@ void zt_cameraCalcViewFrustum(ztFrustum *frustum, ztCamera *camera, r32 far_z, r
 		frustum->points[i] = cam_view_inv * frustum->points[i] + world_offset;
 	}
 
-#if 0
-	frustum->plane_left   = zt_planeMake(frustum->near_nw, frustum->near_sw , frustum->far_sw );
-	frustum->plane_top    = zt_planeMake(frustum->near_ne, frustum->near_nw , frustum->far_nw );
-	frustum->plane_right  = zt_planeMake(frustum->near_se, frustum->near_ne, frustum->far_ne );
-	frustum->plane_bottom = zt_planeMake(frustum->near_sw, frustum->near_se , frustum->far_se );
-	frustum->plane_near   = zt_planeMake(frustum->near_se, frustum->near_sw, frustum->near_nw);
+#if 1
+	frustum->plane_left   = zt_planeMake(frustum->near_sw, frustum->near_nw , frustum->far_nw );
+	frustum->plane_top    = zt_planeMake(frustum->near_nw, frustum->near_ne , frustum->far_ne );
+	frustum->plane_right  = zt_planeMake(frustum->far_se, frustum->near_ne, frustum->near_se);
+	frustum->plane_bottom = zt_planeMake(frustum->near_se, frustum->near_sw , frustum->far_sw );
+	frustum->plane_near   = zt_planeMake(frustum->near_se, frustum->near_ne, frustum->near_nw);
 	frustum->plane_far    = zt_planeMake(frustum->far_se , frustum->far_sw , frustum->far_nw );
 #else
 	ztMat4 mat_final = camera->mat_proj * camera->mat_view;
 
 	r32 *m =  mat_final.values;
-	frustum->plane_right.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]);
+	frustum->plane_right.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row0]).getNormal();
 	frustum->plane_right.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row0];
 
-	frustum->plane_left.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row0]);
+	frustum->plane_left.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row0], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row0], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row0]).getNormal();
 	frustum->plane_left.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row0];
 
-	frustum->plane_bottom.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row1]);
+	frustum->plane_bottom.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row1]).getNormal();
 	frustum->plane_bottom.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row1];
 
-	frustum->plane_top.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row1]);
+	frustum->plane_top.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row1], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row1], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row1]).getNormal();
 	frustum->plane_top.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row1];
 
 	frustum->plane_far.normal = zt_vec3(m[ztMat4_Col0Row3] - m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] - m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] - m[ztMat4_Col2Row2]);
 	frustum->plane_far.distance = m[ztMat4_Col3Row3] - m[ztMat4_Col3Row2];
 
-	frustum->plane_near.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row2]);
+	frustum->plane_near.normal = zt_vec3(m[ztMat4_Col0Row3] + m[ztMat4_Col0Row2], m[ztMat4_Col1Row3] + m[ztMat4_Col1Row2], m[ztMat4_Col2Row3] + m[ztMat4_Col2Row2]).getNormal();
 	frustum->plane_near.distance = m[ztMat4_Col3Row3] + m[ztMat4_Col3Row2];
 
 	zt_fize(frustum->planes) {
@@ -33735,14 +34058,26 @@ void zt_transformApplyMat4(ztTransform *transform, const ztMat4 *mat)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+// points go clockwise looking down at the plane
 ztPlane zt_planeMake(const ztVec3 &p0, const ztVec3 &p1, const ztVec3 &p2)
 {
 	ztPlane result;
-	result.normal = (p1 - p0).cross(p2 - p0).getNormal();
-	result.distance = result.normal.dot(p0);
+	result.normal = (p2 - p0).cross(p1 - p0).getNormal();
+	result.distance = -result.normal.dot(p0);
 
 	//zt_planeNormalize(&result);
 
+	return result;
+}
+
+// ================================================================================================================================================================================================
+
+ztPlane zt_planeMake(const ztVec3 &p, const ztVec3 &normal)
+{
+	ztPlane result;
+	result.normal = normal.getNormal();
+	//result.distance = -p.dot(result.normal);
+	result.distance = -result.normal.dot(p);
 	return result;
 }
 
@@ -33763,7 +34098,17 @@ void zt_planeNormalize(ztPlane *plane)
 
 r32 zt_planeDistanceFromPoint(const ztPlane *plane, const ztVec3 &point)
 {
-	return zt_vec4(point, 1).dot(zt_vec4(plane->normal, plane->distance));
+	return (plane->normal.dot(point) + plane->distance) / plane->normal.dot(plane->normal);
+	//return zt_vec4(point, 1).dot(zt_vec4(plane->normal, plane->distance));
+	//ztVec3 normal = plane->normal.getNormal();
+	//return normal.dot(point - (normal * plane->distance));
+}
+
+// ================================================================================================================================================================================================
+
+ztVec3 zt_planeClosestPoint(const ztPlane *plane, const ztVec3 &point)
+{
+	return point - (zt_planeDistanceFromPoint(plane, point) * plane->normal);
 }
 
 // ================================================================================================================================================================================================
@@ -38606,6 +38951,19 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 		zt_vec3(aabb_center.x + aabb_extents.x / 2, aabb_center.y + aabb_extents.y / 2, aabb_center.z + aabb_extents.z / 2),
 	};
 
+//	zt_fize(frustum.planes) {
+//		int x = frustum.planes[i].normal.x > 0 ? 1 : 0;
+//		int y = frustum.planes[i].normal.y > 0 ? 1 : 0;
+//		int z = frustum.planes[i].normal.z > 0 ? 1 : 0;
+//
+//		r32 dot = frustum.planes[i].normal.dot(zt_vec3(aabb[x].x, aabb[y].y, aabb[z].z));
+//		if (dot + frustum.planes[i].distance < 0.f) {
+//			return false;
+//		}
+//	}
+//
+//	return true;
+
 #if defined(ZT_DEBUG)
 	struct local
 	{
@@ -38613,6 +38971,7 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 		{
 //			if (zt_vec3(aabb[(plane).normal.x > 0 ? 1 : 0].x, aabb[(plane).normal.y > 0 ? 1 : 0].y, aabb[(plane).normal.z > 0 ? 1 : 0].z).dot((plane.normal)) + (plane).distance <= 0) return false;
 //			return true;
+
 
 			if (zt_vec3(aabb[0].x, aabb[1].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
 			if (zt_vec3(aabb[1].x, aabb[1].y, aabb[0].z).dot(plane.normal) + plane.distance > 0) return true;
@@ -38624,6 +38983,7 @@ bool zt_collisionAABBInFrustum(const ztFrustum& frustum, const ztVec3 &aabb_cent
 			if (zt_vec3(aabb[1].x, aabb[0].y, aabb[1].z).dot(plane.normal) + plane.distance > 0) return true;
 			return false;
 		}
+
 	};
 
 #	define test_plane(plane) if (!local::test(plane, aabb)) return false;
