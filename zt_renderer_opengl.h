@@ -591,6 +591,7 @@ struct ztShaderGL
 		GLenum   type;
 		ztString name;
 		u32      name_hash;
+		bool     exposed;
 	};
 
 	Uniform        *uniforms;
@@ -805,8 +806,16 @@ ztInternal void _ztgl_getFullScreenCoords(HWND handle, int *pos_x, int *pos_y, i
 
 // ================================================================================================================================================================================================
 
+ztInternal bool _ztgl_ignoreDebugCallback = false;
+
+// ================================================================================================================================================================================================
+
 void WINAPI _ztgl_debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
+	if (_ztgl_ignoreDebugCallback) {
+		return;
+	}
+
 	char *error_source = nullptr;
 	switch (source)
 	{
@@ -1942,7 +1951,7 @@ int ztgl_clearErrors()
 
 // ================================================================================================================================================================================================
 
-bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error)
+bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, ztString *gs, ztString *fs, ztString *error, ztString *exposed_variables, i32 exposed_variables_size, i32 *exposed_variables_count)
 {
 	ZT_PROFILE_OPENGL("_zt_shaderLangConvertToGLSL");
 
@@ -2552,6 +2561,12 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 					else if (zt_strEquals(chvar->variable_decl.qualifier, "color")) {
 						vars.f_color = chvar;
 					}
+					else if (zt_strEquals(chvar->variable_decl.qualifier, "exposed")) {
+						zt_assert(*exposed_variables_count < exposed_variables_size);
+						if (*exposed_variables_count < exposed_variables_size) {
+							exposed_variables[(*exposed_variables_count)++] = zt_stringMakeFrom(chvar->variable_decl.name, zt_memGetTempArena());
+						}
+					}
 				}
 			}
 		}
@@ -2835,7 +2850,7 @@ bool _zt_shaderLangConvertToGLSL(ztShLangSyntaxNode *global_node, ztString *vs, 
 
 // ================================================================================================================================================================================================
 
-ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src)
+ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMemoryArena *arena, const char *vert_src, const char *frag_src, const char *geom_src, const ztString *exposed_variables, i32 exposed_variables_count)
 {
 	ZT_PROFILE_OPENGL("ztgl_shaderMake");
 
@@ -2998,6 +3013,7 @@ ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMem
 				shader->uniforms[act_idx].type = type;
 				shader->uniforms[act_idx].location = renderer->gl.glGetUniformLocation(program, name);
 				shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
+				shader->uniforms[act_idx].exposed = false;
 
 				act_idx += 1;
 			}
@@ -3007,8 +3023,25 @@ ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMem
 			shader->uniforms[act_idx].type = type;
 			shader->uniforms[act_idx].location = renderer->gl.glGetUniformLocation(program, varname);
 			shader->uniforms[act_idx].name_hash = zt_strHash(shader->uniforms[act_idx].name);
+			shader->uniforms[act_idx].exposed = false;
 
 			act_idx += 1;
+		}
+	}
+
+	zt_fiz(act_idx) {
+		zt_fjz(exposed_variables_count) {
+			if (zt_strFind(shader->uniforms[i].name, "[")) {
+				zt_strMakePrintf(search_for, 256, "%s[", exposed_variables[j]);
+				if (zt_strStartsWith(shader->uniforms[i].name, search_for)) {
+					shader->uniforms[i].exposed = true;
+				}
+			}
+			else {
+				if (zt_strEquals(shader->uniforms[i].name, exposed_variables[j])) {
+					shader->uniforms[i].exposed = true;
+				}
+			}
 		}
 	}
 
@@ -3045,6 +3078,7 @@ ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMem
 
 	int locations_count = 0;
 
+	_ztgl_ignoreDebugCallback = true; // when calling glGetProgramResourceiv for an output that doesn't exist, it triggers an error.  don't know of any way to get the count in order to use that, so loop until error is hit
 	zt_fiz(16) {
 		GLenum inputs[] = { GL_LOCATION };
 		GLint outputs[512];
@@ -3055,6 +3089,7 @@ ztShaderGL *_ztgl_shaderMake(ztRendererGL *renderer, ztContextGL *context, ztMem
 
 		locations_count += 1;
 	}
+	_ztgl_ignoreDebugCallback = false;
 
 	shader->outputs_count = locations_count;
 	shader->outputs = locations_count ? zt_mallocStructArrayArena(ztShaderGL::Outputs, locations_count, arena) : nullptr;
@@ -3094,12 +3129,16 @@ ZT_FUNC_RENDERER_SHADER_MAKE(ztgl_shaderMake)
 
 	ztString vert_src = nullptr, geom_src = nullptr, frag_src = nullptr;
 	ztString error;
-	if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error)) {
+
+	ztString exposed_variables[512];
+	i32 exposed_variables_count = 0;
+
+	if (_zt_shaderLangConvertToGLSL(syntax_root, &vert_src, &geom_src, &frag_src, &error, exposed_variables, zt_elementsOf(exposed_variables), &exposed_variables_count)) {
 		zt_debugOnly(zt_logVerbose("======================================\nOpenGL vertex shader:\n%s", vert_src));
 		zt_debugOnly(zt_logVerbose("======================================\nOpenGL geometry shader:\n%s", geom_src));
 		zt_debugOnly(zt_logVerbose("======================================\nOpenGL fragment shader:\n%s", frag_src));
 
-		ztShaderGL *shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_src, frag_src, geom_src);
+		ztShaderGL *shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_src, frag_src, geom_src, exposed_variables, exposed_variables_count);
 		if (shader == nullptr) {
 			if (vert_src) zt_logCritical("======================================\nFailed vertex shader:\n%s", vert_src);
 			if (geom_src) zt_logCritical("======================================\nFailed geometry shader:\n%s", geom_src);
@@ -3109,6 +3148,10 @@ ZT_FUNC_RENDERER_SHADER_MAKE(ztgl_shaderMake)
 		if (vert_src) zt_stringFree(vert_src, zt_memGetGlobalArena());
 		if (geom_src) zt_stringFree(geom_src, zt_memGetGlobalArena());
 		if (frag_src) zt_stringFree(frag_src, zt_memGetGlobalArena());
+
+		zt_fiz(exposed_variables_count) {
+			zt_stringFree(exposed_variables[i], zt_memGetTempArena());
+		}
 
 		return shader;
 	}
@@ -3198,6 +3241,7 @@ ZT_FUNC_RENDERER_SHADER_POPULATE_VARIABLES(ztgl_shaderPopulateVariables)
 			zt_strCpy(shader->variables.variables[i].name, zt_elementsOf(shader->variables.variables[i].name), gl_shader->uniforms[i].name);
 			shader->variables.variables[i].name_hash = zt_strHash(shader->variables.variables[i].name);
 			shader->variables.variables[i].changed = true;
+			shader->variables.variables[i].exposed = gl_shader->uniforms[i].exposed;
 		}
 	}
 }
@@ -3584,7 +3628,7 @@ ZT_FUNC_RENDERER_SHADER_MAKE_POINT_LIGHT_SHADOWS(ztgl_shaderMakePointLightShadow
 	ztRendererGL *gl_renderer = (ztRendererGL*)renderer->user_data;
 	ztContextGL *gl_context = (ztContextGL*)context;
 	
-	return _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert, frag, geom);
+	return _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert, frag, geom, nullptr, 0);
 }
 
 // ================================================================================================================================================================================================
@@ -4181,19 +4225,19 @@ ztInternal ztTextureGL *_ztgl_textureMakeCubeMapFromOther(ztRenderer *renderer, 
 	if (hdr_texture != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform sampler2D equirectangular_map;\n\nconst vec2 inv_atan = vec2(0.1591, 0.3183);\n\nvec2 sampleSphericalMap(vec3 v)\n{\n    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));\n    uv *= inv_atan;\n    uv += 0.5;\n    return uv;\n}\n\nvoid main()\n{		\n    vec2 uv = sampleSphericalMap(normalize(world_position));\n    vec3 clr = texture(equirectangular_map, uv).rgb;\n    \n    frag_color = vec4(clr, 1.0);\n}";
-		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr);
+		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr, nullptr, 0);
 		cube_render.gl_texture = hdr_texture;
 	}
 	else if (cube_map_irradiance != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform samplerCube environment_map;\n\nconst float PI = 3.14159265359;\n\nvoid main()\n{		\n    vec3 npos = normalize(world_position);\n    vec3 irradiance = vec3(0.0);   \n    vec3 up    = vec3(0.0, 1.0, 0.0);\n    vec3 right = cross(up, npos);\n    up = cross(npos, right);\n       \n    float sample_delta = 0.025;\n    float cnt_samples = 0.0f;\n    for (float phi = 0.0; phi < 2.0 * PI; phi += sample_delta) {\n        for (float theta = 0.0; theta < 0.5 * PI; theta += sample_delta) {\n            vec3 tangent_simple = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));\n            vec3 sample_vec = tangent_simple.x * right + tangent_simple.y * up + tangent_simple.z * npos;\n\n            irradiance += texture(environment_map, sample_vec).rgb * cos(theta) * sin(theta);\n            cnt_samples++;\n        }\n    }\n    irradiance = PI * irradiance * (1.0 / float(cnt_samples));\n    \n    frag_color = vec4(irradiance, 1.0);\n}";
-		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr);
+		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr, nullptr, 0);
 		cube_render.gl_texture = cube_map_irradiance;
 	}
 	else if(cube_map_prefilter != nullptr) {
 		const char *vert_shader = "#version 330 core\nlayout (location = 0) in vec3 position;\n\nout vec3 world_position;\n\nuniform mat4 projection;\nuniform mat4 view;\n\nvoid main()\n{\n    world_position = position;  \n    gl_Position =  projection * view * vec4(world_position, 1.0);\n}";
 		const char *frag_shader = "#version 330 core\nout vec4 frag_color;\nin vec3 world_position;\n\nuniform samplerCube environment_map;\nuniform float roughness;\n\nconst float PI = 3.14159265359;\n\n// ----------------------------------------------------------------------------\n\nfloat distributionGGX(vec3 N, vec3 H, float roughness)\n{\n    float a = roughness * roughness;\n    float a2 = a*a;\n    float n_dot_h = max(dot(N, H), 0.0);\n    float n_dot_h2 = n_dot_h * n_dot_h;\n\n    float nom   = a2;\n    float denom = (n_dot_h2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n\n    return nom / denom;\n}\n\nfloat radicalInverseVdC(uint bits) \n{\n     bits = (bits << 16u) | (bits >> 16u);\n     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);\n     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);\n     bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);\n     bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);\n     return float(bits) * 2.3283064365386963e-10; // / 0x100000000\n}\n\n// ----------------------------------------------------------------------------\n\nvec2 hammersley(uint i, uint N)\n{\n	return vec2(float(i)/float(N), radicalInverseVdC(i));\n}\n\n// ----------------------------------------------------------------------------\n\nvec3 importanceSampleGGX(vec2 Xi, vec3 N, float roughness)\n{\n	float a = roughness * roughness;\n	\n	float phi = 2.0 * PI * Xi.x;\n	float cos_theta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));\n	float sin_theta = sqrt(1.0 - cos_theta*cos_theta);\n	\n	// from spherical coordinates to cartesian coordinates - halfway vector\n	vec3 H;\n	H.x = cos(phi) * sin_theta;\n	H.y = sin(phi) * sin_theta;\n	H.z = cos_theta;\n	\n	// from tangent-space H vector to world-space sample vector\n	vec3 up          = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);\n	vec3 tangent   = normalize(cross(up, N));\n	vec3 bitangent = cross(N, tangent);\n	\n	vec3 sample_vec = tangent * H.x + bitangent * H.y + N * H.z;\n	return normalize(sample_vec);\n}\n\n// ----------------------------------------------------------------------------\n\nvoid main()\n{		\n    vec3 N = normalize(world_position);\n    \n    // make the simplyfying assumption that V equals R equals the normal \n    vec3 R = N;\n    vec3 V = R;\n\n    const uint SAMPLE_COUNT = 1024u;\n    vec3 prefiltered_color = vec3(0.0);\n    float total_weight = 0.0;\n    \n    for (uint i = 0u; i < SAMPLE_COUNT; ++i) {\n        // generates a sample vector that's biased towards the preferred alignment direction (importance sampling).\n        vec2 Xi = hammersley(i, SAMPLE_COUNT);\n        vec3 H = importanceSampleGGX(Xi, N, roughness);\n        vec3 L  = normalize(2.0 * dot(V, H) * H - V);\n\n        float NdotL = max(dot(N, L), 0.0);\n        if(NdotL > 0.0)\n        {\n            // sample from the environment's mip level based on roughness/pdf\n            float D   = distributionGGX(N, H, roughness);\n            float n_dot_h = max(dot(N, H), 0.0);\n            float HdotV = max(dot(H, V), 0.0);\n            float pdf = D * n_dot_h / (4.0 * HdotV) + 0.0001; \n\n            float resolution = 512.0; // resolution of source cubemap (per face)\n            float sa_texel  = 4.0 * PI / (6.0 * resolution * resolution);\n            float sa_sample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);\n\n            float mip_level = roughness == 0.0 ? 0.0 : 0.5 * log2(sa_sample / sa_texel); \n            \n            prefiltered_color += textureLod(environment_map, L, mip_level).rgb * NdotL;\n            total_weight      += NdotL;\n        }\n    }\n\n    prefiltered_color = prefiltered_color / total_weight;\n\n    frag_color = vec4(prefiltered_color, 1.0);\n}";
-		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr);
+		cube_render.gl_shader = _ztgl_shaderMake(gl_renderer, gl_context, zt_memGetGlobalArena(), vert_shader, frag_shader, nullptr, nullptr, 0);
 		cube_render.gl_texture = cube_map_prefilter;
 		cube_render.mip_levels = 5;
 	}
@@ -4415,12 +4459,12 @@ bool _ztgl_textureIsRenderTarget(ztTextureGL *texture)
 
 ztInternal void _ztgl_textureRenderTargetSetDrawBuffers(ztRendererGL *gl_renderer, ztTextureGL *gl_texture, bool force_on)
 {
-	GLenum targets[zt_elementsOf(gl_texture->attachments)];
+	GLenum targets[zt_elementsOf(gl_texture->attachments) + 1];
 
 	int target_idx = 0;
 	targets[target_idx++] = GL_COLOR_ATTACHMENT0;
 
-	zt_fize(gl_texture->attachments) {
+	zt_fiz(gl_texture->attachments_count) {
 		if (gl_texture->attachments_enabled[i] || (gl_texture->attachments[i] != 0 && force_on)) {
 			targets[target_idx++] = GL_COLOR_ATTACHMENT0 + 1 + i;
 		}
