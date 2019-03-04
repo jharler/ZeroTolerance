@@ -301,7 +301,6 @@ typedef unsigned long long size_t;
 #define zt_real32Close(val1, val2)                (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
 #define zt_real64Close(val1, val2)                (zt_max(val1, val2) - zt_min(val1, val2) < 0.0001f)
 
-// yes, shamelessly "borrowed" from Shawn McGrath
 #define zt_fiz(end)                               for (int i = 0; i < (int)(end); ++i)
 #define zt_fjz(end)                               for (int j = 0; j < (int)(end); ++j)
 #define zt_fkz(end)                               for (int k = 0; k < (int)(end); ++k)
@@ -645,6 +644,7 @@ struct ztVec3
 	static const ztVec3 min;
 	static const ztVec3 max;
 	static const ztVec3 up;
+	static const ztVec3 right;
 };
 #pragma pack(pop)
 
@@ -1172,6 +1172,8 @@ ztInline ztQuat operator/(const ztQuat& q1, r32 scale);
 bool zt_isPow2              (i32 number);
 i32  zt_nextPow2            (i32 number);
 
+i32  zt_byteAlign           (i32 bytes);
+
 i32  zt_convertToi32Ceil    (r32 number);
 i32  zt_convertToi32Floor   (r32 number);
 
@@ -1231,6 +1233,7 @@ struct ztGuid
 
 ztInline ztGuid  zt_guid(u32 part1, u32 part2, u32 part3, u32 part4);
 ztInline ztGuid  zt_guidMake(u32 part1, u32 part2, u32 part3, u32 part4);
+ztInline ztGuid  zt_guidGenerate();
 ztInline bool    zt_guidEquals(const ztGuid& guid1, const ztGuid& guid2);
 
 ztInline bool    operator==(const ztGuid& guid1, const ztGuid& guid2);
@@ -1407,6 +1410,7 @@ ztInline void             zt_variantAssignValue(ztVariantPointer *variant, ztVar
 
 ztInline ztVariant        zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct);
 
+ztInline bool             zt_variantEquals(ztVariant *vone, ztVariant *vtwo);
 
 // ================================================================================================================================================================================================
 // function pointers
@@ -1819,6 +1823,7 @@ int zt_strBytesToString  (char *buffer, int buffer_size, i32 bytes);
 int zt_strNumberToString (char *buffer, int buffer_size, i64 number);
 
 int zt_strConvertToUTF16 (const char* s, int s_len, u16* buffer, int buffer_size);
+int zt_strConvertUTF16to8(const u16* s, int s_len, char* buffer, int buffer_size);
 
 
 // ================================================================================================================================================================================================
@@ -1828,12 +1833,12 @@ int zt_strConvertToUTF16 (const char* s, int s_len, u16* buffer, int buffer_size
 
 typedef char* ztString;
 
-ztString  zt_stringMake      (int size, ztMemoryArena *arena = nullptr);
-ztString  zt_stringResize    (ztString string, int size, ztMemoryArena *arena = nullptr);
-ztString  zt_stringMakeFrom  (const char *str, ztMemoryArena *arena = nullptr);
-ztString  zt_stringMakeFrom  (const char *str, int s_len, ztMemoryArena *arena = nullptr);
-ztString  zt_stringOverwrite (ztString string, const char *str, ztMemoryArena *arena = nullptr);
-void      zt_stringFree      (ztString string, ztMemoryArena *arena = nullptr);
+ztString  zt_stringMake      (int size, ztMemoryArena *arena = zt_memGetGlobalArena());
+ztString  zt_stringResize    (ztString string, int size, ztMemoryArena *arena = zt_memGetGlobalArena());
+ztString  zt_stringMakeFrom  (const char *str, ztMemoryArena *arena = zt_memGetGlobalArena());
+ztString  zt_stringMakeFrom  (const char *str, int s_len, ztMemoryArena *arena = zt_memGetGlobalArena());
+ztString  zt_stringOverwrite (ztString string, const char *str, ztMemoryArena *arena = zt_memGetGlobalArena());
+void      zt_stringFree      (ztString string, ztMemoryArena *arena = zt_memGetGlobalArena());
 int       zt_stringSize      (ztString string);
 
 
@@ -1861,7 +1866,7 @@ struct ztStringPool
 // out of the 100 allocated strings, 55 of them will be 16 characters (10/18), 27 will be 32 characters (5/18), 11 will be 64 characters (2/18), 7 will be 128 characters (1/18 + remainder)
 // if the pool has no available entries, it will allocate them from the arena given
 
-ztStringPool zt_stringPoolMake        (int total_strings, int *sizes, int *proportions, int sizes_count, ztMemoryArena *arena = nullptr);
+ztStringPool zt_stringPoolMake        (int total_strings, int *sizes, int *proportions, int sizes_count, ztMemoryArena *arena = zt_memGetGlobalArena());
 void         zt_stringPoolFree        (ztStringPool *pool);
 i32          zt_stringPoolBytesNeeded (int total_strings, int *sizes, int *proportions, int sizes_count);
 
@@ -1919,7 +1924,7 @@ struct ztFile
 
 // ================================================================================================================================================================================================
 
-#define ztFileMaxPath	1024 * 4	// handy constant for path sizes on the stack
+#define ztFileMaxPath	1024 * 1	// handy constant for path sizes on the stack
 
 #if defined(ZT_WINDOWS)
 #	define ztFilePathSeparator	'\\'
@@ -1954,13 +1959,19 @@ i32           zt_fileGetCurrentPath              (char *buffer, int buffer_size)
 void          zt_fileSetCurrentPath              (const char *path);
 
 i32           zt_fileGetFileInOtherFileDirectory (char *buffer, int buffer_size, const char *file_only, const char *other_file_full_path);	// will expand the file_only to a full path, using the path of the other_file_full_path
+i32           zt_fileGetFileInOtherFileDirectory (char *buffer, int buffer_size, const char *file_only, int file_only_len, const char *other_file_full_path, int other_file_full_path_len);
 i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, const char *file);
 i32           zt_fileConcatFileToPath            (char *buffer, int buffer_size, const char *path, int path_len, const char *file, int file_len);
+i32           zt_fileNameMakeSafe                (char *name, int name_len, char replace_char = '_');
 
 bool          zt_fileExists                      (const char *file_name);
+bool          zt_fileExists                      (const char *file_name, int file_name_len);
 bool          zt_fileDelete                      (const char *file_name);
+bool          zt_fileDelete                      (const char *file_name, int file_name_len);
 bool          zt_fileCopy                        (const char *orig_file, const char *new_file);
+bool          zt_fileCopy                        (const char *orig_file, int orig_file_len, const char *new_file, int new_file_len);
 bool          zt_fileRename                      (const char *orig_file, const char *new_file);
+bool          zt_fileRename                      (const char *orig_file, int orig_file_len, const char *new_file, int new_file_len);
 i32           zt_fileSize                        (const char *file_name);
 bool          zt_fileModified                    (const char *file_name, i32 *year, i32 *month, i32 *day, i32 *hour, i32 *minute, i32 *second, i32 *ms);
 bool          zt_fileModified                    (const char *file_name, i64* date_time);
@@ -1999,8 +2010,15 @@ i32           zt_readEntireFile                  (const char *file_name, void *b
 i32           zt_writeEntireFile                 (const char *file_name, void *data, i32 data_size, ztMemoryArena *arena = zt_memGetGlobalArena());
 
 bool          zt_directoryExists                 (const char *dir);
+bool          zt_directoryExists                 (const char *dir, int dir_len);
 bool          zt_directoryMake                   (const char *dir);
+bool          zt_directoryMake                   (const char *dir, int dir_len);
 bool          zt_directoryDelete                 (const char *dir, bool force);
+bool          zt_directoryDelete                 (const char *dir, int dir_len, bool force);
+bool          zt_directoryCopy                   (const char *orig_dir, const char *new_dir);
+bool          zt_directoryCopy                   (const char *orig_dir, int orig_dir_len, const char *new_dir, int new_dir_len);
+bool          zt_directoryRename                 (const char *orig_dir, const char *new_dir);
+bool          zt_directoryRename                 (const char *orig_dir, int orig_dir_len, const char *new_dir, int new_dir_len);
 
 i32           zt_getDirectorySubs                (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of sub directories
 i32           zt_getDirectoryFiles               (const char *directory, char *buffer, i32 buffer_size, bool recursive); // returns \n delimited string of files
@@ -2239,16 +2257,19 @@ enum ztClipboardDataType_Enum
 	ztClipboardDataType_Invalid,
 
 	ztClipboardDataType_PlainText,
+	ztClipboardDataType_Binary,
 
 	ztClipboardDataType_MAX,
 };
 
 
 bool zt_clipboardSendPlainText(const char *text);
+bool zt_clipboardSendBinary(const void *memory, i32 memory_size);
 
 bool zt_clipboardContains(ztClipboardDataType_Enum type);
 
 bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read);
+bool zt_clipboardReadBinary(void *buffer, int buffer_len, int *bytes_read);
 
 
 // ================================================================================================================================================================================================
@@ -2329,6 +2350,7 @@ struct ztSerial
 
 bool zt_serialMakeWriter (ztSerial *serial, const char *file_name, const char *identifier, i32 version, i32 write_buffer_size = zt_megabytes(1));
 bool zt_serialMakeWriter (ztSerial *serial, ztFile *file, const char *identifier, i32 version, i32 write_buffer_size = zt_megabytes(1));
+bool zt_serialMakeWriter (ztSerial *serial, void *memory_buffer, i32 memory_buffer_size, const char *identifier, i32 version);
 
 // if opening a reader fails, check the mode in the ztSerial instance.  if it's ztSerialMode_Corrupt, then the file's checksum did not match
 bool zt_serialMakeReader (ztSerial *serial, const char *file_name, const char *identifier);
@@ -2750,7 +2772,7 @@ void zt_memoryDeltaApply (void *chunk, int chunk_size, void *diff, int diff_size
 // ================================================================================================================================================================================================
 
 
-//i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size); // not yet implemented
+i32 zt_compressDeflate(void *data, i32 data_size, void *buffer, i32 buffer_size);
 i32 zt_compressInflate (void *compressed, i32 compressed_size, void *buffer, i32 buffer_size);
 
 
@@ -2773,6 +2795,18 @@ ztInline i32 zt_nextPow2(i32 number)
 	i32 nval = 2;
 	while (nval < number) nval *= 2;
 	return nval;
+}
+
+// ================================================================================================================================================================================================
+
+ztInline i32 zt_byteAlign(i32 bytes)
+{
+	const int byte_align = ztPointerSize;
+	if (bytes % byte_align != 0) {
+		bytes += byte_align - (bytes % byte_align);	// align the memory to 4/8 byte chunks
+	}
+
+	return bytes;
 }
 
 // ================================================================================================================================================================================================
@@ -4166,6 +4200,35 @@ ztInline ztVariant zt_variantLerp(ztVariant *beg, ztVariant *end, r32 pct)
 	ztVariant v = { ztVariant_Invalid }; return v;
 }
 
+ztInline bool zt_variantEquals(ztVariant *vone, ztVariant *vtwo)
+{
+	if (vone->type != vtwo->type) {
+		return false;
+	}
+
+	switch (vone->type)
+	{
+		case ztVariant_i8: return vone->v_i8 == vtwo->v_i8;
+		case ztVariant_i16: return vone->v_i16 == vtwo->v_i16;
+		case ztVariant_i32: return vone->v_i32 == vtwo->v_i32;
+		case ztVariant_i64: return vone->v_i64 == vtwo->v_i64;
+		case ztVariant_u8: return vone->v_u8 == vtwo->v_u8;
+		case ztVariant_u16: return vone->v_u16 == vtwo->v_u16;
+		case ztVariant_u32: return vone->v_u32 == vtwo->v_u32;
+		case ztVariant_u64: return vone->v_u64 == vtwo->v_u64;
+		case ztVariant_r32: return zt_real32Eq(vone->v_r32, vtwo->v_r32);
+		case ztVariant_r64: return  zt_real64Eq(vone->v_r64, vtwo->v_r64);
+		case ztVariant_voidp: return vone->v_voidp == vtwo->v_voidp;
+		case ztVariant_vec2: return vone->v_vec2 == vtwo->v_vec2;
+		case ztVariant_vec3: return vone->v_vec3 == vtwo->v_vec3;
+		case ztVariant_vec4: return vone->v_vec4 == vtwo->v_vec4;
+		case ztVariant_mat4: return vone->v_mat4 == vtwo->v_mat4;
+		case ztVariant_quat: return vone->v_quat == vtwo->v_quat;
+		case ztVariant_bool: return vone->v_bool == vtwo->v_bool;
+	}
+
+	return false;
+}
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -5681,21 +5744,22 @@ void zt_memFreeGlobal(void *data)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
-/*static*/ const ztVec2 ztVec2::zero = zt_vec2(0, 0);
-/*static*/ const ztVec2 ztVec2::one  = zt_vec2(1, 1);
-/*static*/ const ztVec2 ztVec2::min  = zt_vec2(ztReal32Min, ztReal32Min);
-/*static*/ const ztVec2 ztVec2::max  = zt_vec2(ztReal32Max, ztReal32Max);
+/*static*/ const ztVec2 ztVec2::zero  = zt_vec2(0, 0);
+/*static*/ const ztVec2 ztVec2::one   = zt_vec2(1, 1);
+/*static*/ const ztVec2 ztVec2::min   = zt_vec2(ztReal32Min, ztReal32Min);
+/*static*/ const ztVec2 ztVec2::max   = zt_vec2(ztReal32Max, ztReal32Max);
 
-/*static*/ const ztVec3 ztVec3::zero = zt_vec3(0, 0, 0);
-/*static*/ const ztVec3 ztVec3::one  = zt_vec3(1, 1, 1);
-/*static*/ const ztVec3 ztVec3::min  = zt_vec3(ztReal32Min, ztReal32Min, ztReal32Min);
-/*static*/ const ztVec3 ztVec3::max  = zt_vec3(ztReal32Max, ztReal32Max, ztReal32Max);
-/*static*/ const ztVec3 ztVec3::up   = zt_vec3(0, 1, 0);
+/*static*/ const ztVec3 ztVec3::zero  = zt_vec3(0, 0, 0);
+/*static*/ const ztVec3 ztVec3::one   = zt_vec3(1, 1, 1);
+/*static*/ const ztVec3 ztVec3::min   = zt_vec3(ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec3 ztVec3::max   = zt_vec3(ztReal32Max, ztReal32Max, ztReal32Max);
+/*static*/ const ztVec3 ztVec3::up    = zt_vec3(0, 1, 0);
+/*static*/ const ztVec3 ztVec3::right = zt_vec3(1, 0, 0);
 
-/*static*/ const ztVec4 ztVec4::zero = zt_vec4(0, 0, 0, 0);
-/*static*/ const ztVec4 ztVec4::one  = zt_vec4(1, 1, 1, 1);
-/*static*/ const ztVec4 ztVec4::min  = zt_vec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
-/*static*/ const ztVec4 ztVec4::max  = zt_vec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
+/*static*/ const ztVec4 ztVec4::zero  = zt_vec4(0, 0, 0, 0);
+/*static*/ const ztVec4 ztVec4::one   = zt_vec4(1, 1, 1, 1);
+/*static*/ const ztVec4 ztVec4::min   = zt_vec4(ztReal32Min, ztReal32Min, ztReal32Min, ztReal32Min);
+/*static*/ const ztVec4 ztVec4::max   = zt_vec4(ztReal32Max, ztReal32Max, ztReal32Max, ztReal32Max);
 
 /*static*/ const ztMat3 ztMat3::zero = zt_mat3(0, 0, 0, 0, 0, 0, 0, 0, 0);
 /*static*/ const ztMat3 ztMat3::identity = zt_mat3(1, 0, 0, 0, 1, 0, 0, 0, 1);
@@ -5805,6 +5869,44 @@ r32 zt_fmod(r32 v, r32 d)
 
 	return fmodf(v, d);
 }
+
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+// ================================================================================================================================================================================================
+
+ztInline ztGuid zt_guidGenerate()
+{
+	// this was tested by generating 1 million GUIDs and checking for collisions
+	// this has not been tested across multiple computers or even different processes on the same computer
+
+#	if defined(ZT_GAME_NAME)
+	static u32 namespace_hash = zt_strHash(ZT_GAME_NAME);
+#	elif defined(ZT_GUID_NAMESPACE)
+	static u32 namespace_hash = zt_strHash(ZT_GUID_NAMESPACE);
+#	else
+	static u32 namespace_hash = zt_strHash("ZeroTolerance Guid Namespace");
+#	endif
+
+	static ztRandom random;
+	static bool first = true;
+
+	if (first) {
+		zt_randomInit(&random, (u32)time(nullptr));
+		first = false;
+	}
+
+	i32 rand_no = zt_randomInt(&random, 0, ztInt32Max) * zt_randomInt(&random, 0, ztInt32Max);
+
+	ztGuid guid;
+
+	guid.guid_32[0] = zt_randomInt(&random, 0, ztInt32Max) * (rand_no & 0xffff) | ((namespace_hash >> 16) & 0xffff);
+	guid.guid_32[1] = zt_randomInt(&random, 0, ztInt32Max) * zt_randomInt(&random, 0, ztInt32Max);
+	guid.guid_32[2] = zt_randomInt(&random, 0, ztInt32Max) * (namespace_hash & 0xffff) | ((rand_no >> 16) & 0xffff);
+	guid.guid_32[3] = zt_randomInt(&random, 0, ztInt32Max) * zt_randomInt(&random, 0, ztInt32Max);
+
+	return guid;
+}
+
 
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
@@ -8833,6 +8935,29 @@ int zt_strConvertToUTF16(const char* s, int s_len, u16* buffer, int buffer_size)
 
 // ================================================================================================================================================================================================
 
+int zt_strConvertUTF16to8(const u16* s, int s_len, char* buffer, int buffer_size)
+{
+	ZT_PROFILE_TOOLS("zt_strConvertUTF16to8");
+#if defined(ZT_WINDOWS)
+	if (!s || s_len < 0 || !buffer || buffer_size <= 0)
+		return 0;
+
+	int len = WideCharToMultiByte(CP_UTF8, 0, (LPCWCH)s, s_len, buffer, buffer_size, NULL, NULL);
+	len = zt_clamp(len, 0, buffer_size - 1);
+
+	buffer[len] = 0;
+
+	return len;
+#elif defined(ZT_EMSCRIPTEN) || defined(ZT_ANDROID)
+	zt_assert(false);
+	return 0;
+#else
+#error zt_strConvertUTF16to8 needs an implementation for this platform.
+#endif
+}
+
+// ================================================================================================================================================================================================
+
 ztString zt_stringMake(int size, ztMemoryArena *arena)
 {
 	ZT_PROFILE_TOOLS("zt_stringMake");
@@ -9165,6 +9290,65 @@ void zt_stringFree(ztStringPool *pool, ztString string)
 // ================================================================================================================================================================================================
 // ================================================================================================================================================================================================
 
+#if defined(ZT_WINDOWS)
+
+#if defined(ZT_DEBUG)
+#include <RestartManager.h>
+#pragma comment(lib, "Rstrtmgr.lib")
+#endif
+
+
+ztInternal HANDLE _zt_createFileA(LPCSTR file_name, DWORD desired_access, DWORD share_mode, LPSECURITY_ATTRIBUTES security_attribs, DWORD creation_disposition, DWORD flags_and_attributes, HANDLE template_file)
+{
+	HANDLE result = CreateFileA(file_name, desired_access, share_mode, security_attribs, creation_disposition, flags_and_attributes, template_file);
+
+#if defined(ZT_DEBUG)
+	if (result == INVALID_HANDLE_VALUE) {
+		i32 error = GetLastError();
+		if (error == 32) {
+			zt_sleep(.25f);
+			result = CreateFileA(file_name, desired_access, share_mode, security_attribs, creation_disposition, flags_and_attributes, template_file);
+			if (result != INVALID_HANDLE_VALUE) {
+				return result;
+			}
+
+			DWORD session;
+			WCHAR session_key[CCH_RM_SESSION_KEY + 1] = { 0 };
+			DWORD rm_error = RmStartSession(&session, 0, session_key);
+			if (rm_error == ERROR_SUCCESS) {
+				WCHAR wchar_file_name[ztFileMaxPath];
+				zt_strConvertToUTF16(file_name, zt_strLen(file_name), (u16*)wchar_file_name, zt_elementsOf(wchar_file_name));
+
+				PCWSTR wchar_file_name_ptr = (PCWSTR)wchar_file_name;
+				rm_error = RmRegisterResources(session, 1, &wchar_file_name_ptr, 0, NULL, 0, NULL);
+				if (rm_error == ERROR_SUCCESS) {
+					DWORD reason;
+					UINT proc_info_needed;
+					UINT proc_info = 10;
+					RM_PROCESS_INFO rgpi[10];
+					rm_error = RmGetList(session, &proc_info_needed, &proc_info, rgpi, &reason);
+					if (rm_error == ERROR_SUCCESS) {
+						zt_fiz(proc_info) {
+							char app_name[ztFileMaxPath];
+							zt_strConvertUTF16to8((const u16*)rgpi[i].strAppName, (int)wcslen(rgpi[i].strAppName), app_name, zt_elementsOf(app_name));
+							zt_logCritical("file locked: '%s' by process: '%s'", file_name, app_name);
+						}
+					}
+				}
+				RmEndSession(session);
+			}
+		}
+		SetLastError(error);
+	}
+#endif
+
+	return result;
+}
+
+#endif
+
+// ================================================================================================================================================================================================
+
 bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file_open_method, ztMemoryArena *arena)
 {
 	ZT_PROFILE_TOOLS("zt_fileOpen");
@@ -9185,24 +9369,11 @@ bool zt_fileOpen(ztFile *file, const char *file_name, ztFileOpenMethod_Enum file
 		case ztFileOpenMethod_WriteOver:   access |= GENERIC_WRITE; creation = CREATE_ALWAYS; break;
 	}
 
-	HANDLE hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = _zt_createFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
-		i32 error = (i32)GetLastError();
-
-		if (error == 32) { // file in use, sleep and try again
-			zt_fiz(20) {
-				zt_sleep(25.f / 1000.f);
-				hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (hfile != INVALID_HANDLE_VALUE || GetLastError() != 32) {
-					break;
-				}
-			}
-		}
-			
-		if (hfile == INVALID_HANDLE_VALUE) {
-			zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, error);
-			return false;
-		}
+		i32 error = GetLastError();
+		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, error);
+		return false;
 	}
 
 	char file_name_full[MAX_PATH] = {0};
@@ -9667,22 +9838,46 @@ void zt_fileSetCurrentPath(const char *path)
 i32 zt_fileGetFileInOtherFileDirectory(char * buffer, int buffer_size, const char *file_only, const char *other_file_full_path)
 {
 	ZT_PROFILE_TOOLS("zt_fileGetFileInOtherFileDirectory");
+	return zt_fileGetFileInOtherFileDirectory(buffer, buffer_size, file_only, zt_strLen(file_only), other_file_full_path, zt_strLen(other_file_full_path));
+}
 
-	int posEnd = zt_max(zt_strFindLastPos(other_file_full_path, "/"), zt_strFindLastPos(other_file_full_path, "\\"));
-	if (posEnd == ztStrPosNotFound) {
-		posEnd = zt_strFindLastPos(other_file_full_path, "/");
-		if (posEnd == ztStrPosNotFound) {
-			posEnd = zt_strFindLastPos(other_file_full_path, "\\");
+// ================================================================================================================================================================================================
+
+i32 zt_fileGetFileInOtherFileDirectory(char *buffer, int buffer_size, const char *file_only, int file_only_len, const char *other_file_full_path, int other_file_full_path_len)
+{
+	int pos_end = zt_max(zt_strFindLastPos(other_file_full_path, other_file_full_path_len, "/"), zt_strFindLastPos(other_file_full_path, other_file_full_path_len, "\\"));
+	if (pos_end == ztStrPosNotFound) {
+		pos_end = zt_strFindLastPos(other_file_full_path, other_file_full_path_len, "/");
+		if (pos_end == ztStrPosNotFound) {
+			pos_end = zt_strFindLastPos(other_file_full_path, other_file_full_path_len, "\\");
 		}
 	}
-	if (posEnd == ztStrPosNotFound) {
+	if (pos_end == ztStrPosNotFound) {
 		return zt_strCpy(buffer, buffer_size, file_only);
 	}
 
-	char path_only[ztFileMaxPath];
-	zt_strCpy(path_only, ztFileMaxPath, other_file_full_path, posEnd + 1);
+	while (zt_strStartsWith(other_file_full_path, "/") || zt_strStartsWith(other_file_full_path, "\\")) {
+		other_file_full_path += 1;
+		other_file_full_path_len -= 1;
+	}
 
-	return zt_strPrintf(buffer, buffer_size, "%s%s", path_only, file_only);
+	while (zt_strStartsWith(file_only, file_only_len, "..", 2)) {
+		file_only += 3;
+		file_only_len -= 3;
+
+		pos_end = zt_max(zt_strFindLastPos(other_file_full_path, pos_end - 1, "/"), zt_strFindLastPos(other_file_full_path, pos_end - 1, "\\"));
+		if (pos_end == ztStrPosNotFound) {
+			return zt_strCpy(buffer, buffer_size, file_only);
+		}
+	}
+
+	char path_only[ztFileMaxPath];
+	zt_strCpy(path_only, ztFileMaxPath, other_file_full_path, pos_end + 1);
+
+	zt_strCpy(buffer, buffer_size, path_only);
+	zt_strCat(buffer, buffer_size, file_only, file_only_len);
+
+	return zt_strLen(buffer);
 }
 
 // ================================================================================================================================================================================================
@@ -9759,13 +9954,37 @@ i32 zt_fileConcatFileToPath(char *buffer, int buffer_size, const char *path, int
 
 // ================================================================================================================================================================================================
 
+i32 zt_fileNameMakeSafe(char *name, int name_len, char replace_char)
+{
+	zt_fiz(name_len) {
+		switch (name[i])
+		{
+			case '\\':
+			case '/':
+			case '?':
+			case '%':
+			case '*':
+			case ':':
+			case '|':
+			case '"':
+			case '<':
+			case '>':
+				name[i] = replace_char;
+		};
+	}
+
+	return name_len;
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_fileExists(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileExists");
 
 #	if defined(ZT_WINDOWS)
 
-	HANDLE hfile = CreateFileA(file_name, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = _zt_createFileA(file_name, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
 		int err = GetLastError();
 		return false;
@@ -9794,6 +10013,16 @@ bool zt_fileExists(const char *file_name)
 
 // ================================================================================================================================================================================================
 
+bool zt_fileExists(const char *file, int file_len)
+{
+	char file_copy[ztFileMaxPath];
+	zt_strCpy(file_copy, ztFileMaxPath, file, file_len);
+
+	return zt_fileExists(file_copy);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_fileDelete(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileDelete");
@@ -9810,6 +10039,16 @@ bool zt_fileDelete(const char *file_name)
 	zt_assert(false); // TODO: implement
 	return false;
 #	endif
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_fileDelete(const char *file, int file_len)
+{
+	char file_copy[ztFileMaxPath];
+	zt_strCpy(file_copy, ztFileMaxPath, file, file_len);
+
+	return zt_fileDelete(file_copy);
 }
 
 // ================================================================================================================================================================================================
@@ -9835,6 +10074,19 @@ bool zt_fileCopy(const char *orig_file, const char *new_file)
 
 // ================================================================================================================================================================================================
 
+bool zt_fileCopy(const char *orig_file, int orig_file_len, const char *new_file, int new_file_len)
+{
+	char orig_file_copy[ztFileMaxPath];
+	zt_strCpy(orig_file_copy, ztFileMaxPath, orig_file, orig_file_len);
+
+	char new_file_copy[ztFileMaxPath];
+	zt_strCpy(new_file_copy, ztFileMaxPath, new_file, new_file_len);
+
+	return zt_fileCopy(orig_file_copy, new_file_copy);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_fileRename(const char *orig_file, const char *new_file)
 {
 	ZT_PROFILE_TOOLS("zt_fileRename");
@@ -9856,6 +10108,19 @@ bool zt_fileRename(const char *orig_file, const char *new_file)
 
 // ================================================================================================================================================================================================
 
+bool zt_fileRename(const char *orig_file, int orig_file_len, const char *new_file, int new_file_len)
+{
+	char orig_file_copy[ztFileMaxPath];
+	zt_strCpy(orig_file_copy, ztFileMaxPath, orig_file, orig_file_len);
+
+	char new_file_copy[ztFileMaxPath];
+	zt_strCpy(new_file_copy, ztFileMaxPath, new_file, new_file_len);
+
+	return zt_fileRename(orig_file_copy, new_file_copy);
+}
+
+// ================================================================================================================================================================================================
+
 i32 zt_fileSize(const char *file_name)
 {
 	ZT_PROFILE_TOOLS("zt_fileSize");
@@ -9863,9 +10128,9 @@ i32 zt_fileSize(const char *file_name)
 #	if defined(ZT_WINDOWS)
 	u32 access = GENERIC_READ, creation = OPEN_EXISTING;
 
-	HANDLE hfile = CreateFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = _zt_createFileA(file_name, access, 0, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
-		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		zt_logCritical("zt_fileSize: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
 		return false;
 	}
 
@@ -9895,9 +10160,9 @@ bool zt_fileModified(const char *file_name, i32 *year, i32 *month, i32 *day, i32
 #	if defined(ZT_WINDOWS)
 	u32 file_access = GENERIC_READ, file_creation = OPEN_EXISTING;
 
-	HANDLE hfile = CreateFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = _zt_createFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
-		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		zt_logCritical("zt_fileModified: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
 		return false;
 	}
 
@@ -9935,9 +10200,9 @@ bool zt_fileModified(const char *file_name, i64* date_time)
 #	if defined(ZT_WINDOWS)
 	u32 file_access = GENERIC_READ, file_creation = OPEN_EXISTING;
 
-	HANDLE hfile = CreateFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hfile = _zt_createFileA(file_name, file_access, 0, NULL, file_creation, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hfile == INVALID_HANDLE_VALUE) {
-		zt_logCritical("zt_fileOpen: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
+		zt_logCritical("zt_fileModified: unable to open file: '%s' (error code: %d)", file_name, (i32)GetLastError());
 		return false;
 	}
 
@@ -10239,6 +10504,15 @@ bool zt_directoryExists(const char *dir)
 
 // ================================================================================================================================================================================================
 
+bool zt_directoryExists(const char *dir, int dir_len)
+{
+	char buffer[ztFileMaxPath];
+	zt_strCpy(buffer, ztFileMaxPath, dir, dir_len);
+	return zt_directoryExists(buffer);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_directoryMake(const char *dir)
 {
 	ZT_PROFILE_TOOLS("zt_directoryMake");
@@ -10285,6 +10559,15 @@ bool zt_directoryMake(const char *dir)
 
 // ================================================================================================================================================================================================
 
+bool zt_directoryMake(const char *dir, int dir_len)
+{
+	char buffer[ztFileMaxPath];
+	zt_strCpy(buffer, ztFileMaxPath, dir, dir_len);
+	return zt_directoryMake(buffer);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_directoryDelete(const char *dir, bool force)
 {
 	ZT_PROFILE_TOOLS("zt_directoryDelete");
@@ -10302,29 +10585,30 @@ bool zt_directoryDelete(const char *dir, bool force)
 	zt_getDirectoryFiles(dir, dir_list_buff, dir_list_size, true);
 
 	const char *dir_list = zt_strFind(dir_list_buff, "\n");
-	while (dir_list) {
+	dir_list = dir_list_buff;
+	while (dir_list && *dir_list) {
 		char file[ztFileMaxPath];
 		int pos_end = zt_strFindPos(dir_list, "\n", 0);
-		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end - 1);
+		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end);
 
 		zt_fileDelete(file);
 
-		dir_list = zt_strMoveForward(dir_list, pos_end);
+		dir_list = zt_strMoveForward(dir_list, pos_end + 1);
 	}
 
 	zt_getDirectorySubs(dir, dir_list_buff, dir_list_size, true);
-	dir_list = zt_strFind(dir_list_buff, "\n");
-	while (dir_list) {
+	dir_list = dir_list_buff;
+	while (dir_list && *dir_list) {
 		char file[ztFileMaxPath];
 		int pos_end = zt_strFindPos(dir_list, "\n", 0);
-		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end - 1);
+		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end);
 
 		zt_directoryDelete(file, false);
 
-		dir_list = zt_strMoveForward(dir_list, pos_end);
+		dir_list = zt_strMoveForward(dir_list, pos_end + 1);
 	}
 
-	zt_free(dir_list);
+	zt_free(dir_list_buff);
 
 	return FALSE != RemoveDirectoryA(dir);
 
@@ -10336,6 +10620,117 @@ bool zt_directoryDelete(const char *dir, bool force)
 #	else
 #	error zt_directoryMake needs an implementation for this platform
 #	endif
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_directoryDelete(const char *dir, int dir_len, bool force)
+{
+	char buffer[ztFileMaxPath];
+	zt_strCpy(buffer, ztFileMaxPath, dir, dir_len);
+	return zt_directoryDelete(buffer, force);
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_directoryCopy(const char *orig_dir, const char *new_dir)
+{
+	return zt_directoryCopy(orig_dir, zt_strLen(orig_dir), new_dir, zt_strLen(new_dir));
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_directoryCopy(const char *orig_dir, int orig_dir_len, const char *new_dir, int new_dir_len)
+{
+	if (zt_strStartsWith(new_dir, new_dir_len, orig_dir, orig_dir_len)) {
+		return false; // cannot move one directory to itself
+	}
+
+	if (zt_directoryExists(new_dir, new_dir_len)) {
+		return false; // cannot copy to an existing location
+	}
+
+	if (!zt_directoryMake(new_dir, new_dir_len)) {
+		return false;
+	}
+
+	i32 contents_size = zt_megabytes(2);
+
+	char *contents = zt_mallocStructArrayArena(char, contents_size, zt_memGetTempArena());
+
+	char orig_dir_val[ztFileMaxPath];
+	zt_strCpy(orig_dir_val, ztFileMaxPath, orig_dir, orig_dir_len);
+
+	i32 contents_len = zt_getDirectorySubs(orig_dir_val, contents, contents_size, true);
+
+	const char *dir_list = contents;
+	while (dir_list && *dir_list) {
+		char file[ztFileMaxPath];
+		int pos_end = zt_strFindPos(dir_list, "\n", 0);
+
+		zt_strCpy(file, zt_elementsOf(file), new_dir, new_dir_len);
+		zt_strCat(file, zt_elementsOf(file), dir_list + orig_dir_len, pos_end - orig_dir_len);
+
+		if(!zt_directoryMake(file)) {
+			zt_freeArena(contents, zt_memGetTempArena());
+			return false;
+		}
+
+		dir_list = zt_strMoveForward(dir_list, pos_end + 1);
+	}
+
+	contents[0] = 0;
+	contents_len = zt_getDirectoryFiles(orig_dir_val, contents, contents_size, true);
+
+	dir_list = contents;
+	while (dir_list && *dir_list) {
+		char file[ztFileMaxPath];
+		int pos_end = zt_strFindPos(dir_list, "\n", 0);
+		zt_strCpy(file, zt_elementsOf(file), dir_list, pos_end);
+
+		char nfile[ztFileMaxPath] = {0};
+		zt_fileConcatFileToPath(nfile, ztFileMaxPath, new_dir, file + orig_dir_len);
+
+		if(!zt_fileCopy(file, nfile)) {
+			zt_freeArena(contents, zt_memGetTempArena());
+			return false;
+		}
+
+		dir_list = zt_strMoveForward(dir_list, pos_end + 1);
+	}
+
+	zt_freeArena(contents, zt_memGetTempArena());
+
+	return true;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_directoryRename(const char *orig_dir, const char *new_dir)
+{
+	return zt_directoryRename(orig_dir, zt_strLen(orig_dir), new_dir, zt_strLen(new_dir));
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_directoryRename(const char *orig_dir, int orig_dir_len, const char *new_dir, int new_dir_len)
+{
+#if defined(ZT_WINDOWS)
+	char orig_full[ztFileMaxPath];
+	zt_strCpy(orig_full, ztFileMaxPath, orig_dir, orig_dir_len);
+	char new_full[ztFileMaxPath];
+	zt_strCpy(new_full, ztFileMaxPath, new_dir, new_dir_len);
+
+	return zt_fileRename(orig_full, new_full);
+
+#	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
+	zt_assert(false); // TODO: implement
+
+	return false;
+#	else
+#	error zt_directoryRename needs an implementation for this platform
+#	endif
+	return false;
 }
 
 // ================================================================================================================================================================================================
@@ -10391,8 +10786,11 @@ i32 zt_getDirectorySubs(const char *directory, char *buffer, i32 buffer_size, bo
 				}
 			}
 		}
-		if (!FindNextFileA(hfile, &file_data)) break;
+		if (!FindNextFileA(hfile, &file_data)) {
+			break;
+		}
 	}
+	FindClose(hfile);
 
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
@@ -10527,8 +10925,12 @@ i32 zt_getDirectoryFiles(const char *directory, char *buffer, i32 buffer_size, b
 			buffer[buffer_used++] = '\n';
 			zt_assert(buffer_used < buffer_size);
 		}
-		if (!FindNextFileA(hfile, &file_data)) break;
+
+		if (!FindNextFileA(hfile, &file_data)) {
+			break;
+		}
 	}
+	FindClose(hfile);
 
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
@@ -10694,6 +11096,7 @@ i32 zt_getDirectoryFilesCount(const char *directory, bool recursive)
 		}
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
+	FindClose(hfile);
 
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
@@ -10832,6 +11235,7 @@ i32 zt_getDirectoryFilesBufferSize(const char *directory, bool recursive)
 		}
 		if (!FindNextFileA(hfile, &file_data)) break;
 	}
+	FindClose(hfile);
 
 #	elif defined(ZT_COMPILER_LLVM) || defined(ZT_ANDROID)
 
@@ -10952,7 +11356,7 @@ bool zt_directoryMonitor(ztDirectoryMonitor *dir_mon, const char *directory, boo
 		goto on_error;
 	}
 
-	dir_mon->file = (pointer)CreateFileA(directory, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+	dir_mon->file = (pointer)_zt_createFileA(directory, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 	if (dir_mon->file == NULL) {
 		zt_logCritical("Unable to monitor directory (open directory) (%s). Error: %d", directory, GetLastError());
 		goto on_error;
@@ -12080,12 +12484,29 @@ bool zt_clipboardSendPlainText(const char *text)
 
 // ================================================================================================================================================================================================
 
+#ifndef ZT_CLIPBOARD_BINARY_FORMAT_NAME
+#define ZT_CLIPBOARD_BINARY_FORMAT_NAME "ZeroTolerance Binary Data"
+#endif
+
+bool zt_clipboardSendBinary(const void *memory, i32 memory_size)
+{
+	UINT registered_format = RegisterClipboardFormat(ZT_CLIPBOARD_BINARY_FORMAT_NAME);
+	return _zt_clipboardSetData(memory, memory_size, registered_format);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_clipboardContains(ztClipboardDataType_Enum type)
 {
 	switch(type)
 	{
 		case ztClipboardDataType_PlainText: {
 			return IsClipboardFormatAvailable(CF_TEXT) == TRUE;
+		} break;
+
+		case ztClipboardDataType_Binary: {
+			UINT registered_format = RegisterClipboardFormat(ZT_CLIPBOARD_BINARY_FORMAT_NAME);
+			return IsClipboardFormatAvailable(registered_format) == TRUE;
 		} break;
 	}
 
@@ -12117,6 +12538,44 @@ bool zt_clipboardReadPlainText(char *buffer, int buffer_len, int *chars_read)
 	} 
 	CloseClipboard(); 
 	return result;
+}
+
+// ================================================================================================================================================================================================
+
+bool zt_clipboardReadBinary(void *buffer, int buffer_len, int *bytes_read)
+{
+	UINT registered_format = RegisterClipboardFormat(ZT_CLIPBOARD_BINARY_FORMAT_NAME);
+
+	if (!IsClipboardFormatAvailable(registered_format)) {
+		return false;
+	}
+
+	if (!OpenClipboard(NULL)) {
+		return false;
+	}
+
+	bool result = false;
+	HANDLE handle = GetClipboardData(registered_format);
+	if (handle != NULL) { 
+		void *data = GlobalLock(handle); 
+		i32 data_size = (i32)GlobalSize(handle);
+
+		if (data != NULL && data_size > 0)  {
+			if (buffer_len < data_size) {
+				zt_logCritical("Buffer size passed to clipboard insuffient.  Passed %d, needs %d", buffer_len, data_size);
+				result = true;
+			}
+			else {
+				zt_memCpy(buffer, buffer_len, data, data_size);
+				if (bytes_read) *bytes_read = data_size;
+				result = true;
+			}
+		} 
+		GlobalUnlock(handle);
+	}
+	CloseClipboard();
+	return result;
+
 }
 
 #elif defined(ZT_EMSCRIPTEN) // end ZT_WINDOWS
@@ -12390,6 +12849,10 @@ ztInternal ztInline bool _zt_validateChecksum(ztSerial *serial)
 ztInternal ztInline bool _zt_serialFlushWriteBuffer(ztSerial *serial)
 {
 	if (serial->file_data_pos <= 0 || serial->file_data_size <= 0) {
+		return false;
+	}
+
+	if (serial->file.open_method != ztFileOpenMethod_WriteOver) {
 		return false;
 	}
 
@@ -12700,6 +13163,28 @@ bool zt_serialMakeWriter(ztSerial *serial, ztFile *file, const char *identifier,
 
 // ================================================================================================================================================================================================
 
+bool zt_serialMakeWriter(ztSerial *serial, void *memory_buffer, i32 memory_buffer_size, const char *identifier, i32 version)
+{
+	ZT_PROFILE_TOOLS("zt_serialMakeWriter");
+
+	zt_returnValOnNull(serial, false);
+	zt_returnValOnNull(memory_buffer, false);
+	zt_returnValOnNull(identifier, false);
+	zt_assertReturnValOnFail(memory_buffer_size > 0, false);
+
+	zt_memSet(serial, zt_sizeof(ztSerial), 0);
+
+	serial->file_data = memory_buffer;
+	serial->file_data_size = memory_buffer_size;
+	serial->file_data_pos = 0;
+
+	serial->close_file = false;
+
+	return _zt_serialMakeWriterDoHeader(serial, identifier, version);
+}
+
+// ================================================================================================================================================================================================
+
 bool zt_serialMakeReader(ztSerial *serial, const char *file_name, const char *identifier)
 {
 	ZT_PROFILE_TOOLS("zt_serialMakeReader");
@@ -12774,12 +13259,21 @@ void zt_serialClose(ztSerial *serial)
 	if (serial->mode == ztSerialMode_Writing) {
 		_zt_writeByte(serial, ztSerialEntryType_FileEnd);
 
-		_zt_serialFlushWriteBuffer(serial);
-
-		zt_free(serial->file_data);
-
 		i32 checksum = (serial->_checksum2 << 16) | serial->_checksum1;
-		zt_fileWrite(&serial->file, checksum);
+
+		if (serial->file.open_method == ztFileOpenMethod_WriteOver) {
+			_zt_serialFlushWriteBuffer(serial);
+
+			zt_free(serial->file_data);
+
+			zt_fileWrite(&serial->file, checksum);
+		}
+		else {
+			if (serial->file_data_size - serial->file_data_pos > zt_sizeof(checksum)) {
+				zt_memCpy(((byte*)serial->file_data) + serial->file_data_pos, serial->file_data_size - serial->file_data_pos, &checksum, zt_sizeof(checksum));
+				serial->file_data_pos += zt_sizeof(checksum);
+			}
+		}
 	}
 
 	if (serial->close_file) {
@@ -13493,7 +13987,7 @@ i32 zt_randomInt(ztRandom *random, i32 min, i32 max)
 	random->mt_idx = idx + zt_sizeof(unsigned long);
 	i32 rv = *(unsigned long *)((unsigned char *)b + idx);
 
-	return (zt_abs(rv) % (max - min)) + min;
+	return (zt_abs(rv) % (u32)(max - min)) + min;
 }
 
 // ================================================================================================================================================================================================
