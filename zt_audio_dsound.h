@@ -61,7 +61,7 @@ enum ztDirectSoundContextError_Enum
 
 struct ztDirectSoundContext;
 
-ztDirectSoundContext *ztds_contextMake(HWND window, ztDirectSoundContextError_Enum *error = nullptr);
+ztDirectSoundContext *ztds_contextMake(void *window, ztDirectSoundContextError_Enum *error = nullptr);
 void ztds_contextFree(ztDirectSoundContext *context);
 
 // ================================================================================================================================================================================================
@@ -116,6 +116,7 @@ void ztds_bufferSetFrequency(ztDirectSoundBuffer *buffer, r32 frequency);
 #define __zt_dsound_h_internal_included__
 
 #include <windows.h>
+#include <mmsystem.h>
 #include <dsound.h>
 #include <mmreg.h>
 
@@ -169,8 +170,10 @@ struct ztDirectSoundBuffer
 
 #if defined(ZT_DSOUND_IMPLEMENTATION)
 
-ztDirectSoundContext *ztds_contextMake(HWND window, ztDirectSoundContextError_Enum *error)
+ztDirectSoundContext *ztds_contextMake(void *vwindow, ztDirectSoundContextError_Enum *error)
 {
+	HWND window = (HWND)vwindow;
+
 	ztDirectSoundContext context = {};
 	context.samples_per_second = 48000;
 	context.bytes_per_sample = zt_sizeof(i16) * 2;
